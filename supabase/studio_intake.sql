@@ -77,8 +77,11 @@ security definer
 set search_path = public
 as $$
 begin
-  if not public.is_balletmate_admin() then
-    raise exception 'administrator access required' using errcode = '42501';
+  -- Allow either a signed-in Balletmate admin or the Supabase service role
+  -- used by the scheduled worker. RLS remains enabled on the queue table.
+  if coalesce(auth.role(), '') <> 'service_role'
+     and not public.is_balletmate_admin() then
+    raise exception 'administrator or service role required' using errcode = '42501';
   end if;
   update public.studio_image_crawl_queue
   set status = 'pending', updated_at = now()
