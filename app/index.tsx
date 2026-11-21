@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, FlatList, Keyboard, Modal, Pressable, SafeAreaView, ScrollView,
@@ -32,6 +33,7 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
   return <Pressable onPress={onPress} style={[styles.chip,active&&styles.chipActive]}><Text style={[styles.chipText,active&&styles.chipTextActive]}>{label}</Text></Pressable>;
 }
 export default function Home() {
+  const router = useRouter();
   const map = useRef<MapView>(null);
   const [studios,setStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
   const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");
@@ -115,7 +117,7 @@ export default function Home() {
   return <SafeAreaView style={styles.safe}>
     <View style={styles.header}>
       <View><Text style={styles.brand}>balletmate <Text style={styles.brandDot}>✦</Text></Text><Text style={styles.subtitle}>나에게 맞는 발레를 찾아보세요</Text></View>
-      <Pressable style={styles.profileButton}><Text style={{fontSize:18}}>♡</Text></Pressable>
+      <Pressable style={styles.profileButton} onPress={()=>router.push("/account")}><Text style={{fontSize:18}}>◉</Text></Pressable>
     </View>
     <View style={styles.searchRow}>
       <View style={styles.searchBox}><Text style={{fontSize:17}}>⌕</Text><TextInput value={search} onChangeText={setSearch} placeholder="학원명, 지역, 수업 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} returnKeyType="search" onSubmitEditing={()=>Keyboard.dismiss()}/>{!!search&&<Pressable onPress={()=>setSearch("")}><Text style={styles.clear}>×</Text></Pressable>}</View>
@@ -134,7 +136,7 @@ export default function Home() {
       </View> :<FlatList data={view==="favorites"?favoriteStudios:results} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} ListEmptyComponent={<Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"검색 조건에 맞는 학원이 없어요."}</Text>}/>}
     </View>
     {compareIds.length>=2&&<Pressable style={styles.compareFloating} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>학원 비교하기 · {compareIds.length}</Text></Pressable>}
-    <View style={styles.bottomNav}><Pressable style={styles.navItem} onPress={()=>setView("map")}><Text style={[styles.navIcon,view==="map"&&styles.navActive]}>⌖</Text><Text style={[styles.navLabel,view==="map"&&styles.navActive]}>지도</Text></Pressable><Pressable style={styles.navItem} onPress={()=>setView("list")}><Text style={[styles.navIcon,view==="list"&&styles.navActive]}>☰</Text><Text style={[styles.navLabel,view==="list"&&styles.navActive]}>목록</Text></Pressable><Pressable style={styles.navItem} onPress={()=>setView("favorites")}><Text style={[styles.navIcon,view==="favorites"&&styles.navActive]}>♡</Text><Text style={[styles.navLabel,view==="favorites"&&styles.navActive]}>찜</Text></Pressable><Pressable style={styles.navItem} onPress={()=>Alert.alert("마이","계정 및 개인 설정은 서버 연결 단계에서 구현 예정입니다.")}><Text style={styles.navIcon}>◉</Text><Text style={styles.navLabel}>마이</Text></Pressable></View>
+    <View style={styles.bottomNav}><Pressable style={styles.navItem} onPress={()=>setView("map")}><Text style={[styles.navIcon,view==="map"&&styles.navActive]}>⌖</Text><Text style={[styles.navLabel,view==="map"&&styles.navActive]}>지도</Text></Pressable><Pressable style={styles.navItem} onPress={()=>setView("list")}><Text style={[styles.navIcon,view==="list"&&styles.navActive]}>☰</Text><Text style={[styles.navLabel,view==="list"&&styles.navActive]}>목록</Text></Pressable><Pressable style={styles.navItem} onPress={()=>setView("favorites")}><Text style={[styles.navIcon,view==="favorites"&&styles.navActive]}>♡</Text><Text style={[styles.navLabel,view==="favorites"&&styles.navActive]}>찜</Text></Pressable><Pressable style={styles.navItem} onPress={()=>router.push("/account")}><Text style={styles.navIcon}>◉</Text><Text style={styles.navLabel}>마이</Text></Pressable></View>
     <Modal visible={compareOpen} animationType="slide" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={styles.modalShade}><View style={styles.modal}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 비교</Text><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
