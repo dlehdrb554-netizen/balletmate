@@ -54,8 +54,9 @@ function extractImages(html: string, base: string): string[] {
   return [...new Set(out)].slice(0, 40);
 }
 function normalize(value: string): string { return value.toLowerCase().replace(/[\s·ㆍ]/g, ""); }
-function isRelevantBlog(studioName: string, title: string, description: string, body: string): boolean {
-  const text = normalize(`${title} ${description} ${body}`);
+function isRelevantBlog(studioName: string, title: string): boolean {
+  // Never use body text: blog boilerplate and incidental mentions caused false positives.
+  const text = normalize(title);
   const parts = studioName.trim().split(/\s+/);
   const fullName = normalize(studioName);
   const coreName = normalize(parts[0] ?? "");
@@ -106,7 +107,7 @@ Deno.serve(async (req) => {
         }
       }
       const textBody = stripTags(html);
-      if (!source || !isRelevantBlog(String(job.studio_name), String(source.title ?? ""), String(source.description ?? ""), textBody)) {
+      if (!source || !isRelevantBlog(String(job.studio_name), String(source.title ?? ""))) {
         const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
           status: "rejected",
           last_error: "본문·제목·요약에서 해당 학원명이 확인되지 않아 수집 제외",
