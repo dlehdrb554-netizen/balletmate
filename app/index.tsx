@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, FlatList, Keyboard, Modal, Pressable, SafeAreaView,
+  ActivityIndicator, FlatList, Keyboard, Modal, Pressable, SafeAreaView, ScrollView,
   StyleSheet, Text, TextInput, View, Alert
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
@@ -42,7 +42,7 @@ export default function Home() {
   const [filterOpen,setFilterOpen]=useState(false);
   const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
   const [studioClasses,setStudioClasses]=useState<StudioClass[]>([]);
-  const [classesLoading,setClassesLoading]=useState(false);
+  const [classesLoading,setClassesLoading]=useState(false);\n  const detailRequestId=useRef(0);
   const [compareOpen,setCompareOpen]=useState(false);
   const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
   const [favoritesReady,setFavoritesReady]=useState(false);
@@ -96,7 +96,7 @@ export default function Home() {
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>0.004||Math.abs(region.longitude-searchedRegion.longitude)>0.004;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0);
   const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setMaxPrice(null);};
-  const openDetail=async(s:Studio)=>{setDetailStudio(s);setStudioClasses([]);if(supabaseConfigured){setClassesLoading(true);try{const rows=await fetchClassesForStudio(s.id);setStudioClasses(rows);}catch{setStudioClasses([]);}finally{setClassesLoading(false);}}};
+  const openDetail=async(s:Studio)=>{const requestId=++detailRequestId.current;setDetailStudio(s);setStudioClasses([]);if(supabaseConfigured){setClassesLoading(true);try{const rows=await fetchClassesForStudio(s.id);if(requestId===detailRequestId.current)setStudioClasses(rows);}catch{if(requestId===detailRequestId.current)setStudioClasses([]);}finally{if(requestId===detailRequestId.current)setClassesLoading(false);}}};
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");map.current?.animateToRegion({latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018},400);}} style={[styles.studioCard,compact&&styles.compactCard]}>
     <View style={styles.cardTop}><View style={styles.studioIcon}><Text style={{fontSize:20}}>🩰</Text></View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · ⭐ {s.rating.toFixed(1)}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
@@ -135,9 +135,9 @@ export default function Home() {
       </View></View>
     </Modal>
     <Modal visible={!!detailStudio} animationType="slide" transparent onRequestClose={()=>setDetailStudio(null)}>
-      <View style={styles.modalShade}><View style={styles.modal}>
-        <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세</Text><Pressable onPress={()=>setDetailStudio(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>
-        {detailStudio&&<><View style={{marginTop:18}}>{studioCard(detailStudio,true)}</View>
+      <View style={styles.modalShade}><View style={[styles.modal,{maxHeight:"90%"}]}>
+        <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세</Text><Pressable onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);}}><Text style={styles.dismissText}>×</Text></Pressable></View>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:10}}>{detailStudio&&<><View style={{marginTop:18}}>{studioCard(detailStudio,true)}</View>
           <Text style={styles.sectionTitle}>소개</Text><Text style={styles.detailDescription}>{detailStudio.description}</Text>
           <Text style={styles.sectionTitle}>수업 정보</Text>
           {supabaseConfigured&&<><Text style={styles.sectionTitle}>등록된 클래스 및 시간표</Text>{classesLoading?<ActivityIndicator color={COLORS.purple} style={{marginVertical:12}}/>:studioClasses.length?studioClasses.map(cls=><View key={cls.id} style={styles.classBlock}><Text style={styles.classTitle}>{cls.title}</Text><Text style={styles.classMeta}>{cls.audience==="adult"?"성인":cls.audience==="kids"?"키즈":"전체"} · {cls.level||"수준 미표기"} · {cls.duration_minutes||"-"}분 · {cls.price?("₩"+cls.price.toLocaleString()):"가격 문의"}</Text>{cls.class_sessions?.map((session,i)=><Text key={i} style={styles.sessionText}>{["일","월","화","수","목","금","토"][session.weekday]}요일 {session.start_time.slice(0,5)}{session.end_time?("–"+session.end_time.slice(0,5)):""}{session.note?(" · "+session.note):""}</Text>)}</View>):<Text style={styles.filterHint}>아직 등록된 클래스 시간표가 없습니다.</Text>}</>}
