@@ -23,7 +23,9 @@ export type StudioRecord = {
 };
 
 const studioCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>();
-const CACHE_MS = 90_000;\nconst MAX_NETWORK_SEARCHES_PER_APP_SESSION = 40;\nlet networkSearches = 0;
+const CACHE_MS = 90_000;
+const MAX_NETWORK_SEARCHES_PER_APP_SESSION = 40;
+let networkSearches = 0;
 
 export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
   if (!supabase) return [];
