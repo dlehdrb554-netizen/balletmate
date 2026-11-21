@@ -140,8 +140,19 @@ export default function Home() {
         const remoteRows=remote||[];
         const remoteStudios=remoteRows.map((r:any)=>r.studio_snapshot).filter((s:any)=>s&&typeof s.id==="string");
         const remoteIds=[...new Set(remoteRows.map((r:any)=>r.studio_id).filter((id:any)=>typeof id==="string"))];
-        setFavoriteStudios(remoteStudios);
-        setFavoriteIds(remoteIds);
+        const remoteIdSet=new Set(remoteIds);
+        const localStudios=guestFavoritesRef.current.studios;
+        const mergedIds=[...new Set([...remoteIds,...guestFavoritesRef.current.ids])];
+        const mergedStudios=[...remoteStudios,...localStudios.filter((studio:any)=>!remoteIdSet.has(studio.id))];
+        setFavoriteStudios(mergedStudios);
+        setFavoriteIds(mergedIds);
+        const localRows=localStudios.filter((studio:any)=>!remoteIdSet.has(studio.id)).map((studio:any)=>({
+          user_id:uid,studio_id:studio.id,studio_snapshot:studio,updated_at:new Date().toISOString(),
+        }));
+        if(localRows.length){
+          const {error:mergeError}=await client.from("user_favorites").upsert(localRows,{onConflict:"user_id,studio_id"});
+          if(mergeError)console.warn("Guest favorite merge skipped:",mergeError);
+        }
       }catch(e){
         favoriteSyncUser.current=null;
         console.warn("Favorite sync skipped:",e);
@@ -171,8 +182,11 @@ export default function Home() {
   };
   const toggleFavorite=(studio:Studio)=>{
     const removing=favoriteIds.includes(studio.id);
-    setFavoriteIds(ids=>removing?ids.filter(i=>i!==studio.id):[...ids,studio.id]);
-    setFavoriteStudios(list=>removing?list.filter(x=>x.id!==studio.id):[studio,...list.filter(x=>x.id!==studio.id)]);
+    const nextIds=removing?favoriteIds.filter(i=>i!==studio.id):[...favoriteIds,studio.id];
+    const nextStudios=removing?favoriteStudios.filter(x=>x.id!==studio.id):[studio,...favoriteStudios.filter(x=>x.id!==studio.id)];
+    setFavoriteIds(nextIds);
+    setFavoriteStudios(nextStudios);
+    if(!favoriteSyncUser.current)guestFavoritesRef.current={ids:nextIds,studios:nextStudios};
     const client=supabase;
     if(client) client.auth.getSession().then(({data})=>{
       const uid=data.session?.user.id;if(!uid)return;
