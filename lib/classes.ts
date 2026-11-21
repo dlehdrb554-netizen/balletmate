@@ -20,6 +20,8 @@ export async function fetchClassesForStudio(studioId: string): Promise<StudioCla
   if (!supabase) return [];
   const cached = classCache.get(studioId);
   if (cached && Date.now() - cached.savedAt < CLASS_CACHE_MS) return cached.rows;
+  if (classRequests >= MAX_CLASS_REQUESTS_PER_APP_SESSION) throw new Error("이번 앱 실행 중 시간표 조회 한도(25회)에 도달했습니다. 잠시 후 앱을 다시 실행해 주세요.");
+  classRequests += 1;
 
   const { data, error } = await supabase
     .from("classes")
