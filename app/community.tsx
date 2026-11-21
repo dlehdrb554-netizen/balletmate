@@ -19,6 +19,7 @@ export default function Community(){
  const [comments,setComments]=useState<Comment[]>([]);
  const [commentText,setCommentText]=useState("");
  const [loading,setLoading]=useState(true);
+ const [loadError,setLoadError]=useState(false);
  const [refreshing,setRefreshing]=useState(false);
  const [submitting,setSubmitting]=useState(false);
  const [composer,setComposer]=useState(false);
@@ -31,6 +32,7 @@ export default function Community(){
  const postRequestId=useRef(0);
  const loadPosts=useCallback(async()=>{
   const requestId=++postRequestId.current;
+  if(requestId===postRequestId.current)setLoadError(false);
   if(!supabase){if(requestId===postRequestId.current)setLoading(false);return;}
   try{
    let query=supabase.from("community_posts").select("id,author_id,author_name,category,title,content,created_at").order("created_at",{ascending:false}).limit(50);
@@ -38,7 +40,7 @@ export default function Community(){
    const {data,error}=await query;
    if(error)throw error;
    if(requestId===postRequestId.current)setPosts((data||[]) as Post[]);
-  }catch(error:any){if(requestId===postRequestId.current)Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}
+  }catch(error:any){if(requestId===postRequestId.current){setLoadError(true);Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}}
   finally{if(requestId===postRequestId.current){setLoading(false);setRefreshing(false);}}
  },[category]);
 
@@ -159,7 +161,7 @@ export default function Community(){
       <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
       <Text style={s.preview} numberOfLines={2}>{item.content}</Text>
       <View style={s.cardFoot}><Text style={s.author}>{item.author_name}</Text><Text style={s.openLabel}>댓글 보기 ›</Text></View>
-     </Pressable>} ListEmptyComponent={<Text style={s.empty}>아직 게시글이 없습니다. 첫 추천을 남겨보세요!</Text>}/>
+     </Pressable>} ListEmptyComponent={loadError?<View><Text style={s.empty}>게시글을 불러오지 못했습니다.</Text><Pressable onPress={()=>{setLoading(true);loadPosts();}}><Text style={s.openLabel}>다시 시도</Text></Pressable></View>:<Text style={s.empty}>아직 게시글이 없습니다. 첫 추천을 남겨보세요!</Text>}/>
     }
    </>
   }
