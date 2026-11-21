@@ -2,6 +2,12 @@ name: Deploy Balletmate Supabase Workers
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/deploy-supabase-workers.yml'
 
 permissions:
   contents: read
