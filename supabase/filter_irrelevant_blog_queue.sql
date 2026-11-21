@@ -27,7 +27,7 @@ rejected AS (
   UPDATE public.studio_blog_post_crawl_queue q
   SET
     status = 'rejected',
-    last_error = '사전 필터링: 제목·요약에 학원명이 없고 공식 블로그 계정도 아님',
+    last_error = '사전 필터링: 제목·요약에 학원명·발레 관련성이 없고 공식 블로그 계정도 아님',
     updated_at = now()
   FROM candidates c
   WHERE q.source_id = c.source_id
@@ -40,6 +40,9 @@ rejected AS (
         'g'
       )
     ) = 0
+    -- Keep ballet-related third-party posts for full-body validation; only reject obvious noise here.
+    AND NOT (coalesce(c.title, '') || ' ' || coalesce(c.description, '')
+      ~ '(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)')
     AND NOT EXISTS (
       SELECT 1
       FROM public.studio_blog_official_accounts a
