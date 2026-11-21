@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { supabase } from "../lib/supabase";
+import * as ImagePicker from "expo-image-picker";
 
 type StudioRow = {
   id:string; name:string; latitude:number; longitude:number; district:string|null;
@@ -113,6 +114,49 @@ export default function Admin() {
     }catch(error:any){Alert.alert("사진 수집 실패",error?.message||"연결 상태를 확인해 주세요.");}
     finally{setBusy(false);}
   };
+  const uploadPhotos=async(id:string,name:string)=>{
+    if(!supabase)return;
+    const current=rows.find(r=>r.id===id);
+    const existing=current?.image_urls||[];
+    if(existing.length>=10){Alert.alert("사진 등록 한도","학원별 사진은 최대 10장까지 등록할 수 있습니다.");return;}
+    const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if(!permission.granted){Alert.alert("사진 권한","사진 보관함 접근 권한을 허용해 주세요.");return;}
+    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:Math.min(10,10-existing.length),quality:0.82});
+    if(picked.canceled||!picked.assets?.length)return;
+    const assets=picked.assets.slice(0,10-existing.length);
+    const uploadedPaths:string[]=[];
+    setBusy(true);
+    try{
+      const urls:string[]=[];
+      for(let i=0;i<assets.length;i++){
+        const asset=assets[i];
+        const mime=asset.mimeType||"image/jpeg";
+        if(!["image/jpeg","image/png","image/webp"].includes(mime))throw new Error("JPG, PNG, WEBP 사진만 등록할 수 있습니다.");
+        if((asset.fileSize||0)>5*1024*1024)throw new Error("사진 한 장의 용량은 5MB 이하여야 합니다.");
+        const ext=mime==="image/png"?"png":mime==="image/webp"?"webp":"jpg";
+        const path=id+"/"+Date.now()+"_"+i+"."+ext;
+        const response=await fetch(asset.uri);
+        if(!response.ok)throw new Error("선택한 사진 파일을 읽지 못했습니다.");
+        const bytes=await response.arrayBuffer();
+        const {error:uploadError}=await supabase.storage.from("studio-photos").upload(path,bytes,{contentType:mime,cacheControl:"31536000",upsert:false});
+        if(uploadError)throw uploadError;
+        uploadedPaths.push(path);
+        urls.push(supabase.storage.from("studio-photos").getPublicUrl(path).data.publicUrl);
+      }
+      const {error:updateError}=await supabase.from("studios").update({
+        image_urls:[...existing,...urls],
+        image_source_name:"관리자 직접 등록",
+        image_usage_note:current?.image_usage_note||"관리자가 직접 업로드한 사진",
+        updated_at:new Date().toISOString()
+      }).eq("id",id);
+      if(updateError)throw updateError;
+      Alert.alert("사진 등록 완료",name+" · "+urls.length+"장 업로드 완료");
+      await load();
+    }catch(error:any){
+      if(uploadedPaths.length)await supabase.storage.from("studio-photos").remove(uploadedPaths);
+      Alert.alert("사진 업로드 실패",error?.message||"잠시 후 다시 시도해 주세요.");
+    }finally{setBusy(false);}
+  };
   const importCsv=async()=>{
     if(!supabase||!csvText.trim())return;
     const parsed=parseCsv(csvText);
@@ -159,7 +203,7 @@ export default function Admin() {
     </View>
     <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active,image_urls,image_usage_note · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,25000,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>{busy&&<ActivityIndicator color={c.purple}/>}
-      {rows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
+      {rows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>uploadPhotos(r.id,r.name)} disabled={busy||((r.image_urls||[]).length>=10)}><Text style={styles.action}>사진 업로드</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
       {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
