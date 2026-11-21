@@ -212,7 +212,7 @@ export default function Home() {
          <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세 정보</Text><View style={{flexDirection:"row",alignItems:"center",gap:14}}><Pressable onPress={()=>setDetailExpanded(v=>!v)}><Text style={styles.expandText}>{detailExpanded?"접기":"펼치기"}</Text></Pressable><Pressable onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
          <Text style={styles.dragHint}>위아래로 끌어 창 크기 조절 · 아래로 길게 끌면 닫기</Text>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:20}}>{detailStudio&&<>
+        <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:20}}>{detailStudio&&<>
           <View style={{marginTop:10}}>{studioCard(detailStudio,true)}</View>
           <Text style={styles.sectionTitle}>학원 실제 사진</Text>
           {(detailStudio.imageUrls||[]).length>0?
