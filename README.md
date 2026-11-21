@@ -1,2 +1,0 @@
-# balletmate
-Ballet find app
