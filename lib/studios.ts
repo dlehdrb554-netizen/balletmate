@@ -24,6 +24,10 @@ export type StudioRecord = {
   website_url: string | null;
   image_source_name: string | null;
   image_checked_at: string | null;
+  source_url: string | null;
+  source_name: string | null;
+  verified_at: string | null;
+  image_usage_note: string | null;
 };
 
 const studioCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>();
@@ -50,7 +54,7 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
       .lte("longitude", bounds.longitude + bounds.longitudeDelta / 2);
   };
 
-  const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at";
+  const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note";
   let result = await applyBounds(supabase
     .from("studios")
     .select(selectColumns)
@@ -62,7 +66,7 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
   if (result.error && /image_urls|image_source_name|image_checked_at/i.test(result.error.message)) {
     const fallback = await applyBounds(supabase
       .from("studios")
-      .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url")
+      .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,image_usage_note")
       .eq("is_active", true)
       .limit(300));
     if (fallback.error) throw fallback.error;
@@ -71,6 +75,10 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
       image_urls: [],
       image_source_name: null,
       image_checked_at: null,
+      source_url: row.source_url ?? null,
+      source_name: row.source_name ?? null,
+      verified_at: row.verified_at ?? null,
+      image_usage_note: row.image_usage_note ?? null,
     })) as StudioRecord[];
   } else {
     if (result.error) throw result.error;
