@@ -49,7 +49,9 @@ export default function Admin() {
   const login=async()=>{
     if(!supabase)return;
     setBusy(true);
-    const normalized=username.trim().toLowerCase();\n    if(!/^[a-z0-9_]{3,24}$/.test(normalized)){Alert.alert("아이디 확인","아이디는 영문 소문자, 숫자, 밑줄로 3~24자 입력하세요.");setBusy(false);return;}\n    const {data,error}=await supabase.auth.signInWithPassword({email:normalized+"@balletmate.app",password});
+    const normalized=username.trim().toLowerCase();
+    if(!/^[a-z0-9_]{3,24}$/.test(normalized)){Alert.alert("아이디 확인","아이디는 영문 소문자, 숫자, 밑줄로 3~24자 입력하세요.");setBusy(false);return;}
+    const {data,error}=await supabase.auth.signInWithPassword({email:normalized+"@balletmate.app",password});
     if(error)Alert.alert("로그인 실패",error.message);else {setSession(data.session);await checkAdmin(data.session);}
     setBusy(false);
   };
