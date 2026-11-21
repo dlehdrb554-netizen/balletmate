@@ -3,6 +3,8 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pres
 import { supabase } from "../lib/supabase";
 import * as ImagePicker from "expo-image-picker";
 import { extractTextFromImage, isSupported, TextRecognitionScript } from "@zhanziyang/expo-text-extractor";
+import * as FileSystem from "expo-file-system/legacy";
+import { fetchStudioBlogPosts } from "../lib/studio-blog-content";
 
 type EvidenceCandidate = {id:number;studio_id:string;studio_name:string;source_id:number;source_title:string|null;source_url:string;candidate_type:"price"|"schedule";candidate_value:string;normalized_value:string|null;price_period?:string|null;price_frequency_per_week?:number|null;evidence_text:string;confidence:number;review_status:"pending"|"verified"|"rejected";created_at:string};
 
@@ -15,6 +17,36 @@ type StudioRow = {
 
 const blank = {name:"",latitude:"",longitude:"",district:"",address:"",phone:"",website_url:"",source_url:"",source_name:"",verified_at:"",image_urls:"",image_source_name:"",image_usage_note:"",price_per_class:"",adult_classes:true,kids_classes:false,is_active:false};
 const c = {ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",white:"#FFFFFF",bg:"#FAF9FC"};
+
+function parseOcrFields(text:string){
+  const compact=text.replace(/\s+/g," ");
+  let amount:number|null=null;
+  let m=compact.match(/₩\s*([\d,]+)/);
+  if(m)amount=Number(m[1].replace(/,/g,""));
+  if(!amount){m=compact.match(/(\d{1,2})\s*만\s*(\d{1,2})\s*천\s*원?/);if(m)amount=Number(m[1])*10000+Number(m[2])*1000;}
+  if(!amount){m=compact.match(/(\d{1,2})\s*만\s*원/);if(m)amount=Number(m[1])*10000;}
+  if(!amount){m=compact.match(/(\d{1,2})\s*천\s*원/);if(m)amount=Number(m[1])*1000;}
+  if(!amount){m=compact.match(/([\d,]+)\s*원/);if(m)amount=Number(m[1].replace(/,/g,""));}
+  const periodMatch=compact.match(/(\d+\s*(?:개월|달|주|회권))/);
+  const price_period=periodMatch?periodMatch[1].replace(/\s+/g,""):/월\s*단위/.test(compact)?"월 단위":/연\s*단위/.test(compact)?"연 단위":"기간 미확인";
+  const freqMatch=compact.match(/주\s*(\d{1,2})\s*회/);
+  const frequency_per_week=freqMatch?Number(freqMatch[1]):null;
+  const dayMap:[RegExp,string][]=[
+    [/(?:월요일|(?:^|[\s,·/])월(?=[\s,·/]|$))/,"월"],
+    [/(?:화요일|(?:^|[\s,·/])화(?=[\s,·/]|$))/,"화"],
+    [/(?:수요일|(?:^|[\s,·/])수(?=[\s,·/]|$))/,"수"],
+    [/(?:목요일|(?:^|[\s,·/])목(?=[\s,·/]|$))/,"목"],
+    [/(?:금요일|(?:^|[\s,·/])금(?=[\s,·/]|$))/,"금"],
+    [/(?:토요일|(?:^|[\s,·/])토(?=[\s,·/]|$))/,"토"],
+    [/(?:일요일|(?:^|[\s,·/])일(?=[\s,·/]|$))/,"일"]
+  ];
+  const schedule_days=dayMap.filter(([re])=>re.test(compact)).map(([,day])=>day);
+  const times=compact.match(/(?:오전|오후)?\s*\d{1,2}(?::\d{2})?\s*(?:시|분)?/g)||[];
+  const schedule_time=times.length?times.slice(0,8).join(", "):null;
+  const detected_kind=amount!==null?"price":schedule_days.length||schedule_time||/시간표|타임/.test(compact)?"schedule":"unknown";
+  return {amount_krw:amount,price_period:amount!==null?price_period:null,frequency_per_week, schedule_days,schedule_time,detected_kind};
+}
+
 function parseCsv(text:string): string[][] {
   const rows:string[][]=[]; let row:string[]=[]; let cell=""; let quoted=false;
   for(let i=0;i<text.length;i++){
@@ -126,6 +158,54 @@ export default function Admin() {
     }catch(error:any){Alert.alert("OCR 처리 실패",error?.message||"이미지 형식 또는 OCR 모듈 상태를 확인해 주세요.");}
     finally{setOcrBusy(false);}
   };
+
+  const runBlogImageOcr=async(id:string,name:string)=>{
+    if(!supabase)return;
+    if(!isSupported){Alert.alert("OCR 미지원","현재 실행 환경에는 OCR 네이티브 모듈이 없습니다. 새 Android 개발 빌드가 필요합니다.");return;}
+    if(!FileSystem.cacheDirectory){Alert.alert("임시 저장소 오류","기기 임시 저장소를 사용할 수 없습니다.");return;}
+    setOcrBusy(true);
+    let processed=0,skipped=0,failed=0;
+    try{
+      const posts=await fetchStudioBlogPosts(id);
+      const candidates=posts.flatMap(post=>(post.image_urls||[]).filter(url=>/^https:\/\//i.test(url)).map(url=>({source_id:post.source_id,source_url:post.post_url,title:post.title,image_url:url})));
+      if(!candidates.length){Alert.alert("블로그 이미지 없음",name+"에서 OCR 가능한 공개 블로그 이미지가 확인되지 않았습니다.");return;}
+      const {data:existing,error:existingError}=await supabase.from("studio_image_ocr_results").select("source_id,image_url").eq("studio_id",id).not("image_url","is",null).limit(1000);
+      if(existingError)throw existingError;
+      const seen=new Set((existing||[]).map((x:any)=>String(x.source_id)+"|"+x.image_url));
+      const todo=candidates.filter(x=>!seen.has(String(x.source_id)+"|"+x.image_url)).slice(0,5);
+      skipped=candidates.length-todo.length;
+      if(!todo.length){Alert.alert("추가 OCR 없음",name+"의 기존 블로그 이미지는 모두 OCR 처리됐습니다. 새 블로그 게시물이 수집되면 다시 실행해 주세요.");return;}
+      const dir=FileSystem.cacheDirectory+"balletmate-ocr/";
+      const dirInfo=await FileSystem.getInfoAsync(dir);
+      if(!dirInfo.exists)await FileSystem.makeDirectoryAsync(dir,{intermediates:true});
+      for(let i=0;i<todo.length;i++){
+        const item=todo[i];
+        try{
+          const ext=(item.image_url.split("?")[0].match(/\.(png|webp|jpeg|jpg)$/i)?.[1]||"jpg").toLowerCase();
+          const localUri=dir+"studio-"+id+"-source-"+item.source_id+"-"+i+"."+ext;
+          const downloaded=await FileSystem.downloadAsync(item.image_url,localUri,{headers:{"User-Agent":"Mozilla/5.0 BalletmateImageOCR"}});
+          if(downloaded.status<200||downloaded.status>=300)throw new Error("이미지 다운로드 HTTP "+downloaded.status);
+          const lines=await extractTextFromImage(downloaded.uri,Platform.OS==="android"?{script:TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});
+          const extracted=(lines||[]).join("\n").trim();
+          if(extracted.length<3){skipped++;continue;}
+          const parsed=parseOcrFields(extracted);
+          const {error}=await supabase.from("studio_image_ocr_results").upsert({
+            studio_id:id,studio_name:name,source_id:item.source_id,image_url:item.image_url,source_url:item.source_url,
+            image_label:item.title||("블로그 게시물 "+item.source_id),extracted_text:extracted,
+            detected_kind:parsed.detected_kind,amount_krw:parsed.amount_krw,price_period:parsed.price_period,
+            frequency_per_week:parsed.frequency_per_week,schedule_days:parsed.schedule_days,schedule_time:parsed.schedule_time,
+            created_by:session?.user?.id||null
+          },{onConflict:"source_id,image_url",ignoreDuplicates:true});
+          if(error)throw error;
+          processed++;
+        }catch(imageError){failed++;}
+      }
+      await loadOcr();
+      Alert.alert("블로그 이미지 OCR 완료",name+"\n새로 처리: "+processed+"장 · 글자 없음/중복: "+skipped+"장 · 실패: "+failed+"장\n이미지 파일은 기기 임시 저장소에서만 처리했습니다.");
+    }catch(error:any){Alert.alert("블로그 OCR 실패",error?.message||"블로그 이미지 조회 또는 OCR 처리에 실패했습니다.");}
+    finally{setOcrBusy(false);}
+  };
+
   const reviewOcr=async(item:any,status:"verified"|"rejected")=>{
     if(!supabase)return;
     const {error}=await supabase.from("studio_image_ocr_results").update({review_status:status,reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString()}).eq("id",item.id);
@@ -383,7 +463,7 @@ export default function Admin() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
-    <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>이미지 OCR 검토 대기 ({ocrRows.length})</Text><Pressable onPress={loadOcr}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>선택한 이미지의 글자를 기기 안에서만 인식합니다. OCR 결과는 참고 자료이며 가격·시간표로 자동 등록하거나 공개하지 않습니다.</Text>{ocrRows.map(item=><View key={"ocr-"+item.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.studio_name} · {item.image_label}</Text><Text style={styles.rowMeta}>자동 분류 참고: {item.detected_kind==="price"?"가격 후보":item.detected_kind==="schedule"?"시간표 후보":"분류 불명"}</Text><Text selectable style={styles.evidenceValue}>{item.extracted_text}</Text><View style={styles.buttons}><Pressable style={styles.secondary} onPress={()=>reviewOcr(item,"rejected")}><Text style={styles.secondaryText}>자료 제외</Text></Pressable><Pressable style={styles.button} onPress={()=>reviewOcr(item,"verified")}><Text style={styles.buttonText}>확인 완료</Text></Pressable></View></View>)}{!ocrRows.length&&<Text style={styles.hint}>아직 검토 대기 중인 이미지 OCR 결과가 없습니다.</Text>}</View>\n     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>현재 공개 중인 가격 ({activePublicPrices.length})</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>게시일 또는 공개일 기준 180일이 지나면 앱 상세 화면에서 자동으로 숨겨집니다. 아래에서 기간 만료 전에도 공개를 중단할 수 있습니다.</Text>{activePublicPrices.map(price=><View key={"active-price-"+price.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{Number(price.amount_krw).toLocaleString("ko-KR")}원 · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Text style={styles.rowMeta}>만료 예정일 {price.expires_at||"미설정"} · 공개일 {new Date(price.published_at).toLocaleDateString("ko-KR")}</Text><Pressable onPress={()=>Linking.openURL(price.source_url)}><Text style={styles.action}>가격 근거 원문 ↗</Text></Pressable><Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>deactivatePublicPrice(price)}><Text style={styles.secondaryText}>앱 공개 중단</Text></Pressable></View>)}{!activePublicPrices.length&&!evidenceBusy&&<Text style={styles.hint}>현재 공개 중인 가격이 없습니다.</Text>}</View>
+    <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>이미지 OCR 검토 대기 ({ocrRows.length})</Text><Pressable onPress={loadOcr}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>선택한 이미지의 글자를 기기 안에서만 인식합니다. OCR 결과는 참고 자료이며 가격·시간표로 자동 등록하거나 공개하지 않습니다.</Text>{ocrRows.map(item=><View key={"ocr-"+item.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.studio_name} · {item.image_label}</Text><Text style={styles.rowMeta}>자동 분류 참고: {item.detected_kind==="price"?"가격 후보":item.detected_kind==="schedule"?"시간표 후보":"분류 불명"}</Text>{item.amount_krw&&<Text style={styles.evidenceValue}>가격 후보: {Number(item.amount_krw).toLocaleString("ko-KR")}원 · {item.price_period||"기간 미확인"}{item.frequency_per_week?" · 주 "+item.frequency_per_week+"회":""}</Text>}{(item.schedule_days?.length||item.schedule_time)&&<Text style={styles.evidenceValue}>시간표 후보: {(item.schedule_days||[]).join("·")}{item.schedule_time?" · "+item.schedule_time:""}</Text>}{item.source_url&&<Pressable onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.action}>블로그 원문 확인 ↗</Text></Pressable>}{item.image_url&&<Pressable onPress={()=>Linking.openURL(item.image_url)}><Text style={styles.action}>OCR 원본 이미지 ↗</Text></Pressable>}<Text selectable style={styles.evidenceValue}>{item.extracted_text}</Text><View style={styles.buttons}><Pressable style={styles.secondary} onPress={()=>reviewOcr(item,"rejected")}><Text style={styles.secondaryText}>자료 제외</Text></Pressable><Pressable style={styles.button} onPress={()=>reviewOcr(item,"verified")}><Text style={styles.buttonText}>확인 완료</Text></Pressable></View></View>)}{!ocrRows.length&&<Text style={styles.hint}>아직 검토 대기 중인 이미지 OCR 결과가 없습니다.</Text>}</View>\n     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>현재 공개 중인 가격 ({activePublicPrices.length})</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>게시일 또는 공개일 기준 180일이 지나면 앱 상세 화면에서 자동으로 숨겨집니다. 아래에서 기간 만료 전에도 공개를 중단할 수 있습니다.</Text>{activePublicPrices.map(price=><View key={"active-price-"+price.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{Number(price.amount_krw).toLocaleString("ko-KR")}원 · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Text style={styles.rowMeta}>만료 예정일 {price.expires_at||"미설정"} · 공개일 {new Date(price.published_at).toLocaleDateString("ko-KR")}</Text><Pressable onPress={()=>Linking.openURL(price.source_url)}><Text style={styles.action}>가격 근거 원문 ↗</Text></Pressable><Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>deactivatePublicPrice(price)}><Text style={styles.secondaryText}>앱 공개 중단</Text></Pressable></View>)}{!activePublicPrices.length&&!evidenceBusy&&<Text style={styles.hint}>현재 공개 중인 가격이 없습니다.</Text>}</View>
      <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 승인 대기 가격 ({verifiedPriceRows.length})</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>근거 확인된 가격 중 이용 기간이 명확한 자료만 별도로 공개할 수 있습니다. 공개 전 원문을 다시 확인하세요.</Text>{verifiedPriceRows.map(item=><View key={"verified-"+item.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.studio_name}</Text><Text style={styles.evidenceValue}>{Number(item.normalized_value||0).toLocaleString("ko-KR")}원 · {item.price_period}{item.price_frequency_per_week?" · 주 "+item.price_frequency_per_week+"회":""}\n{item.evidence_text}</Text><Pressable onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.action}>원문 확인 ↗</Text></Pressable>{publishedCandidateIds.includes(item.id)?<Text style={styles.rowMeta}>이미 공개 등록된 자료</Text>:<Pressable style={styles.button} disabled={evidenceBusy} onPress={()=>publishPrice(item)}><Text style={styles.buttonText}>이 가격을 앱에 공개</Text></Pressable>}</View>)}{!verifiedPriceRows.length&&!evidenceBusy&&<Text style={styles.hint}>공개 승인 대기 가격이 없습니다. 먼저 아래 자료에서 근거 확인을 선택하세요.</Text>}</View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>자동 수집 자료 검토 ({evidenceRows.length})</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>공개 블로그에서 발견한 가격·시간표 근거입니다. 검토 완료는 근거 확인 상태만 기록하며, 앱의 공식 가격이나 시간표로 자동 공개하지 않습니다.</Text>{evidenceBusy&&<ActivityIndicator color={c.purple}/>}{evidenceRows.map(item=><View key={item.id} style={styles.evidenceCard}><View style={styles.listHead}><Text style={styles.evidenceStudio}>{item.studio_name}</Text><Text style={styles.evidenceType}>{item.candidate_type==="price"?"가격 근거":"시간표 근거"}</Text></View>{item.source_title&&<Text style={styles.rowMeta} numberOfLines={2}>{item.source_title}</Text>}<Text style={styles.evidenceValue}>{item.candidate_type==="price"&&item.normalized_value?Number(item.normalized_value).toLocaleString("ko-KR")+"원 · "+(item.price_period||"기간 미확인")+(item.price_frequency_per_week?" · 주 "+item.price_frequency_per_week+"회":"")+" 후보\n":""}{item.evidence_text}</Text><Text style={styles.rowMeta}>자동 추출 신뢰도 참고값 {Math.round(item.confidence*100)}% · 원문 게시물 #{item.source_id}</Text><Pressable onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.action}>원문 확인 ↗</Text></Pressable><View style={styles.buttons}><Pressable style={styles.secondary} onPress={()=>reviewEvidence(item,"rejected")} disabled={evidenceBusy}><Text style={styles.secondaryText}>자료 제외</Text></Pressable><Pressable style={styles.button} onPress={()=>reviewEvidence(item,"verified")} disabled={evidenceBusy}><Text style={styles.buttonText}>근거 확인</Text></Pressable></View></View>)}{!evidenceRows.length&&!evidenceBusy&&<Text style={styles.hint}>검토 대기 중인 자료가 없습니다. 블로그 수집 후 자동으로 표시됩니다.</Text>}</View>
     <View style={styles.panel}><Text style={styles.heading}>{editing?"학원 정보 수정":"학원 등록"}</Text>{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}{field("사진 URL (최대 10개, 줄바꿈 구분)","image_urls")}{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
@@ -409,7 +489,7 @@ export default function Admin() {
     </View>}
     <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active,image_urls,image_usage_note · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,25000,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>{busy&&<ActivityIndicator color={c.purple}/>}
-      {rows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>{setClassStudio(r);resetClass();}}><Text style={styles.action}>수업관리</Text></Pressable><Pressable onPress={()=>uploadPhotos(r.id,r.name)} disabled={busy||((r.image_urls||[]).length>=10)}><Text style={styles.action}>사진 업로드</Text></Pressable><Pressable onPress={()=>runLocalOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"사진 OCR"}</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
+      {rows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>{setClassStudio(r);resetClass();}}><Text style={styles.action}>수업관리</Text></Pressable><Pressable onPress={()=>uploadPhotos(r.id,r.name)} disabled={busy||((r.image_urls||[]).length>=10)}><Text style={styles.action}>사진 업로드</Text></Pressable><Pressable onPress={()=>runBlogImageOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"블로그 OCR"}</Text></Pressable><Pressable onPress={()=>runLocalOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"사진 OCR"}</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
       {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
