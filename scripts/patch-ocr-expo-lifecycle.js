@@ -59,4 +59,22 @@ if (!source.includes(oldTail)) {
 source = source.replace(oldTail, newTail);
 source = source.replace(/\n\s*super\.onDestroy\(\)\n/, "\n");
 fs.writeFileSync(modulePath, source, "utf8");
+const packageJsonPath = path.join(
+  process.cwd(),
+  "node_modules",
+  "@zhanziyang",
+  "expo-text-extractor",
+  "package.json"
+);
+if (fs.existsSync(packageJsonPath)) {
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  packageJson.peerDependenciesMeta = packageJson.peerDependenciesMeta || {};
+  packageJson.peerDependenciesMeta["expo-modules-core"] = {
+    ...(packageJson.peerDependenciesMeta["expo-modules-core"] || {}),
+    optional: true
+  };
+  fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + "\n", "utf8");
+  console.log("[ocr-compat] Using Expo's bundled expo-modules-core peer.");
+}
+
 console.log("[ocr-compat] Patched OCR cleanup to Expo Modules API OnDestroy.");
