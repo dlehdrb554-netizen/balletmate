@@ -101,3 +101,32 @@ $$;
 
 revoke all on function public.claim_studio_image_crawl_queue(integer) from public;
 grant execute on function public.claim_studio_image_crawl_queue(integer) to authenticated;
+
+-- Publicly readable studio image bucket; only Balletmate admins can upload/change/delete.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('studio-photos', 'studio-photos', true, 5242880, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update
+set public = true,
+    file_size_limit = 5242880,
+    allowed_mime_types = array['image/jpeg','image/png','image/webp'];
+
+drop policy if exists "public can view studio photos" on storage.objects;
+create policy "public can view studio photos"
+  on storage.objects for select to public
+  using (bucket_id = 'studio-photos');
+
+drop policy if exists "admins upload studio photos" on storage.objects;
+create policy "admins upload studio photos"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'studio-photos' and public.is_balletmate_admin());
+
+drop policy if exists "admins update studio photos" on storage.objects;
+create policy "admins update studio photos"
+  on storage.objects for update to authenticated
+  using (bucket_id = 'studio-photos' and public.is_balletmate_admin())
+  with check (bucket_id = 'studio-photos' and public.is_balletmate_admin());
+
+drop policy if exists "admins delete studio photos" on storage.objects;
+create policy "admins delete studio photos"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'studio-photos' and public.is_balletmate_admin());
