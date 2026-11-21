@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   if (!supabaseUrl || !serviceRoleKey) return json({ error: "서버 환경설정이 누락되었습니다." }, 500);
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: jobs, error: claimError } = await adminClient.rpc("claim_studio_image_crawl_queue", { p_limit: 5 });
+  const { data: jobs, error: claimError } = await adminClient.rpc("claim_studio_image_crawl_queue", { p_limit: 10 });
   if (claimError) return json({ error: "대기 작업 확보 실패: " + claimError.message }, 500);
   if (!jobs?.length) return json({ claimed: 0, succeeded: 0, failed: 0, message: "처리할 작업이 없습니다." });
 
