@@ -38,6 +38,11 @@ export default function Admin() {
   const [editing,setEditing]=useState<string|null>(null);
   const [csvText,setCsvText]=useState("");
   const [importing,setImporting]=useState(false);
+  const [classStudio,setClassStudio]=useState<StudioRow|null>(null);
+  const [classRows,setClassRows]=useState<any[]>([]);
+  const [classEditing,setClassEditing]=useState<string|null>(null);
+  const [classBusy,setClassBusy]=useState(false);
+  const [classForm,setClassForm]=useState({title:"",audience:"adult" as "adult"|"kids"|"all",level:"",class_type:"",duration_minutes:"60",price:"",sessions:""});
 
   const checkAdmin=useCallback(async(s:any)=>{
     if(!s){setAuthorized(false);setChecking(false);return;}
@@ -183,6 +188,67 @@ export default function Admin() {
     else{setCsvText("");Alert.alert("일괄 등록 완료",payload.length+"개 등록, "+skipped+"개 제외. 홈페이지가 있는 학원은 수집 대기열에 추가됐습니다.");await load();}
     setImporting(false);
   };
+  const loadClasses=useCallback(async(studioId:string)=>{
+    if(!supabase)return;
+    setClassBusy(true);
+    const {data,error}=await supabase.from("classes").select("id,studio_id,title,audience,level,class_type,duration_minutes,price,is_active,class_sessions(id,weekday,start_time,end_time,note,is_active)").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(100);
+    if(error)Alert.alert("수업 조회 실패",error.message);else setClassRows(data||[]);
+    setClassBusy(false);
+  },[]);
+  useEffect(()=>{if(classStudio)loadClasses(classStudio.id);else setClassRows([]);},[classStudio,loadClasses]);
+  const resetClass=()=>{setClassEditing(null);setClassForm({title:"",audience:"adult",level:"",class_type:"",duration_minutes:"60",price:"",sessions:""});};
+  const editClass=(row:any)=>{
+    setClassEditing(row.id);
+    setClassForm({
+      title:row.title||"",audience:row.audience||"adult",level:row.level||"",class_type:row.class_type||"",
+      duration_minutes:row.duration_minutes==null?"":String(row.duration_minutes),price:row.price==null?"":String(row.price),
+      sessions:(row.class_sessions||[]).filter((x:any)=>x.is_active!==false).map((x:any)=>[x.weekday,x.start_time,x.end_time||"",x.note||""].join(",")).join("\\n")
+    });
+  };
+  const saveClass=async()=>{
+    if(!supabase||!classStudio)return;
+    if(!classForm.title.trim()){Alert.alert("필수 정보","수업명을 입력하세요.");return;}
+    const duration=classForm.duration_minutes.trim()?Number(classForm.duration_minutes):null;
+    const price=classForm.price.trim()?Number(classForm.price):null;
+    if((duration!==null&&(!Number.isInteger(duration)||duration<=0))||(price!==null&&(!Number.isFinite(price)||price<0))){Alert.alert("입력 확인","수업 시간은 양의 정수, 가격은 0 이상의 숫자여야 합니다.");return;}
+    const sessions=classForm.sessions.split(/\\r?\\n/).map(v=>v.trim()).filter(Boolean).map(line=>{
+      const [weekdayRaw,startRaw,endRaw,noteRaw]=line.split(",").map(v=>v.trim());
+      const weekday=Number(weekdayRaw);
+      if(!Number.isInteger(weekday)||weekday<0||weekday>6||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(startRaw||"")||(endRaw&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(endRaw)))return null;
+      return {weekday,start_time:startRaw,end_time:endRaw||null,note:noteRaw||null,is_active:true};
+    });
+    if(sessions.some(v=>v===null)){Alert.alert("시간표 형식","요일(0=일~6=토),시작시간,종료시간,메모 형식으로 한 줄씩 입력하세요. 예: 1,19:00,20:00,성인 초급");return;}
+    setClassBusy(true);
+    try{
+      const payload={studio_id:classStudio.id,title:classForm.title.trim(),audience:classForm.audience,level:classForm.level.trim()||null,class_type:classForm.class_type.trim()||null,duration_minutes:duration,price,is_active:true};
+      let classId=classEditing;
+      if(classEditing){
+        const {error}=await supabase.from("classes").update(payload).eq("id",classEditing);
+        if(error)throw error;
+      }else{
+        const {data,error}=await supabase.from("classes").insert(payload).select("id").single();
+        if(error)throw error;
+        classId=data.id;
+      }
+      const {error:deleteError}=await supabase.from("class_sessions").delete().eq("class_id",classId);
+      if(deleteError)throw deleteError;
+      if(sessions.length){
+        const {error:sessionError}=await supabase.from("class_sessions").insert(sessions.map(v=>({...v,class_id:classId})));
+        if(sessionError)throw sessionError;
+      }
+      Alert.alert("저장 완료","수업과 시간표를 저장했습니다.");
+      resetClass();
+      await loadClasses(classStudio.id);
+    }catch(error:any){Alert.alert("저장 실패",error?.message||"수업 저장 중 오류가 발생했습니다.");}
+    finally{setClassBusy(false);}
+  };
+  const deleteClass=(id:string,title:string)=>Alert.alert("수업 삭제",title+" 수업을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
+    if(!supabase)return;setClassBusy(true);
+    const {error}=await supabase.from("classes").delete().eq("id",id);
+    if(error)Alert.alert("삭제 실패",error.message);else await loadClasses(classStudio!.id);
+    setClassBusy(false);
+  }}]);
+  const classField=(label:string,key:keyof typeof classForm,keyboard:any="default")=><View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput style={[styles.input,key==="sessions"&&{minHeight:110,textAlignVertical:"top"}]} multiline={key==="sessions"} value={String(classForm[key])} onChangeText={v=>setClassForm(x=>({...x,[key]:v}))} keyboardType={keyboard} placeholder={label}/></View>;
   const remove=(id:string,name:string)=>Alert.alert("학원 삭제",name+" 정보를 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{setBusy(true);const {error}=await supabase!.from("studios").delete().eq("id",id);if(error)Alert.alert("삭제 실패",error.message);else await load();setBusy(false);}}]);
   const field=(label:string,key:keyof typeof blank,keyboard:any="default")=><View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput style={[styles.input,(key==="image_urls"||key==="image_usage_note")&&{minHeight:72,textAlignVertical:"top"}]} multiline={key==="image_urls"||key==="image_usage_note"} value={String(form[key])} onChangeText={v=>setForm(f=>({...f,[key]:v}))} keyboardType={keyboard} placeholder={label}/></View>;
   const toggle=(label:string,key:"adult_classes"|"kids_classes"|"is_active")=><Pressable onPress={()=>setForm(f=>({...f,[key]:!f[key]}))} style={styles.toggle}><Text style={[styles.toggleText,form[key]&&styles.toggleOn]}>{form[key]?"✓ ":"○ "}{label}</Text></Pressable>;
@@ -197,9 +263,26 @@ export default function Admin() {
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
     </View>
+    {classStudio&&<View style={styles.panel}>
+      <View style={styles.listHead}><Text style={styles.heading}>{classStudio.name} · 수업 관리</Text><Pressable onPress={()=>{setClassStudio(null);resetClass();}}><Text style={styles.refresh}>닫기</Text></Pressable></View>
+      {classField("수업명 *","title")}
+      <Text style={styles.label}>대상 (adult / kids / all)</Text>
+      <View style={styles.toggles}>{(["adult","kids","all"] as const).map(v=><Pressable key={v} style={styles.toggle} onPress={()=>setClassForm(x=>({...x,audience:v}))}><Text style={[styles.toggleText,classForm.audience===v&&styles.toggleOn]}>{classForm.audience===v?"✓ ":"○ "}{v==="adult"?"성인":v==="kids"?"키즈":"전체"}</Text></Pressable>)}</View>
+      {classField("수준 (입문/초급/중급/고급)","level")}
+      {classField("수업 유형 (기초/포인트/발레핏 등)","class_type")}
+      {classField("수업 시간(분)","duration_minutes","numeric")}
+      {classField("1회 수강료(원)","price","numeric")}
+      {classField("시간표 (요일,시작,종료,메모 / 한 줄씩)","sessions")}
+      <Text style={styles.hint}>요일 번호: 0 일요일 · 1 월요일 · 2 화요일 · 3 수요일 · 4 목요일 · 5 금요일 · 6 토요일. 예: 1,19:00,20:00,성인 초급</Text>
+      <View style={styles.buttons}>{classEditing&&<Pressable style={styles.secondary} onPress={resetClass}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} disabled={classBusy||busy} onPress={saveClass}><Text style={styles.buttonText}>{classBusy?"저장 중…":classEditing?"수업 수정 저장":"수업 등록"}</Text></Pressable></View>
+      <View style={styles.listHead}><Text style={styles.heading}>등록된 수업 ({classRows.length})</Text><Pressable onPress={()=>loadClasses(classStudio.id)}><Text style={styles.refresh}>새로고침</Text></Pressable></View>
+      {classBusy&&<ActivityIndicator color={c.purple}/>}
+      {classRows.map(row=><View key={row.id} style={styles.row}><View style={{flex:1,minWidth:120}}><Text style={styles.rowName}>{row.title}</Text><Text style={styles.rowMeta}>{row.audience==="kids"?"키즈":row.audience==="all"?"전체":"성인"} · {row.level||"수준 미입력"} · {(row.class_sessions||[]).filter((x:any)=>x.is_active!==false).length}개 시간표</Text></View><Pressable onPress={()=>editClass(row)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>deleteClass(row.id,row.title)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
+      {!classRows.length&&!classBusy&&<Text style={styles.hint}>등록된 수업이 없습니다.</Text>}
+    </View>}
     <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active,image_urls,image_usage_note · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,25000,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>{busy&&<ActivityIndicator color={c.purple}/>}
-      {rows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>uploadPhotos(r.id,r.name)} disabled={busy||((r.image_urls||[]).length>=10)}><Text style={styles.action}>사진 업로드</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
+      {rows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>{setClassStudio(r);resetClass();}}><Text style={styles.action}>수업관리</Text></Pressable><Pressable onPress={()=>uploadPhotos(r.id,r.name)} disabled={busy||((r.image_urls||[]).length>=10)}><Text style={styles.action}>사진 업로드</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
       {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
