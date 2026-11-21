@@ -91,7 +91,8 @@ export default function Admin() {
   const [evidenceRows,setEvidenceRows]=useState<EvidenceCandidate[]>([]);
   const [verifiedPriceRows,setVerifiedPriceRows]=useState<EvidenceCandidate[]>([]);
   const [verifiedScheduleRows,setVerifiedScheduleRows]=useState<EvidenceCandidate[]>([]);
-  const [activePublicSchedules,setActivePublicSchedules]=useState<any[]>([]);\n  const [publishedScheduleCandidateIds,setPublishedScheduleCandidateIds]=useState<number[]>([]);
+  const [activePublicSchedules,setActivePublicSchedules]=useState<any[]>([]);
+  const [publishedScheduleCandidateIds,setPublishedScheduleCandidateIds]=useState<number[]>([]);
   const [publishedCandidateIds,setPublishedCandidateIds]=useState<number[]>([]);
   const [activePublicPrices,setActivePublicPrices]=useState<any[]>([]);
   const [evidenceBusy,setEvidenceBusy]=useState(false);
