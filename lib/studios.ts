@@ -22,8 +22,17 @@ export type StudioRecord = {
   phone: string | null;
 };
 
+const studioCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>();
+const CACHE_MS = 90_000;
+
 export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
   if (!supabase) return [];
+  const key = bounds
+    ? [bounds.latitude.toFixed(4), bounds.longitude.toFixed(4), bounds.latitudeDelta.toFixed(3), bounds.longitudeDelta.toFixed(3)].join(":")
+    : "all";
+  const cached = studioCache.get(key);
+  if (cached && Date.now() - cached.savedAt < CACHE_MS) return cached.rows;
+
   let query = supabase
     .from("studios")
     .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone")
@@ -38,5 +47,7 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
   }
   const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
+  const rows = data ?? [];
+  studioCache.set(key, { savedAt: Date.now(), rows });
+  return rows;
 }
