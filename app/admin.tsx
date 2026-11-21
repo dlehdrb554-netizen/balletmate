@@ -4,11 +4,11 @@ import { supabase } from "../lib/supabase";
 
 type StudioRow = {
   id:string; name:string; latitude:number; longitude:number; district:string|null;
-  address:string|null; phone:string|null; price_per_class:number|null;
+  address:string|null; phone:string|null; price_per_class:number|null; website_url:string|null;
   adult_classes:boolean; kids_classes:boolean; is_active:boolean;
 };
 
-const blank = {name:"",latitude:"",longitude:"",district:"",address:"",phone:"",price_per_class:"",adult_classes:true,kids_classes:false,is_active:false};
+const blank = {name:"",latitude:"",longitude:"",district:"",address:"",phone:"",website_url:"",price_per_class:"",adult_classes:true,kids_classes:false,is_active:false};
 const c = {ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",white:"#FFFFFF",bg:"#FAF9FC"};
 
 export default function Admin() {
@@ -40,7 +40,7 @@ export default function Admin() {
   const load=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setBusy(true);
-    const {data,error}=await supabase.from("studios").select("id,name,latitude,longitude,district,address,phone,price_per_class,adult_classes,kids_classes,is_active").order("name").limit(500);
+    const {data,error}=await supabase.from("studios").select("id,name,latitude,longitude,district,address,phone,website_url,price_per_class,adult_classes,kids_classes,is_active").order("name").limit(500);
     if(error)Alert.alert("조회 실패",error.message);else setRows(data||[]);
     setBusy(false);
   },[authorized]);
@@ -57,7 +57,7 @@ export default function Admin() {
   };
   const logout=async()=>{await supabase?.auth.signOut();setSession(null);setAuthorized(false);};
   const startEdit=(r:StudioRow)=>{
-    setEditing(r.id);setForm({name:r.name,latitude:String(r.latitude),longitude:String(r.longitude),district:r.district||"",address:r.address||"",phone:r.phone||"",price_per_class:r.price_per_class==null?"":String(r.price_per_class),adult_classes:r.adult_classes,kids_classes:r.kids_classes,is_active:r.is_active});
+    setEditing(r.id);setForm({name:r.name,latitude:String(r.latitude),longitude:String(r.longitude),district:r.district||"",address:r.address||"",phone:r.phone||"",website_url:r.website_url||"",price_per_class:r.price_per_class==null?"":String(r.price_per_class),adult_classes:r.adult_classes,kids_classes:r.kids_classes,is_active:r.is_active});
   };
   const reset=()=>{setEditing(null);setForm({...blank});};
   const save=async()=>{
@@ -65,11 +65,20 @@ export default function Admin() {
     if(!form.name.trim()||!form.latitude.trim()||!form.longitude.trim()){Alert.alert("필수 정보","학원명과 위도/경도를 입력하세요.");return;}
     const lat=Number(form.latitude),lng=Number(form.longitude),price=form.price_per_class.trim()?Number(form.price_per_class):null;
     if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lng)||lng < -180||lng > 180|| (price!==null&&(!Number.isFinite(price)||price<0))){Alert.alert("입력 확인","좌표 또는 가격이 올바르지 않습니다.");return;}
-    const payload={name:form.name.trim(),latitude:lat,longitude:lng,district:form.district.trim()||null,address:form.address.trim()||null,phone:form.phone.trim()||null,price_per_class:price,adult_classes:form.adult_classes,kids_classes:form.kids_classes,is_active:form.is_active,updated_at:new Date().toISOString()};
+    const payload={name:form.name.trim(),latitude:lat,longitude:lng,district:form.district.trim()||null,address:form.address.trim()||null,phone:form.phone.trim()||null,website_url:form.website_url.trim()||null,price_per_class:price,adult_classes:form.adult_classes,kids_classes:form.kids_classes,is_active:form.is_active,updated_at:new Date().toISOString()};
     setBusy(true);
     const q=editing?supabase.from("studios").update(payload).eq("id",editing):supabase.from("studios").insert(payload);
     const {error}=await q;
     if(error)Alert.alert("저장 실패",error.message);else{Alert.alert("저장 완료",form.is_active?"앱 공개 목록에 반영됩니다.":"비공개 상태로 저장했습니다.");reset();await load();}
+    setBusy(false);
+  };
+  const crawlImages=async(id:string,name:string)=>{
+    if(!supabase)return;
+    setBusy(true);
+    const {data,error}=await supabase.functions.invoke("crawl-studio",{body:{studioId:id}});
+    if(error){Alert.alert("사진 수집 실패",error.message||"잠시 후 다시 시도해 주세요.");}
+    else if(data?.error){Alert.alert("사진 수집 실패",data.error);}
+    else{Alert.alert("사진 수집 완료",name+" · "+data.count+"개 이미지가 공식 홈페이지에서 확인되어 저장됐습니다.");await load();}
     setBusy(false);
   };
   const remove=(id:string,name:string)=>Alert.alert("학원 삭제",name+" 정보를 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{setBusy(true);const {error}=await supabase!.from("studios").delete().eq("id",id);if(error)Alert.alert("삭제 실패",error.message);else await load();setBusy(false);}}]);
@@ -82,12 +91,12 @@ export default function Admin() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
-    <View style={styles.panel}><Text style={styles.heading}>{editing?"학원 정보 수정":"학원 등록"}</Text>{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
+    <View style={styles.panel}><Text style={styles.heading}>{editing?"학원 정보 수정":"학원 등록"}</Text>{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
     </View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>{busy&&<ActivityIndicator color={c.purple}/>}
-      {rows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
+      {rows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
       {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
