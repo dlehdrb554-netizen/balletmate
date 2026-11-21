@@ -79,8 +79,8 @@ export default function Community(){
   try{
    const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:"",category:newCategory,title:title.trim(),content:body.trim()});
    if(error)throw error;
-   setComposer(false);setTitle("");setBody("");setCategory("전체");setLoading(true);
-   await loadPosts();
+   setComposer(false);setTitle("");setBody("");setLoading(true);
+   if(category!=="전체")setCategory("전체");else await loadPosts();
    Alert.alert("등록 완료","게시글이 등록되었습니다.");
   }catch(error:any){explainError(error);}
   finally{setSubmitting(false);}
