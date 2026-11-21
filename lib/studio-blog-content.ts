@@ -63,3 +63,29 @@ export async function fetchStudioPublicPrices(studioId:string):Promise<StudioPub
   publicPriceCache.set(studioId,{savedAt:Date.now(),rows});
   return rows;
 }
+
+export type StudioPublicSchedule = {
+  id:number;
+  studio_id:string;
+  schedule_text:string;
+  evidence_text:string;
+  source_title:string|null;
+  source_url:string;
+  source_post_date:string|null;
+  published_at:string;
+  expires_at:string;
+};
+
+const publicScheduleCache = new Map<string, { savedAt:number; rows:StudioPublicSchedule[] }>();
+export async function fetchStudioPublicSchedules(studioId:string):Promise<StudioPublicSchedule[]> {
+  if(!supabase)return [];
+  const cached=publicScheduleCache.get(studioId);
+  if(cached&&Date.now()-cached.savedAt<BLOG_CACHE_MS)return cached.rows;
+  const {data,error}=await supabase.from("studio_public_schedules_app")
+    .select("id,studio_id,schedule_text,evidence_text,source_title,source_url,source_post_date,published_at,expires_at")
+    .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
+  if(error)throw error;
+  const rows=(data||[]) as StudioPublicSchedule[];
+  publicScheduleCache.set(studioId,{savedAt:Date.now(),rows});
+  return rows;
+}
