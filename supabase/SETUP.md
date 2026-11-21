@@ -26,6 +26,12 @@ Admin writes are protected by Supabase Auth and `admin_users`. Admin login in th
 - Admins can upload up to 10 photos per studio, JPG/PNG/WEBP, max 5 MB each, into the public-read `studio-photos` bucket; only admins can upload/change/delete. Confirm usage rights before publishing.
 - Provenance fields are shown in studio detail where available.
 
+## Naver public-blog evidence collection and review
+- Run `studio_blog_search.sql` and `studio_blog_post_crawl.sql` after the discovery tables exist. Configure the Edge Function secrets `NAVER_CLIENT_ID` and `NAVER_CLIENT_SECRET`; keep them out of the mobile app and GitHub.
+- Run `evidence_review.sql` after `studio_blog_post_crawl.sql`. It adds an admin-only review queue for price and schedule evidence and aligns the post queue status constraint with the crawler's rejected state.
+- The post crawler saves public HTML text and image URL metadata. It extracts price lines with explicit currency amounts and schedule lines containing both a weekday and a time. These are candidates only; a review action records whether the evidence is credible but does not automatically publish a price or timetable.
+- Image OCR is not yet enabled. Do not infer a price or schedule from an image until a free, locally executed OCR path is integrated and verified. No paid AI/OCR service is used.
+
 ## Current app integration
 - The app queries the current map viewport only and caps each request at 300 active studios.\n- Viewport results are cached in-memory for 90 seconds; class schedules for 10 minutes.\n- Per app session, at most 40 uncached map searches and 25 uncached schedule lookups are allowed; cached hits do not count. This is a client-side guard, not an account-wide quota.
 - Studio class schedule data is fetched when a studio detail view opens. The detail sheet can be expanded/collapsed by dragging its handle; dragging down farther closes it.
@@ -34,6 +40,7 @@ Admin writes are protected by Supabase Auth and `admin_users`. Admin login in th
 - If no Supabase environment variables are configured, the app uses demo sample records.
 - If the backend is configured but has no active studios, it shows an empty result instead of demo data.
 - Favorites are stored locally for guests. After login, the app merges local and account favorites and saves them to the private `user_favorites` table. Changes to favorites are written to cloud when logged in. The cloud sync is best-effort; local use remains available if the backend is unreachable.
+- The admin evidence review panel reads `studio_blog_evidence_candidates`; it appears after the `evidence_review.sql` migration is applied.
 
 ## Free-tier protection
 
