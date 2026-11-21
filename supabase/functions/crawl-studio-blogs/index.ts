@@ -10,12 +10,13 @@ const decode = (value: string) => value
   .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 const stripTags = (html: string) => decode(html
   .replace(/<(script|style|svg|noscript|iframe|header|footer|nav)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
-  // Preserve Naver Blog's void <br> tags before stripping markup.
+  // Preserve both opening and closing block boundaries before stripping markup.
   .replace(/<br\b[^>]*\/?\s*>/gi, "\n")
-  .replace(/<\/(p|div|li|tr|td|h[1-6]|section|article)\s*>/gi, "\n")
+  .replace(/<(p|div|li|tr|td|h[1-6]|section|article|table|ul|ol)\b[^>]*>/gi, "\n")
+  .replace(/<\/(p|div|li|tr|td|h[1-6]|section|article|table|ul|ol)\s*>/gi, "\n")
   .replace(/<[^>]+>/g, " "))
   .replace(/&zwnj;|&zwj;|&#8203;/gi, "")
-  .replace(/[\t\f\v ]+/g, " ").replace(/\n\s*/g, "\n")
+  .replace(/[ \t\f\v]+/g, " ").replace(/\n\s*/g, "\n")
   .split("\n").map(x => x.trim()).filter(Boolean).join("\n").slice(0, 120000);
 function attr(tag: string, name: string): string | null {
   const re = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
@@ -42,19 +43,28 @@ async function fetchBlog(url: URL): Promise<{ html: string; finalUrl: string } |
 }
 function extractImages(html: string, base: string): string[] {
   const out: string[] = [];
+  const seen = new Set<string>();
   for (const tag of html.match(/<img\b[^>]*>/gi) ?? []) {
     for (const key of ["data-lazy-src", "data-src", "src"]) {
       const raw = attr(tag, key);
       if (!raw) continue;
       try {
         const u = new URL(raw, base);
-        if (u.protocol === "https:" && /(^|\.)pstatic\.net$|(^|\.)naver\.net$/i.test(u.hostname) &&
-            !/\.svg(\?|$)/i.test(u.pathname)) out.push(u.toString());
+        if (u.protocol !== "https:" || !/(^|\.)pstatic\.net$|(^|\.)naver\.net$/i.test(u.hostname) ||
+            /\.svg(\?|$)/i.test(u.pathname)) continue;
+        // Naver often serves one image with different resize query strings.
+        // Deduplicate by stable path while preserving the first usable URL.
+        const stableKey = u.origin + u.pathname;
+        if (!seen.has(stableKey)) {
+          seen.add(stableKey);
+          out.push(u.toString());
+        }
       } catch { /* Ignore invalid image URLs. */ }
       break;
     }
+    if (out.length >= 40) break;
   }
-  return [...new Set(out)].slice(0, 40);
+  return out;
 }
 function normalize(value: string): string { return value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, ""); }
 function academyAlias(studioName: string): string {
@@ -87,13 +97,29 @@ function evidence(text: string, kind: "price" | "schedule"): string[] {
 }
 
 function priceAmount(line: string): string | null {
-  // Accept explicit KRW markers only. A bare number is never treated as a price.
-  const wonPrefix = line.match(/₩\s*(\d[\d,]*(?:\.\d+)?)/);
-  const amountMatch = line.match(/(\d[\d,]*(?:\.\d+)?)\s*(만원|만\s*원|만|원)/i);
-  if (!wonPrefix && !amountMatch) return null;
-  const rawText = (wonPrefix?.[1] ?? amountMatch?.[1] ?? "").replace(/,/g, "");
-  const raw = Number(rawText);
-  const amount = wonPrefix ? raw : (/만/.test(amountMatch?.[2] ?? "") ? raw * 10000 : raw);
+  // Parse only explicit KRW expressions. A bare count, date, or class number is not a price.
+  const prefix = line.match(/₩\s*(\d[\d,]*(?:\.\d+)?)/);
+  if (prefix) {
+    const amount = Number(prefix[1].replace(/,/g, ""));
+    return Number.isFinite(amount) && amount > 0 && amount <= 100_000_000
+      ? String(Math.round(amount)) : null;
+  }
+
+  // Korean shorthand: 3만5천원, 3만 원, 5천원.
+  const korean = line.match(/(\d+(?:\.\d+)?)\s*만\s*(?:(\d+)\s*천)?\s*원?/);
+  if (korean) {
+    const amount = Number(korean[1]) * 10000 + Number(korean[2] ?? 0) * 1000;
+    if (Number.isFinite(amount) && amount > 0 && amount <= 100_000_000) return String(Math.round(amount));
+  }
+  const thousand = line.match(/(\d[\d,]*(?:\.\d+)?)\s*천\s*원/i);
+  if (thousand) {
+    const amount = Number(thousand[1].replace(/,/g, "")) * 1000;
+    if (Number.isFinite(amount) && amount > 0 && amount <= 100_000_000) return String(Math.round(amount));
+  }
+  const standard = line.match(/(\d[\d,]*(?:\.\d+)?)\s*(만원|만\s*원|원)/i);
+  if (!standard) return null;
+  const raw = Number(standard[1].replace(/,/g, ""));
+  const amount = /만/.test(standard[2]) ? raw * 10000 : raw;
   if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000_000) return null;
   return String(Math.round(amount));
 }
