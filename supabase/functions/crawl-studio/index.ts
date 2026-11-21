@@ -28,7 +28,7 @@ function safeImageUrl(raw: string, base: string): string | null {
   try {
     const url = new URL(raw.trim(), base);
     if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return null;
-    if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.)/i.test(url.hostname)) return null;
+    if (url.protocol !== "https:" || !url.hostname || url.username || url.password || isPrivateHost(url.hostname)) return null;
     if (/\.svg(\?|$)/i.test(url.pathname) || url.pathname.startsWith("/_next/static/")) return null;
     return url.toString();
   } catch {
