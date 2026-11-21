@@ -16,11 +16,11 @@ const blogAccountKey = (raw: string): string => {
     return u.pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
   } catch { return ""; }
 };
-const isRelevantBlog = (studioName: string, title: string, bloggerUrl: string, officialAccounts: string[]): boolean => {
+const isRelevantBlog = (studioName: string, title: string, description: string, bloggerUrl: string, officialAccounts: string[]): boolean => {
   const alias = academyAlias(studioName);
-  const text = normalize(title);
+  const text = normalize(title + " " + description);
   const hasAcademy = alias.length >= 3 && text.includes(alias);
-  const hasBalletIntent = /(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title);
+  const hasBalletIntent = /(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + " " + description);
   const nameMatch = hasAcademy && hasBalletIntent;
   const accountKey = blogAccountKey(bloggerUrl);
   const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
           const title = cleanText(item.title);
           if (!isNaverBlogUrl(postUrl) || !title) return [];
           const description = cleanText(item.description);
-          if (!isRelevantBlog(String(job.studio_name), title, cleanText(item.bloggerlink), officialAccounts)) return [];
+          if (!isRelevantBlog(String(job.studio_name), title, description, cleanText(item.bloggerlink), officialAccounts)) return [];
           const dateText = String(item.postdate ?? "");
           const postDate = /^\d{8}$/.test(dateText)
             ? `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6, 8)}`
