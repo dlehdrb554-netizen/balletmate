@@ -37,7 +37,7 @@ function safeImageUrl(raw: string, base: string): string | null {
 
 function attr(tag: string, name: string): string | null {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = tag.match(new RegExp("\\b" + escaped + "\\s*=\\s*([\\"'])(.*?)\\1", "i"));
+  const match = tag.match(new RegExp(`\\b${escaped}\\s*=\\s*(["'])(.*?)\\1`, "i"));
   return match?.[2] ?? null;
 }
 
