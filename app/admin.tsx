@@ -30,7 +30,8 @@ function parseOcrFields(text:string){
   const periodMatch=compact.match(/(\d+\s*(?:개월|달|주|회권))/);
   const price_period=periodMatch?periodMatch[1].replace(/\s+/g,""):/월\s*단위/.test(compact)?"월 단위":/연\s*단위/.test(compact)?"연 단위":"기간 미확인";
   const freqMatch=compact.match(/주\s*(\d{1,2})\s*회/);
-  const frequency_per_week=freqMatch?Number(freqMatch[1]):null;
+  const frequencyCandidate=freqMatch?Number(freqMatch[1]):null;
+  const frequency_per_week=frequencyCandidate&&frequencyCandidate>=1&&frequencyCandidate<=14?frequencyCandidate:null;
   const dayMap:[RegExp,string][]=[
     [/(?:월요일|(?:^|[\s,·/])월(?=[\s,·/]|$))/,"월"],
     [/(?:화요일|(?:^|[\s,·/])화(?=[\s,·/]|$))/,"화"],
@@ -180,9 +181,10 @@ export default function Admin() {
       if(!dirInfo.exists)await FileSystem.makeDirectoryAsync(dir,{intermediates:true});
       for(let i=0;i<todo.length;i++){
         const item=todo[i];
+        let localUri:string|null=null;
         try{
           const ext=(item.image_url.split("?")[0].match(/\.(png|webp|jpeg|jpg)$/i)?.[1]||"jpg").toLowerCase();
-          const localUri=dir+"studio-"+id+"-source-"+item.source_id+"-"+i+"."+ext;
+          localUri=dir+"studio-"+id+"-source-"+item.source_id+"-"+i+"."+ext;
           const downloaded=await FileSystem.downloadAsync(item.image_url,localUri,{headers:{"User-Agent":"Mozilla/5.0 BalletmateImageOCR"}});
           if(downloaded.status<200||downloaded.status>=300)throw new Error("이미지 다운로드 HTTP "+downloaded.status);
           const lines=await extractTextFromImage(downloaded.uri,Platform.OS==="android"?{script:TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});
@@ -199,6 +201,7 @@ export default function Admin() {
           if(error)throw error;
           processed++;
         }catch(imageError){failed++;}
+        finally{if(localUri)await FileSystem.deleteAsync(localUri,{idempotent:true}).catch(()=>{});}
       }
       await loadOcr();
       Alert.alert("블로그 이미지 OCR 완료",name+"\n새로 처리: "+processed+"장 · 글자 없음/중복: "+skipped+"장 · 실패: "+failed+"장\n이미지 파일은 기기 임시 저장소에서만 처리했습니다.");
