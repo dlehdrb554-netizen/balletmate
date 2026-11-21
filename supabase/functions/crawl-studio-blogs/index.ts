@@ -284,7 +284,7 @@ Deno.serve(async (req) => {
       let candidateWarning: string | null = null;
       if (evidenceCandidates.length) {
         const { error: candidateError } = await db.from("studio_blog_evidence_candidates")
-          .upsert(evidenceCandidates, { onConflict: "source_id,candidate_type,candidate_value", ignoreDuplicates: true });
+          .upsert(evidenceCandidates, { onConflict: "source_id,candidate_type,candidate_value", ignoreDuplicates: false });
         // Evidence review is an optional enrichment stage. A missing migration
         // must not prevent the original public post content from being saved.
         if (candidateError) candidateWarning = candidateError.message;
