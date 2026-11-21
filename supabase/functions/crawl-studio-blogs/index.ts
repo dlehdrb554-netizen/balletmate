@@ -166,10 +166,13 @@ Deno.serve(async (req) => {
         ...candidateRows(prices, "price", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url) }),
         ...candidateRows(schedules, "schedule", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url) }),
       ];
+      let candidateWarning: string | null = null;
       if (evidenceCandidates.length) {
         const { error: candidateError } = await db.from("studio_blog_evidence_candidates")
           .upsert(evidenceCandidates, { onConflict: "source_id,candidate_type,candidate_value", ignoreDuplicates: true });
-        if (candidateError) throw new Error("가격·시간표 근거 저장 실패: " + candidateError.message);
+        // Evidence review is an optional enrichment stage. A missing migration
+        // must not prevent the original public post content from being saved.
+        if (candidateError) candidateWarning = candidateError.message;
       }
       const status = textBody.length > 80 ? "success" : "partial";
       const { error: saveError } = await db.from("studio_blog_post_contents").upsert({
@@ -182,7 +185,7 @@ Deno.serve(async (req) => {
         .update({ status: "completed", last_error: null, updated_at: new Date().toISOString() })
         .eq("source_id", job.source_id);
       if (doneError) throw new Error("완료 상태 저장 실패: " + doneError.message);
-      results.push({ sourceId: job.source_id, studio: job.studio_name, textLength: textBody.length, images: images.length, priceEvidence: prices.length, scheduleEvidence: schedules.length, status });
+      results.push({ sourceId: job.source_id, studio: job.studio_name, textLength: textBody.length, images: images.length, priceEvidence: prices.length, scheduleEvidence: schedules.length, status, ...(candidateWarning ? { candidateWarning } : {}) });
     } catch (e) {
       const message = e instanceof Error ? e.message : "알 수 없는 오류";
       const terminal = Number(job.attempts) >= 4;
