@@ -153,7 +153,19 @@ export default function Home() {
   const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0)+(durationFilter!==null?1:0)+(maxDistance!==null?1:0);
-  const toggleCompare=(studio:Studio)=>{\n    if(compareIds.includes(studio.id)){\n      setCompareIds(ids=>ids.filter(i=>i!==studio.id));\n      setCompareCache(list=>list.filter(x=>x.id!==studio.id));\n      return;\n    }\n    if(compareIds.length>=3){\n      Alert.alert("비교 제한","학원은 최대 3곳까지 비교할 수 있어요. 먼저 비교 목록에서 한 곳을 제외해 주세요.");\n      return;\n    }\n    setCompareIds(ids=>[...ids,studio.id]);\n    setCompareCache(list=>[studio,...list.filter(x=>x.id!==studio.id)]);\n  };
+  const toggleCompare=(studio:Studio)=>{
+    if(compareIds.includes(studio.id)){
+      setCompareIds(ids=>ids.filter(i=>i!==studio.id));
+      setCompareCache(list=>list.filter(x=>x.id!==studio.id));
+      return;
+    }
+    if(compareIds.length>=3){
+      Alert.alert("비교 제한","학원은 최대 3곳까지 비교할 수 있어요. 먼저 비교 목록에서 한 곳을 제외해 주세요.");
+      return;
+    }
+    setCompareIds(ids=>[...ids,studio.id]);
+    setCompareCache(list=>[studio,...list.filter(x=>x.id!==studio.id)]);
+  };
   const toggleFavorite=(studio:Studio)=>{
     const removing=favoriteIds.includes(studio.id);
     setFavoriteIds(ids=>removing?ids.filter(i=>i!==studio.id):[...ids,studio.id]);
