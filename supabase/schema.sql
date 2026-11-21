@@ -97,4 +97,7 @@ drop policy if exists "public can read active coupons" on public.coupons;
 create policy "public can read active coupons" on public.coupons
 for select to anon, authenticated using (is_active = true);
 
+-- Explicit read grants are required in addition to RLS policies.
+grant select on public.studios, public.classes, public.class_sessions, public.coupons to anon, authenticated;
+
 -- No public INSERT/UPDATE/DELETE policy: write operations remain unavailable to clients.
