@@ -14,14 +14,14 @@ SET public = EXCLUDED.public,
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
-DROP POLICY IF EXISTS "Public can view studio photos" ON storage.objects;
-CREATE POLICY "Public can view studio photos"
+DROP POLICY IF EXISTS "public can view studio photos" ON storage.objects;
+CREATE POLICY "public can view studio photos"
   ON storage.objects FOR SELECT
   TO anon, authenticated
   USING (bucket_id = 'studio-photos');
 
-DROP POLICY IF EXISTS "Balletmate admins upload studio photos" ON storage.objects;
-CREATE POLICY "Balletmate admins upload studio photos"
+DROP POLICY IF EXISTS "admins upload studio photos" ON storage.objects;
+CREATE POLICY "admins upload studio photos"
   ON storage.objects FOR INSERT
   TO authenticated
   WITH CHECK (
@@ -29,8 +29,8 @@ CREATE POLICY "Balletmate admins upload studio photos"
     AND public.is_balletmate_admin()
   );
 
-DROP POLICY IF EXISTS "Balletmate admins update studio photos" ON storage.objects;
-CREATE POLICY "Balletmate admins update studio photos"
+DROP POLICY IF EXISTS "admins update studio photos" ON storage.objects;
+CREATE POLICY "admins update studio photos"
   ON storage.objects FOR UPDATE
   TO authenticated
   USING (
@@ -42,8 +42,8 @@ CREATE POLICY "Balletmate admins update studio photos"
     AND public.is_balletmate_admin()
   );
 
-DROP POLICY IF EXISTS "Balletmate admins delete studio photos" ON storage.objects;
-CREATE POLICY "Balletmate admins delete studio photos"
+DROP POLICY IF EXISTS "admins delete studio photos" ON storage.objects;
+CREATE POLICY "admins delete studio photos"
   ON storage.objects FOR DELETE
   TO authenticated
   USING (

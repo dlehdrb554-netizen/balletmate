@@ -88,4 +88,15 @@ Supabase currently lists its Free plan as $0 with 2 active projects, 500 MB data
 
 ### 관리자 사진 업로드 저장소
 
-관리자 화면의 사진 업로드 기능을 사용하기 전에 Supabase SQL Editor에서 `supabase/studio_photo_storage.sql`을 한 번 실행합니다. 이 스크립트는 `studio-photos` 공개 읽기 버킷을 생성하고, JPEG/PNG/WEBP 최대 5MB 파일만 허용하며 업로드·수정·삭제는 Balletmate 관리자만 할 수 있도록 제한합니다. 별도 유료 서비스나 외부 저장소는 사용하지 않습니다.
+기본 supabase/studio_intake.sql에도 studio-photos 공개 읽기 버킷과 관리자 전용 업로드·수정·삭제 정책이 포함되어 있습니다. 해당 SQL을 실행하지 않은 기존 프로젝트라면 supabase/studio_photo_storage.sql을 실행해 동일 설정을 보완합니다. JPEG/PNG/WEBP 최대 5MB만 허용하며 별도 유료 서비스나 외부 저장소는 사용하지 않습니다.
+
+
+### OCR 근거 검토 권한 및 원문 게시일
+
+기존 evidence_review.sql과 OCR 테이블을 생성한 프로젝트는 다음 SQL을 순서대로 실행합니다.
+
+1. supabase/evidence_source_post_date.sql — 블로그 근거 및 OCR 결과에 원문 게시일을 보존하고 기존 자료를 채웁니다.
+2. supabase/evidence_admin_insert.sql — 관리자만 OCR 근거 후보를 검토 대기열에 전달할 수 있도록 INSERT 권한을 부여합니다.
+3. supabase/admin_sequence_permissions.sql — 관리자와 워커가 자동 증가 ID를 사용하는 테이블에 삽입할 수 있도록 시퀀스 권한을 보완합니다.
+
+수집 원본 테이블은 계속 서비스 역할 전용으로 유지됩니다. 가격과 시간표는 관리자 검증 후에만 공개됩니다.

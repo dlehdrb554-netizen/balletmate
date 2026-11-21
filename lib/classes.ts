@@ -25,7 +25,7 @@ export async function fetchClassesForStudio(studioId: string): Promise<StudioCla
 
   const { data, error } = await supabase
     .from("classes")
-    .select("id,title,audience,level,class_type,duration_minutes,price,class_sessions(weekday,start_time,end_time,note)")
+    .select("id,title,audience,level,class_type,duration_minutes,price,class_sessions(weekday,start_time,end_time,note,is_active)")
     .eq("studio_id", studioId)
     .eq("is_active", true)
     .limit(50);
