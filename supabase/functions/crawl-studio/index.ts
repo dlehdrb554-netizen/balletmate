@@ -9,10 +9,10 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 function isPrivateHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.includes(":")) return true;
   const parts = host.split(".");
-  if (parts.length !== 4 || !parts.every((part) => /^\\d{1,3}$/.test(part))) return false;
+  if (parts.length !== 4 || !parts.every((part) => /^\d{1,3}$/.test(part))) return false;
   const [a, b] = parts.map(Number);
   if ([a, b].some((part) => part < 0 || part > 255)) return true;
   return a === 0 || a === 10 || a === 127 || a >= 224 ||
@@ -24,12 +24,12 @@ function safeImageUrl(raw: string, base: string): string | null {
   try {
     const url = new URL(raw.trim(), base);
     if (url.protocol !== "https:" || !url.hostname || url.username || url.password || isPrivateHost(url.hostname)) return null;
-    if (/\\.svg(\\?|$)/i.test(url.pathname) || url.pathname.startsWith("/_next/static/")) return null;
+    if (/\.svg(\?|$)/i.test(url.pathname) || url.pathname.startsWith("/_next/static/")) return null;
     return url.toString();
   } catch { return null; }
 }
 function attr(tag: string, name: string): string | null {
-  const pattern = /([^\\s=]+)\\s*=\\s*(?:"([^"]*)"|'([^']*)')/g;
+  const pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   for (const match of tag.matchAll(pattern)) {
     if (match[1].toLowerCase() === name.toLowerCase()) return match[2] ?? match[3] ?? null;
   }
@@ -51,24 +51,24 @@ function collectJsonImages(value: unknown, output: string[]) {
 function decodeHtml(value: string): string {
   return value.replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
-    .replace(/&#(\\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 }
 function visibleText(html: string): string {
   return decodeHtml(html
-    .replace(/<(script|style|svg|noscript|iframe|nav|footer|header|form)\\b[^>]*>[\\s\\S]*?<\\/\\1>/gi, " ")
-    .replace(/<\\/(p|div|li|tr|td|th|h[1-6]|section|article|br)\\s*>/gi, "\\n")
+    .replace(/<(script|style|svg|noscript|iframe|nav|footer|header|form)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/(p|div|li|tr|td|th|h[1-6]|section|article|br)\s*>/gi, "\n")
     .replace(/<[^>]+>/g, " "))
-    .replace(/[\\t\\f\\v ]+/g, " ")
-    .replace(/\\n\\s*/g, "\\n")
-    .split("\\n").map((line) => line.trim()).filter(Boolean).join("\\n");
+    .replace(/[\t\f\v ]+/g, " ")
+    .replace(/\n\s*/g, "\n")
+    .split("\n").map((line) => line.trim()).filter(Boolean).join("\n");
 }
 function relevantLinks(html: string, base: URL): string[] {
   const candidates: Array<{ url: string; priority: number }> = [];
-  for (const tag of html.match(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi) ?? []) {
+  for (const tag of html.match(/<a\b[^>]*>[\s\S]*?<\/a>/gi) ?? []) {
     const href = attr(tag, "href");
     if (!href) continue;
-    const label = visibleText(tag.replace(/<a\\b[^>]*>/i, "").replace(/<\\/a>/i, "")).slice(0, 100);
+    const label = visibleText(tag.replace(/<a\b[^>]*>/i, "").replace(/<\/a>/i, "")).slice(0, 100);
     try {
       const url = new URL(href, base);
       if (url.protocol !== "https:" || url.hostname !== base.hostname || url.username || url.password) continue;
@@ -83,9 +83,9 @@ function relevantLinks(html: string, base: URL): string[] {
 }
 function snippetsFor(text: string, kind: "price" | "schedule"): string[] {
   const pattern = kind === "price"
-    ? /(가격|수강료|회비|등록비|입회비|원\\s*(?:\\/|부터|$)|만원|금액|비용)/i
-    : /(시간표|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|평일|주말|수업|클래스|타임|시\\s*\\d{1,2}|\\d{1,2}:\\d{2})/i;
-  return [...new Set(text.split("\\n").map((line) => line.trim()).filter((line) => line.length >= 3 && line.length <= 500 && pattern.test(line)).map((line) => line.slice(0, 240)))].slice(0, 30);
+    ? /(가격|수강료|회비|등록비|입회비|원\s*(?:\/|부터|$)|만원|금액|비용)/i
+    : /(시간표|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|평일|주말|수업|클래스|타임|시\s*\d{1,2}|\d{1,2}:\d{2})/i;
+  return [...new Set(text.split("\n").map((line) => line.trim()).filter((line) => line.length >= 3 && line.length <= 500 && pattern.test(line)).map((line) => line.slice(0, 240)))].slice(0, 30);
 }
 async function fetchHtml(url: URL): Promise<string | null> {
   try {
@@ -158,21 +158,21 @@ Deno.serve(async (req) => {
   const detailSources: string[] = [];
   for (const page of pages) {
     detailSources.push(page.url.toString());
-    for (const tag of page.html.match(/<meta\\b[^>]*>/gi) ?? []) {
+    for (const tag of page.html.match(/<meta\b[^>]*>/gi) ?? []) {
       const key = (attr(tag, "property") || attr(tag, "name") || "").toLowerCase();
       if (["og:image", "og:image:url", "twitter:image", "twitter:image:src"].includes(key)) {
         const value = attr(tag, "content"); if (value) imageCandidates.push(value);
       }
     }
-    for (const script of page.html.match(/<script\\b[^>]*type=["']application\\/ld\\+json["'][^>]*>[\\s\\S]*?<\\/script>/gi) ?? []) {
-      const raw = script.replace(/^.*?>/s, "").replace(/<\\/script>\\s*$/i, "");
+    for (const script of page.html.match(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) ?? []) {
+      const raw = script.replace(/^.*?>/s, "").replace(/<\/script>\s*$/i, "");
       try { collectJsonImages(JSON.parse(raw), imageCandidates); } catch { /* Ignore invalid structured data. */ }
     }
-    for (const tag of page.html.match(/<img\\b[^>]*>/gi) ?? []) {
+    for (const tag of page.html.match(/<img\b[^>]*>/gi) ?? []) {
       const value = attr(tag, "src") || attr(tag, "data-src") || attr(tag, "data-lazy-src");
       if (value) imageCandidates.push(value);
       const srcset = attr(tag, "srcset");
-      if (srcset) imageCandidates.push(srcset.split(",")[0].trim().split(/\\s+/)[0]);
+      if (srcset) imageCandidates.push(srcset.split(",")[0].trim().split(/\s+/)[0]);
     }
     const text = visibleText(page.html);
     priceEvidence.push(...snippetsFor(text, "price"));
@@ -188,8 +188,8 @@ Deno.serve(async (req) => {
   }
 
   const update: Record<string, unknown> = {
-    price_evidence_text: prices.join("\\n") || null,
-    schedule_evidence_text: schedules.join("\\n") || null,
+    price_evidence_text: prices.join("\n") || null,
+    schedule_evidence_text: schedules.join("\n") || null,
     details_source_urls: detailSources,
     details_checked_at: new Date().toISOString(),
     details_status: prices.length && schedules.length ? "partial_verified_text" : "partial",
