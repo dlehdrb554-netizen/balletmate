@@ -26,6 +26,10 @@ Use SQL Editor or a future secured admin panel to enter records. Keep source URL
 - Favorites are saved on the device, not synced to an account yet.
 
 ## Free-tier protection
+
+Supabase currently lists its Free plan as $0 with 2 active projects, 500 MB database storage per project, 50,000 monthly active users, and 5 GB egress; Free projects can pause after a week of inactivity. Check the current official plan before launch: https://supabase.com/pricing.
+
+
 - Initial discovery is limited to 300 rows per request.
 - Detail schedules are only requested when a user opens a detail card.
 - No realtime subscriptions, background polling, or public write endpoints.
