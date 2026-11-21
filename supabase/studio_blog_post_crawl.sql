@@ -42,14 +42,14 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $
+as $enqueue$
 begin
   insert into public.studio_blog_post_crawl_queue(source_id)
   values (new.id)
   on conflict (source_id) do nothing;
   return new;
 end;
-$;
+$enqueue$;
 
 drop trigger if exists trg_enqueue_studio_blog_post_crawl on public.studio_blog_sources;
 create trigger trg_enqueue_studio_blog_post_crawl
