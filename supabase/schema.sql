@@ -109,6 +109,7 @@ create table if not exists public.admin_users (
   created_at timestamptz not null default now()
 );
 alter table public.admin_users enable row level security;
+grant select on public.admin_users to authenticated;
 drop policy if exists "admins can view own admin record" on public.admin_users;
 create policy "admins can view own admin record" on public.admin_users
 for select to authenticated using (user_id = auth.uid());
