@@ -80,6 +80,9 @@ begin
   if not public.is_balletmate_admin() then
     raise exception 'administrator access required' using errcode = '42501';
   end if;
+  update public.studio_image_crawl_queue
+  set status = 'pending', updated_at = now()
+  where status = 'processing' and updated_at < now() - interval '30 minutes';
   return query
   with candidates as (
     select q.id
