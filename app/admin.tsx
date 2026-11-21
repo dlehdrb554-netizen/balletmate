@@ -58,17 +58,7 @@ export default function Admin() {
     if(!supabase||!authorized)return;
     setBusy(true);
     const {data,error}=await supabase.from("studios").select("id,name,latitude,longitude,district,address,phone,website_url,source_url,source_name,verified_at,image_urls,image_source_name,image_usage_note,price_per_class,adult_classes,kids_classes,is_active").order("name").limit(500);
-    if(error)Alert.alert("조회 실패",error.message);
-    else {
-      setRows(data||[]);
-      const {data:queue}=await supabase.rpc("claim_studio_image_crawl_queue",{p_limit:2});
-      for(const item of queue||[]){
-        const {data:result,error:crawlError}=await supabase.functions.invoke("crawl-studio",{body:{studioId:item.studio_id}});
-        const failed=!!crawlError||!!result?.error;
-        const attempts=(item.attempts||0)+1;
-        await supabase.from("studio_image_crawl_queue").update({status:failed?(attempts>=3?"failed":"pending"):"done",attempts,next_attempt_at:new Date(Date.now()+(attempts===1?24:72)*60*60*1000).toISOString(),last_error:failed?(crawlError?.message||result?.error||"이미지 수집 실패"):null,updated_at:new Date().toISOString()}).eq("id",item.id);
-      }
-    }
+    if(error)Alert.alert("조회 실패",error.message);else setRows(data||[]);
     setBusy(false);
   },[authorized]);
   useEffect(()=>{load();},[load]);
