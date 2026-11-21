@@ -56,7 +56,7 @@ function extractImages(html: string, base: string): string[] {
 function normalize(value: string): string { return value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, ""); }
 function academyAlias(studioName: string): string {
   return normalize(studioName)
-    .replace(/(발레스튜디오|발레아카데미|무용학원|발레학원|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
+    .replace(/(무용학원|발레학원|발레아카데미|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
 }
 function isRelevantBlog(studioName: string, title: string, context = ""): boolean {
   const alias = academyAlias(studioName);
