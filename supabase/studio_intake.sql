@@ -106,7 +106,7 @@ end;
 $$;
 
 revoke all on function public.claim_studio_image_crawl_queue(integer) from public;
-grant execute on function public.claim_studio_image_crawl_queue(integer) to authenticated;
+grant execute on function public.claim_studio_image_crawl_queue(integer) to authenticated, service_role;
 
 -- Publicly readable studio image bucket; only Balletmate admins can upload/change/delete.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
