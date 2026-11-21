@@ -8,7 +8,7 @@ import {
 import MapView, { Marker, Region } from "react-native-maps";
 import { fetchStudios } from "../lib/studios";
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
-import { fetchStudioBlogPosts, StudioBlogPost } from "../lib/studio-blog-content";
+import { fetchStudioBlogPosts, StudioBlogPost, fetchStudioPublicPrices, StudioPublicPrice } from "../lib/studio-blog-content";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import * as Location from "expo-location";
 
@@ -49,6 +49,7 @@ export default function Home() {
   const [studioClasses,setStudioClasses]=useState<StudioClass[]>([]);
   const [classesLoading,setClassesLoading]=useState(false);
   const [studioBlogPosts,setStudioBlogPosts]=useState<StudioBlogPost[]>([]);
+  const [studioPublicPrices,setStudioPublicPrices]=useState<StudioPublicPrice[]>([]);
   const [blogLoading,setBlogLoading]=useState(false);
   const detailRequestId=useRef(0);
   const [detailExpanded,setDetailExpanded]=useState(false);
@@ -195,7 +196,7 @@ export default function Home() {
     });
   };
   const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setMaxPrice(null);setDurationFilter(null);setMaxDistance(null);};
-  const openDetail=async(s:Studio)=>{const requestId=++detailRequestId.current;setDetailExpanded(false);detailDragY.setValue(0);setDetailStudio(s);setStudioClasses([]);setStudioBlogPosts([]);if(supabaseConfigured){setClassesLoading(true);setBlogLoading(true);fetchClassesForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioClasses(rows);}).catch(()=>{if(requestId===detailRequestId.current)setStudioClasses([]);}).finally(()=>{if(requestId===detailRequestId.current)setClassesLoading(false);});fetchStudioBlogPosts(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioBlogPosts(rows);}).catch(error=>{console.warn("Studio blog content unavailable:",error);if(requestId===detailRequestId.current)setStudioBlogPosts([]);}).finally(()=>{if(requestId===detailRequestId.current)setBlogLoading(false);});}else{setBlogLoading(false);}};
+  const openDetail=async(s:Studio)=>{const requestId=++detailRequestId.current;setDetailExpanded(false);detailDragY.setValue(0);setDetailStudio(s);setStudioClasses([]);setStudioBlogPosts([]);setStudioPublicPrices([]);if(supabaseConfigured){setClassesLoading(true);setBlogLoading(true);fetchClassesForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioClasses(rows);}).catch(()=>{if(requestId===detailRequestId.current)setStudioClasses([]);}).finally(()=>{if(requestId===detailRequestId.current)setClassesLoading(false);});fetchStudioBlogPosts(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioBlogPosts(rows);}).catch(error=>{console.warn("Studio blog content unavailable:",error);if(requestId===detailRequestId.current)setStudioBlogPosts([]);}).finally(()=>{if(requestId===detailRequestId.current)setBlogLoading(false);});fetchStudioPublicPrices(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicPrices(rows);}).catch(error=>{console.warn("Approved studio prices unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicPrices([]);});}else{setBlogLoading(false);}};
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");if(!studios.some(x=>x.id===s.id)){const r={latitude:s.lat,longitude:s.lng,latitudeDelta:0.04,longitudeDelta:0.04};setSearchedRegion(r);setAreaLocked(false);}map.current?.animateToRegion({latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018},400);}} style={[styles.studioCard,compact&&styles.compactCard]}>
     <View style={styles.cardTop}><View style={styles.studioIcon}><Text style={{fontSize:20}}>🩰</Text></View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · ⭐ {s.rating.toFixed(1)}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
@@ -288,6 +289,8 @@ export default function Home() {
             {!!post.image_urls?.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,marginTop:8}}>{post.image_urls.slice(0,8).map((uri,i)=><Image key={uri+i} source={{uri}} style={styles.studioPhoto} resizeMode="cover"/>)}</ScrollView>}
             <Pressable onPress={()=>Linking.openURL(post.post_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>네이버 블로그 원문 및 사진 출처 확인 ›</Text></Pressable>
           </View>):<Text style={styles.filterHint}>아직 관련성이 확인된 블로그 게시글이 없습니다. 자료가 수집되면 이곳에 표시됩니다.</Text>}
+          <Text style={styles.sectionTitle}>관리자 검증 가격</Text>
+          {studioPublicPrices.length?studioPublicPrices.map(price=><View key={"public-price-"+price.id} style={styles.classBlock}><Text style={styles.classTitle}>₩{price.amount_krw.toLocaleString("ko-KR")} · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Text style={styles.photoCredit}>관리자 검증 · {price.source_post_date?new Date(price.source_post_date).toLocaleDateString("ko-KR"):"게시일 미확인"} · 공개 "+new Date(price.published_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{price.evidence_text}</Text><Pressable onPress={()=>Linking.openURL(price.source_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>가격 근거 원문 확인 ›</Text></Pressable></View>):<Text style={styles.filterHint}>관리자가 근거를 확인하고 공개 승인한 가격이 아직 없습니다.</Text>}
           <Text style={styles.sectionTitle}>가격 및 수업 시간표</Text>
           <View style={styles.infoRow}><Text style={styles.infoLabel}>대표 수강료</Text><Text style={styles.infoValue}>{detailStudio.price!==null?"₩"+detailStudio.price.toLocaleString()+" / 회":"가격 미등록 · 학원 문의"}</Text></View>
           {supabaseConfigured&&<>{classesLoading?<ActivityIndicator color={COLORS.purple} style={{marginVertical:12}}/>:studioClasses.length?studioClasses.map(cls=><View key={cls.id} style={styles.classBlock}><Text style={styles.classTitle}>{cls.title}</Text><Text style={styles.classMeta}>{cls.audience==="adult"?"성인":cls.audience==="kids"?"키즈":"전체"} · {cls.level||"수준 미표기"} · {cls.duration_minutes||"-"}분 · {cls.price!=null?"₩"+cls.price.toLocaleString():"가격 문의"}</Text>{cls.class_sessions?.length?cls.class_sessions.map((session,i)=><Text key={i} style={styles.sessionText}>{["일","월","화","수","목","금","토"][session.weekday]}요일 {session.start_time.slice(0,5)}{session.end_time?("–"+session.end_time.slice(0,5)):""}{session.note?(" · "+session.note):""}</Text>):<Text style={styles.sessionText}>등록된 시간표가 없습니다.</Text>}</View>):<Text style={styles.filterHint}>등록된 수업 및 시간표가 없습니다. 확인된 정보가 등록되면 여기에 표시됩니다.</Text>}</>}
