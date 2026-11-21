@@ -47,3 +47,6 @@ jobs:
 
       - name: Deploy Naver blog search worker
         run: supabase functions deploy search-studio-blogs --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+
+      - name: Deploy Naver blog post crawler
+        run: supabase functions deploy crawl-studio-blogs --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
