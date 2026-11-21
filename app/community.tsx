@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
@@ -26,6 +26,7 @@ export default function Community(){
  const [title,setTitle]=useState("");
  const [body,setBody]=useState("");
  const [userId,setUserId]=useState<string|null>(null);
+ const commentRequestId=useRef(0);
 
  const loadPosts=useCallback(async()=>{
   if(!supabase){setLoading(false);return;}
@@ -47,13 +48,19 @@ export default function Community(){
   return()=>subscription.unsubscribe();
  },[]);
 
- const loadComments=async(postId:string)=>{
+ const loadComments=async(postId:string,requestId=++commentRequestId.current)=>{
   if(!supabase)return;
   const {data,error}=await supabase.from("community_comments").select("id,post_id,author_id,author_name,content,created_at").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
+  if(requestId!==commentRequestId.current)return;
   if(error){Alert.alert("댓글 불러오기 실패",error.message);return;}
   setComments((data||[]) as Comment[]);
  };
- const openPost=async(post:Post)=>{setSelected(post);setComments([]);await loadComments(post.id);};
+ const openPost=async(post:Post)=>{
+  const requestId=++commentRequestId.current;
+  setSelected(post);
+  setComments([]);
+  await loadComments(post.id,requestId);
+ };
  const requireLogin=()=>{Alert.alert("로그인이 필요합니다","게시글과 댓글 작성은 가입한 회원만 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);};
  const explainError=(error:any)=>{
   const message=String(error?.message||"");
@@ -97,7 +104,7 @@ export default function Community(){
   Alert.alert("게시글 삭제","이 게시글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
    const {error}=await client.from("community_posts").delete().eq("id",post.id);
    if(error){Alert.alert("삭제 실패",error.message);return;}
-   setSelected(null);loadPosts();
+   commentRequestId.current++;setSelected(null);loadPosts();
   }}]);
  };
  const removeComment=async(comment:Comment)=>{
@@ -112,7 +119,7 @@ export default function Community(){
 
  return <SafeAreaView style={s.safe}>
   <View style={s.header}>
-   <Pressable onPress={()=>selected?setSelected(null):router.back()}><Text style={s.back}>‹ {selected?"목록":"돌아가기"}</Text></Pressable>
+   <Pressable onPress={()=>{if(selected){commentRequestId.current++;setSelected(null);setComments([]);}else router.back();}}><Text style={s.back}>‹ {selected?"목록":"돌아가기"}</Text></Pressable>
    <Text style={s.heading}>발레 커뮤니티</Text>
    <Pressable style={s.writeBtn} onPress={()=>userId?setComposer(true):requireLogin()}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable>
   </View>
