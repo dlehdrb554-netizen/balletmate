@@ -10,6 +10,7 @@ on:
       - "package.json"
       - "app.json"
       - "app/**"
+      - "scripts/**"
       - "lib/**"
       - "supabase/studio_public_schedules.sql"
       - "supabase/SETUP.md"

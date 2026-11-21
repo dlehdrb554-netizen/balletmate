@@ -41,7 +41,8 @@ function parseOcrFields(text:string){
     [/(?:토요일|(?:^|[\s,·/])토(?=[\s,·/]|$))/,"토"],
     [/(?:일요일|(?:^|[\s,·/])일(?=[\s,·/]|$))/,"일"]
   ];
-  const schedule_days=dayMap.filter(([re])=>re.test(compact)).map(([,day])=>day);
+  const compactDaySequence=compact.match(/[월화수목금토일]{2,7}/g)?.join("")||"";
+  const schedule_days=dayMap.filter(([re],index)=>re.test(compact)||compactDaySequence.includes(["월","화","수","목","금","토","일"][index])).map(([,day])=>day);
   const times=compact.match(/(?:오전|오후)\s*\d{1,2}(?::\d{2})?|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?/g)||[];
   const schedule_time=times.length?times.slice(0,8).join(", "):null;
   const detected_kind=amount!==null?"price":schedule_days.length||schedule_time||/시간표|타임/.test(compact)?"schedule":"unknown";
@@ -61,6 +62,14 @@ function parseCsv(text:string): string[][] {
   row.push(cell.trim());if(row.some(v=>v!==""))rows.push(row);
   return rows;
 }
+
+const seoulDate=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+const datePlusDays=(date:string,days:number):string|null=>{
+  const value=new Date(date+"T00:00:00.000Z");
+  if(!Number.isFinite(value.getTime()))return null;
+  value.setUTCDate(value.getUTCDate()+days);
+  return value.toISOString().slice(0,10);
+};
 
 export default function Admin() {
   const [username,setUsername]=useState("");
@@ -118,11 +127,12 @@ export default function Admin() {
     if(!supabase||!authorized)return;
     setEvidenceBusy(true);
     const columns="id,studio_id,studio_name,source_id,source_title,source_url,candidate_type,candidate_value,normalized_value,price_period,price_frequency_per_week,evidence_text,confidence,review_status,created_at";
+    const today=seoulDate();
     const [pending,verified,verifiedSchedules,published,publishedSchedules]=await Promise.all([
       supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","pending").order("created_at",{ascending:false}).limit(100),
       supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false}).limit(100),
       supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false}).limit(100),
-      supabase.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active").eq("is_active",true).order("published_at",{ascending:false}).limit(100),
+      supabase.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false}).limit(500),
       supabase.from("studio_public_schedules").select("id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active").eq("is_active",true).order("published_at",{ascending:false}).limit(100),
     ]);
     if(pending.error)Alert.alert("자동 수집 자료 조회 실패",pending.error.message);
@@ -132,16 +142,16 @@ export default function Admin() {
     if(verifiedSchedules.error)Alert.alert("검증 시간표 조회 실패",verifiedSchedules.error.message);
     else setVerifiedScheduleRows((verifiedSchedules.data||[]) as EvidenceCandidate[]);
     if(published.error)Alert.alert("공개 가격 조회 실패",published.error.message);
-    else {setPublishedCandidateIds((published.data||[]).map((row:any)=>Number(row.candidate_id)));setActivePublicPrices((published.data||[]) as any[]);}
+    else {const publicRows=published.data||[];setPublishedCandidateIds(publicRows.map((row:any)=>Number(row.candidate_id)));setActivePublicPrices(publicRows.filter((row:any)=>row.is_active&&(!row.expires_at||row.expires_at>=today)) as any[]);}
     if(publishedSchedules.error)Alert.alert("공개 시간표 조회 실패",publishedSchedules.error.message);
-    else setActivePublicSchedules((publishedSchedules.data||[]) as any[]);
+    else setActivePublicSchedules((publishedSchedules.data||[]).filter((row:any)=>row.is_active&&(!row.expires_at||row.expires_at>=today)) as any[]);
     setEvidenceBusy(false);
   },[authorized]);
   useEffect(()=>{loadEvidence();},[loadEvidence]);
 
   const loadOcr=useCallback(async()=>{
     if(!supabase||!authorized)return;
-    const {data,error}=await supabase.from("studio_image_ocr_results").select("id,studio_id,studio_name,image_label,extracted_text,detected_kind,review_status,created_at").eq("review_status","pending").order("created_at",{ascending:false}).limit(100);
+    const {data,error}=await supabase.from("studio_image_ocr_results").select("id,studio_id,studio_name,source_id,image_url,source_url,image_label,extracted_text,detected_kind,amount_krw,price_period,frequency_per_week,schedule_days,schedule_time,review_status,created_at").eq("review_status","pending").order("created_at",{ascending:false}).limit(100);
     if(error)Alert.alert("OCR 결과 조회 실패",error.message);else setOcrRows(data||[]);
   },[authorized]);
   useEffect(()=>{loadOcr();},[loadOcr]);
@@ -296,24 +306,36 @@ export default function Admin() {
   const forwardOcrToEvidence=async(item:any)=>{
     if(!supabase)return;
     if(!item.source_id||!item.source_url){Alert.alert("원문 정보 없음","블로그 게시물과 연결된 OCR 결과만 검토 대기열로 전달할 수 있습니다.");return;}
-    const isPrice=item.detected_kind==="price"&&Number(item.amount_krw)>0;
-    const isSchedule=item.detected_kind==="schedule"||((item.schedule_days||[]).length>0)||!!item.schedule_time;
-    if(!isPrice&&!isSchedule){Alert.alert("후보 분류 불가","가격 금액이나 요일·시간이 확인되지 않아 기존 검토 대기열로 전달할 수 없습니다.");return;}
-    const candidateType=isPrice?"price":"schedule";
-    const structured=isPrice
-      ?Number(item.amount_krw).toLocaleString("en-US")+"원 · "+(item.price_period||"기간 미확인")+(item.frequency_per_week?" · 주 "+item.frequency_per_week+"회":"")
-      :(item.schedule_days||[]).join("·")+(item.schedule_time?" · "+item.schedule_time:"");
-    const candidateValue="OCR#"+item.id+" "+structured;
+    const amount=Number(item.amount_krw);
+    const isPrice=Number.isInteger(amount)&&amount>0;
+    const scheduleDays=Array.isArray(item.schedule_days)?item.schedule_days:[];
+    const isSchedule=scheduleDays.length>0||!!item.schedule_time;
+    const candidates:any[]=[];
+    if(isPrice){
+      const structured=amount.toLocaleString("en-US")+"원 · "+(item.price_period||"기간 미확인")+(item.frequency_per_week?" · 주 "+item.frequency_per_week+"회":"");
+      candidates.push({
+        studio_id:item.studio_id,studio_name:item.studio_name,source_id:item.source_id,
+        source_title:item.image_label,source_url:item.source_url,candidate_type:"price",
+        candidate_value:"OCR#"+item.id+" "+structured,normalized_value:String(amount),
+        price_period:item.price_period||"기간 미확인",
+        price_frequency_per_week:item.frequency_per_week||null,
+        evidence_text:item.extracted_text,confidence:0.55,review_status:"pending"
+      });
+    }
+    if(isSchedule){
+      const structured=(scheduleDays.length?scheduleDays.join("·"):"요일 미확인")+(item.schedule_time?" · "+item.schedule_time:"");
+      candidates.push({
+        studio_id:item.studio_id,studio_name:item.studio_name,source_id:item.source_id,
+        source_title:item.image_label,source_url:item.source_url,candidate_type:"schedule",
+        candidate_value:"OCR#"+item.id+" "+structured,normalized_value:structured,
+        price_period:"기간 미확인",price_frequency_per_week:null,
+        evidence_text:item.extracted_text,confidence:0.55,review_status:"pending"
+      });
+    }
+    if(!candidates.length){Alert.alert("후보 분류 불가","가격 금액이나 요일·시간을 확인하지 못해 검토 대기열로 전달할 수 없습니다.");return;}
     setEvidenceBusy(true);
     try{
-      const {error}=await supabase.from("studio_blog_evidence_candidates").upsert({
-        studio_id:item.studio_id,studio_name:item.studio_name,source_id:item.source_id,
-        source_title:item.image_label,source_url:item.source_url,candidate_type:candidateType,
-        candidate_value:candidateValue,normalized_value:isPrice?String(item.amount_krw):structured,
-        price_period:item.price_period||"기간 미확인",
-        price_frequency_per_week:isPrice?item.frequency_per_week:null,
-        evidence_text:item.extracted_text,confidence:0.55,review_status:"pending"
-      },{onConflict:"source_id,candidate_type,candidate_value",ignoreDuplicates:true});
+      const {error}=await supabase.from("studio_blog_evidence_candidates").upsert(candidates,{onConflict:"source_id,candidate_type,candidate_value",ignoreDuplicates:true});
       if(error)throw error;
       const {error:updateError}=await supabase.from("studio_image_ocr_results").update({
         review_status:"verified",reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString()
@@ -321,10 +343,11 @@ export default function Admin() {
       if(updateError)throw updateError;
       setOcrRows(current=>current.filter(row=>row.id!==item.id));
       await loadEvidence();
-      Alert.alert("검토 대기열 전달 완료","OCR 자료를 기존 가격·시간표 근거 검토 목록으로 보냈습니다. 앱에 공개되지는 않았습니다.");
+      Alert.alert("검토 대기열 전달 완료",candidates.length+"개 유형의 OCR 근거를 검토 목록으로 보냈습니다. 앱에 자동 공개되지는 않았습니다.");
     }catch(error:any){Alert.alert("전달 실패",error?.message||"근거 후보 저장에 실패했습니다.");}
     finally{setEvidenceBusy(false);}
   };
+
 
   const reviewOcr=async(item:any,status:"verified"|"rejected")=>{
     if(!supabase)return;
@@ -378,6 +401,7 @@ export default function Admin() {
 
   const publishSchedule=async(item:EvidenceCandidate)=>{
     if(!supabase||item.candidate_type!=="schedule")return;
+    if(item.review_status!=="verified"){Alert.alert("검증 필요","관리자가 근거를 확인한 시간표만 공개할 수 있습니다.");return;}
     const scheduleText=(item.normalized_value||item.candidate_value||"").replace(/^OCR#\d+\s*/i,"").trim();
     if(scheduleText.length<2||!item.source_url||!item.evidence_text){
       Alert.alert("공개할 수 없는 시간표","시간표 내용과 원문 근거가 확인되는 자료만 공개할 수 있습니다.");return;
@@ -387,7 +411,10 @@ export default function Admin() {
       const {data:source,error:sourceError}=await supabase.from("studio_blog_sources").select("post_date").eq("id",item.source_id).maybeSingle();
       if(sourceError)throw sourceError;
       const sourcePostDate=source?.post_date||null;
-      const expiresAt=sourcePostDate?new Date(new Date(sourcePostDate+"T00:00:00").getTime()+180*86400000).toISOString().slice(0,10):new Date(Date.now()+180*86400000).toISOString().slice(0,10);
+      const today=seoulDate();
+      const expiresAt=datePlusDays(sourcePostDate||today,180);
+      if(!expiresAt)throw new Error("원문 게시일을 날짜로 변환하지 못했습니다.");
+      if(expiresAt<today){Alert.alert("오래된 시간표","원문 게시일로부터 180일이 지나 공개하지 않았습니다. 최신 자료를 다시 수집해 주세요.");return;}
       const {error}=await supabase.from("studio_public_schedules").insert({
         candidate_id:item.id,studio_id:item.studio_id,schedule_text:scheduleText,
         evidence_text:item.evidence_text,source_title:item.source_title,source_url:item.source_url,
@@ -404,19 +431,31 @@ export default function Admin() {
   const publishPrice=async(item:EvidenceCandidate)=>{
     if(!supabase)return;
     const amount=Number(item.normalized_value);
-    if(item.candidate_type!=="price"||!Number.isInteger(amount)||amount<=0||!item.price_period||item.price_period==="기간 미확인"){
-      Alert.alert("공개할 수 없는 가격","가격 금액과 이용 기간이 명확한 자료만 공개할 수 있습니다.");return;
+    if(item.candidate_type!=="price"||item.review_status!=="verified"||!Number.isInteger(amount)||amount<=0||!item.price_period||item.price_period==="기간 미확인"){
+      Alert.alert("공개할 수 없는 가격","관리자가 검증했고 가격 금액과 이용 기간이 명확한 자료만 공개할 수 있습니다.");return;
     }
     setEvidenceBusy(true);
-    const {error}=await supabase.from("studio_public_prices").insert({
-      candidate_id:item.id,studio_id:item.studio_id,amount_krw:amount,
-      price_period:item.price_period,frequency_per_week:item.price_frequency_per_week||null,
-      evidence_text:item.evidence_text,source_title:item.source_title,source_url:item.source_url,
-      published_by:session?.user?.id||null,is_active:true,
-    });
-    if(error)Alert.alert("가격 공개 실패",error.message);
-    else{setPublishedCandidateIds(current=>[...current,item.id]);Alert.alert("가격 공개 완료",item.studio_name+"의 검증 가격을 공개 목록에 추가했습니다.");}
-    setEvidenceBusy(false);
+    try{
+      const {data:source,error:sourceError}=await supabase.from("studio_blog_sources").select("post_date").eq("id",item.source_id).maybeSingle();
+      if(sourceError)throw sourceError;
+      const sourcePostDate=source?.post_date||null;
+      const today=seoulDate();
+      const expiresAt=datePlusDays(sourcePostDate||today,180);
+      if(!expiresAt)throw new Error("원문 게시일을 날짜로 변환하지 못했습니다.");
+      if(expiresAt<today){Alert.alert("오래된 가격","원문 게시일로부터 180일이 지나 공개하지 않았습니다. 최신 가격 근거를 다시 수집해 주세요.");return;}
+      const {error}=await supabase.from("studio_public_prices").insert({
+        candidate_id:item.id,studio_id:item.studio_id,amount_krw:amount,
+        price_period:item.price_period,frequency_per_week:item.price_frequency_per_week||null,
+        evidence_text:item.evidence_text,source_title:item.source_title,source_url:item.source_url,
+        source_post_date:sourcePostDate,expires_at:expiresAt,
+        published_by:session?.user?.id||null,is_active:true,
+      });
+      if(error)throw error;
+      setPublishedCandidateIds(current=>[...current,item.id]);
+      Alert.alert("가격 공개 완료",item.studio_name+"의 검증 가격을 공개 목록에 추가했습니다.");
+      await loadEvidence();
+    }catch(error:any){Alert.alert("가격 공개 실패",error?.message||"가격 자료를 저장하지 못했습니다.");}
+    finally{setEvidenceBusy(false);}
   };
 
   const login=async()=>{

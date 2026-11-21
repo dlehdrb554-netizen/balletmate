@@ -84,3 +84,8 @@ Supabase currently lists its Free plan as $0 with 2 active projects, 500 MB data
 - No realtime subscriptions, background polling, or public write endpoints.
 - Review Supabase plan limits and project usage before launch; limits/pricing can change.
 - For a larger dataset, add pagination and spatial indexes/viewport queries rather than loading all rows.
+
+
+### 관리자 사진 업로드 저장소
+
+관리자 화면의 사진 업로드 기능을 사용하기 전에 Supabase SQL Editor에서 `supabase/studio_photo_storage.sql`을 한 번 실행합니다. 이 스크립트는 `studio-photos` 공개 읽기 버킷을 생성하고, JPEG/PNG/WEBP 최대 5MB 파일만 허용하며 업로드·수정·삭제는 Balletmate 관리자만 할 수 있도록 제한합니다. 별도 유료 서비스나 외부 저장소는 사용하지 않습니다.
