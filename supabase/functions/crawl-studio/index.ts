@@ -69,23 +69,31 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST 요청만 허용됩니다." }, 405);
 
   const authorization = req.headers.get("Authorization");
-  if (!authorization) return json({ error: "로그인이 필요합니다." }, 401);
+  const internalSecret = req.headers.get("x-crawl-secret");
+  const configuredSecret = Deno.env.get("CRAWL_WORKER_SECRET");
+  const isInternal = !!configuredSecret && internalSecret === configuredSecret;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !anonKey) return json({ error: "서버 설정이 누락되었습니다." }, 500);
+  if (isInternal && !serviceRoleKey) return json({ error: "서비스 역할 키 설정이 누락되었습니다." }, 500);
+  if (!isInternal && !authorization) return json({ error: "로그인이 필요합니다." }, 401);
 
-  const client = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authorization } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const client = isInternal
+    ? createClient(supabaseUrl, serviceRoleKey!, { auth: { persistSession: false, autoRefreshToken: false } })
+    : createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authorization! } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
 
-  const { data: userData, error: authError } = await client.auth.getUser();
-  if (authError || !userData.user) return json({ error: "로그인 세션을 확인할 수 없습니다." }, 401);
-
-  const { data: admin, error: adminError } = await client
-    .from("admin_users").select("user_id").eq("user_id", userData.user.id).maybeSingle();
-  if (adminError || !admin) return json({ error: "학원 이미지 수집은 관리자만 사용할 수 있습니다." }, 403);
+  if (!isInternal) {
+    const { data: userData, error: authError } = await client.auth.getUser();
+    if (authError || !userData.user) return json({ error: "로그인 세션을 확인할 수 없습니다." }, 401);
+    const { data: admin, error: adminError } = await client
+      .from("admin_users").select("user_id").eq("user_id", userData.user.id).maybeSingle();
+    if (adminError || !admin) return json({ error: "학원 이미지 수집은 관리자만 사용할 수 있습니다." }, 403);
+  }
 
   let body: { studioId?: string };
   try { body = await req.json(); } catch { return json({ error: "요청 형식이 올바르지 않습니다." }, 400); }
