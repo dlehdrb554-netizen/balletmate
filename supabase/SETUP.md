@@ -16,7 +16,8 @@ Admin writes are protected by Supabase Auth and `admin_users`. Admin login in th
 
 ## Current app integration
 - The app queries the current map viewport only and caps each request at 300 active studios.\n- Viewport results are cached in-memory for 90 seconds; class schedules for 10 minutes.\n- Per app session, at most 40 uncached map searches and 25 uncached schedule lookups are allowed; cached hits do not count. This is a client-side guard, not an account-wide quota.
-- Studio class schedule data is fetched when a studio detail view opens.
+- Studio class schedule data is fetched when a studio detail view opens. The detail sheet can be expanded/collapsed by dragging its handle; dragging down farther closes it.
+- The official-image crawler extracts public Open Graph, JSON-LD, and image-tag URLs from the studio's HTTPS homepage. It does not bypass logins or paywalls; some sites block automated access or do not expose images in HTML. Verify the site's terms and image-use permissions before publishing. Price and timetable data are displayed only when entered into the existing studio/classes/session tables; the crawler does not guess prices or schedules.
 - No client-side create/update/delete permissions are granted by the schema.
 - If no Supabase environment variables are configured, the app uses demo sample records.
 - If the backend is configured but has no active studios, it shows an empty result instead of demo data.
