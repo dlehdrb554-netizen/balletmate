@@ -9,6 +9,21 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
+function isPrivateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.includes(":")) return true;
+  const parts = host.split(".");
+  if (parts.length !== 4 || !parts.every((part) => /^\d{1,3}$/.test(part))) return false;
+  const [a, b, c] = parts.map(Number);
+  if ([a, b, c].some((part) => part < 0 || part > 255)) return true;
+  return a === 0 || a === 10 || a === 127 || a >= 224 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 198 && (b === 18 || b === 19));
+}
+
 function safeImageUrl(raw: string, base: string): string | null {
   try {
     const url = new URL(raw.trim(), base);
@@ -81,7 +96,7 @@ Deno.serve(async (req) => {
   let pageUrl: URL;
   try {
     pageUrl = new URL(studio.website_url);
-    if (pageUrl.protocol !== "https:" || !pageUrl.hostname || pageUrl.username || pageUrl.password) throw new Error();
+    if (pageUrl.protocol !== "https:" || !pageUrl.hostname || pageUrl.username || pageUrl.password || isPrivateHost(pageUrl.hostname)) throw new Error();
   } catch {
     return json({ error: "공식 홈페이지는 https:// 주소로 등록해 주세요." }, 400);
   }
