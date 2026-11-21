@@ -9,14 +9,22 @@ const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw);
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, "");
 const academyAlias = (studioName: string) => normalize(studioName)
   .replace(/(무용학원|발레학원|발레아카데미|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
-const isRelevantBlog = (studioName: string, title: string): boolean => {
-  // Naver search is broad. Require the distinctive academy root AND ballet/class intent in the title.
-  // This allows abbreviated official titles such as "W발레 10월 시간표" without accepting generic W/barre posts.
+const blogAccountKey = (raw: string): string => {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:" || !BLOG_HOSTS.has(u.hostname.toLowerCase())) return "";
+    return u.pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+  } catch { return ""; }
+};
+const isRelevantBlog = (studioName: string, title: string, bloggerUrl: string, officialAccounts: string[]): boolean => {
   const alias = academyAlias(studioName);
   const text = normalize(title);
   const hasAcademy = alias.length >= 3 && text.includes(alias);
   const hasBalletIntent = /(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title);
-  return hasAcademy && hasBalletIntent;
+  const nameMatch = hasAcademy && hasBalletIntent;
+  const accountKey = blogAccountKey(bloggerUrl);
+  const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
+  return nameMatch || officialMatch;
 };
 const cleanText = (value: unknown): string =>
   String(value ?? "").replace(/<[^>]*>/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
@@ -54,6 +62,12 @@ Deno.serve(async (req) => {
     let requestCount = 0;
     const errors: string[] = [];
     try {
+      const { data: officialRows, error: officialError } = await db.from("studio_blog_official_accounts")
+        .select("blogger_url")
+        .eq("studio_name", String(job.studio_name))
+        .eq("is_active", true);
+      if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
+      const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
       for (const suffix of SEARCH_SUFFIXES) {
         const query = `${job.studio_name} ${suffix}`;
         const endpoint = new URL("https://naverapihub.apigw.ntruss.com/search/v1/blog");
@@ -82,7 +96,7 @@ Deno.serve(async (req) => {
           const title = cleanText(item.title);
           if (!isNaverBlogUrl(postUrl) || !title) return [];
           const description = cleanText(item.description);
-          if (!isRelevantBlog(String(job.studio_name), title)) return [];
+          if (!isRelevantBlog(String(job.studio_name), title, cleanText(item.bloggerlink), officialAccounts)) return [];
           const dateText = String(item.postdate ?? "");
           const postDate = /^\d{8}$/.test(dateText)
             ? `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6, 8)}`
