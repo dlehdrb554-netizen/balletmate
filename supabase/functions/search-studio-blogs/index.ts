@@ -7,11 +7,12 @@ const SEARCH_SUFFIXES = ["수강료", "시간표", "성인발레", "키즈발레
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ]/g, "");
 const isRelevantBlog = (studioName: string, title: string, description: string): boolean => {
   const text = normalize(`${title} ${description}`);
-  const studio = normalize(studioName);
-  // The full studio/branch name is the strongest signal.
-  if (studio.length >= 5 && text.includes(studio)) return true;
-  // Otherwise require an explicit ballet-school/class phrase, not the standalone word "발레".
-  return /(발레학원|발레교습소|성인발레|키즈발레|유아발레|발레수업|발레레슨|발레클래스|발레스튜디오|발레아카데미|발레수강료|발레시간표|발레강습|발레교육)/i.test(text);
+  const parts = studioName.trim().split(/\s+/);
+  const fullName = normalize(studioName);
+  const coreName = normalize(parts[0] ?? "");
+  // Never associate a post based only on generic ballet keywords.
+  return (fullName.length >= 5 && text.includes(fullName)) ||
+    (coreName.length >= 5 && text.includes(coreName));
 };
 const cleanText = (value: unknown): string =>
   String(value ?? "").replace(/<[^>]*>/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
