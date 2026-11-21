@@ -153,14 +153,17 @@ Deno.serve(async (req) => {
         .eq("is_active", true);
       if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
       const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
-      // Reject clearly unrelated search results before downloading the full blog page.
-      if (!source || !isRelevantBlog(
-        String(job.studio_name),
-        String(source.title ?? ""),
-        String(source.description ?? ""),
-        String(source.blogger_url ?? ""),
-        officialAccounts,
-      )) {
+      // Reject only clearly unrelated snippets before download. Ballet-related third-party
+      // posts are fetched so the full body can confirm whether this specific academy is mentioned.
+      const sourceTitle = String(source?.title ?? "");
+      const sourceDescription = String(source?.description ?? "");
+      const alias = academyAlias(String(job.studio_name));
+      const snippetText = normalize(sourceTitle + " " + sourceDescription);
+      const accountKey = blogAccountKey(String(source?.blogger_url ?? ""));
+      const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
+      const hasBalletIntent = /(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(sourceTitle + " " + sourceDescription);
+      const hasAcademyName = alias.length >= 3 && snippetText.includes(alias);
+      if (!source || (!hasAcademyName && !officialMatch && !hasBalletIntent)) {
         const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
           status: "rejected",
           last_error: "사전 필터링: 제목·요약·공식 계정에서 학원 관련성 미확인",
@@ -194,7 +197,23 @@ Deno.serve(async (req) => {
         }
       }
       const textBody = stripTags(html);
-      // The title/snippet or verified official account was checked before fetching the page.
+      // Confirm third-party posts against the full body after the lightweight pre-filter.
+      if (!isRelevantBlog(
+        String(job.studio_name),
+        String(source.title ?? ""),
+        String(source.description ?? "") + "\n" + textBody,
+        String(source.blogger_url ?? ""),
+        officialAccounts,
+      )) {
+        const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
+          status: "rejected",
+          last_error: "본문에서 해당 학원명 또는 공식 블로그 관련성이 확인되지 않아 수집 제외",
+          updated_at: new Date().toISOString(),
+        }).eq("source_id", job.source_id);
+        if (rejectError) throw new Error("본문 관련성 제외 처리 실패: " + rejectError.message);
+        results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "본문에서 학원 관련성 미확인" });
+        continue;
+      }
       const images = extractImages(html, pageUrl);
       const prices = evidence(textBody, "price");
       const schedules = evidence(textBody, "schedule");
