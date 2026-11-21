@@ -20,7 +20,9 @@ language sql
 security definer
 set search_path = ''
 as $$
-  select lower(coalesce(candidate,'')) ~ '^[a-z0-9_]{3,24}
+  select lower(coalesce(candidate,'')) ~ '^[a-z0-9_]{3,24}$'
+    and not exists(select 1 from public.user_profiles p where p.username=lower(candidate))
+    and not exists(select 1 from auth.users u where lower(coalesce(u.email,''))=lower(candidate)||'@balletmate.app');
 $$;
 revoke all on function public.is_username_available(text) from public;
 grant execute on function public.is_username_available(text) to anon, authenticated;
