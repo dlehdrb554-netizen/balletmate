@@ -230,11 +230,24 @@ export default function Admin() {
         if(error)throw error;
         classId=data.id;
       }
-      const {error:deleteError}=await supabase.from("class_sessions").delete().eq("class_id",classId);
-      if(deleteError)throw deleteError;
+      // Insert the replacement timetable before removing the previous rows.
+      // A failed insert must never erase a timetable that was already working.
+      const previousSessionIds=classEditing
+        ? (classRows.find(row=>row.id===classEditing)?.class_sessions||[]).map((row:any)=>row.id).filter(Boolean)
+        : [];
+      let insertedSessionIds:string[]=[];
       if(sessions.length){
-        const {error:sessionError}=await supabase.from("class_sessions").insert(sessions.map(v=>({...v,class_id:classId})));
+        const {data:insertedSessions,error:sessionError}=await supabase.from("class_sessions")
+          .insert(sessions.map(v=>({...v,class_id:classId}))).select("id");
         if(sessionError)throw sessionError;
+        insertedSessionIds=(insertedSessions||[]).map((row:any)=>row.id).filter(Boolean);
+      }
+      if(previousSessionIds.length){
+        const {error:deleteError}=await supabase.from("class_sessions").delete().in("id",previousSessionIds);
+        if(deleteError){
+          if(insertedSessionIds.length)await supabase.from("class_sessions").delete().in("id",insertedSessionIds);
+          throw deleteError;
+        }
       }
       Alert.alert("저장 완료","수업과 시간표를 저장했습니다.");
       resetClass();
