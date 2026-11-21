@@ -67,6 +67,7 @@ from public.studios s
 where s.website_url is not null
   and length(trim(s.website_url)) > 0
   and s.image_checked_at is null
+  and coalesce(array_length(s.image_urls, 1), 0) = 0
 on conflict (studio_id) do nothing;
 
 create or replace function public.claim_studio_image_crawl_queue(p_limit integer default 2)
