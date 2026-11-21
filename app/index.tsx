@@ -51,9 +51,9 @@ export default function Home() {
   const detailDragY=useRef(new Animated.Value(0)).current;
   const detailPan=useRef(PanResponder.create({
     onMoveShouldSetPanResponder:(_,gesture)=>Math.abs(gesture.dy)>8,
-    onPanResponderMove:Animated.event([null,{dy:detailDragY}],{useNativeDriver:true}),
+    onPanResponderMove:Animated.event([null,{dy:detailDragY}],{useNativeDriver:false}),
     onPanResponderRelease:(_,gesture)=>{
-      Animated.spring(detailDragY,{toValue:0,useNativeDriver:true,bounciness:4}).start();
+      Animated.spring(detailDragY,{toValue:0,useNativeDriver:false,bounciness:4}).start();
       if(gesture.dy>145){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}
       else if(gesture.dy>55)setDetailExpanded(false);
       else if(gesture.dy< -55)setDetailExpanded(true);
