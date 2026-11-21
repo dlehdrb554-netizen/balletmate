@@ -49,11 +49,11 @@ rejected AS (
       WHERE a.studio_name = c.studio_name
         AND a.is_active = true
         AND split_part(
-          regexp_replace(lower(rtrim(a.blogger_url, '/')), '^https?://(www\\.)?', ''),
+          regexp_replace(lower(rtrim(a.blogger_url, '/')), '^https?://(www[.])?', ''),
           '/',
           2
         ) = split_part(
-          regexp_replace(lower(rtrim(coalesce(c.blogger_url, ''), '/')), '^https?://(www\\.)?', ''),
+          regexp_replace(lower(rtrim(coalesce(c.blogger_url, ''), '/')), '^https?://(www[.])?', ''),
           '/',
           2
         )
