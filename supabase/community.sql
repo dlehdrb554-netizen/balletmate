@@ -27,6 +27,30 @@ create index if not exists community_comments_post_created_idx on public.communi
 create index if not exists community_posts_author_created_idx on public.community_posts(author_id, created_at desc);
 create index if not exists community_comments_author_created_idx on public.community_comments(author_id, created_at desc);
 
+-- Persistent cooldown ledger: deleting a post/comment must not reset the 30s limit.
+create table if not exists public.community_submission_limits (
+  author_id uuid primary key references auth.users(id) on delete cascade,
+  last_submitted_at timestamptz not null
+);
+
+alter table public.community_submission_limits enable row level security;
+revoke all on public.community_submission_limits from public, anon, authenticated;
+
+-- Preserve the latest submission time when upgrading from the first migration.
+insert into public.community_submission_limits (author_id, last_submitted_at)
+select author_id, max(created_at)
+from (
+  select author_id, created_at from public.community_posts
+  union all
+  select author_id, created_at from public.community_comments
+) submissions
+group by author_id
+on conflict (author_id) do update
+set last_submitted_at = greatest(
+  public.community_submission_limits.last_submitted_at,
+  excluded.last_submitted_at
+);
+
 alter table public.community_posts enable row level security;
 alter table public.community_comments enable row level security;
 
@@ -71,6 +95,7 @@ declare
   v_user_id uuid;
   v_username text;
   v_last_submission timestamptz;
+  v_now timestamptz;
 begin
   v_user_id := auth.uid();
   if v_user_id is null then
@@ -79,6 +104,18 @@ begin
 
   -- Serialize all submissions by the same member to prevent simultaneous bypasses.
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_user_id::text, 0));
+  -- Use wall-clock time after acquiring the lock, not transaction start time.
+  v_now := pg_catalog.clock_timestamp();
+
+  select limits.last_submitted_at into v_last_submission
+  from public.community_submission_limits limits
+  where limits.author_id = v_user_id;
+
+  if v_last_submission is not null and v_last_submission > v_now - interval '30 seconds' then
+    raise exception using
+      errcode = 'P0001',
+      message = '도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.';
+  end if;
 
   select p.username into v_username
   from public.user_profiles p
@@ -91,24 +128,16 @@ begin
     );
   end if;
 
-  select max(submission.created_at) into v_last_submission
-  from (
-    select p.created_at from public.community_posts p where p.author_id = v_user_id
-    union all
-    select c.created_at from public.community_comments c where c.author_id = v_user_id
-  ) as submission;
-
-  if v_last_submission is not null and v_last_submission > now() - interval '30 seconds' then
-    raise exception using
-      errcode = 'P0001',
-      message = '도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.';
-  end if;
+  insert into public.community_submission_limits (author_id, last_submitted_at)
+  values (v_user_id, v_now)
+  on conflict (author_id) do update
+  set last_submitted_at = excluded.last_submitted_at;
 
   new.author_id := v_user_id;
   new.author_name := v_username;
-  new.created_at := now();
+  new.created_at := v_now;
   if tg_table_name = 'community_posts' then
-    new.updated_at := now();
+    new.updated_at := v_now;
   end if;
   return new;
 end;
