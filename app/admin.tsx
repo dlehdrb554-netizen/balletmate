@@ -46,6 +46,8 @@ export default function Admin() {
   const [classBusy,setClassBusy]=useState(false);
   const [classForm,setClassForm]=useState({title:"",audience:"adult" as "adult"|"kids"|"all",level:"",class_type:"",duration_minutes:"60",price:"",sessions:""});
   const [evidenceRows,setEvidenceRows]=useState<EvidenceCandidate[]>([]);
+  const [verifiedPriceRows,setVerifiedPriceRows]=useState<EvidenceCandidate[]>([]);
+  const [publishedCandidateIds,setPublishedCandidateIds]=useState<number[]>([]);
   const [evidenceBusy,setEvidenceBusy]=useState(false);
 
   const checkAdmin=useCallback(async(s:any)=>{
@@ -75,10 +77,18 @@ export default function Admin() {
   const loadEvidence=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setEvidenceBusy(true);
-    const {data,error}=await supabase.from("studio_blog_evidence_candidates")
-      .select("id,studio_id,studio_name,source_id,source_title,source_url,candidate_type,candidate_value,normalized_value,price_period,price_frequency_per_week,evidence_text,confidence,review_status,created_at")
-      .eq("review_status","pending").order("created_at",{ascending:false}).limit(100);
-    if(error)Alert.alert("자동 수집 자료 조회 실패",error.message);else setEvidenceRows((data||[]) as EvidenceCandidate[]);
+    const columns="id,studio_id,studio_name,source_id,source_title,source_url,candidate_type,candidate_value,normalized_value,price_period,price_frequency_per_week,evidence_text,confidence,review_status,created_at";
+    const [pending,verified,published]=await Promise.all([
+      supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","pending").order("created_at",{ascending:false}).limit(100),
+      supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false}).limit(100),
+      supabase.from("studio_public_prices").select("candidate_id"),
+    ]);
+    if(pending.error)Alert.alert("자동 수집 자료 조회 실패",pending.error.message);
+    else setEvidenceRows((pending.data||[]) as EvidenceCandidate[]);
+    if(verified.error)Alert.alert("검증 가격 조회 실패",verified.error.message);
+    else setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);
+    if(published.error)Alert.alert("공개 가격 조회 실패",published.error.message);
+    else setPublishedCandidateIds((published.data||[]).map((row:any)=>Number(row.candidate_id)));
     setEvidenceBusy(false);
   },[authorized]);
   useEffect(()=>{loadEvidence();},[loadEvidence]);
@@ -90,7 +100,28 @@ export default function Admin() {
       review_status:status,reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString(),
     }).eq("id",item.id);
     if(error)Alert.alert("검토 상태 저장 실패",error.message);
-    else setEvidenceRows(current=>current.filter(row=>row.id!==item.id));
+    else {
+      setEvidenceRows(current=>current.filter(row=>row.id!==item.id));
+      if(status==="verified"&&item.candidate_type==="price")setVerifiedPriceRows(current=>[item,...current]);
+    }
+    setEvidenceBusy(false);
+  };
+
+  const publishPrice=async(item:EvidenceCandidate)=>{
+    if(!supabase)return;
+    const amount=Number(item.normalized_value);
+    if(item.candidate_type!=="price"||!Number.isInteger(amount)||amount<=0||!item.price_period||item.price_period==="기간 미확인"){
+      Alert.alert("공개할 수 없는 가격","가격 금액과 이용 기간이 명확한 자료만 공개할 수 있습니다.");return;
+    }
+    setEvidenceBusy(true);
+    const {error}=await supabase.from("studio_public_prices").insert({
+      candidate_id:item.id,studio_id:item.studio_id,amount_krw:amount,
+      price_period:item.price_period,frequency_per_week:item.price_frequency_per_week||null,
+      evidence_text:item.evidence_text,source_title:item.source_title,source_url:item.source_url,
+      published_by:session?.user?.id||null,is_active:true,
+    });
+    if(error)Alert.alert("가격 공개 실패",error.message);
+    else{setPublishedCandidateIds(current=>[...current,item.id]);Alert.alert("가격 공개 완료",item.studio_name+"의 검증 가격을 공개 목록에 추가했습니다.");}
     setEvidenceBusy(false);
   };
 
@@ -298,6 +329,7 @@ export default function Admin() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
+    <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 승인 대기 가격 ({verifiedPriceRows.length})</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>근거 확인된 가격 중 이용 기간이 명확한 자료만 별도로 공개할 수 있습니다. 공개 전 원문을 다시 확인하세요.</Text>{verifiedPriceRows.map(item=><View key={"verified-"+item.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.studio_name}</Text><Text style={styles.evidenceValue}>{Number(item.normalized_value||0).toLocaleString("ko-KR")}원 · {item.price_period}{item.price_frequency_per_week?" · 주 "+item.price_frequency_per_week+"회":""}\n{item.evidence_text}</Text><Pressable onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.action}>원문 확인 ↗</Text></Pressable>{publishedCandidateIds.includes(item.id)?<Text style={styles.rowMeta}>이미 공개 등록된 자료</Text>:<Pressable style={styles.button} disabled={evidenceBusy} onPress={()=>publishPrice(item)}><Text style={styles.buttonText}>이 가격을 앱에 공개</Text></Pressable>}</View>)}{!verifiedPriceRows.length&&!evidenceBusy&&<Text style={styles.hint}>공개 승인 대기 가격이 없습니다. 먼저 아래 자료에서 근거 확인을 선택하세요.</Text>}</View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>자동 수집 자료 검토 ({evidenceRows.length})</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>공개 블로그에서 발견한 가격·시간표 근거입니다. 검토 완료는 근거 확인 상태만 기록하며, 앱의 공식 가격이나 시간표로 자동 공개하지 않습니다.</Text>{evidenceBusy&&<ActivityIndicator color={c.purple}/>}{evidenceRows.map(item=><View key={item.id} style={styles.evidenceCard}><View style={styles.listHead}><Text style={styles.evidenceStudio}>{item.studio_name}</Text><Text style={styles.evidenceType}>{item.candidate_type==="price"?"가격 근거":"시간표 근거"}</Text></View>{item.source_title&&<Text style={styles.rowMeta} numberOfLines={2}>{item.source_title}</Text>}<Text style={styles.evidenceValue}>{item.candidate_type==="price"&&item.normalized_value?Number(item.normalized_value).toLocaleString("ko-KR")+"원 · "+(item.price_period||"기간 미확인")+(item.price_frequency_per_week?" · 주 "+item.price_frequency_per_week+"회":"")+" 후보\n":""}{item.evidence_text}</Text><Text style={styles.rowMeta}>자동 추출 신뢰도 참고값 {Math.round(item.confidence*100)}% · 원문 게시물 #{item.source_id}</Text><Pressable onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.action}>원문 확인 ↗</Text></Pressable><View style={styles.buttons}><Pressable style={styles.secondary} onPress={()=>reviewEvidence(item,"rejected")} disabled={evidenceBusy}><Text style={styles.secondaryText}>자료 제외</Text></Pressable><Pressable style={styles.button} onPress={()=>reviewEvidence(item,"verified")} disabled={evidenceBusy}><Text style={styles.buttonText}>근거 확인</Text></Pressable></View></View>)}{!evidenceRows.length&&!evidenceBusy&&<Text style={styles.hint}>검토 대기 중인 자료가 없습니다. 블로그 수집 후 자동으로 표시됩니다.</Text>}</View>
     <View style={styles.panel}><Text style={styles.heading}>{editing?"학원 정보 수정":"학원 등록"}</Text>{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}{field("사진 URL (최대 10개, 줄바꿈 구분)","image_urls")}{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
