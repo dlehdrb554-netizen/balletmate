@@ -36,6 +36,14 @@ Admin writes are protected by Supabase Auth and `admin_users`. Admin login in th
 - After deploying a crawler change that should refresh already completed posts, run `requeue_blog_posts_for_extraction_refresh.sql` once. It requeues only completed rows and leaves their existing content visible until refreshed.
 - Image OCR is not yet enabled. Do not infer a price or schedule from an image until a free, locally executed OCR path is integrated and verified. No paid AI/OCR service is used.
 
+## Android build with local OCR
+
+- The OCR dependency requires a native app binary; Expo Go cannot load it.
+- A free GitHub Actions workflow is available at `.github/workflows/android-debug-apk.yml`.
+- Open the repository's **Actions** tab, select **Android debug APK**, choose **Run workflow**, then download the `balletmate-android-debug` artifact after the run succeeds.
+- This is a debug APK for device testing, not a Play Store release. Install it on the Android device after allowing installation from the download source. Existing app data may need a fresh login after reinstall.
+- The workflow uses GitHub-hosted Actions and does not require EAS or a paid build service. GitHub's included Actions quota and artifact retention policies still apply.
+
 ## Local image OCR (Korean price and timetable images)
 
 - Run `studio_image_ocr.sql` after the admin and studio tables exist. It creates an admin-only review table for text extracted from images.
