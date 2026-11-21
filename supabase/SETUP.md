@@ -36,6 +36,16 @@ Admin writes are protected by Supabase Auth and `admin_users`. Admin login in th
 - After deploying a crawler change that should refresh already completed posts, run `requeue_blog_posts_for_extraction_refresh.sql` once. It requeues only completed rows and leaves their existing content visible until refreshed.
 - Image OCR is not yet enabled. Do not infer a price or schedule from an image until a free, locally executed OCR path is integrated and verified. No paid AI/OCR service is used.
 
+## Local image OCR (Korean price and timetable images)
+
+- Run `studio_image_ocr.sql` after the admin and studio tables exist. It creates an admin-only review table for text extracted from images.
+- The admin app uses `@zhanziyang/expo-text-extractor` (MIT) with Google ML Kit on Android and Apple Vision on iOS. Korean script recognition is selected on Android; iOS prefers ko-KR/en-US.
+- OCR runs locally on the administrator's device. The selected image itself is not uploaded by the OCR workflow; only the extracted text and image filename are saved to Supabase for review.
+- Select up to 5 images from a device gallery using the per-studio `사진 OCR` action. OCR output is a candidate only; it is not automatically turned into a price, timetable, class, or public listing. Admins can mark a result reviewed or exclude it.
+- This native module is not included in Expo Go. A new Android/iOS development or production build is required after dependency installation. The first Korean OCR request on Android may download the ML Kit Korean model through Google Play services and therefore needs internet once.
+- Recognition can misread small text, decorative fonts, rotated images, and low-resolution screenshots. Always compare the result with the original image before entering or publishing structured data.
+- The OCR code and library are free/open-source; ML Kit recognition runs on-device. No paid OCR API or paid AI service is called.
+
 ## Current app integration
 - The app queries the current map viewport only and caps each request at 300 active studios.\n- Viewport results are cached in-memory for 90 seconds; class schedules for 10 minutes.\n- Per app session, at most 40 uncached map searches and 25 uncached schedule lookups are allowed; cached hits do not count. This is a client-side guard, not an account-wide quota.
 - Studio class schedule data is fetched when a studio detail view opens. The detail sheet can be expanded/collapsed by dragging its handle; dragging down farther closes it.
