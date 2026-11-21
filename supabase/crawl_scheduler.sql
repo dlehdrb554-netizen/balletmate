@@ -20,7 +20,7 @@ where jobname = 'balletmate-studio-image-crawl';
 
 select cron.schedule(
   'balletmate-studio-image-crawl',
-  '*/10 * * * *',
+  '*/5 * * * *',
   $$
   select net.http_post(
     url := 'https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/crawl-studio-worker',
@@ -30,6 +30,7 @@ select cron.schedule(
         select decrypted_secret
         from vault.decrypted_secrets
         where name = 'balletmate_crawl_worker_secret'
+        order by created_at desc
         limit 1
       )
     ),
