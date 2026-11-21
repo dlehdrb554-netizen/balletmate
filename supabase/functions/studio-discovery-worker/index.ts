@@ -55,7 +55,7 @@ Deno.serve(async(req)=>{
    }catch(e){errors.push(term+": "+(e instanceof Error?e.message:"request failed"));break;}
   }
  }
- const {error:logError}=await db.from("studio_discovery_runs").insert({
+ if(errors.length){\n  const {error:retryError}=await db.rpc("retry_studio_discovery_region",{p_region_name:region.region_name});\n  if(retryError)errors.push("지역 재시도 예약 실패: "+retryError.message.slice(0,120));\n }\n const {error:logError}=await db.from("studio_discovery_runs").insert({
   region_name:region.region_name,result_count:resultCount,inserted_count:insertedCount,
   duplicate_count:duplicateCount,error:errors.join(" | ").slice(0,1000)||null
  });
