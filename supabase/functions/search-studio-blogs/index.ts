@@ -24,7 +24,7 @@ const isRelevantBlog = (studioName: string, title: string, description: string, 
   const nameMatch = hasAcademy && hasBalletIntent;
   const accountKey = blogAccountKey(bloggerUrl);
   const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
-  return nameMatch || (officialMatch && hasBalletIntent);
+  return nameMatch || hasBalletIntent || officialMatch;
 };
 const cleanText = (value: unknown): string =>
   String(value ?? "").replace(/<[^>]*>/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
