@@ -27,7 +27,12 @@ export type StudioRecord = {
   source_url: string | null;
   source_name: string | null;
   verified_at: string | null;
-  image_usage_note: string | null;\n  price_evidence_text: string | null;\n  schedule_evidence_text: string | null;\n  details_source_urls: string[] | null;\n  details_checked_at: string | null;\n  details_status: string | null;
+  image_usage_note: string | null;
+  price_evidence_text: string | null;
+  schedule_evidence_text: string | null;
+  details_source_urls: string[] | null;
+  details_checked_at: string | null;
+  details_status: string | null;
 };
 
 const studioCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>();
@@ -54,7 +59,7 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
       .lte("longitude", bounds.longitude + bounds.longitudeDelta / 2);
   };
 
-  const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note";
+  const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,details_checked_at,details_status";
   let result = await applyBounds(supabase
     .from("studios")
     .select(selectColumns)
@@ -78,7 +83,12 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
       source_url: row.source_url ?? null,
       source_name: row.source_name ?? null,
       verified_at: row.verified_at ?? null,
-      image_usage_note: row.image_usage_note ?? null,\n      price_evidence_text: null,\n      schedule_evidence_text: null,\n      details_source_urls: [],\n      details_checked_at: null,\n      details_status: null,
+      image_usage_note: row.image_usage_note ?? null,
+      price_evidence_text: null,
+      schedule_evidence_text: null,
+      details_source_urls: [],
+      details_checked_at: null,
+      details_status: null,
     })) as StudioRecord[];
   } else {
     if (result.error) throw result.error;
