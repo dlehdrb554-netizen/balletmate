@@ -28,16 +28,18 @@ export default function Community(){
  const [userId,setUserId]=useState<string|null>(null);
  const commentRequestId=useRef(0);
 
+ const postRequestId=useRef(0);
  const loadPosts=useCallback(async()=>{
-  if(!supabase){setLoading(false);return;}
+  const requestId=++postRequestId.current;
+  if(!supabase){if(requestId===postRequestId.current)setLoading(false);return;}
   try{
    let query=supabase.from("community_posts").select("id,author_id,author_name,category,title,content,created_at").order("created_at",{ascending:false}).limit(50);
    if(category!=="전체")query=query.eq("category",category);
    const {data,error}=await query;
    if(error)throw error;
-   setPosts((data||[]) as Post[]);
-  }catch(error:any){Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}
-  finally{setLoading(false);setRefreshing(false);}
+   if(requestId===postRequestId.current)setPosts((data||[]) as Post[]);
+  }catch(error:any){if(requestId===postRequestId.current)Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}
+  finally{if(requestId===postRequestId.current){setLoading(false);setRefreshing(false);}}
  },[category]);
 
  useEffect(()=>{loadPosts();},[loadPosts]);
