@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-const SEARCH_SUFFIXES = ["수강료", "시간표", "성인발레", "키즈발레"];
+const SEARCH_SUFFIXES = ["수강료", "시간표"];
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ]/g, "");
 const isRelevantBlog = (studioName: string, title: string, description: string): boolean => {
   const text = normalize(`${title} ${description}`);
@@ -34,10 +34,10 @@ Deno.serve(async (req) => {
   if (!clientId || !clientSecret) return json({ error: "NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET Secret이 누락되었습니다." }, 500);
 
   const db = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  let batchSize = 3;
+  let batchSize = 1;
   try {
     const body = await req.json();
-    if (Number.isFinite(Number(body?.batchSize))) batchSize = Math.max(1, Math.min(5, Math.floor(Number(body.batchSize))));
+    if (Number.isFinite(Number(body?.batchSize))) batchSize = Math.max(1, Math.min(2, Math.floor(Number(body.batchSize))));
   } catch { /* Use the safe default batch size. */ }
 
   const { data: jobs, error: claimError } = await db.rpc("claim_studio_blog_search_jobs", { p_limit: batchSize });
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
         const query = `${job.studio_name} ${suffix}`;
         const endpoint = new URL("https://naverapihub.apigw.ntruss.com/search/v1/blog");
         endpoint.searchParams.set("query", query);
-        endpoint.searchParams.set("display", "20");
+        endpoint.searchParams.set("display", "10");
         endpoint.searchParams.set("sort", "date");
         endpoint.searchParams.set("format", "json");
 
