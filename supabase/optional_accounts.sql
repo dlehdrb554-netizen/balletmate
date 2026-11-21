@@ -7,6 +7,9 @@ create table if not exists public.user_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.user_profiles add column if not exists phone_number text;
+alter table public.user_profiles add column if not exists phone_verified_at timestamptz;
+create unique index if not exists user_profiles_phone_number_unique on public.user_profiles(phone_number) where phone_number is not null;
 alter table public.user_profiles enable row level security;
 grant select on public.user_profiles to authenticated;
 drop policy if exists "users view own profile" on public.user_profiles;
@@ -52,6 +55,7 @@ begin
   return new;
 end;
 $$;
+drop trigger if exists create_username_profile_on_signup on auth.users;
 drop trigger if exists sync_username_profile_auth on auth.users;
 create trigger sync_username_profile_auth
 after insert or update of raw_user_meta_data, phone, phone_confirmed_at on auth.users
