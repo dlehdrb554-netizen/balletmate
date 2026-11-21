@@ -4,6 +4,15 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 const SEARCH_SUFFIXES = ["수강료", "시간표", "성인발레", "키즈발레"];
+const normalize = (value: string) => value.toLowerCase().replace(/[\\s·ㆍ]/g, "");
+const isRelevantBlog = (studioName: string, title: string, description: string): boolean => {
+  const text = normalize(`${title} ${description}`);
+  const studio = normalize(studioName);
+  // The full studio/branch name is the strongest signal.
+  if (studio.length >= 5 && text.includes(studio)) return true;
+  // Otherwise require an explicit ballet-school/class phrase, not the standalone word "발레".
+  return /(발레학원|발레교습소|성인발레|키즈발레|유아발레|발레수업|발레레슨|발레클래스|발레스튜디오|발레아카데미|발레수강료|발레시간표|발레강습|발레교육)/i.test(text);
+};
 const cleanText = (value: unknown): string =>
   String(value ?? "").replace(/<[^>]*>/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&")
@@ -67,6 +76,8 @@ Deno.serve(async (req) => {
           const postUrl = cleanText(item.link);
           const title = cleanText(item.title);
           if (!postUrl.startsWith("https://") || !title) return [];
+          const description = cleanText(item.description);
+          if (!isRelevantBlog(String(job.studio_name), title, description)) return [];
           const dateText = String(item.postdate ?? "");
           const postDate = /^\d{8}$/.test(dateText)
             ? `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6, 8)}`
@@ -76,7 +87,7 @@ Deno.serve(async (req) => {
             search_query: query,
             title,
             post_url: postUrl,
-            description: cleanText(item.description) || null,
+            description: description || null,
             blogger_name: cleanText(item.bloggername) || null,
             blogger_url: cleanText(item.bloggerlink) || null,
             post_date: postDate,
