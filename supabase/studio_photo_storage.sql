@@ -50,6 +50,3 @@ CREATE POLICY "Balletmate admins delete studio photos"
     bucket_id = 'studio-photos'
     AND public.is_balletmate_admin()
   );
-
-COMMENT ON TABLE storage.buckets IS
-  'Supabase Storage buckets; studio-photos is public-read and admin-write, limited to 5 MB JPEG/PNG/WEBP images.';
