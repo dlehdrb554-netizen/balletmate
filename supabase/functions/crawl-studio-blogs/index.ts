@@ -91,7 +91,7 @@ function isRelevantBlog(studioName: string, title: string, context = "", blogger
 }
 function evidence(text: string, kind: "price" | "schedule"): string[] {
   const re = kind === "price"
-    ? /(수강료|가격|회비|등록비|입회비|만원|\d[\d,]*\s*원|₩|비용|월\s*\d)/i
+    ? /(수강료|가격|회비|등록비|입회비|만원|\d[\d,]*\s*원|\d+(?:\.\d+)?\s*만(?:\s*\d+\s*천)?\s*원?|\d[\d,]*\s*천\s*원|₩|비용|월\s*\d)/i
     : /(시간표|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|\d{1,2}:\d{2}|평일|주말|수업시간|\d{1,2}시)/i;
   return [...new Set(text.split("\n").map(x => x.trim()).filter(x => x.length >= 3 && x.length <= 500 && re.test(x)))].slice(0, 40);
 }
