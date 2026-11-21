@@ -224,7 +224,7 @@ export default function Admin() {
         studio_id:item.studio_id,studio_name:item.studio_name,source_id:item.source_id,
         source_title:item.image_label,source_url:item.source_url,candidate_type:candidateType,
         candidate_value:candidateValue,normalized_value:isPrice?String(item.amount_krw):structured,
-        price_period:isPrice?(item.price_period||"기간 미확인"):null,
+        price_period:item.price_period||"기간 미확인",
         price_frequency_per_week:isPrice?item.frequency_per_week:null,
         evidence_text:item.extracted_text,confidence:0.55,review_status:"pending"
       },{onConflict:"source_id,candidate_type,candidate_value",ignoreDuplicates:true});
