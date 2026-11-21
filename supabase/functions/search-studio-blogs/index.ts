@@ -8,7 +8,7 @@ const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
 const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, "");
 const academyAlias = (studioName: string) => normalize(studioName)
-  .replace(/(발레스튜디오|발레아카데미|무용학원|발레학원|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
+  .replace(/(무용학원|발레학원|발레아카데미|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
 const isRelevantBlog = (studioName: string, title: string): boolean => {
   // Naver search is broad. Require the distinctive academy root AND ballet/class intent in the title.
   // This allows abbreviated official titles such as "W발레 10월 시간표" without accepting generic W/barre posts.
