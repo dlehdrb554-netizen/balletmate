@@ -60,9 +60,8 @@ export default function Admin() {
     if(error)Alert.alert("조회 실패",error.message);
     else {
       setRows(data||[]);
-      const {data:queue}=await supabase.from("studio_image_crawl_queue").select("id,studio_id,attempts").eq("status","pending").lte("next_attempt_at",new Date().toISOString()).lt("attempts",3).order("created_at").limit(2);
+      const {data:queue}=await supabase.rpc("claim_studio_image_crawl_queue",{p_limit:2});
       for(const item of queue||[]){
-        await supabase.from("studio_image_crawl_queue").update({status:"processing",updated_at:new Date().toISOString()}).eq("id",item.id);
         const {data:result,error:crawlError}=await supabase.functions.invoke("crawl-studio",{body:{studioId:item.studio_id}});
         const failed=!!crawlError||!!result?.error;
         const attempts=(item.attempts||0)+1;
@@ -96,7 +95,7 @@ export default function Admin() {
     if(imageUrls.length>10||imageUrls.some(v=>!/^https:\/\//i.test(v))){Alert.alert("사진 주소 확인","사진은 HTTPS 주소로 최대 10개까지 입력할 수 있습니다.");return;}
     const lat=Number(form.latitude),lng=Number(form.longitude),price=form.price_per_class.trim()?Number(form.price_per_class):null;
     if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lng)||lng < -180||lng > 180|| (price!==null&&(!Number.isFinite(price)||price<0))){Alert.alert("입력 확인","좌표 또는 가격이 올바르지 않습니다.");return;}
-    const payload={name:form.name.trim(),latitude:lat,longitude:lng,district:form.district.trim()||null,address:form.address.trim()||null,phone:form.phone.trim()||null,website_url:form.website_url.trim()||null,source_url:form.source_url.trim()||null,source_name:form.source_name.trim()||null,image_urls:imageUrls,image_usage_note:form.image_usage_note.trim()||null,price_per_class:price,adult_classes:form.adult_classes,kids_classes:form.kids_classes,is_active:form.is_active,updated_at:new Date().toISOString()};
+    const payload={name:form.name.trim(),latitude:lat,longitude:lng,district:form.district.trim()||null,address:form.address.trim()||null,phone:form.phone.trim()||null,website_url:form.website_url.trim()||null,source_url:form.source_url.trim()||null,source_name:form.source_name.trim()||null,image_urls:imageUrls,image_source_name:imageUrls.length?"관리자 직접 등록":null,image_usage_note:form.image_usage_note.trim()||null,price_per_class:price,adult_classes:form.adult_classes,kids_classes:form.kids_classes,is_active:form.is_active,updated_at:new Date().toISOString()};
     setBusy(true);
     const q=editing?supabase.from("studios").update(payload).eq("id",editing):supabase.from("studios").insert(payload);
     const {error}=await q;
@@ -135,7 +134,7 @@ export default function Admin() {
       if(imgs.length>10||imgs.some(v=>!/^https:\/\//i.test(v))){skipped++;continue;}
       const price=get(row,"price_per_class");
       if(price&&(!Number.isFinite(Number(price))||Number(price)<0)){skipped++;continue;}
-      payload.push({name,latitude,longitude,district:get(row,"district")||null,address:address||null,phone:get(row,"phone")||null,website_url:website||null,source_url:source||null,source_name:get(row,"source_name")||null,image_urls:imgs,image_usage_note:get(row,"image_usage_note")||null,price_per_class:price?Number(price):null,adult_classes:/^(1|true|yes|y)$/i.test(get(row,"adult_classes")),kids_classes:/^(1|true|yes|y)$/i.test(get(row,"kids_classes")),is_active:/^(1|true|yes|y)$/i.test(get(row,"is_active"))});
+      payload.push({name,latitude,longitude,district:get(row,"district")||null,address:address||null,phone:get(row,"phone")||null,website_url:website||null,source_url:source||null,source_name:get(row,"source_name")||null,image_urls:imgs,image_source_name:imgs.length?"관리자 직접 등록":null,image_usage_note:get(row,"image_usage_note")||null,price_per_class:price?Number(price):null,adult_classes:/^(1|true|yes|y)$/i.test(get(row,"adult_classes")),kids_classes:/^(1|true|yes|y)$/i.test(get(row,"kids_classes")),is_active:/^(1|true|yes|y)$/i.test(get(row,"is_active"))});
     }
     if(!payload.length){Alert.alert("등록할 데이터 없음","중복 또는 형식 오류로 제외 "+skipped+"개");return;}
     setImporting(true);
