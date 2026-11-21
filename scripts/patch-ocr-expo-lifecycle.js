@@ -22,10 +22,7 @@ if (!fs.existsSync(modulePath)) {
 }
 
 let source = fs.readFileSync(modulePath, "utf8");
-if (source.includes("OnDestroy {") && source.includes("private fun closeRecognizers()")) {
-  console.log("[ocr-compat] Expo lifecycle patch already applied.");
-  process.exit(0);
-}
+const alreadyPatched = source.includes("OnDestroy {") && source.includes("private fun closeRecognizers()");
 
 const oldTail = `    AsyncFunction("getSupportedLanguages") { _: String?, promise: Promise ->
       promise.resolve(availableScripts)
@@ -52,13 +49,18 @@ const newTail = `    AsyncFunction("getSupportedLanguages") { _: String?, promis
   private fun closeRecognizers() {
 `;
 
-if (!source.includes(oldTail)) {
-  throw new Error("[ocr-compat] Expected OCR module lifecycle block was not found; refusing to modify unknown source.");
+if (!alreadyPatched) {
+  if (!source.includes(oldTail)) {
+    throw new Error("[ocr-compat] Expected OCR module lifecycle block was not found; refusing to modify unknown source.");
+  }
+  source = source.replace(oldTail, newTail);
+  source = source.replace(/\n\s*super\.onDestroy\(\)\n/, "\n");
+  fs.writeFileSync(modulePath, source, "utf8");
+  console.log("[ocr-compat] Patched OCR cleanup to Expo Modules API OnDestroy.");
+} else {
+  console.log("[ocr-compat] Expo lifecycle patch already applied.");
 }
 
-source = source.replace(oldTail, newTail);
-source = source.replace(/\n\s*super\.onDestroy\(\)\n/, "\n");
-fs.writeFileSync(modulePath, source, "utf8");
 const packageJsonPath = path.join(
   process.cwd(),
   "node_modules",
