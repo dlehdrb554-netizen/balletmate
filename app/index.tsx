@@ -64,6 +64,7 @@ export default function Home() {
   const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
   const [favoriteStudios,setFavoriteStudios]=useState<Studio[]>([]);
   const [favoritesReady,setFavoritesReady]=useState(false);
+  const guestFavoritesRef=useRef<{ids:string[];studios:Studio[]}>({ids:[],studios:[]});
   const [compareIds,setCompareIds]=useState<string[]>([]);
   const [compareCache,setCompareCache]=useState<Studio[]>([]);
   const [adult,setAdult]=useState(false);
@@ -111,17 +112,21 @@ export default function Home() {
     finally {setLocationLoading(false);}
   };
   useEffect(()=>{let active=true;const initializeLocation=async()=>{try{let permission=await Location.getForegroundPermissionsAsync();if(permission.status==="undetermined")permission=await Location.requestForegroundPermissionsAsync();if(!active)return;setLocationGranted(permission.status==="granted");if(permission.status!=="granted")return;const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});if(!active)return;const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.04,longitudeDelta:0.04};map.current?.animateToRegion(r,500);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setMapMoved(false);}catch{if(active)setLocationGranted(false);}};initializeLocation();return()=>{active=false;};},[]);
-  useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,cache])=>{if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))setFavoriteIds(parsed.filter(x=>typeof x==="string"));}if(cache){const parsed=JSON.parse(cache);if(Array.isArray(parsed))setFavoriteStudios(parsed);}}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
+  useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,cache])=>{let savedIds:string[]=[];let savedStudios:Studio[]=[];if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))savedIds=parsed.filter(x=>typeof x==="string");}if(cache){const parsed=JSON.parse(cache);if(Array.isArray(parsed))savedStudios=parsed.filter((x:any)=>x&&typeof x.id==="string");}guestFavoritesRef.current={ids:savedIds,studios:savedStudios};setFavoriteIds(savedIds);setFavoriteStudios(savedStudios);}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
   useEffect(()=>{if(favoritesReady){AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});AsyncStorage.setItem("balletmate.favoriteStudios.v1",JSON.stringify(favoriteStudios)).catch(()=>{});}},[favoriteIds,favoriteStudios,favoritesReady]);
   const favoriteSyncUser=useRef<string|null>(null);
   useEffect(()=>{
     const client=supabase;
-    if(!client)return;
+    if(!client||!favoritesReady)return;
     let active=true;
     const syncForSession=async(session:any)=>{
       const uid=session?.user?.id||null;
-      if(!uid){favoriteSyncUser.current=null;return;}
-      if(!favoritesReady)return;
+      if(!uid){
+        favoriteSyncUser.current=null;
+        setFavoriteIds(guestFavoritesRef.current.ids);
+        setFavoriteStudios(guestFavoritesRef.current.studios);
+        return;
+      }
       if(favoriteSyncUser.current===uid)return;
       favoriteSyncUser.current=uid;
       try{
@@ -130,24 +135,18 @@ export default function Home() {
         if(!active)return;
         const remoteRows=remote||[];
         const remoteStudios=remoteRows.map((r:any)=>r.studio_snapshot).filter((s:any)=>s&&typeof s.id==="string");
-        const localStudios=favoriteStudios;
-        const mergedMap=new Map<string,Studio>();
-        remoteStudios.forEach((s:Studio)=>mergedMap.set(s.id,s));
-        localStudios.forEach((s:Studio)=>mergedMap.set(s.id,s));
-        const merged=[...mergedMap.values()];
-        const mergedIds=[...new Set([...favoriteIds,...remoteRows.map((r:any)=>r.studio_id),...merged.map(s=>s.id)])];
-        setFavoriteStudios(merged);setFavoriteIds(mergedIds);
-        if(merged.length){
-          const payload=merged.map(s=>({user_id:uid,studio_id:s.id,studio_snapshot:s,updated_at:new Date().toISOString()}));
-          const {error:upsertError}=await client.from("user_favorites").upsert(payload,{onConflict:"user_id,studio_id"});
-          if(upsertError)throw upsertError;
-        }
-      }catch(e){console.warn("Favorite sync skipped:",e);}
+        const remoteIds=[...new Set(remoteRows.map((r:any)=>r.studio_id).filter((id:any)=>typeof id==="string"))];
+        setFavoriteStudios(remoteStudios);
+        setFavoriteIds(remoteIds);
+      }catch(e){
+        favoriteSyncUser.current=null;
+        console.warn("Favorite sync skipped:",e);
+      }
     };
     client.auth.getSession().then(({data})=>syncForSession(data.session));
     const {data:{subscription}}=client.auth.onAuthStateChange((_event,session)=>{syncForSession(session);});
     return()=>{active=false;subscription.unsubscribe();};
-  },[favoritesReady,favoriteIds,favoriteStudios]);
+  },[favoritesReady]);
 
   useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,sourceName:r.source_name||undefined,verifiedAt:r.verified_at||undefined,imageUsageNote:r.image_usage_note||undefined}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted){setStudios([]);setBackendState("error");}});return()=>{mounted=false;};},[searchedRegion]);
   const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
