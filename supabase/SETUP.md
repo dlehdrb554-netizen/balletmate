@@ -12,7 +12,7 @@ Do not use the service-role key in the mobile app or commit it to GitHub. The an
 ## Publishing records
 The schema intentionally defaults studio/class/coupon records to inactive. A studio is visible in the mobile app only after a trusted administrator sets `is_active = true`. Class and session rows must also be marked active.
 
-Admin writes are protected by Supabase Auth and `admin_users`. Admin login in the app uses a username, not an email. Create the auth user with an internal alias email in the format `<username>@balletmate.app` (e.g. `balletadmin@balletmate.app`) and set a password; this alias is not intended to receive mail. Then insert the user's UUID into `public.admin_users` from SQL Editor. User-facing app browsing remains available without signing in; optional user accounts will be separate from admin access. Keep source URLs and source names for provenance, and verify details before publication. Do not bulk-copy sites or use scraping without checking the source's terms, privacy rules, and permission.
+Admin writes are protected by Supabase Auth and `admin_users`. Admin login in the app uses a username, not an email. Create the auth user with an internal alias email in the format `<username>@balletmate.app` (e.g. `balletadmin@balletmate.app`) and set a password; this alias is not intended to receive mail. Then insert the user's UUID into `public.admin_users` from SQL Editor. User-facing app browsing remains available without signing in; optional user accounts are separate from admin access. To enable app sign-up, run `optional_accounts.sql`. In Supabase Authentication settings, turn OFF email confirmation because usernames use a non-receiving internal alias (`username@balletmate.app`); also make sure public sign-ups are enabled. The app has in-app username/password registration and login; email addresses are never requested or shown. Keep source URLs and source names for provenance, and verify details before publication. Do not bulk-copy sites or use scraping without checking the source's terms, privacy rules, and permission.
 
 ## Current app integration
 - The app queries the current map viewport only and caps each request at 300 active studios.\n- Viewport results are cached in-memory for 90 seconds; class schedules for 10 minutes.\n- Per app session, at most 40 uncached map searches and 25 uncached schedule lookups are allowed; cached hits do not count. This is a client-side guard, not an account-wide quota.
@@ -20,7 +20,7 @@ Admin writes are protected by Supabase Auth and `admin_users`. Admin login in th
 - No client-side create/update/delete permissions are granted by the schema.
 - If no Supabase environment variables are configured, the app uses demo sample records.
 - If the backend is configured but has no active studios, it shows an empty result instead of demo data.
-- Favorites are saved on the device, not synced to an account yet.
+- Favorites are saved on the device. Account sign-up/login is available, but cloud favorite sync is not implemented yet.
 
 ## Free-tier protection
 
