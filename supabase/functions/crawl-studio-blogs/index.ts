@@ -123,6 +123,28 @@ function priceAmount(line: string): string | null {
   if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000_000) return null;
   return String(Math.round(amount));
 }
+function pricePeriod(line: string): { label: string; frequencyPerWeek: number | null } {
+  const frequency = line.match(/주\s*(\d+)\s*회/);
+  const frequencyPerWeek = frequency ? Math.min(14, Number(frequency[1])) : null;
+
+  const months = line.match(/(\d+)\s*개월/);
+  if (months) return { label: months[1] + "개월", frequencyPerWeek };
+  const weeks = line.match(/(\d+)\s*주(?:간)?/);
+  if (weeks) return { label: weeks[1] + "주", frequencyPerWeek };
+  const sessions = line.match(/(\d+)\s*회\s*(?:권|수강권|이용권)/);
+  if (sessions) return { label: sessions[1] + "회권", frequencyPerWeek };
+  if (/(1회당|회당|1회\s*(?:수강료|가격)|원데이|일일\s*(?:수강|체험))/.test(line)) {
+    return { label: "1회", frequencyPerWeek };
+  }
+  if (/(매월|월\s*(?:수강료|회비|등록비|비용|가격)|월간|한\s*달|1개월)/.test(line)) {
+    return { label: "월 단위", frequencyPerWeek };
+  }
+  if (/(연간|1년|연\s*(?:수강료|회비|등록비|비용|가격))/.test(line)) {
+    return { label: "연 단위", frequencyPerWeek };
+  }
+  return { label: "기간 미확인", frequencyPerWeek };
+}
+
 function candidateRows(
   lines: string[],
   kind: "price" | "schedule",
@@ -137,11 +159,15 @@ function candidateRows(
     if (kind === "price") {
       const amount = priceAmount(line);
       if (!amount) continue;
+      const period = pricePeriod(line);
       rows.push({
         studio_id: job.studio_id, studio_name: job.studio_name,
         source_id: job.source_id, source_title: job.title, source_url: job.post_url,
         candidate_type: "price", candidate_value: line, normalized_value: amount,
-        evidence_text: line, confidence: 0.78,
+        price_period: period.label,
+        price_frequency_per_week: period.frequencyPerWeek,
+        evidence_text: line,
+        confidence: period.label === "기간 미확인" ? 0.55 : 0.82,
       });
     } else {
       // Support explicit weekdays, ranges, and compact forms such as 월수금 / 화목.
