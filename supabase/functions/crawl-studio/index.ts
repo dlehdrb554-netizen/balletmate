@@ -36,7 +36,7 @@ function safeImageUrl(raw: string, base: string): string | null {
 }
 
 function attr(tag: string, name: string): string | null {
-  const pattern = /([^\\s=]+)\\s*=\\s*(?:"([^"]*)"|'([^']*)')/g;
+  const pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   for (const match of tag.matchAll(pattern)) {
     if (match[1].toLowerCase() === name.toLowerCase()) {
       return match[2] ?? match[3] ?? null;
