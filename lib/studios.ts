@@ -20,6 +20,10 @@ export type StudioRecord = {
   rating: number | null;
   description: string | null;
   phone: string | null;
+  image_urls: string[] | null;
+  website_url: string | null;
+  image_source_name: string | null;
+  image_checked_at: string | null;
 };
 
 const studioCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>();
@@ -39,7 +43,7 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
 
   let query = supabase
     .from("studios")
-    .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone")
+    .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at")
     .eq("is_active", true)
     .limit(300);
   if (bounds) {
