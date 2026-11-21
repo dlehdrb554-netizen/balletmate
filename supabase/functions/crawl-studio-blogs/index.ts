@@ -53,7 +53,7 @@ function extractImages(html: string, base: string): string[] {
   }
   return [...new Set(out)].slice(0, 40);
 }
-function normalize(value: string): string { return value.toLowerCase().replace(/[\\s·ㆍ]/g, ""); }
+function normalize(value: string): string { return value.toLowerCase().replace(/[\s·ㆍ]/g, ""); }
 function isRelevantBlog(studioName: string, title: string, description: string): boolean {
   const text = normalize(`${title} ${description}`);
   const studio = normalize(studioName);
