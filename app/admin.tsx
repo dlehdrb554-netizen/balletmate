@@ -268,6 +268,7 @@ export default function Admin() {
     else {
       setEvidenceRows(current=>current.filter(row=>row.id!==item.id));
       if(status==="verified"&&item.candidate_type==="price")setVerifiedPriceRows(current=>[item,...current]);
+      if(status==="verified"&&item.candidate_type==="schedule")setVerifiedScheduleRows(current=>[item,...current]);
     }
     setEvidenceBusy(false);
   };
