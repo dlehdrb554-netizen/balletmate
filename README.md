@@ -13,7 +13,7 @@ Mobile-first ballet studio finder (Expo / React Native).
 
 ## Backend
 Supabase integration is in place:
-- Active studio listing (limited to 300 records per request)
+- Active studio listing filtered to the current map viewport (up to 300 records per request)
 - Class and session schedules fetched only when detail is opened
 - Public read policies; no client-side write access
 - Demo mode if environment variables are absent
