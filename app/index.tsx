@@ -151,6 +151,7 @@ export default function Home() {
           <Text style={styles.detailDisclaimer}>테스트 데이터입니다. 실제 운영 정보 및 가격이 아닙니다.</Text>
           <Pressable style={styles.applyButton} onPress={()=>setFavoriteIds(ids=>ids.includes(detailStudio.id)?ids.filter(i=>i!==detailStudio.id):[...ids,detailStudio.id])}><Text style={styles.applyText}>{favoriteIds.includes(detailStudio.id)?"찜 해제":"♡ 즐겨찾기 추가"}</Text></Pressable>
         </>}
+        </ScrollView>
       </View></View>
     </Modal>
     <Modal visible={filterOpen} animationType="slide" transparent onRequestClose={()=>setFilterOpen(false)}>
