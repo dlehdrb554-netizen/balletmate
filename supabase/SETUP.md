@@ -30,7 +30,8 @@ Admin writes are protected by Supabase Auth and `admin_users`. Admin login in th
 - Run `studio_blog_search.sql` and `studio_blog_post_crawl.sql` after the discovery tables exist. Configure the Edge Function secrets `NAVER_CLIENT_ID` and `NAVER_CLIENT_SECRET`; keep them out of the mobile app and GitHub.
 - Run `evidence_review.sql` after `studio_blog_post_crawl.sql`. It adds an admin-only review queue for price and schedule evidence and aligns the post queue status constraint with the crawler's rejected state.
 - Run `studio_blog_queue_fairness.sql` after the post-crawl migration to distribute each 3-post batch across different studios before taking second posts from the same studio. This replaces only the claim RPC and does not change the current cron cadence.
-- The post crawler saves public HTML text and image URL metadata. It extracts price lines with explicit currency amounts and schedule lines containing both a weekday and a time. These are candidates only; a review action records whether the evidence is credible but does not automatically publish a price or timetable.
+- The post crawler saves public HTML text and image URL metadata. It preserves HTML line breaks, extracts explicit KRW formats including 3만5천원 / 5천원, and recognizes compact weekday/time expressions. Duplicate Naver resize variants are collapsed by stable image path while retaining the first usable URL. Price and schedule matches remain evidence candidates only; review does not automatically publish a price or timetable.
+- After deploying a crawler change that should refresh already completed posts, run `requeue_blog_posts_for_extraction_refresh.sql` once. It requeues only completed rows and leaves their existing content visible until refreshed.
 - Image OCR is not yet enabled. Do not infer a price or schedule from an image until a free, locally executed OCR path is integrated and verified. No paid AI/OCR service is used.
 
 ## Current app integration
