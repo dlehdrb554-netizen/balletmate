@@ -7,6 +7,7 @@ export type StudioRecord = {
   latitude: number;
   longitude: number;
   district: string | null;
+  address: string | null;
   tags: string[] | null;
   price_per_class: number | null;
   coupon_available: boolean | null;
@@ -25,7 +26,7 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
   if (!supabase) return [];
   let query = supabase
     .from("studios")
-    .select("id,name,latitude,longitude,district,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone")
+    .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone")
     .eq("is_active", true)
     .limit(300);
   if (bounds) {
