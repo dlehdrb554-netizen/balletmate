@@ -57,8 +57,12 @@ end;
 $$;
 drop trigger if exists create_username_profile_on_signup on auth.users;
 drop trigger if exists sync_username_profile_auth on auth.users;
+drop trigger if exists sync_username_profile_auth_update on auth.users;
 create trigger sync_username_profile_auth
-after insert or update of raw_user_meta_data, phone, phone_confirmed_at on auth.users
+after insert on auth.users
+for each row execute function public.sync_username_profile();
+create trigger sync_username_profile_auth_update
+after update of raw_user_meta_data, phone, phone_confirmed_at on auth.users
 for each row execute function public.sync_username_profile();
 
 -- Private favorite snapshots for logged-in members.
