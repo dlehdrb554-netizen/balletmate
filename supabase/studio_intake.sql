@@ -95,7 +95,7 @@ begin
       and q.attempts < 3
     order by q.created_at
     for update skip locked
-    limit least(greatest(coalesce(p_limit, 1), 1), 5)
+    limit least(greatest(coalesce(p_limit, 1), 1), 10)
   )
   update public.studio_image_crawl_queue q
   set status = 'processing', updated_at = now()
