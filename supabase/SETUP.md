@@ -36,6 +36,12 @@ Admin writes are protected by Supabase Auth and `admin_users`. Admin login in th
 - After deploying a crawler change that should refresh already completed posts, run `requeue_blog_posts_for_extraction_refresh.sql` once. It requeues only completed rows and leaves their existing content visible until refreshed.
 - Image OCR is not yet enabled. Do not infer a price or schedule from an image until a free, locally executed OCR path is integrated and verified. No paid AI/OCR service is used.
 
+## Administrator-published timetable evidence
+- Run `studio_public_schedules.sql` after `evidence_review.sql` and `price_period_evidence.sql`. It creates a separate public timetable-evidence table; it does not alter the existing manually maintained `classes` / `class_sessions` tables.
+- Schedule candidates must first be marked `근거 확인` in the admin evidence review. Admins then separately publish them from the verified timetable panel after opening and checking the original source. The public app preserves the extracted timetable wording and evidence instead of inventing class names, levels, or session durations.
+- Public timetable evidence is hidden after 180 days and can be deactivated earlier from the admin panel. Users can open the original source post. It is clearly labelled as administrator-verified source evidence, not a guarantee that the class is still running.
+- Existing structured classes and session schedules continue to display independently.
+
 ## Android build with local OCR
 
 - The OCR dependency requires a native app binary; Expo Go cannot load it.
