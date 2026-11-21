@@ -63,10 +63,10 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
 
   let rows: StudioRecord[];
   // Keep map discovery working on projects that have not run studio_media.sql yet.
-  if (result.error && /image_urls|image_source_name|image_checked_at/i.test(result.error.message)) {
+  if (result.error && /image_urls|image_source_name|image_checked_at|image_usage_note/i.test(result.error.message)) {
     const fallback = await applyBounds(supabase
       .from("studios")
-      .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,image_usage_note")
+      .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at")
       .eq("is_active", true)
       .limit(300));
     if (fallback.error) throw fallback.error;
