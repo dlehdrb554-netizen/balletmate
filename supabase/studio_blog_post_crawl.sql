@@ -35,6 +35,29 @@ insert into public.studio_blog_post_crawl_queue(source_id)
 select id from public.studio_blog_sources
 on conflict (source_id) do nothing;
 
+-- Automatically enqueue every newly discovered blog post, including posts
+-- collected by future NAVER search runs after this migration has been applied.
+create or replace function public.enqueue_studio_blog_post_crawl()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  insert into public.studio_blog_post_crawl_queue(source_id)
+  values (new.id)
+  on conflict (source_id) do nothing;
+  return new;
+end;
+$;
+
+drop trigger if exists trg_enqueue_studio_blog_post_crawl on public.studio_blog_sources;
+create trigger trg_enqueue_studio_blog_post_crawl
+after insert on public.studio_blog_sources
+for each row execute function public.enqueue_studio_blog_post_crawl();
+
+revoke all on function public.enqueue_studio_blog_post_crawl() from public, anon, authenticated;
+
 create or replace function public.claim_studio_blog_post_jobs(p_limit integer default 2)
 returns table(source_id bigint, studio_id uuid, studio_name text, post_url text, title text, attempts integer)
 language sql
