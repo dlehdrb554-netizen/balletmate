@@ -6,16 +6,17 @@ const json = (body: unknown, status = 200) =>
 const SEARCH_SUFFIXES = ["수강료", "시간표"];
 const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
 const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
-const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ]/g, "");
+const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, "");
+const academyAlias = (studioName: string) => normalize(studioName)
+  .replace(/(발레스튜디오|발레아카데미|무용학원|발레학원|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
 const isRelevantBlog = (studioName: string, title: string): boolean => {
-  // Search results are associated only when the academy name appears in the post title.
-  // Description snippets can contain unrelated recommendations or generic keyword matches.
+  // Naver search is broad. Require the distinctive academy root AND ballet/class intent in the title.
+  // This allows abbreviated official titles such as "W발레 10월 시간표" without accepting generic W/barre posts.
+  const alias = academyAlias(studioName);
   const text = normalize(title);
-  const parts = studioName.trim().split(/\s+/);
-  const fullName = normalize(studioName);
-  const coreName = normalize(parts[0] ?? "");
-  return (fullName.length >= 5 && text.includes(fullName)) ||
-    (coreName.length >= 5 && text.includes(coreName));
+  const hasAcademy = alias.length >= 3 && text.includes(alias);
+  const hasBalletIntent = /(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title);
+  return hasAcademy && hasBalletIntent;
 };
 const cleanText = (value: unknown): string =>
   String(value ?? "").replace(/<[^>]*>/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
