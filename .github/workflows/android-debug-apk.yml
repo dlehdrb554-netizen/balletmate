@@ -9,6 +9,14 @@ on:
       - ".github/workflows/android-debug-apk.yml"
       - "package.json"
       - "app.json"
+      - "app/**"
+      - "lib/**"
+      - "supabase/studio_public_schedules.sql"
+      - "supabase/SETUP.md"
+
+concurrency:
+  group: android-debug-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
