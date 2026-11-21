@@ -8,7 +8,7 @@ export type StudioClass = {
   class_type: string | null;
   duration_minutes: number | null;
   price: number | null;
-  class_sessions: { weekday: number; start_time: string; end_time: string | null; note: string | null }[];
+  class_sessions: { weekday: number; start_time: string; end_time: string | null; note: string | null; is_active?: boolean }[];
 };
 
 const classCache = new Map<string, { savedAt: number; rows: StudioClass[] }>();
@@ -30,7 +30,10 @@ export async function fetchClassesForStudio(studioId: string): Promise<StudioCla
     .eq("is_active", true)
     .limit(50);
   if (error) throw error;
-  const rows = (data ?? []) as unknown as StudioClass[];
+  const rows = ((data ?? []) as unknown as StudioClass[]).map((row) => ({
+    ...row,
+    class_sessions: (row.class_sessions ?? []).filter((session) => session.is_active !== false),
+  }));
   classCache.set(studioId, { savedAt: Date.now(), rows });
   return rows;
 }
