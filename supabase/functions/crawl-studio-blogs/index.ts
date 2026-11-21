@@ -1,0 +1,119 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
+const decode = (value: string) => value
+  .replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
+  .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
+  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+  .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+const stripTags = (html: string) => decode(html
+  .replace(/<(script|style|svg|noscript|iframe|header|footer|nav)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+  .replace(/<\/(p|div|li|tr|td|h[1-6]|section|article|br)\s*>/gi, "\n")
+  .replace(/<[^>]+>/g, " "))
+  .replace(/[\t\f\v ]+/g, " ").replace(/\n\s*/g, "\n")
+  .split("\n").map(x => x.trim()).filter(Boolean).join("\n").slice(0, 120000);
+function attr(tag: string, name: string): string | null {
+  const re = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+  for (const m of tag.matchAll(re)) if (m[1].toLowerCase() === name.toLowerCase()) return m[2] ?? m[3] ?? null;
+  return null;
+}
+function safeBlogUrl(raw: string, base?: string): URL | null {
+  try {
+    const u = new URL(raw, base);
+    if (u.protocol !== "https:" || !BLOG_HOSTS.has(u.hostname.toLowerCase()) || u.username || u.password) return null;
+    return u;
+  } catch { return null; }
+}
+async function fetchBlog(url: URL): Promise<{ html: string; finalUrl: string } | null> {
+  try {
+    const response = await fetch(url.toString(), {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; BalletmatePublicInfoBot/1.0)", "Accept": "text/html" },
+      redirect: "follow", signal: AbortSignal.timeout(10000),
+    });
+    const final = safeBlogUrl(response.url);
+    if (!response.ok || !final || !(response.headers.get("content-type") || "").toLowerCase().includes("text/html")) return null;
+    return { html: (await response.text()).slice(0, 2_000_000), finalUrl: final.toString() };
+  } catch { return null; }
+}
+function extractImages(html: string, base: string): string[] {
+  const out: string[] = [];
+  for (const tag of html.match(/<img\b[^>]*>/gi) ?? []) {
+    for (const key of ["data-lazy-src", "data-src", "src"]) {
+      const raw = attr(tag, key);
+      if (!raw) continue;
+      try {
+        const u = new URL(raw, base);
+        if (u.protocol === "https:" && /(^|\.)pstatic\.net$|(^|\.)naver\.net$/i.test(u.hostname) &&
+            !/\.svg(\?|$)/i.test(u.pathname)) out.push(u.toString());
+      } catch { /* Ignore invalid image URLs. */ }
+      break;
+    }
+  }
+  return [...new Set(out)].slice(0, 40);
+}
+function evidence(text: string, kind: "price" | "schedule"): string[] {
+  const re = kind === "price"
+    ? /(수강료|가격|회비|등록비|입회비|만원|\d[\d,]*\s*원|비용)/i
+    : /(시간표|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|\d{1,2}:\d{2}|평일|주말|수업시간)/i;
+  return [...new Set(text.split("\n").map(x => x.trim()).filter(x => x.length >= 3 && x.length <= 500 && re.test(x)))].slice(0, 40);
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok");
+  if (req.method !== "POST") return json({ error: "POST 요청만 허용됩니다." }, 405);
+  const secret = Deno.env.get("CRAWL_WORKER_SECRET");
+  if (!secret || req.headers.get("x-crawl-secret") !== secret) return json({ error: "Unauthorized" }, 401);
+  const url = Deno.env.get("SUPABASE_URL"), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return json({ error: "Supabase 서버 설정이 누락되었습니다." }, 500);
+  const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  let limit = 2;
+  try { const body = await req.json(); if (Number.isFinite(Number(body?.batchSize))) limit = Math.max(1, Math.min(3, Math.floor(Number(body.batchSize)))); } catch { /* default */ }
+  const { data: jobs, error } = await db.rpc("claim_studio_blog_post_jobs", { p_limit: limit });
+  if (error) return json({ error: "게시물 대기열 조회 실패: " + error.message }, 500);
+  if (!jobs?.length) return json({ processed: 0, message: "수집할 게시물이 없습니다." });
+  const results: Record<string, unknown>[] = [];
+  for (const job of jobs) {
+    try {
+      const postUrl = safeBlogUrl(job.post_url);
+      if (!postUrl) throw new Error("네이버 블로그 도메인이 아닌 URL은 수집하지 않습니다.");
+      const first = await fetchBlog(postUrl);
+      if (!first) throw new Error("게시물에 접근할 수 없거나 공개 HTML을 제공하지 않습니다.");
+      let html = first.html, pageUrl = first.finalUrl;
+      const frameTag = (html.match(/<iframe\b[^>]*id=["']mainFrame["'][^>]*>/i) || [])[0];
+      const frameSrc = frameTag ? attr(frameTag, "src") : null;
+      if (frameSrc) {
+        const frameUrl = safeBlogUrl(frameSrc, pageUrl);
+        if (frameUrl) {
+          const framed = await fetchBlog(frameUrl);
+          if (framed) { html = framed.html; pageUrl = framed.finalUrl; }
+        }
+      }
+      const textBody = stripTags(html);
+      const images = extractImages(html, pageUrl);
+      const prices = evidence(textBody, "price");
+      const schedules = evidence(textBody, "schedule");
+      const status = textBody.length > 80 ? "success" : "partial";
+      const { error: saveError } = await db.from("studio_blog_post_contents").upsert({
+        source_id: job.source_id, studio_id: job.studio_id, post_url: job.post_url,
+        body_text: textBody || null, image_urls: images, price_evidence: prices,
+        schedule_evidence: schedules, crawl_status: status, checked_at: new Date().toISOString(),
+      }, { onConflict: "source_id" });
+      if (saveError) throw new Error("본문 저장 실패: " + saveError.message);
+      const { error: doneError } = await db.from("studio_blog_post_crawl_queue")
+        .update({ status: "completed", last_error: null, updated_at: new Date().toISOString() })
+        .eq("source_id", job.source_id);
+      if (doneError) throw new Error("완료 상태 저장 실패: " + doneError.message);
+      results.push({ sourceId: job.source_id, studio: job.studio_name, textLength: textBody.length, images: images.length, priceEvidence: prices.length, scheduleEvidence: schedules.length, status });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "알 수 없는 오류";
+      const terminal = Number(job.attempts) >= 4;
+      await db.from("studio_blog_post_crawl_queue").update({
+        status: terminal ? "failed" : "pending", last_error: message.slice(0, 1000), updated_at: new Date().toISOString(),
+      }).eq("source_id", job.source_id);
+      results.push({ sourceId: job.source_id, studio: job.studio_name, status: terminal ? "failed" : "retry", error: message });
+    }
+  }
+  return json({ processed: jobs.length, results, note: "공개 네이버 블로그 본문과 이미지 URL 메타데이터만 수집합니다. 가격·시간표는 근거 문장으로 저장하며 학원 공식 정보로 자동 확정하지 않습니다." });
+});
