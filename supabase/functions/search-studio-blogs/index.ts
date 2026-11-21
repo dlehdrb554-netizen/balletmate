@@ -4,7 +4,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 const SEARCH_SUFFIXES = ["수강료", "시간표", "성인발레", "키즈발레"];
-const normalize = (value: string) => value.toLowerCase().replace(/[\\s·ㆍ]/g, "");
+const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ]/g, "");
 const isRelevantBlog = (studioName: string, title: string, description: string): boolean => {
   const text = normalize(`${title} ${description}`);
   const studio = normalize(studioName);
