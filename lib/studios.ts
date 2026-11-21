@@ -66,7 +66,7 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
       .eq("is_active", true)
       .limit(300));
     if (fallback.error) throw fallback.error;
-    rows = (fallback.data ?? []).map((row) => ({
+    rows = (fallback.data ?? []).map((row: any) => ({
       ...row,
       image_urls: [],
       image_source_name: null,
