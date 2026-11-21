@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
     schedule_evidence_text: schedules.join("\n") || null,
     details_source_urls: detailSources,
     details_checked_at: new Date().toISOString(),
-    details_status: prices.length && schedules.length ? "partial_verified_text" : "partial",
+    details_status: prices.length && schedules.length ? "text_found" : "partial",
   };
   if (images.length && !preserveManualImages) {
     update.image_urls = images;
