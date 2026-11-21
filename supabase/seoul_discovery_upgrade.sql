@@ -67,3 +67,25 @@ grant execute on function public.register_discovered_studio(text,double precisio
 update public.studio_discovery_cursor
 set next_region_id=1,updated_at=now()
 where id=1;
+
+
+-- If any Kakao request or record upsert fails, retry this same region next run
+-- instead of silently skipping it for an entire 65-region cycle.
+create or replace function public.retry_studio_discovery_region(p_region_name text)
+returns void
+language plpgsql security definer set search_path=public as $$
+declare target_id integer;
+begin
+ if coalesce(auth.role(),'')<>'service_role' then
+  raise exception 'service role required' using errcode='42501';
+ end if;
+ select id into target_id from public.studio_discovery_regions
+ where region_name=p_region_name order by id limit 1;
+ if target_id is not null then
+  update public.studio_discovery_cursor
+  set next_region_id=target_id,updated_at=now()
+  where id=1;
+ end if;
+end $$;
+revoke all on function public.retry_studio_discovery_region(text) from public;
+grant execute on function public.retry_studio_discovery_region(text) to service_role;
