@@ -148,7 +148,7 @@ function pricePeriod(line: string): { label: string; frequencyPerWeek: number | 
 function candidateRows(
   lines: string[],
   kind: "price" | "schedule",
-  job: { studio_id: string; studio_name: string; source_id: number; title: string; post_url: string },
+  job: { studio_id: string; studio_name: string; source_id: number; title: string; post_url: string; post_date: string | null },
 ): Record<string, unknown>[] {
   const unique = new Set<string>();
   const rows: Record<string, unknown>[] = [];
@@ -162,7 +162,7 @@ function candidateRows(
       const period = pricePeriod(line);
       rows.push({
         studio_id: job.studio_id, studio_name: job.studio_name,
-        source_id: job.source_id, source_title: job.title, source_url: job.post_url,
+        source_id: job.source_id, source_title: job.title, source_url: job.post_url, source_post_date: job.post_date,
         candidate_type: "price", candidate_value: line, normalized_value: amount,
         price_period: period.label,
         price_frequency_per_week: period.frequencyPerWeek,
@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
   for (const job of jobs) {
     try {
       const { data: source, error: sourceError } = await db.from("studio_blog_sources")
-        .select("title,description,blogger_url")
+        .select("title,description,blogger_url,post_date")
         .eq("id", job.source_id)
         .maybeSingle();
       if (sourceError) throw new Error("게시글 관련성 조회 실패: " + sourceError.message);
@@ -278,8 +278,8 @@ Deno.serve(async (req) => {
       const prices = evidence(textBody, "price");
       const schedules = evidence(textBody, "schedule");
       const evidenceCandidates = [
-        ...candidateRows(prices, "price", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url) }),
-        ...candidateRows(schedules, "schedule", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url) }),
+        ...candidateRows(prices, "price", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url), post_date: source.post_date ? String(source.post_date) : null }),
+        ...candidateRows(schedules, "schedule", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url), post_date: source.post_date ? String(source.post_date) : null }),
       ];
       let candidateWarning: string | null = null;
       if (evidenceCandidates.length) {
