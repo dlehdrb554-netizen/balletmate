@@ -12,7 +12,9 @@ export type StudioClass = {
 };
 
 const classCache = new Map<string, { savedAt: number; rows: StudioClass[] }>();
-const CLASS_CACHE_MS = 10 * 60_000;\nconst MAX_CLASS_REQUESTS_PER_APP_SESSION = 25;\nlet classRequests = 0;
+const CLASS_CACHE_MS = 10 * 60_000;
+const MAX_CLASS_REQUESTS_PER_APP_SESSION = 25;
+let classRequests = 0;
 
 export async function fetchClassesForStudio(studioId: string): Promise<StudioClass[]> {
   if (!supabase) return [];
