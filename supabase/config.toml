@@ -1,0 +1,10 @@
+project_id = "ykxvcqgdvifogahbbbwr"
+
+[functions.crawl-studio]
+verify_jwt = false
+
+[functions.crawl-studio-worker]
+verify_jwt = false
+
+[functions.studio-discovery-worker]
+verify_jwt = false
