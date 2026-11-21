@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Keyboard, Modal, Platform, Pressable, SafeAreaView,
+  FlatList, Keyboard, Modal, Pressable, SafeAreaView,
   StyleSheet, Text, TextInput, View, Alert
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
@@ -87,7 +87,7 @@ export default function Home() {
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
         <MapView ref={map} style={StyleSheet.absoluteFill} initialRegion={INITIAL} onRegionChangeComplete={r=>{setRegion(r);setMapMoved(true);}} showsUserLocation={locationGranted} showsMyLocationButton={false} onPress={()=>setSelected(null)}>
-          {results.map(s=><Marker key={s.id} coordinate={{latitude:s.lat,longitude:s.lng}} onPress={e=>{e.stopPropagation?.();setSelected(s);}} tracksViewChanges={false}><View style={[styles.pin,selected?.id===s.id&&styles.pinSelected]}><Text style={[styles.pinText,selected?.id===s.id&&styles.pinTextSelected]}>{s.price>=25000?"₩"+Math.round(s.price/1000)+"k":"₩"+Math.round(s.price/1000)+"k"}</Text></View></Marker>)}
+          {results.map(s=><Marker key={s.id} coordinate={{latitude:s.lat,longitude:s.lng}} onPress={()=>{setSelected(s);}} tracksViewChanges={false}><View style={[styles.pin,selected?.id===s.id&&styles.pinSelected]}><Text style={[styles.pinText,selected?.id===s.id&&styles.pinTextSelected]}>{s.price>=25000?"₩"+Math.round(s.price/1000)+"k":"₩"+Math.round(s.price/1000)+"k"}</Text></View></Marker>)}
         </MapView>
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} onPress={searchArea}><Text style={styles.areaSearchText}>⌕  이 지역에서 재검색</Text></Pressable>}
         <Pressable style={styles.locateButton} onPress={locate}><Text style={{fontSize:19}}>{locationLoading?"…":"◎"}</Text></Pressable>
