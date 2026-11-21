@@ -92,8 +92,11 @@ Deno.serve(async (req) => {
   if (!body.studioId || typeof body.studioId !== "string") return json({ error: "학원 ID가 필요합니다." }, 400);
 
   const { data: studio, error: studioError } = await client
-    .from("studios").select("id,name,website_url").eq("id", body.studioId).single();
+    .from("studios").select("id,name,website_url,image_urls,image_source_name").eq("id", body.studioId).single();
   if (studioError || !studio) return json({ error: "학원 정보를 찾을 수 없습니다." }, 404);
+  if (studio.image_source_name === "관리자 직접 등록" && Array.isArray(studio.image_urls) && studio.image_urls.length) {
+    return json({ studioId: studio.id, count: studio.image_urls.length, skipped: true, reason: "관리자가 직접 등록한 사진을 보존했습니다." });
+  }
   if (!studio.website_url) return json({ error: "먼저 관리자 화면에서 공식 홈페이지 주소를 입력해 주세요." }, 400);
 
   let pageUrl: URL;
