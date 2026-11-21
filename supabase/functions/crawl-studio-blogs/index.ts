@@ -136,7 +136,16 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (sourceError) throw new Error("게시글 관련성 조회 실패: " + sourceError.message);
       const postUrl = safeBlogUrl(job.post_url);
-      if (!postUrl) throw new Error("네이버 블로그 도메인이 아닌 URL은 수집하지 않습니다.");
+      if (!postUrl) {
+        const { error: rejectUrlError } = await db.from("studio_blog_post_crawl_queue").update({
+          status: "rejected",
+          last_error: "네이버 블로그가 아닌 URL은 검색 단계에서 제외되어야 합니다.",
+          updated_at: new Date().toISOString(),
+        }).eq("source_id", job.source_id);
+        if (rejectUrlError) throw new Error("지원하지 않는 URL 제외 처리 실패: " + rejectUrlError.message);
+        results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "지원하지 않는 URL" });
+        continue;
+      }
       const first = await fetchBlog(postUrl);
       if (!first) throw new Error("게시물에 접근할 수 없거나 공개 HTML을 제공하지 않습니다.");
       let html = first.html, pageUrl = first.finalUrl;
