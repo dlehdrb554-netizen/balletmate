@@ -1,32 +1,39 @@
 # Balletmate 🩰
 
-Mobile-first ballet studio discovery app built with Expo / React Native.
+Mobile-first ballet studio finder (Expo / React Native).
 
-## Prototype features
-- Interactive map and sample studio markers
-- Search by studio name, district, or class tag
-- Filters: adult/kids, skill level, weekday/weekend, time of day, price ceiling, coupon
-- Search within moved map viewport
-- Current-location permission and map centering
-- Map/list/favorites views
-- Studio detail modal with sample class information
-- Select up to three studios for comparison
+## Prototype functionality
+- Map markers, current-location permission and area re-search
+- Search by studio name, area and tags
+- Filters: adult/kids, skill, weekday/weekend, morning/afternoon/evening, price cap, coupons
+- Map, list and favorites tabs
+- Studio detail and class timetable view
+- Up to 3 studio comparison
+- Local favorite persistence
 
-> Studio names, locations, ratings, and prices are illustrative mock data and have not been verified.
+## Backend
+Supabase integration is in place:
+- Active studio listing (limited to 300 records per request)
+- Class and session schedules fetched only when detail is opened
+- Public read policies; no client-side write access
+- Demo mode if environment variables are absent
+- Empty backend stays empty (does not misleadingly fall back to mock records)
 
-## Local setup
-- Node.js LTS
-- `npm install`
-- `npx expo start`
-- Scan with Expo Go (matching SDK) or run a simulator
+Setup: see [Supabase setup](supabase/SETUP.md) and run [schema.sql](supabase/schema.sql) in Supabase SQL Editor. Copy `.env.example` to local `.env` and set the public URL and anon/publishable key. Never put a service-role key in the mobile app.
 
-## Validation
-GitHub Actions runs `npx tsc --noEmit` on pushes and pull requests. This repository has not yet been built or run on a physical Android/iOS device.
+## Development
+```sh
+npm install
+npx expo start
+```
+Use Expo Go or a simulator matching this Expo SDK. GitHub Actions is configured for TypeScript checks.
 
-## Roadmap
-- UX refinement across different phone sizes
-- Structured class schedule, lesson lengths, and verified contact information
-- Responsible real data sourcing and API/provider terms review
-- Backend, caching, and server-side usage limits to protect free tiers
+## Data integrity
+Prototype studio records are mock examples. Do not publish copied listings without checking data-source permissions and verifying information. The schema tracks source and verification metadata and requires explicit active flags for publication.
 
-Do not commit API keys, access tokens, or private credentials.
+## Next steps
+- Admin-only data entry/editing interface
+- Spatial/viewport query and pagination
+- Real source data and import pipeline with permission review
+- Account-based favorite sync, if needed
+- More detailed schedule/price/coupon filters and responsive polish
