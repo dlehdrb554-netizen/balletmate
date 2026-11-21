@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Balletmate",
+    "slug": "balletmate",
+    "scheme": "balletmate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      ["expo-location", {
+        "locationWhenInUsePermission": "주변 발레 학원을 찾기 위해 위치 권한이 필요합니다."
+      }]
+    ],
+    "android": {
+      "package": "com.dlehdrb554.balletmate",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "ios": {
+      "bundleIdentifier": "com.dlehdrb554.balletmate",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "주변 발레 학원을 찾기 위해 위치 권한이 필요합니다."
+      }
+    }
+  }
+}
