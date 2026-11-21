@@ -72,8 +72,9 @@ function isRelevantBlog(studioName: string, title: string, context = "", blogger
   const nameMatch = alias.length >= 3 && (titleText.includes(alias) || contextText.includes(alias));
   const accountKey = blogAccountKey(bloggerUrl);
   const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
-  // Accept either a distinctive academy-name match or a previously verified official Naver blog account.
-  return nameMatch || officialMatch;
+  const balletIntent = /(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + "\\n" + context);
+  // A verified account is accepted only for ballet/class-related posts, avoiding unrelated posts on the same blog.
+  return nameMatch || (officialMatch && balletIntent);
 }
 function evidence(text: string, kind: "price" | "schedule"): string[] {
   const re = kind === "price"
