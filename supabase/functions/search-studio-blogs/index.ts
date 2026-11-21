@@ -4,6 +4,8 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 const SEARCH_SUFFIXES = ["수강료", "시간표"];
+const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
+const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ]/g, "");
 const isRelevantBlog = (studioName: string, title: string): boolean => {
   // Search results are associated only when the academy name appears in the post title.
@@ -77,7 +79,7 @@ Deno.serve(async (req) => {
         const rows = items.flatMap((item: Record<string, unknown>) => {
           const postUrl = cleanText(item.link);
           const title = cleanText(item.title);
-          if (!postUrl.startsWith("https://") || !title) return [];
+          if (!isNaverBlogUrl(postUrl) || !title) return [];
           const description = cleanText(item.description);
           if (!isRelevantBlog(String(job.studio_name), title)) return [];
           const dateText = String(item.postdate ?? "");
