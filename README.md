@@ -5,9 +5,9 @@ Mobile-first ballet studio finder (Expo / React Native).
 ## Prototype functionality
 - Map markers, current-location permission and area re-search
 - Search by studio name, area and tags
-- Filters: adult/kids, skill, weekday/weekend, morning/afternoon/evening, price cap, coupons
+- Filters: adult/kids, skill, weekday/weekend, time slots, class duration, price cap, distance, coupons
 - Map, list and favorites tabs
-- Studio detail and class timetable view
+- Studio detail, address/phone, and class timetable view
 - Up to 3 studio comparison
 - Local favorite persistence
 
