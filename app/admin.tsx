@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { supabase } from "../lib/supabase";
 import * as ImagePicker from "expo-image-picker";
+
+type EvidenceCandidate = {id:number;studio_id:string;studio_name:string;source_id:number;source_title:string|null;source_url:string;candidate_type:"price"|"schedule";candidate_value:string;normalized_value:string|null;evidence_text:string;confidence:number;review_status:"pending"|"verified"|"rejected";created_at:string};
 
 type StudioRow = {
   id:string; name:string; latitude:number; longitude:number; district:string|null;
@@ -43,6 +45,8 @@ export default function Admin() {
   const [classEditing,setClassEditing]=useState<string|null>(null);
   const [classBusy,setClassBusy]=useState(false);
   const [classForm,setClassForm]=useState({title:"",audience:"adult" as "adult"|"kids"|"all",level:"",class_type:"",duration_minutes:"60",price:"",sessions:""});
+  const [evidenceRows,setEvidenceRows]=useState<EvidenceCandidate[]>([]);
+  const [evidenceBusy,setEvidenceBusy]=useState(false);
 
   const checkAdmin=useCallback(async(s:any)=>{
     if(!s){setAuthorized(false);setChecking(false);return;}
@@ -67,6 +71,28 @@ export default function Admin() {
     setBusy(false);
   },[authorized]);
   useEffect(()=>{load();},[load]);
+
+  const loadEvidence=useCallback(async()=>{
+    if(!supabase||!authorized)return;
+    setEvidenceBusy(true);
+    const {data,error}=await supabase.from("studio_blog_evidence_candidates")
+      .select("id,studio_id,studio_name,source_id,source_title,source_url,candidate_type,candidate_value,normalized_value,evidence_text,confidence,review_status,created_at")
+      .eq("review_status","pending").order("created_at",{ascending:false}).limit(100);
+    if(error)Alert.alert("자동 수집 자료 조회 실패",error.message);else setEvidenceRows((data||[]) as EvidenceCandidate[]);
+    setEvidenceBusy(false);
+  },[authorized]);
+  useEffect(()=>{loadEvidence();},[loadEvidence]);
+
+  const reviewEvidence=async(item:EvidenceCandidate,status:"verified"|"rejected")=>{
+    if(!supabase)return;
+    setEvidenceBusy(true);
+    const {error}=await supabase.from("studio_blog_evidence_candidates").update({
+      review_status:status,reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString(),
+    }).eq("id",item.id);
+    if(error)Alert.alert("검토 상태 저장 실패",error.message);
+    else setEvidenceRows(current=>current.filter(row=>row.id!==item.id));
+    setEvidenceBusy(false);
+  };
 
   const login=async()=>{
     if(!supabase)return;
@@ -272,6 +298,7 @@ export default function Admin() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
+    <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>자동 수집 자료 검토 ({evidenceRows.length})</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>공개 블로그에서 발견한 가격·시간표 근거입니다. 검토 완료는 근거 확인 상태만 기록하며, 앱의 공식 가격이나 시간표로 자동 공개하지 않습니다.</Text>{evidenceBusy&&<ActivityIndicator color={c.purple}/ >}{evidenceRows.map(item=><View key={item.id} style={styles.evidenceCard}><View style={styles.listHead}><Text style={styles.evidenceStudio}>{item.studio_name}</Text><Text style={styles.evidenceType}>{item.candidate_type==="price"?"가격 근거":"시간표 근거"}</Text></View>{item.source_title&&<Text style={styles.rowMeta} numberOfLines={2}>{item.source_title}</Text>}<Text style={styles.evidenceValue}>{item.candidate_type==="price"&&item.normalized_value?Number(item.normalized_value).toLocaleString("ko-KR")+"원 후보 · ":""}{item.evidence_text}</Text><Text style={styles.rowMeta}>자동 추출 신뢰도 참고값 {Math.round(item.confidence*100)}% · 원문 게시물 #{item.source_id}</Text><Pressable onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.action}>원문 확인 ↗</Text></Pressable><View style={styles.buttons}><Pressable style={styles.secondary} onPress={()=>reviewEvidence(item,"rejected")} disabled={evidenceBusy}><Text style={styles.secondaryText}>자료 제외</Text></Pressable><Pressable style={styles.button} onPress={()=>reviewEvidence(item,"verified")} disabled={evidenceBusy}><Text style={styles.buttonText}>근거 확인</Text></Pressable></View></View>)}{!evidenceRows.length&&!evidenceBusy&&<Text style={styles.hint}>검토 대기 중인 자료가 없습니다. 블로그 수집 후 자동으로 표시됩니다.</Text>}</View>
     <View style={styles.panel}><Text style={styles.heading}>{editing?"학원 정보 수정":"학원 등록"}</Text>{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}{field("사진 URL (최대 10개, 줄바꿈 구분)","image_urls")}{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
@@ -300,4 +327,4 @@ export default function Admin() {
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
-const styles=StyleSheet.create({safe:{flex:1,backgroundColor:c.bg},login:{flex:1,justifyContent:"center",padding:24,gap:12},content:{padding:16,paddingBottom:36,gap:14},header:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},brand:{fontSize:23,fontWeight:"900",color:c.ink},hint:{fontSize:12,color:c.muted,marginTop:5},logout:{color:c.purple,fontWeight:"700"},panel:{backgroundColor:"#fff",padding:16,borderRadius:18,borderWidth:1,borderColor:c.line,gap:10},heading:{fontSize:17,fontWeight:"800",color:c.ink},field:{gap:5},label:{fontSize:12,color:c.muted},input:{borderWidth:1,borderColor:c.line,borderRadius:11,paddingHorizontal:12,paddingVertical:10,color:c.ink,backgroundColor:"#fff"},toggles:{flexDirection:"row",flexWrap:"wrap",gap:8},toggle:{borderWidth:1,borderColor:c.line,borderRadius:10,padding:9},toggleText:{fontSize:12,color:c.muted},toggleOn:{color:c.purple,fontWeight:"800"},buttons:{flexDirection:"row",gap:8},button:{backgroundColor:c.purple,padding:13,borderRadius:12,alignItems:"center",flex:1},buttonText:{color:"#fff",fontWeight:"800"},secondary:{padding:13,borderWidth:1,borderColor:c.line,borderRadius:12,alignItems:"center"},secondaryText:{color:c.ink},listHead:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},refresh:{color:c.purple,fontWeight:"700"},row:{flexDirection:"row",flexWrap:"wrap",alignItems:"center",gap:10,paddingVertical:12,borderBottomWidth:1,borderBottomColor:c.line},rowName:{fontSize:13,fontWeight:"800",color:c.ink},rowMeta:{fontSize:11,color:c.muted,marginTop:3},action:{fontSize:12,color:c.purple,fontWeight:"700"}});
+const styles=StyleSheet.create({safe:{flex:1,backgroundColor:c.bg},login:{flex:1,justifyContent:"center",padding:24,gap:12},content:{padding:16,paddingBottom:36,gap:14},header:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},brand:{fontSize:23,fontWeight:"900",color:c.ink},hint:{fontSize:12,color:c.muted,marginTop:5},logout:{color:c.purple,fontWeight:"700"},panel:{backgroundColor:"#fff",padding:16,borderRadius:18,borderWidth:1,borderColor:c.line,gap:10},heading:{fontSize:17,fontWeight:"800",color:c.ink},field:{gap:5},label:{fontSize:12,color:c.muted},input:{borderWidth:1,borderColor:c.line,borderRadius:11,paddingHorizontal:12,paddingVertical:10,color:c.ink,backgroundColor:"#fff"},toggles:{flexDirection:"row",flexWrap:"wrap",gap:8},toggle:{borderWidth:1,borderColor:c.line,borderRadius:10,padding:9},toggleText:{fontSize:12,color:c.muted},toggleOn:{color:c.purple,fontWeight:"800"},buttons:{flexDirection:"row",gap:8},button:{backgroundColor:c.purple,padding:13,borderRadius:12,alignItems:"center",flex:1},buttonText:{color:"#fff",fontWeight:"800"},secondary:{padding:13,borderWidth:1,borderColor:c.line,borderRadius:12,alignItems:"center"},secondaryText:{color:c.ink},listHead:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},refresh:{color:c.purple,fontWeight:"700"},row:{flexDirection:"row",flexWrap:"wrap",alignItems:"center",gap:10,paddingVertical:12,borderBottomWidth:1,borderBottomColor:c.line},rowName:{fontSize:13,fontWeight:"800",color:c.ink},rowMeta:{fontSize:11,color:c.muted,marginTop:3},action:{fontSize:12,color:c.purple,fontWeight:"700"},evidenceCard:{backgroundColor:c.bg,borderWidth:1,borderColor:c.line,borderRadius:13,padding:12,gap:7},evidenceStudio:{fontSize:13,fontWeight:"900",color:c.ink,flex:1},evidenceType:{fontSize:10,fontWeight:"800",color:c.purple,backgroundColor:c.pale,paddingHorizontal:8,paddingVertical:5,borderRadius:8},evidenceValue:{fontSize:13,lineHeight:20,color:c.ink}});
