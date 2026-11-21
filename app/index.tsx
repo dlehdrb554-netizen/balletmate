@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, FlatList, Keyboard, Modal, Pressable, SafeAreaView, ScrollView,
+  ActivityIndicator, FlatList, Keyboard, Linking, Modal, Pressable, SafeAreaView, ScrollView,
   StyleSheet, Text, TextInput, View, Alert
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
@@ -102,7 +102,8 @@ export default function Home() {
   useEffect(()=>{if(favoritesReady){AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});AsyncStorage.setItem("balletmate.favoriteStudios.v1",JSON.stringify(favoriteStudios)).catch(()=>{});}},[favoriteIds,favoriteStudios,favoritesReady]);
   const favoriteSyncUser=useRef<string|null>(null);
   useEffect(()=>{
-    if(!supabase)return;
+    const client=supabase;
+    if(!client)return;
     let active=true;
     const syncForSession=async(session:any)=>{
       const uid=session?.user?.id||null;
@@ -111,7 +112,7 @@ export default function Home() {
       if(favoriteSyncUser.current===uid)return;
       favoriteSyncUser.current=uid;
       try{
-        const {data:remote,error}=await supabase.from("user_favorites").select("studio_id,studio_snapshot").eq("user_id",uid);
+        const {data:remote,error}=await client.from("user_favorites").select("studio_id,studio_snapshot").eq("user_id",uid);
         if(error)throw error;
         if(!active)return;
         const remoteRows=remote||[];
@@ -125,13 +126,13 @@ export default function Home() {
         setFavoriteStudios(merged);setFavoriteIds(mergedIds);
         if(merged.length){
           const payload=merged.map(s=>({user_id:uid,studio_id:s.id,studio_snapshot:s,updated_at:new Date().toISOString()}));
-          const {error:upsertError}=await supabase.from("user_favorites").upsert(payload,{onConflict:"user_id,studio_id"});
+          const {error:upsertError}=await client.from("user_favorites").upsert(payload,{onConflict:"user_id,studio_id"});
           if(upsertError)throw upsertError;
         }
       }catch(e){console.warn("Favorite sync skipped:",e);}
     };
-    supabase.auth.getSession().then(({data})=>syncForSession(data.session));
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{syncForSession(session);});
+    client.auth.getSession().then(({data})=>syncForSession(data.session));
+    const {data:{subscription}}=client.auth.onAuthStateChange((_event,session)=>{syncForSession(session);});
     return()=>{active=false;subscription.unsubscribe();};
   },[favoritesReady,favoriteIds,favoriteStudios]);
 
@@ -144,10 +145,11 @@ export default function Home() {
     const removing=favoriteIds.includes(studio.id);
     setFavoriteIds(ids=>removing?ids.filter(i=>i!==studio.id):[...ids,studio.id]);
     setFavoriteStudios(list=>removing?list.filter(x=>x.id!==studio.id):[studio,...list.filter(x=>x.id!==studio.id)]);
-    if(supabase) supabase.auth.getSession().then(({data})=>{
+    const client=supabase;
+    if(client) client.auth.getSession().then(({data})=>{
       const uid=data.session?.user.id;if(!uid)return;
-      if(removing) supabase.from("user_favorites").delete().eq("user_id",uid).eq("studio_id",studio.id).then(({error})=>{if(error)console.warn("Favorite delete sync failed",error);});
-      else supabase.from("user_favorites").upsert({user_id:uid,studio_id:studio.id,studio_snapshot:studio,updated_at:new Date().toISOString()},{onConflict:"user_id,studio_id"}).then(({error})=>{if(error)console.warn("Favorite save sync failed",error);});
+      if(removing) client.from("user_favorites").delete().eq("user_id",uid).eq("studio_id",studio.id).then(({error})=>{if(error)console.warn("Favorite delete sync failed",error);});
+      else client.from("user_favorites").upsert({user_id:uid,studio_id:studio.id,studio_snapshot:studio,updated_at:new Date().toISOString()},{onConflict:"user_id,studio_id"}).then(({error})=>{if(error)console.warn("Favorite save sync failed",error);});
     });
   };
   const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setMaxPrice(null);setDurationFilter(null);setMaxDistance(null);};
