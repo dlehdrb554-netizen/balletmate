@@ -87,11 +87,13 @@ function evidence(text: string, kind: "price" | "schedule"): string[] {
 }
 
 function priceAmount(line: string): string | null {
-  // Require an explicit KRW marker; never infer a price from a bare number.
-  const match = line.match(/(?:₩\s*)?(\d[\d,]*(?:\.\d+)?)\s*(만원|만\s*원|만|원)/i);
-  if (!match) return null;
-  const raw = Number(match[1].replace(/,/g, ""));
-  const amount = /만/.test(match[2]) ? raw * 10000 : raw;
+  // Accept explicit KRW markers only. A bare number is never treated as a price.
+  const wonPrefix = line.match(/₩\s*(\d[\d,]*(?:\.\d+)?)/);
+  const amountMatch = line.match(/(\d[\d,]*(?:\.\d+)?)\s*(만원|만\s*원|만|원)/i);
+  if (!wonPrefix && !amountMatch) return null;
+  const rawText = (wonPrefix?.[1] ?? amountMatch?.[1] ?? "").replace(/,/g, "");
+  const raw = Number(rawText);
+  const amount = wonPrefix ? raw : (/만/.test(amountMatch?.[2] ?? "") ? raw * 10000 : raw);
   if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000_000) return null;
   return String(Math.round(amount));
 }
@@ -117,7 +119,7 @@ function candidateRows(
       });
     } else {
       // Support explicit weekdays, ranges, and compact forms such as 월수금 / 화목.
-      const hasDay = /(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월\s*[~〜-]\s*금|평일|주말|[월화수목금토일]요?일|[월화수목금토일]{2,7})/.test(line);
+      const hasDay = /(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월\s*[~〜-]\s*금|평일|주말|[월화수목금토일]요?일|[월화수목금토일]{2,7}|[월화수목금토일](?:\s*[,/·]\s*[월화수목금토일])+)/.test(line);
       // Support 19:30, 오전 10시, 오후 7시 30분, and 10시30분.
       const hasTime = /(?:(오전|오후)\s*)?\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}분)?)/.test(line);
       if (!hasDay || !hasTime) continue;
