@@ -202,7 +202,7 @@ export default function Admin() {
     setClassForm({
       title:row.title||"",audience:row.audience||"adult",level:row.level||"",class_type:row.class_type||"",
       duration_minutes:row.duration_minutes==null?"":String(row.duration_minutes),price:row.price==null?"":String(row.price),
-      sessions:(row.class_sessions||[]).filter((x:any)=>x.is_active!==false).map((x:any)=>[x.weekday,x.start_time,x.end_time||"",x.note||""].join(",")).join("\n")
+      sessions:(row.class_sessions||[]).filter((x:any)=>x.is_active!==false).map((x:any)=>[x.weekday,(x.start_time||"").slice(0,5),(x.end_time||"").slice(0,5),x.note||""].join(",")).join("\n")
     });
   };
   const saveClass=async()=>{
@@ -211,7 +211,7 @@ export default function Admin() {
     const duration=classForm.duration_minutes.trim()?Number(classForm.duration_minutes):null;
     const price=classForm.price.trim()?Number(classForm.price):null;
     if((duration!==null&&(!Number.isInteger(duration)||duration<=0))||(price!==null&&(!Number.isFinite(price)||price<0))){Alert.alert("입력 확인","수업 시간은 양의 정수, 가격은 0 이상의 숫자여야 합니다.");return;}
-    const sessions=classForm.sessions.split(/\\r?\n/).map(v=>v.trim()).filter(Boolean).map(line=>{
+    const sessions=classForm.sessions.split(/\r?\n/).map(v=>v.trim()).filter(Boolean).map(line=>{
       const [weekdayRaw,startRaw,endRaw,noteRaw]=line.split(",").map(v=>v.trim());
       const weekday=Number(weekdayRaw);
       if(!Number.isInteger(weekday)||weekday<0||weekday>6||!/^([01]\d|2[0-3]):[0-5]\d$/.test(startRaw||"")||(endRaw&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(endRaw)))return null;
