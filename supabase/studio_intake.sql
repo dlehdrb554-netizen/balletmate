@@ -68,3 +68,35 @@ where s.website_url is not null
   and length(trim(s.website_url)) > 0
   and s.image_checked_at is null
 on conflict (studio_id) do nothing;
+
+create or replace function public.claim_studio_image_crawl_queue(p_limit integer default 2)
+returns table(id uuid, studio_id uuid, attempts smallint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_balletmate_admin() then
+    raise exception 'administrator access required' using errcode = '42501';
+  end if;
+  return query
+  with candidates as (
+    select q.id
+    from public.studio_image_crawl_queue q
+    where q.status = 'pending'
+      and q.next_attempt_at <= now()
+      and q.attempts < 3
+    order by q.created_at
+    for update skip locked
+    limit least(greatest(coalesce(p_limit, 1), 1), 2)
+  )
+  update public.studio_image_crawl_queue q
+  set status = 'processing', updated_at = now()
+  from candidates c
+  where q.id = c.id
+  returning q.id, q.studio_id, q.attempts;
+end;
+$$;
+
+revoke all on function public.claim_studio_image_crawl_queue(integer) from public;
+grant execute on function public.claim_studio_image_crawl_queue(integer) to authenticated;
