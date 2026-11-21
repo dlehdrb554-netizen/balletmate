@@ -25,7 +25,7 @@ const DATA: Studio[] = [
   {id:"s5",name:"무브 발레핏",lat:37.6344,lng:126.8328,area:"고양시 일산동구",tags:["성인","발레핏","초급"],price:20000,coupon:true,adult:true,kids:false,level:["입문","초급"],days:["평일"],time:"오전 · 저녁",duration:55,rating:4.5,description:"발레 기초와 컨디셔닝을 결합한 수업."},
   {id:"s6",name:"플리에 발레 아카데미",lat:37.6530,lng:126.8578,area:"고양시 덕양구",tags:["성인","키즈","중급"],price:28000,coupon:false,adult:true,kids:true,level:["초급","중급"],days:["평일","주말"],time:"오전 · 오후 · 저녁",duration:60,rating:4.8,description:"연령별·수준별 클래스 운영."}
 ];
-const INITIAL: Region = {latitude:37.658,longitude:126.812,latitudeDelta:0.055,longitudeDelta:0.055};
+const INITIAL: Region = {latitude:37.5665,longitude:126.9780,latitudeDelta:0.06,longitudeDelta:0.06};
 const distanceKm=(lat1:number,lon1:number,lat2:number,lon2:number)=>{const rad=(n:number)=>n*Math.PI/180;const dLat=rad(lat2-lat1),dLon=rad(lon2-lon1);const a=Math.sin(dLat/2)**2+Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2;return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));};
 const COLORS = {ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",bg:"#FAF9FC",line:"#EAE7F0",white:"#FFFFFF",pink:"#F8E8F1"};
 
@@ -35,6 +35,7 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
 export default function Home() {
   const router = useRouter();
   const map = useRef<MapView>(null);
+  const suppressRegionChangeRef = useRef(false);
   const [studios,setStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
   const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");
   const [region,setRegion]=useState(INITIAL);
@@ -93,11 +94,11 @@ export default function Home() {
       if(status!=="granted"){setLocationGranted(false);Alert.alert("위치 권한","권한이 없어 기본 지역에서 지도를 표시합니다. 설정에서 위치 권한을 허용할 수 있어요.");return;}
       const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
       const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-      map.current?.animateToRegion(r,650);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setMapMoved(false);
+      suppressRegionChangeRef.current=true;map.current?.animateToRegion(r,650);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setMapMoved(false);
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
-  useEffect(()=>{Location.getForegroundPermissionsAsync().then(({status})=>{setLocationGranted(status==="granted");if(status==="granted"){Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced}).then(p=>{const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.04,longitudeDelta:0.04};map.current?.animateToRegion(r,500);setRegion(r);setSearchedRegion(r);}).catch(()=>{});}}).catch(()=>{});},[]);
+  useEffect(()=>{let active=true;const initializeLocation=async()=>{try{let permission=await Location.getForegroundPermissionsAsync();if(permission.status==="undetermined")permission=await Location.requestForegroundPermissionsAsync();if(!active)return;setLocationGranted(permission.status==="granted");if(permission.status!=="granted")return;const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});if(!active)return;const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.04,longitudeDelta:0.04};suppressRegionChangeRef.current=true;map.current?.animateToRegion(r,500);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setMapMoved(false);}catch{if(active)setLocationGranted(false);}};initializeLocation();return()=>{active=false;};},[]);
   useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,cache])=>{if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))setFavoriteIds(parsed.filter(x=>typeof x==="string"));}if(cache){const parsed=JSON.parse(cache);if(Array.isArray(parsed))setFavoriteStudios(parsed);}}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
   useEffect(()=>{if(favoritesReady){AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});AsyncStorage.setItem("balletmate.favoriteStudios.v1",JSON.stringify(favoriteStudios)).catch(()=>{});}},[favoriteIds,favoriteStudios,favoritesReady]);
   const favoriteSyncUser=useRef<string|null>(null);
@@ -138,7 +139,7 @@ export default function Home() {
 
   useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class||0,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted){setStudios([]);setBackendState("error");}});return()=>{mounted=false;};},[searchedRegion]);
   const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
-  const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>0.004||Math.abs(region.longitude-searchedRegion.longitude)>0.004;
+  const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0)+(durationFilter!==null?1:0)+(maxDistance!==null?1:0);
   const toggleCompare=(studio:Studio)=>{setCompareIds(ids=>ids.includes(studio.id)?ids.filter(i=>i!==studio.id):ids.length>=3?ids:[...ids,studio.id]);setCompareCache(list=>list.some(x=>x.id===studio.id)?list.filter(x=>x.id!==studio.id):[studio,...list.filter(x=>x.id!==studio.id)]);};
   const toggleFavorite=(studio:Studio)=>{
@@ -172,7 +173,7 @@ export default function Home() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFilters}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/><Chip label="쿠폰" active={coupon} onPress={()=>setCoupon(!coupon)}/><Chip label="초급" active={level==="초급"} onPress={()=>setLevel(level==="초급"?null:"초급")}/><Chip label="전체" onPress={resetFilters}/></ScrollView>
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
-        <MapView ref={map} style={StyleSheet.absoluteFill} initialRegion={INITIAL} onRegionChangeComplete={r=>{setRegion(r);setMapMoved(true);}} showsUserLocation={locationGranted} showsMyLocationButton={false} onPress={()=>setSelected(null)}>
+        <MapView ref={map} style={StyleSheet.absoluteFill} initialRegion={INITIAL} onRegionChangeComplete={r=>{setRegion(r);if(suppressRegionChangeRef.current){suppressRegionChangeRef.current=false;return;}setMapMoved(true);}} showsUserLocation={locationGranted} showsMyLocationButton={false} onPress={()=>setSelected(null)}>
           {results.map(s=><Marker key={s.id} coordinate={{latitude:s.lat,longitude:s.lng}} onPress={()=>{setSelected(s);}} tracksViewChanges={false}><View style={[styles.pin,selected?.id===s.id&&styles.pinSelected]}><Text style={[styles.pinText,selected?.id===s.id&&styles.pinTextSelected]}>{s.price>0?"₩"+Math.round(s.price/1000)+"k":"문의"}</Text></View></Marker>)}
         </MapView>
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"} onPress={searchArea}><Text style={styles.areaSearchText}>⌕  이 지역에서 재검색</Text></Pressable>}
