@@ -3,7 +3,7 @@
 ## Create the backend
 1. The Balletmate Supabase project is already created and its URL/public publishable key are configured as app defaults in `lib/supabase.ts`.
 2. Open the project dashboard and go to SQL Editor.
-3. Run `schema.sql` from this folder to create the required tables and read-only RLS policies.
+3. Run `schema.sql` from this folder to create the tables and base policies. If you already ran the original schema, run `admin_security.sql` to add admin-only write policies.
 4. `.env` overrides are optional if you want to switch projects locally; copy `.env.example` and adjust values.
 5. Restart Expo after changing environment values.
 
@@ -12,7 +12,7 @@ Do not use the service-role key in the mobile app or commit it to GitHub. The an
 ## Publishing records
 The schema intentionally defaults studio/class/coupon records to inactive. A studio is visible in the mobile app only after a trusted administrator sets `is_active = true`. Class and session rows must also be marked active.
 
-Use SQL Editor or a future secured admin panel to enter records. Keep source URLs and source names for provenance, and verify details before publication. Do not bulk-copy sites or use scraping without checking the source's terms, privacy rules, and permission.
+Admin writes are protected by Supabase Auth and `admin_users`. To grant admin access: create the user in Authentication → Users (or have them sign up), then insert their user UUID into `public.admin_users` from SQL Editor. Keep source URLs and source names for provenance, and verify details before publication. Do not bulk-copy sites or use scraping without checking the source's terms, privacy rules, and permission.
 
 ## Current app integration
 - The app queries the current map viewport only and caps each request at 300 active studios.\n- Viewport results are cached in-memory for 90 seconds; class schedules for 10 minutes.\n- Per app session, at most 40 uncached map searches and 25 uncached schedule lookups are allowed; cached hits do not count. This is a client-side guard, not an account-wide quota.
