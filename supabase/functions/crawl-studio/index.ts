@@ -36,9 +36,13 @@ function safeImageUrl(raw: string, base: string): string | null {
 }
 
 function attr(tag: string, name: string): string | null {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = tag.match(new RegExp(`\\b${escaped}\\s*=\\s*(["'])(.*?)\\1`, "i"));
-  return match?.[2] ?? null;
+  const pattern = /([^\\s=]+)\\s*=\\s*(?:"([^"]*)"|'([^']*)')/g;
+  for (const match of tag.matchAll(pattern)) {
+    if (match[1].toLowerCase() === name.toLowerCase()) {
+      return match[2] ?? match[3] ?? null;
+    }
+  }
+  return null;
 }
 
 function collectJsonImages(value: unknown, output: string[]) {
