@@ -3,7 +3,7 @@ import {
   FlatList, Keyboard, Modal, Pressable, SafeAreaView,
   StyleSheet, Text, TextInput, View, Alert
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+import MapView, { Marker, Region } from "react-native-maps";\nimport { fetchStudios } from "../lib/studios";\nimport { supabaseConfigured } from "../lib/supabase";
 import * as Location from "expo-location";
 
 type Studio = {
@@ -28,7 +28,7 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
 }
 export default function Home() {
   const map = useRef<MapView>(null);
-  const [region,setRegion]=useState(INITIAL);
+  const [studios,setStudios]=useState<Studio[]>(DATA);\n  const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");\n  const [region,setRegion]=useState(INITIAL);
   const [mapMoved,setMapMoved]=useState(false);
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState<Studio|null>(null);
@@ -42,7 +42,7 @@ export default function Home() {
   const [locationGranted,setLocationGranted]=useState(false);
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);\n  const [areaLocked,setAreaLocked]=useState(false);
 
-  const results=useMemo(()=>DATA.filter(s=>{
+  const results=useMemo(()=>studios.filter(s=>{
     const q=search.trim().toLowerCase();
     if(q && !s.name.toLowerCase().includes(q) && !s.area.includes(q) && !s.tags.some(t=>t.includes(q))) return false;
     if(adult&&!s.adult)return false;
@@ -63,7 +63,7 @@ export default function Home() {
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
-  useEffect(()=>{Location.getForegroundPermissionsAsync().then(({status})=>setLocationGranted(status==="granted")).catch(()=>{});},[]);
+  useEffect(()=>{Location.getForegroundPermissionsAsync().then(({status})=>setLocationGranted(status==="granted")).catch(()=>{});},[]);\n  useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;fetchStudios().then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",tags:r.tags||[],price:r.price_per_class||0,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted)setBackendState("error");});return()=>{mounted=false;};},[]);
   const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>0.004||Math.abs(region.longitude-searchedRegion.longitude)>0.004;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0);
@@ -71,7 +71,7 @@ export default function Home() {
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");map.current?.animateToRegion({latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018},400);}} style={[styles.studioCard,compact&&styles.compactCard]}>
     <View style={styles.cardTop}><View style={styles.studioIcon}><Text style={{fontSize:20}}>🩰</Text></View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · ⭐ {s.rating.toFixed(1)}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
-    <View style={styles.cardBottom}><Text style={styles.priceText}>₩{s.price.toLocaleString()}<Text style={styles.priceUnit}> / 회</Text></Text><Text style={styles.metaText}>{s.duration}분 · {s.time}</Text></View><View style={styles.cardActions}><Pressable onPress={()=>setFavoriteIds(ids=>ids.includes(s.id)?ids.filter(i=>i!==s.id):[...ids,s.id])} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={()=>setCompareIds(ids=>ids.includes(s.id)?ids.filter(i=>i!==s.id):ids.length>=3?ids:[...ids,s.id])} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={()=>setDetailStudio(s)} style={styles.actionChip}><Text style={styles.actionText}>상세정보</Text></Pressable></View>
+    <View style={styles.cardBottom}><Text style={styles.priceText}>₩{s.price>0?s.price.toLocaleString():"가격 문의"}<Text style={styles.priceUnit}> / 회</Text></Text><Text style={styles.metaText}>{s.duration}분 · {s.time}</Text></View><View style={styles.cardActions}><Pressable onPress={()=>setFavoriteIds(ids=>ids.includes(s.id)?ids.filter(i=>i!==s.id):[...ids,s.id])} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={()=>setCompareIds(ids=>ids.includes(s.id)?ids.filter(i=>i!==s.id):ids.length>=3?ids:[...ids,s.id])} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={()=>setDetailStudio(s)} style={styles.actionChip}><Text style={styles.actionText}>상세정보</Text></Pressable></View>
   </Pressable>;
 
   return <SafeAreaView style={styles.safe}>
@@ -87,11 +87,11 @@ export default function Home() {
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
         <MapView ref={map} style={StyleSheet.absoluteFill} initialRegion={INITIAL} onRegionChangeComplete={r=>{setRegion(r);setMapMoved(true);}} showsUserLocation={locationGranted} showsMyLocationButton={false} onPress={()=>setSelected(null)}>
-          {results.map(s=><Marker key={s.id} coordinate={{latitude:s.lat,longitude:s.lng}} onPress={()=>{setSelected(s);}} tracksViewChanges={false}><View style={[styles.pin,selected?.id===s.id&&styles.pinSelected]}><Text style={[styles.pinText,selected?.id===s.id&&styles.pinTextSelected]}>{s.price>=25000?"₩"+Math.round(s.price/1000)+"k":"₩"+Math.round(s.price/1000)+"k"}</Text></View></Marker>)}
+          {results.map(s=><Marker key={s.id} coordinate={{latitude:s.lat,longitude:s.lng}} onPress={()=>{setSelected(s);}} tracksViewChanges={false}><View style={[styles.pin,selected?.id===s.id&&styles.pinSelected]}><Text style={[styles.pinText,selected?.id===s.id&&styles.pinTextSelected]}>{s.price>0?"₩"+Math.round(s.price/1000)+"k":"문의"}</Text></View></Marker>)}
         </MapView>
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} onPress={searchArea}><Text style={styles.areaSearchText}>⌕  이 지역에서 재검색</Text></Pressable>}
         <Pressable style={styles.locateButton} onPress={locate}><Text style={{fontSize:19}}>{locationLoading?"…":"◎"}</Text></Pressable>
-        <View style={styles.mapCount}><Text style={styles.mapCountText}>주변 학원 <Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}</Text>곳</Text></View>
+        <View style={styles.mapCount}><Text style={styles.mapCountText}>주변 학원 <Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}</Text>곳{backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></View>
         {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={styles.detailBtn} onPress={()=>Alert.alert(selected.name,selected.description+"\n\n수업 "+selected.duration+"분 · "+selected.time+"\n가격 ₩"+selected.price.toLocaleString()+" / 회",{cancelable:true})}><Text style={styles.detailBtnText}>상세 보기  ›</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
       </View> :<FlatList data={view==="favorites"?results.filter(s=>favoriteIds.includes(s.id)):results} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} ListEmptyComponent={<Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"검색 조건에 맞는 학원이 없어요."}</Text>}/>}
     </View>
@@ -100,7 +100,7 @@ export default function Home() {
       <View style={styles.modalShade}><View style={styles.modal}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 비교</Text><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.filterHint}>최대 3곳까지 비교할 수 있습니다. 카드의 비교 버튼으로 선택을 변경하세요.</Text>
-        {compareIds.map(id=>{const s=DATA.find(x=>x.id===id);if(!s)return null;return <View key={id} style={styles.compareRow}><Text style={styles.compareName}>{s.name}</Text><Text style={styles.compareInfo}>{s.area} · {s.level.join("/")}</Text><Text style={styles.compareInfo}>{s.days.join(" · ")} / {s.time}</Text><Text style={styles.compareInfo}>{s.duration}분 · {s.coupon?"쿠폰 있음":"쿠폰 없음"}</Text><Text style={styles.comparePrice}>₩{ s.price.toLocaleString()} / 회</Text><Pressable onPress={()=>setCompareIds(ids=>ids.filter(x=>x!==id))}><Text style={styles.removeCompare}>비교 목록에서 제외</Text></Pressable></View>})}
+        {compareIds.map(id=>{const s=studios.find(x=>x.id===id);if(!s)return null;return <View key={id} style={styles.compareRow}><Text style={styles.compareName}>{s.name}</Text><Text style={styles.compareInfo}>{s.area} · {s.level.join("/")}</Text><Text style={styles.compareInfo}>{s.days.join(" · ")} / {s.time}</Text><Text style={styles.compareInfo}>{s.duration}분 · {s.coupon?"쿠폰 있음":"쿠폰 없음"}</Text><Text style={styles.comparePrice}>₩{ s.price.toLocaleString()} / 회</Text><Pressable onPress={()=>setCompareIds(ids=>ids.filter(x=>x!==id))}><Text style={styles.removeCompare}>비교 목록에서 제외</Text></Pressable></View>})}
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
