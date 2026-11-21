@@ -15,7 +15,7 @@ type Studio = {
   id: string; name: string; lat: number; lng: number; area: string;
   tags: string[]; price: number | null; coupon: boolean; adult: boolean; kids: boolean;
   level: string[]; days: string[]; time: string; duration: number; rating: number;
-  description: string; address?: string; phone?: string; imageUrls?: string[]; websiteUrl?: string; imageSourceName?: string; imageCheckedAt?: string;
+  description: string; address?: string; phone?: string; imageUrls?: string[]; websiteUrl?: string; imageSourceName?: string; imageCheckedAt?: string; sourceUrl?: string; sourceName?: string; verifiedAt?: string; imageUsageNote?: string;
 };
 const DATA: Studio[] = [
   {id:"s1",name:"발레온 스튜디오",lat:37.6584,lng:126.8321,area:"고양시 일산동구",tags:["성인","초급","기초"],price:25000,coupon:true,adult:true,kids:false,level:["초급","중급"],days:["평일","주말"],time:"오전 · 저녁",duration:60,rating:4.8,description:"성인 취미 발레 기초와 단계별 수업을 운영하는 스튜디오."},
@@ -149,7 +149,7 @@ export default function Home() {
     return()=>{active=false;subscription.unsubscribe();};
   },[favoritesReady,favoriteIds,favoriteStudios]);
 
-  useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,imageCheckedAt:r.image_checked_at||undefined}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted){setStudios([]);setBackendState("error");}});return()=>{mounted=false;};},[searchedRegion]);
+  useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,sourceName:r.source_name||undefined,verifiedAt:r.verified_at||undefined,imageUsageNote:r.image_usage_note||undefined}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted){setStudios([]);setBackendState("error");}});return()=>{mounted=false;};},[searchedRegion]);
   const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0)+(durationFilter!==null?1:0)+(maxDistance!==null?1:0);
@@ -221,6 +221,9 @@ export default function Home() {
             </ScrollView>
             :<View style={styles.photoEmpty}><Text style={styles.filterHint}>공식 홈페이지에서 확인한 사진이 아직 없습니다.</Text>{detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}</View>}
           {!!detailStudio.imageSourceName&&<Text style={styles.photoCredit}>이미지 출처: {detailStudio.imageSourceName}{detailStudio.imageCheckedAt?" · 확인 "+new Date(detailStudio.imageCheckedAt).toLocaleDateString("ko-KR"):""}</Text>}
+          {!!detailStudio.imageUsageNote&&<Text style={styles.photoCredit}>사진 이용 메모: {detailStudio.imageUsageNote}</Text>}
+          {!!detailStudio.sourceName&&<Text style={styles.photoCredit}>정보 출처: {detailStudio.sourceName}{detailStudio.verifiedAt?" · 확인 "+new Date(detailStudio.verifiedAt).toLocaleDateString("ko-KR"):""}</Text>}
+          {!!detailStudio.sourceUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.sourceUrl!).catch(()=>Alert.alert("출처 연결","출처 페이지를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>정보 원문 확인 ›</Text></Pressable>}
           <Text style={styles.sectionTitle}>학원 소개</Text><Text style={styles.detailDescription}>{detailStudio.description}</Text>
           <Text style={styles.sectionTitle}>가격 및 수업 시간표</Text>
           <View style={styles.infoRow}><Text style={styles.infoLabel}>대표 수강료</Text><Text style={styles.infoValue}>{detailStudio.price!==null?"₩"+detailStudio.price.toLocaleString()+" / 회":"가격 미등록 · 학원 문의"}</Text></View>
