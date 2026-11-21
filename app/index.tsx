@@ -32,7 +32,7 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
 }
 export default function Home() {
   const map = useRef<MapView>(null);
-  const [studios,setStudios]=useState<Studio[]>(DATA);
+  const [studios,setStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
   const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");
   const [region,setRegion]=useState(INITIAL);
   const [mapMoved,setMapMoved]=useState(false);
@@ -42,7 +42,8 @@ export default function Home() {
   const [filterOpen,setFilterOpen]=useState(false);
   const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
   const [studioClasses,setStudioClasses]=useState<StudioClass[]>([]);
-  const [classesLoading,setClassesLoading]=useState(false);\n  const detailRequestId=useRef(0);
+  const [classesLoading,setClassesLoading]=useState(false);
+  const detailRequestId=useRef(0);
   const [compareOpen,setCompareOpen]=useState(false);
   const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
   const [favoritesReady,setFavoritesReady]=useState(false);
@@ -134,7 +135,7 @@ export default function Home() {
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
-    <Modal visible={!!detailStudio} animationType="slide" transparent onRequestClose={()=>setDetailStudio(null)}>
+    <Modal visible={!!detailStudio} animationType="slide" transparent onRequestClose={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);}}>
       <View style={styles.modalShade}><View style={[styles.modal,{maxHeight:"90%"}]}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세</Text><Pressable onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);}}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:10}}>{detailStudio&&<><View style={{marginTop:18}}>{studioCard(detailStudio,true)}</View>
