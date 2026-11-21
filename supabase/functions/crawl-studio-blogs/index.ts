@@ -194,7 +194,6 @@ Deno.serve(async (req) => {
         }
       }
       const textBody = stripTags(html);
-      const description = String(source?.description ?? "");
       // The title/snippet or verified official account was checked before fetching the page.
       const images = extractImages(html, pageUrl);
       const prices = evidence(textBody, "price");
