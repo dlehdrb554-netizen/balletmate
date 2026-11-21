@@ -107,6 +107,7 @@ export default function Home() {
     const syncForSession=async(session:any)=>{
       const uid=session?.user?.id||null;
       if(!uid){favoriteSyncUser.current=null;return;}
+      if(!favoritesReady)return;
       if(favoriteSyncUser.current===uid)return;
       favoriteSyncUser.current=uid;
       try{
