@@ -1,14 +1,11 @@
 # Supabase setup (free-tier-first)
 
 ## Create the backend
-1. Create a Supabase account and a new project named `balletmate`.
-2. Select a region near Korea if available.
-3. Open SQL Editor and run `schema.sql` from this folder.
-4. In Project Settings → API, copy the Project URL and the public anon/publishable key.
-5. Put these values in a local `.env` file (copy `.env.example`):
-   - `EXPO_PUBLIC_SUPABASE_URL`
-   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-6. Restart Expo after changing environment values.
+1. The Balletmate Supabase project is already created and its URL/public publishable key are configured as app defaults in `lib/supabase.ts`.
+2. Open the project dashboard and go to SQL Editor.
+3. Run `schema.sql` from this folder to create the required tables and read-only RLS policies.
+4. `.env` overrides are optional if you want to switch projects locally; copy `.env.example` and adjust values.
+5. Restart Expo after changing environment values.
 
 Do not use the service-role key in the mobile app or commit it to GitHub. The anon key is intentionally client-visible; database Row Level Security policies are the security boundary.
 
