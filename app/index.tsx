@@ -45,7 +45,8 @@ export default function Home() {
   const [classesLoading,setClassesLoading]=useState(false);
   const detailRequestId=useRef(0);
   const [compareOpen,setCompareOpen]=useState(false);
-  const [favoriteIds,setFavoriteIds]=useState<string[]>([]);\n  const [favoriteStudios,setFavoriteStudios]=useState<Studio[]>([]);
+  const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
+  const [favoriteStudios,setFavoriteStudios]=useState<Studio[]>([]);
   const [favoritesReady,setFavoritesReady]=useState(false);
   const [compareIds,setCompareIds]=useState<string[]>([]);
   const [adult,setAdult]=useState(false);
@@ -95,7 +96,8 @@ export default function Home() {
   const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>0.004||Math.abs(region.longitude-searchedRegion.longitude)>0.004;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0);
-  const toggleFavorite=(studio:Studio)=>{setFavoriteIds(ids=>ids.includes(studio.id)?ids.filter(i=>i!==studio.id):[...ids,studio.id]);setFavoriteStudios(list=>list.some(x=>x.id===studio.id)?list.filter(x=>x.id!==studio.id):[studio,...list.filter(x=>x.id!==studio.id)]);};\n  const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setMaxPrice(null);};
+  const toggleFavorite=(studio:Studio)=>{setFavoriteIds(ids=>ids.includes(studio.id)?ids.filter(i=>i!==studio.id):[...ids,studio.id]);setFavoriteStudios(list=>list.some(x=>x.id===studio.id)?list.filter(x=>x.id!==studio.id):[studio,...list.filter(x=>x.id!==studio.id)]);};
+  const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setMaxPrice(null);};
   const openDetail=async(s:Studio)=>{const requestId=++detailRequestId.current;setDetailStudio(s);setStudioClasses([]);if(supabaseConfigured){setClassesLoading(true);try{const rows=await fetchClassesForStudio(s.id);if(requestId===detailRequestId.current)setStudioClasses(rows);}catch{if(requestId===detailRequestId.current)setStudioClasses([]);}finally{if(requestId===detailRequestId.current)setClassesLoading(false);}}};
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");map.current?.animateToRegion({latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018},400);}} style={[styles.studioCard,compact&&styles.compactCard]}>
     <View style={styles.cardTop}><View style={styles.studioIcon}><Text style={{fontSize:20}}>🩰</Text></View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · ⭐ {s.rating.toFixed(1)}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
