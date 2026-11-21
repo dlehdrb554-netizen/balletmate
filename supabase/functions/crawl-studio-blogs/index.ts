@@ -53,16 +53,18 @@ function extractImages(html: string, base: string): string[] {
   }
   return [...new Set(out)].slice(0, 40);
 }
-function normalize(value: string): string { return value.toLowerCase().replace(/[\s·ㆍ]/g, ""); }
+function normalize(value: string): string { return value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, ""); }
+function academyAlias(studioName: string): string {
+  return normalize(studioName)
+    .replace(/(발레스튜디오|발레아카데미|무용학원|발레학원|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
+}
 function isRelevantBlog(studioName: string, title: string, context = ""): boolean {
-  const fullName = normalize(studioName);
-  const coreName = normalize(studioName.trim().split(/\s+/)[0] ?? "");
+  const alias = academyAlias(studioName);
+  if (alias.length < 3) return false;
   const titleText = normalize(title);
   const contextText = normalize(context);
-  const matches = (text: string) =>
-    (fullName.length >= 5 && text.includes(fullName)) ||
-    (coreName.length >= 5 && text.includes(coreName));
-  return matches(titleText) || matches(contextText);
+  // Exact distinctive academy root in title/body is required; generic ballet/barre mentions are insufficient.
+  return titleText.includes(alias) || contextText.includes(alias);
 }
 function evidence(text: string, kind: "price" | "schedule"): string[] {
   const re = kind === "price"
