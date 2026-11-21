@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.search-studio-blogs]
 verify_jwt = false
+
+[functions.crawl-studio-blogs]
+verify_jwt = false
