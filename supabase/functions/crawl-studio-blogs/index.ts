@@ -58,13 +58,22 @@ function academyAlias(studioName: string): string {
   return normalize(studioName)
     .replace(/(무용학원|발레학원|발레아카데미|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
 }
-function isRelevantBlog(studioName: string, title: string, context = ""): boolean {
+function blogAccountKey(raw: string | null | undefined): string {
+  try {
+    const u = new URL(String(raw ?? ""));
+    if (u.protocol !== "https:" || !BLOG_HOSTS.has(u.hostname.toLowerCase())) return "";
+    return u.pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+  } catch { return ""; }
+}
+function isRelevantBlog(studioName: string, title: string, context = "", bloggerUrl = "", officialAccounts: string[] = []): boolean {
   const alias = academyAlias(studioName);
-  if (alias.length < 3) return false;
   const titleText = normalize(title);
   const contextText = normalize(context);
-  // Exact distinctive academy root in title/body is required; generic ballet/barre mentions are insufficient.
-  return titleText.includes(alias) || contextText.includes(alias);
+  const nameMatch = alias.length >= 3 && (titleText.includes(alias) || contextText.includes(alias));
+  const accountKey = blogAccountKey(bloggerUrl);
+  const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
+  // Accept either a distinctive academy-name match or a previously verified official Naver blog account.
+  return nameMatch || officialMatch;
 }
 function evidence(text: string, kind: "price" | "schedule"): string[] {
   const re = kind === "price"
@@ -133,7 +142,7 @@ Deno.serve(async (req) => {
   for (const job of jobs) {
     try {
       const { data: source, error: sourceError } = await db.from("studio_blog_sources")
-        .select("title,description")
+        .select("title,description,blogger_url")
         .eq("id", job.source_id)
         .maybeSingle();
       if (sourceError) throw new Error("게시글 관련성 조회 실패: " + sourceError.message);
@@ -162,8 +171,14 @@ Deno.serve(async (req) => {
       }
       const textBody = stripTags(html);
       const description = String(source?.description ?? "");
-      // Legitimate academy posts sometimes mention the academy in the body, not the title.
-      if (!source || !isRelevantBlog(String(job.studio_name), String(source.title ?? ""), description + "\n" + textBody)) {
+      const { data: officialRows, error: officialError } = await db.from("studio_blog_official_accounts")
+        .select("blogger_url")
+        .eq("studio_name", String(job.studio_name))
+        .eq("is_active", true);
+      if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
+      const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
+      // Legitimate academy posts may omit the academy name when published by its verified official blog.
+      if (!source || !isRelevantBlog(String(job.studio_name), String(source.title ?? ""), description + "\n" + textBody, String(source.blogger_url ?? ""), officialAccounts)) {
         const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
           status: "rejected",
           last_error: "제목·요약·본문에서 해당 학원명이 확인되지 않아 수집 제외",
