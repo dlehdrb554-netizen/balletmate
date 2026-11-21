@@ -70,6 +70,49 @@ function evidence(text: string, kind: "price" | "schedule"): string[] {
   return [...new Set(text.split("\n").map(x => x.trim()).filter(x => x.length >= 3 && x.length <= 500 && re.test(x)))].slice(0, 40);
 }
 
+function priceAmount(line: string): string | null {
+  const match = line.match(/(\\d[\\d,]*(?:\\.\\d+)?)\\s*(만원|만\\s*원|원)/i);
+  if (!match) return null;
+  const raw = Number(match[1].replace(/,/g, ""));
+  const amount = /만/.test(match[2]) ? raw * 10000 : raw;
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 100_000_000) return null;
+  return String(Math.round(amount));
+}
+function candidateRows(
+  lines: string[],
+  kind: "price" | "schedule",
+  job: { studio_id: string; studio_name: string; source_id: number; title: string; post_url: string },
+): Record<string, unknown>[] {
+  const unique = new Set<string>();
+  const rows: Record<string, unknown>[] = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.length > 500 || unique.has(line)) continue;
+    unique.add(line);
+    if (kind === "price") {
+      const amount = priceAmount(line);
+      if (!amount) continue;
+      rows.push({
+        studio_id: job.studio_id, studio_name: job.studio_name,
+        source_id: job.source_id, source_title: job.title, source_url: job.post_url,
+        candidate_type: "price", candidate_value: line, normalized_value: amount,
+        evidence_text: line, confidence: 0.78,
+      });
+    } else {
+      const hasDay = /(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월\\s*[~〜-]\\s*금|평일|주말|[월화수목금토일]요?일)/.test(line);
+      const hasTime = /(오전|오후)?\\s*\\d{1,2}\\s*[:시]\\s*\\d{0,2}/.test(line);
+      if (!hasDay || !hasTime) continue;
+      rows.push({
+        studio_id: job.studio_id, studio_name: job.studio_name,
+        source_id: job.source_id, source_title: job.title, source_url: job.post_url,
+        candidate_type: "schedule", candidate_value: line, normalized_value: null,
+        evidence_text: line, confidence: 0.68,
+      });
+    }
+  }
+  return rows.slice(0, 20);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   if (req.method !== "POST") return json({ error: "POST 요청만 허용됩니다." }, 405);
@@ -90,7 +133,6 @@ Deno.serve(async (req) => {
         .select("title,description")
         .eq("id", job.source_id)
         .maybeSingle();
-      if (sourceError) throw new Error("게시글 관련성 조회 실패: " + sourceError.message);
       if (sourceError) throw new Error("게시글 관련성 조회 실패: " + sourceError.message);
       const postUrl = safeBlogUrl(job.post_url);
       if (!postUrl) throw new Error("네이버 블로그 도메인이 아닌 URL은 수집하지 않습니다.");
@@ -120,6 +162,15 @@ Deno.serve(async (req) => {
       const images = extractImages(html, pageUrl);
       const prices = evidence(textBody, "price");
       const schedules = evidence(textBody, "schedule");
+      const evidenceCandidates = [
+        ...candidateRows(prices, "price", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url) }),
+        ...candidateRows(schedules, "schedule", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url) }),
+      ];
+      if (evidenceCandidates.length) {
+        const { error: candidateError } = await db.from("studio_blog_evidence_candidates")
+          .upsert(evidenceCandidates, { onConflict: "source_id,candidate_type,candidate_value", ignoreDuplicates: true });
+        if (candidateError) throw new Error("가격·시간표 근거 저장 실패: " + candidateError.message);
+      }
       const status = textBody.length > 80 ? "success" : "partial";
       const { error: saveError } = await db.from("studio_blog_post_contents").upsert({
         source_id: job.source_id, studio_id: job.studio_id, post_url: job.post_url,
