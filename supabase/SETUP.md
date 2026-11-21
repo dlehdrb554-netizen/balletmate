@@ -91,12 +91,14 @@ Supabase currently lists its Free plan as $0 with 2 active projects, 500 MB data
 기본 supabase/studio_intake.sql에도 studio-photos 공개 읽기 버킷과 관리자 전용 업로드·수정·삭제 정책이 포함되어 있습니다. 해당 SQL을 실행하지 않은 기존 프로젝트라면 supabase/studio_photo_storage.sql을 실행해 동일 설정을 보완합니다. JPEG/PNG/WEBP 최대 5MB만 허용하며 별도 유료 서비스나 외부 저장소는 사용하지 않습니다.
 
 
-### OCR 근거 검토 권한 및 원문 게시일
+### 배포 전 DB 보완 SQL
 
-기존 evidence_review.sql과 OCR 테이블을 생성한 프로젝트는 다음 SQL을 순서대로 실행합니다.
+기본 스키마, 블로그 수집, OCR 및 근거 검토 테이블을 만든 뒤 Supabase SQL Editor에서 supabase/preflight_repairs.sql 전체를 한 번 실행합니다. 이 묶음은 다음을 안전하게 보완합니다.
 
-1. supabase/evidence_source_post_date.sql — 블로그 근거 및 OCR 결과에 원문 게시일을 보존하고 기존 자료를 채웁니다.
-2. supabase/evidence_admin_insert.sql — 관리자만 OCR 근거 후보를 검토 대기열에 전달할 수 있도록 INSERT 권한을 부여합니다.
-3. supabase/admin_sequence_permissions.sql — 관리자와 워커가 자동 증가 ID를 사용하는 테이블에 삽입할 수 있도록 시퀀스 권한을 보완합니다.
+- OCR 결과와 가격·시간표 근거에 원문 게시일을 저장하고 기존 자료를 채움
+- 관리자 OCR 근거 전달 권한과 필요한 자동 증가 시퀀스 권한
+- 학원 탐색 순서를 서울 다음 경기·인천, 이후 다른 지역으로 조정
+- 블로그 게시물 수집을 학원별로 공평하게 배분
+- studio-photos 저장소와 관리자 업로드 정책 확인
 
-수집 원본 테이블은 계속 서비스 역할 전용으로 유지됩니다. 가격과 시간표는 관리자 검증 후에만 공개됩니다.
+개별 SQL 파일도 저장소에 남아 있지만, 이 묶음을 실행했다면 같은 항목을 따로 실행할 필요는 없습니다. 원문 블로그 수집 테이블은 계속 서비스 역할 전용으로 유지됩니다.

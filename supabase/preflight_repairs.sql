@@ -1,6 +1,6 @@
 -- Balletmate preflight repair bundle.
--- Safe to run after the main Balletmate schema and OCR/evidence migrations.
--- This combines the individually available migrations below for one SQL Editor run.
+-- Run after the main Balletmate schema and OCR/evidence migrations are installed.
+-- This combines the individual idempotent migrations below for one SQL Editor run.
 
 -- ===== supabase/evidence_source_post_date.sql =====
 -- Preserve original blog post dates with reviewed evidence and device OCR candidates.

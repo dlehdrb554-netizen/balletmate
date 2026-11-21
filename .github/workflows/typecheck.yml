@@ -15,7 +15,7 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npx tsc --noEmit
       - name: Expo configuration and dependency health check
-        run: npx expo-doctor
+        run: npx expo-doctor@1.20.5
       - name: Set up Deno for Supabase Edge Functions
         uses: denoland/setup-deno@v2
         with:
