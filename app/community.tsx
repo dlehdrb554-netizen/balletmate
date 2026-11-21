@@ -92,17 +92,19 @@ export default function Community(){
  };
 
  const removePost=async(post:Post)=>{
-  if(!supabase||post.author_id!==userId)return;
+  const client=supabase;
+  if(!client||post.author_id!==userId)return;
   Alert.alert("게시글 삭제","이 게시글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
-   const {error}=await supabase.from("community_posts").delete().eq("id",post.id);
+   const {error}=await client.from("community_posts").delete().eq("id",post.id);
    if(error){Alert.alert("삭제 실패",error.message);return;}
    setSelected(null);loadPosts();
   }}]);
  };
  const removeComment=async(comment:Comment)=>{
-  if(!supabase||comment.author_id!==userId)return;
+  const client=supabase;
+  if(!client||comment.author_id!==userId)return;
   Alert.alert("댓글 삭제","이 댓글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
-   const {error}=await supabase.from("community_comments").delete().eq("id",comment.id);
+   const {error}=await client.from("community_comments").delete().eq("id",comment.id);
    if(error){Alert.alert("삭제 실패",error.message);return;}
    if(selected)loadComments(selected.id);
   }}]);
