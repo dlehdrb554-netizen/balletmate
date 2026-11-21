@@ -34,6 +34,8 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
     : "all";
   const cached = studioCache.get(key);
   if (cached && Date.now() - cached.savedAt < CACHE_MS) return cached.rows;
+  if (networkSearches >= MAX_NETWORK_SEARCHES_PER_APP_SESSION) throw new Error("이번 앱 실행 중 지도 검색 한도(40회)에 도달했습니다. 잠시 후 앱을 다시 실행해 주세요.");
+  networkSearches += 1;
 
   let query = supabase
     .from("studios")
