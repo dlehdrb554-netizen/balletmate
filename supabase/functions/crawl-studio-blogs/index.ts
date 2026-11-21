@@ -10,8 +10,11 @@ const decode = (value: string) => value
   .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 const stripTags = (html: string) => decode(html
   .replace(/<(script|style|svg|noscript|iframe|header|footer|nav)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
-  .replace(/<\/(p|div|li|tr|td|h[1-6]|section|article|br)\s*>/gi, "\n")
+  // Preserve Naver Blog's void <br> tags before stripping markup.
+  .replace(/<br\b[^>]*\/?\s*>/gi, "\n")
+  .replace(/<\/(p|div|li|tr|td|h[1-6]|section|article)\s*>/gi, "\n")
   .replace(/<[^>]+>/g, " "))
+  .replace(/&zwnj;|&zwj;|&#8203;/gi, "")
   .replace(/[\t\f\v ]+/g, " ").replace(/\n\s*/g, "\n")
   .split("\n").map(x => x.trim()).filter(Boolean).join("\n").slice(0, 120000);
 function attr(tag: string, name: string): string | null {
@@ -78,13 +81,14 @@ function isRelevantBlog(studioName: string, title: string, context = "", blogger
 }
 function evidence(text: string, kind: "price" | "schedule"): string[] {
   const re = kind === "price"
-    ? /(수강료|가격|회비|등록비|입회비|만원|\d[\d,]*\s*원|비용)/i
-    : /(시간표|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|\d{1,2}:\d{2}|평일|주말|수업시간)/i;
+    ? /(수강료|가격|회비|등록비|입회비|만원|\d[\d,]*\s*원|₩|비용|월\s*\d)/i
+    : /(시간표|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|\d{1,2}:\d{2}|평일|주말|수업시간|\d{1,2}시)/i;
   return [...new Set(text.split("\n").map(x => x.trim()).filter(x => x.length >= 3 && x.length <= 500 && re.test(x)))].slice(0, 40);
 }
 
 function priceAmount(line: string): string | null {
-  const match = line.match(/(\d[\d,]*(?:\.\d+)?)\s*(만원|만\s*원|원)/i);
+  // Require an explicit KRW marker; never infer a price from a bare number.
+  const match = line.match(/(?:₩\s*)?(\d[\d,]*(?:\.\d+)?)\s*(만원|만\s*원|만|원)/i);
   if (!match) return null;
   const raw = Number(match[1].replace(/,/g, ""));
   const amount = /만/.test(match[2]) ? raw * 10000 : raw;
@@ -112,8 +116,10 @@ function candidateRows(
         evidence_text: line, confidence: 0.78,
       });
     } else {
-      const hasDay = /(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월\s*[~〜-]\s*금|평일|주말|[월화수목금토일]요?일)/.test(line);
-      const hasTime = /(오전|오후)?\s*\d{1,2}\s*[:시]\s*\d{0,2}/.test(line);
+      // Support explicit weekdays, ranges, and compact forms such as 월수금 / 화목.
+      const hasDay = /(월요일|화요일|수요일|목요일|금요일|토요일|일요일|월\s*[~〜-]\s*금|평일|주말|[월화수목금토일]요?일|[월화수목금토일]{2,7})/.test(line);
+      // Support 19:30, 오전 10시, 오후 7시 30분, and 10시30분.
+      const hasTime = /(?:(오전|오후)\s*)?\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}분)?)/.test(line);
       if (!hasDay || !hasTime) continue;
       rows.push({
         studio_id: job.studio_id, studio_name: job.studio_name,
