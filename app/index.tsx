@@ -40,7 +40,7 @@ export default function Home() {
   const [level,setLevel]=useState<string|null>(null);
   const [locationLoading,setLocationLoading]=useState(false);
   const [locationGranted,setLocationGranted]=useState(false);
-  const [searchedRegion,setSearchedRegion]=useState(INITIAL);
+  const [searchedRegion,setSearchedRegion]=useState(INITIAL);\n  const [areaLocked,setAreaLocked]=useState(false);
 
   const results=useMemo(()=>DATA.filter(s=>{
     const q=search.trim().toLowerCase();
@@ -59,12 +59,12 @@ export default function Home() {
       if(status!=="granted"){setLocationGranted(false);Alert.alert("위치 권한","권한이 없어 기본 지역에서 지도를 표시합니다. 설정에서 위치 권한을 허용할 수 있어요.");return;}
       const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
       const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-      map.current?.animateToRegion(r,650);setRegion(r);setSearchedRegion(r);setLocationGranted(true);setMapMoved(false);
+      map.current?.animateToRegion(r,650);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setMapMoved(false);
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
   useEffect(()=>{Location.getForegroundPermissionsAsync().then(({status})=>setLocationGranted(status==="granted")).catch(()=>{});},[]);
-  const searchArea=()=>{setSearchedRegion(region);setMapMoved(false);setSelected(null);};
+  const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>0.004||Math.abs(region.longitude-searchedRegion.longitude)>0.004;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0);
   const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setLevel(null);};
