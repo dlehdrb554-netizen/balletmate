@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";\nimport AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  FlatList, Keyboard, Modal, Pressable, SafeAreaView,
+  ActivityIndicator, FlatList, Keyboard, Modal, Pressable, SafeAreaView,
   StyleSheet, Text, TextInput, View, Alert
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";\nimport { fetchStudios } from "../lib/studios";
-import { fetchClassesForStudio, StudioClass } from "../lib/classes";\nimport { supabaseConfigured } from "../lib/supabase";
+import MapView, { Marker, Region } from "react-native-maps";
+import { fetchStudios } from "../lib/studios";
+import { fetchClassesForStudio, StudioClass } from "../lib/classes";
+import { supabaseConfigured } from "../lib/supabase";
 import * as Location from "expo-location";
 
 type Studio = {
@@ -29,21 +32,32 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
 }
 export default function Home() {
   const map = useRef<MapView>(null);
-  const [studios,setStudios]=useState<Studio[]>(DATA);\n  const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");\n  const [region,setRegion]=useState(INITIAL);
+  const [studios,setStudios]=useState<Studio[]>(DATA);
+  const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");
+  const [region,setRegion]=useState(INITIAL);
   const [mapMoved,setMapMoved]=useState(false);
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState<Studio|null>(null);
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
-  const [filterOpen,setFilterOpen]=useState(false);\n  const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
+  const [filterOpen,setFilterOpen]=useState(false);
+  const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
   const [studioClasses,setStudioClasses]=useState<StudioClass[]>([]);
-  const [classesLoading,setClassesLoading]=useState(false);\n  const [compareOpen,setCompareOpen]=useState(false);\n  const [favoriteIds,setFavoriteIds]=useState<string[]>([]);\n  const [favoritesReady,setFavoritesReady]=useState(false);\n  const [compareIds,setCompareIds]=useState<string[]>([]);
+  const [classesLoading,setClassesLoading]=useState(false);
+  const [compareOpen,setCompareOpen]=useState(false);
+  const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
+  const [favoritesReady,setFavoritesReady]=useState(false);
+  const [compareIds,setCompareIds]=useState<string[]>([]);
   const [adult,setAdult]=useState(false);
   const [kids,setKids]=useState(false);
   const [coupon,setCoupon]=useState(false);
-  const [level,setLevel]=useState<string|null>(null);\n  const [dayFilter,setDayFilter]=useState<string|null>(null);\n  const [timeFilter,setTimeFilter]=useState<string|null>(null);\n  const [maxPrice,setMaxPrice]=useState<number|null>(null);
+  const [level,setLevel]=useState<string|null>(null);
+  const [dayFilter,setDayFilter]=useState<string|null>(null);
+  const [timeFilter,setTimeFilter]=useState<string|null>(null);
+  const [maxPrice,setMaxPrice]=useState<number|null>(null);
   const [locationLoading,setLocationLoading]=useState(false);
   const [locationGranted,setLocationGranted]=useState(false);
-  const [searchedRegion,setSearchedRegion]=useState(INITIAL);\n  const [areaLocked,setAreaLocked]=useState(false);
+  const [searchedRegion,setSearchedRegion]=useState(INITIAL);
+  const [areaLocked,setAreaLocked]=useState(false);
 
   const results=useMemo(()=>studios.filter(s=>{
     const q=search.trim().toLowerCase();
@@ -66,7 +80,10 @@ export default function Home() {
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
-  useEffect(()=>{Location.getForegroundPermissionsAsync().then(({status})=>setLocationGranted(status==="granted")).catch(()=>{});},[]);\n  useEffect(()=>{AsyncStorage.getItem("balletmate.favorites.v1").then(v=>{if(v){const parsed=JSON.parse(v);if(Array.isArray(parsed))setFavoriteIds(parsed.filter(x=>typeof x==="string"));}}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);\n  useEffect(()=>{if(favoritesReady)AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});},[favoriteIds,favoritesReady]);\n  useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;fetchStudios().then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",tags:r.tags||[],price:r.price_per_class||0,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted)setBackendState("error");});return()=>{mounted=false;};},[]);
+  useEffect(()=>{Location.getForegroundPermissionsAsync().then(({status})=>setLocationGranted(status==="granted")).catch(()=>{});},[]);
+  useEffect(()=>{AsyncStorage.getItem("balletmate.favorites.v1").then(v=>{if(v){const parsed=JSON.parse(v);if(Array.isArray(parsed))setFavoriteIds(parsed.filter(x=>typeof x==="string"));}}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
+  useEffect(()=>{if(favoritesReady)AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});},[favoriteIds,favoritesReady]);
+  useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;fetchStudios().then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",tags:r.tags||[],price:r.price_per_class||0,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted)setBackendState("error");});return()=>{mounted=false;};},[]);
   const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>0.004||Math.abs(region.longitude-searchedRegion.longitude)>0.004;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0);
@@ -96,10 +113,14 @@ export default function Home() {
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} onPress={searchArea}><Text style={styles.areaSearchText}>⌕  이 지역에서 재검색</Text></Pressable>}
         <Pressable style={styles.locateButton} onPress={locate}><Text style={{fontSize:19}}>{locationLoading?"…":"◎"}</Text></Pressable>
         <View style={styles.mapCount}><Text style={styles.mapCountText}>주변 학원 <Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}</Text>곳{backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></View>
-        {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={styles.detailBtn} onPress={()=>Alert.alert(selected.name,selected.description+"\n\n수업 "+selected.duration+"분 · "+selected.time+"\n가격 ₩"+selected.price.toLocaleString()+" / 회",{cancelable:true})}><Text style={styles.detailBtnText}>상세 보기  ›</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
+        {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={styles.detailBtn} onPress={()=>Alert.alert(selected.name,selected.description+"
+
+수업 "+selected.duration+"분 · "+selected.time+"
+가격 ₩"+selected.price.toLocaleString()+" / 회",{cancelable:true})}><Text style={styles.detailBtnText}>상세 보기  ›</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
       </View> :<FlatList data={view==="favorites"?results.filter(s=>favoriteIds.includes(s.id)):results} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} ListEmptyComponent={<Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"검색 조건에 맞는 학원이 없어요."}</Text>}/>}
     </View>
-    {compareIds.length>=2&&<Pressable style={styles.compareFloating} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>학원 비교하기 · {compareIds.length}</Text></Pressable>}\n    <View style={styles.bottomNav}><Pressable style={styles.navItem} onPress={()=>setView("map")}><Text style={[styles.navIcon,view==="map"&&styles.navActive]}>⌖</Text><Text style={[styles.navLabel,view==="map"&&styles.navActive]}>지도</Text></Pressable><Pressable style={styles.navItem} onPress={()=>setView("list")}><Text style={[styles.navIcon,view==="list"&&styles.navActive]}>☰</Text><Text style={[styles.navLabel,view==="list"&&styles.navActive]}>목록</Text></Pressable><Pressable style={styles.navItem} onPress={()=>setView("favorites")}><Text style={[styles.navIcon,view==="favorites"&&styles.navActive]}>♡</Text><Text style={[styles.navLabel,view==="favorites"&&styles.navActive]}>찜</Text></Pressable><Pressable style={styles.navItem} onPress={()=>Alert.alert("마이","계정 및 개인 설정은 서버 연결 단계에서 구현 예정입니다.")}><Text style={styles.navIcon}>◉</Text><Text style={styles.navLabel}>마이</Text></Pressable></View>
+    {compareIds.length>=2&&<Pressable style={styles.compareFloating} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>학원 비교하기 · {compareIds.length}</Text></Pressable>}
+    <View style={styles.bottomNav}><Pressable style={styles.navItem} onPress={()=>setView("map")}><Text style={[styles.navIcon,view==="map"&&styles.navActive]}>⌖</Text><Text style={[styles.navLabel,view==="map"&&styles.navActive]}>지도</Text></Pressable><Pressable style={styles.navItem} onPress={()=>setView("list")}><Text style={[styles.navIcon,view==="list"&&styles.navActive]}>☰</Text><Text style={[styles.navLabel,view==="list"&&styles.navActive]}>목록</Text></Pressable><Pressable style={styles.navItem} onPress={()=>setView("favorites")}><Text style={[styles.navIcon,view==="favorites"&&styles.navActive]}>♡</Text><Text style={[styles.navLabel,view==="favorites"&&styles.navActive]}>찜</Text></Pressable><Pressable style={styles.navItem} onPress={()=>Alert.alert("마이","계정 및 개인 설정은 서버 연결 단계에서 구현 예정입니다.")}><Text style={styles.navIcon}>◉</Text><Text style={styles.navLabel}>마이</Text></Pressable></View>
     <Modal visible={compareOpen} animationType="slide" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={styles.modalShade}><View style={styles.modal}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 비교</Text><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
