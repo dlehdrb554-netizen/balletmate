@@ -147,6 +147,29 @@ Deno.serve(async (req) => {
         .eq("id", job.source_id)
         .maybeSingle();
       if (sourceError) throw new Error("게시글 관련성 조회 실패: " + sourceError.message);
+      const { data: officialRows, error: officialError } = await db.from("studio_blog_official_accounts")
+        .select("blogger_url")
+        .eq("studio_name", String(job.studio_name))
+        .eq("is_active", true);
+      if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
+      const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
+      // Reject clearly unrelated search results before downloading the full blog page.
+      if (!source || !isRelevantBlog(
+        String(job.studio_name),
+        String(source.title ?? ""),
+        String(source.description ?? ""),
+        String(source.blogger_url ?? ""),
+        officialAccounts,
+      )) {
+        const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
+          status: "rejected",
+          last_error: "사전 필터링: 제목·요약·공식 계정에서 학원 관련성 미확인",
+          updated_at: new Date().toISOString(),
+        }).eq("source_id", job.source_id);
+        if (rejectError) throw new Error("사전 제외 처리 실패: " + rejectError.message);
+        results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "제목·요약·공식 계정에서 학원 관련성 미확인" });
+        continue;
+      }
       const postUrl = safeBlogUrl(job.post_url);
       if (!postUrl) {
         const { error: rejectUrlError } = await db.from("studio_blog_post_crawl_queue").update({
@@ -172,23 +195,7 @@ Deno.serve(async (req) => {
       }
       const textBody = stripTags(html);
       const description = String(source?.description ?? "");
-      const { data: officialRows, error: officialError } = await db.from("studio_blog_official_accounts")
-        .select("blogger_url")
-        .eq("studio_name", String(job.studio_name))
-        .eq("is_active", true);
-      if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
-      const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
-      // Legitimate academy posts may omit the academy name when published by its verified official blog.
-      if (!source || !isRelevantBlog(String(job.studio_name), String(source.title ?? ""), description + "\n" + textBody, String(source.blogger_url ?? ""), officialAccounts)) {
-        const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
-          status: "rejected",
-          last_error: "제목·요약·본문에서 해당 학원명이 확인되지 않아 수집 제외",
-          updated_at: new Date().toISOString(),
-        }).eq("source_id", job.source_id);
-        if (rejectError) throw new Error("무관 게시글 제외 처리 실패: " + rejectError.message);
-        results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "제목·요약·본문에서 학원명 미확인" });
-        continue;
-      }
+      // The title/snippet or verified official account was checked before fetching the page.
       const images = extractImages(html, pageUrl);
       const prices = evidence(textBody, "price");
       const schedules = evidence(textBody, "schedule");
