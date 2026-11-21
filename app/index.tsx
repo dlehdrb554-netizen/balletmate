@@ -8,7 +8,7 @@ import {
 import MapView, { Marker, Region } from "react-native-maps";
 import { fetchStudios } from "../lib/studios";
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
-import { supabaseConfigured } from "../lib/supabase";
+import { supabase, supabaseConfigured } from "../lib/supabase";
 import * as Location from "expo-location";
 
 type Studio = {
@@ -100,12 +100,55 @@ export default function Home() {
   useEffect(()=>{Location.getForegroundPermissionsAsync().then(({status})=>{setLocationGranted(status==="granted");if(status==="granted"){Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced}).then(p=>{const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.04,longitudeDelta:0.04};map.current?.animateToRegion(r,500);setRegion(r);setSearchedRegion(r);}).catch(()=>{});}}).catch(()=>{});},[]);
   useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,cache])=>{if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))setFavoriteIds(parsed.filter(x=>typeof x==="string"));}if(cache){const parsed=JSON.parse(cache);if(Array.isArray(parsed))setFavoriteStudios(parsed);}}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
   useEffect(()=>{if(favoritesReady){AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});AsyncStorage.setItem("balletmate.favoriteStudios.v1",JSON.stringify(favoriteStudios)).catch(()=>{});}},[favoriteIds,favoriteStudios,favoritesReady]);
+  const favoriteSyncUser=useRef<string|null>(null);
+  useEffect(()=>{
+    if(!supabase)return;
+    let active=true;
+    const syncForSession=async(session:any)=>{
+      const uid=session?.user?.id||null;
+      if(!uid){favoriteSyncUser.current=null;return;}
+      if(favoriteSyncUser.current===uid)return;
+      favoriteSyncUser.current=uid;
+      try{
+        const {data:remote,error}=await supabase.from("user_favorites").select("studio_id,studio_snapshot").eq("user_id",uid);
+        if(error)throw error;
+        if(!active)return;
+        const remoteRows=remote||[];
+        const remoteStudios=remoteRows.map((r:any)=>r.studio_snapshot).filter((s:any)=>s&&typeof s.id==="string");
+        const localStudios=favoriteStudios;
+        const mergedMap=new Map<string,Studio>();
+        remoteStudios.forEach((s:Studio)=>mergedMap.set(s.id,s));
+        localStudios.forEach((s:Studio)=>mergedMap.set(s.id,s));
+        const merged=[...mergedMap.values()];
+        const mergedIds=[...new Set([...favoriteIds,...remoteRows.map((r:any)=>r.studio_id),...merged.map(s=>s.id)])];
+        setFavoriteStudios(merged);setFavoriteIds(mergedIds);
+        if(merged.length){
+          const payload=merged.map(s=>({user_id:uid,studio_id:s.id,studio_snapshot:s,updated_at:new Date().toISOString()}));
+          const {error:upsertError}=await supabase.from("user_favorites").upsert(payload,{onConflict:"user_id,studio_id"});
+          if(upsertError)throw upsertError;
+        }
+      }catch(e){console.warn("Favorite sync skipped:",e);}
+    };
+    supabase.auth.getSession().then(({data})=>syncForSession(data.session));
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{syncForSession(session);});
+    return()=>{active=false;subscription.unsubscribe();};
+  },[favoritesReady]);
+
   useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class||0,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted){setStudios([]);setBackendState("error");}});return()=>{mounted=false;};},[searchedRegion]);
   const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>0.004||Math.abs(region.longitude-searchedRegion.longitude)>0.004;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0)+(durationFilter!==null?1:0)+(maxDistance!==null?1:0);
   const toggleCompare=(studio:Studio)=>{setCompareIds(ids=>ids.includes(studio.id)?ids.filter(i=>i!==studio.id):ids.length>=3?ids:[...ids,studio.id]);setCompareCache(list=>list.some(x=>x.id===studio.id)?list.filter(x=>x.id!==studio.id):[studio,...list.filter(x=>x.id!==studio.id)]);};
-  const toggleFavorite=(studio:Studio)=>{setFavoriteIds(ids=>ids.includes(studio.id)?ids.filter(i=>i!==studio.id):[...ids,studio.id]);setFavoriteStudios(list=>list.some(x=>x.id===studio.id)?list.filter(x=>x.id!==studio.id):[studio,...list.filter(x=>x.id!==studio.id)]);};
+  const toggleFavorite=(studio:Studio)=>{
+    const removing=favoriteIds.includes(studio.id);
+    setFavoriteIds(ids=>removing?ids.filter(i=>i!==studio.id):[...ids,studio.id]);
+    setFavoriteStudios(list=>removing?list.filter(x=>x.id!==studio.id):[studio,...list.filter(x=>x.id!==studio.id)]);
+    if(supabase) supabase.auth.getSession().then(({data})=>{
+      const uid=data.session?.user.id;if(!uid)return;
+      if(removing) supabase.from("user_favorites").delete().eq("user_id",uid).eq("studio_id",studio.id).then(({error})=>{if(error)console.warn("Favorite delete sync failed",error);});
+      else supabase.from("user_favorites").upsert({user_id:uid,studio_id:studio.id,studio_snapshot:studio,updated_at:new Date().toISOString()},{onConflict:"user_id,studio_id"}).then(({error})=>{if(error)console.warn("Favorite save sync failed",error);});
+    });
+  };
   const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setMaxPrice(null);setDurationFilter(null);setMaxDistance(null);};
   const openDetail=async(s:Studio)=>{const requestId=++detailRequestId.current;setDetailStudio(s);setStudioClasses([]);if(supabaseConfigured){setClassesLoading(true);try{const rows=await fetchClassesForStudio(s.id);if(requestId===detailRequestId.current)setStudioClasses(rows);}catch{if(requestId===detailRequestId.current)setStudioClasses([]);}finally{if(requestId===detailRequestId.current)setClassesLoading(false);}}};
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");if(!studios.some(x=>x.id===s.id)){const r={latitude:s.lat,longitude:s.lng,latitudeDelta:0.04,longitudeDelta:0.04};setSearchedRegion(r);setAreaLocked(false);}map.current?.animateToRegion({latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018},400);}} style={[styles.studioCard,compact&&styles.compactCard]}>
