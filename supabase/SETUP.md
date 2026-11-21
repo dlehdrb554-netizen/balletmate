@@ -18,7 +18,7 @@ The schema intentionally defaults studio/class/coupon records to inactive. A stu
 Use SQL Editor or a future secured admin panel to enter records. Keep source URLs and source names for provenance, and verify details before publication. Do not bulk-copy sites or use scraping without checking the source's terms, privacy rules, and permission.
 
 ## Current app integration
-- The app queries the current map viewport only and caps each request at 300 active studios.\n- Viewport results are cached in-memory for 90 seconds; class schedules for 10 minutes.
+- The app queries the current map viewport only and caps each request at 300 active studios.\n- Viewport results are cached in-memory for 90 seconds; class schedules for 10 minutes.\n- Per app session, at most 40 uncached map searches and 25 uncached schedule lookups are allowed; cached hits do not count. This is a client-side guard, not an account-wide quota.
 - Studio class schedule data is fetched when a studio detail view opens.
 - No client-side create/update/delete permissions are granted by the schema.
 - If no Supabase environment variables are configured, the app uses demo sample records.
