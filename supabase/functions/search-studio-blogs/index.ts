@@ -5,12 +5,13 @@ const json = (body: unknown, status = 200) =>
 
 const SEARCH_SUFFIXES = ["수강료", "시간표"];
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ]/g, "");
-const isRelevantBlog = (studioName: string, title: string, description: string): boolean => {
-  const text = normalize(`${title} ${description}`);
+const isRelevantBlog = (studioName: string, title: string): boolean => {
+  // Search results are associated only when the academy name appears in the post title.
+  // Description snippets can contain unrelated recommendations or generic keyword matches.
+  const text = normalize(title);
   const parts = studioName.trim().split(/\s+/);
   const fullName = normalize(studioName);
   const coreName = normalize(parts[0] ?? "");
-  // Never associate a post based only on generic ballet keywords.
   return (fullName.length >= 5 && text.includes(fullName)) ||
     (coreName.length >= 5 && text.includes(coreName));
 };
@@ -78,7 +79,7 @@ Deno.serve(async (req) => {
           const title = cleanText(item.title);
           if (!postUrl.startsWith("https://") || !title) return [];
           const description = cleanText(item.description);
-          if (!isRelevantBlog(String(job.studio_name), title, description)) return [];
+          if (!isRelevantBlog(String(job.studio_name), title)) return [];
           const dateText = String(item.postdate ?? "");
           const postDate = /^\d{8}$/.test(dateText)
             ? `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6, 8)}`
