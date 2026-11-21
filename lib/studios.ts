@@ -50,31 +50,32 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
       .lte("longitude", bounds.longitude + bounds.longitudeDelta / 2);
   };
 
+  const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at";
   let result = await applyBounds(supabase
     .from("studios")
-    .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at")
+    .select(selectColumns)
     .eq("is_active", true)
     .limit(300));
 
+  let rows: StudioRecord[];
   // Keep map discovery working on projects that have not run studio_media.sql yet.
   if (result.error && /image_urls|image_source_name|image_checked_at/i.test(result.error.message)) {
-    result = await applyBounds(supabase
+    const fallback = await applyBounds(supabase
       .from("studios")
       .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url")
       .eq("is_active", true)
       .limit(300));
-    if (!result.error && result.data) {
-      result.data = result.data.map((row) => ({
-        ...row,
-        image_urls: [],
-        image_source_name: null,
-        image_checked_at: null,
-      }));
-    }
+    if (fallback.error) throw fallback.error;
+    rows = (fallback.data ?? []).map((row) => ({
+      ...row,
+      image_urls: [],
+      image_source_name: null,
+      image_checked_at: null,
+    })) as StudioRecord[];
+  } else {
+    if (result.error) throw result.error;
+    rows = (result.data ?? []) as StudioRecord[];
   }
-
-  if (result.error) throw result.error;
-  const rows = (result.data ?? []) as StudioRecord[];
   studioCache.set(key, { savedAt: Date.now(), rows });
   return rows;
 }
