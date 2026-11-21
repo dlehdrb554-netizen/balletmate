@@ -54,11 +54,13 @@ function extractImages(html: string, base: string): string[] {
   return [...new Set(out)].slice(0, 40);
 }
 function normalize(value: string): string { return value.toLowerCase().replace(/[\s·ㆍ]/g, ""); }
-function isRelevantBlog(studioName: string, title: string, description: string): boolean {
-  const text = normalize(`${title} ${description}`);
-  const studio = normalize(studioName);
-  if (studio.length >= 5 && text.includes(studio)) return true;
-  return /(발레학원|발레교습소|성인발레|키즈발레|유아발레|발레수업|발레레슨|발레클래스|발레스튜디오|발레아카데미|발레수강료|발레시간표|발레강습|발레교육)/i.test(text);
+function isRelevantBlog(studioName: string, title: string, description: string, body: string): boolean {
+  const text = normalize(`${title} ${description} ${body}`);
+  const parts = studioName.trim().split(/\s+/);
+  const fullName = normalize(studioName);
+  const coreName = normalize(parts[0] ?? "");
+  return (fullName.length >= 5 && text.includes(fullName)) ||
+    (coreName.length >= 5 && text.includes(coreName));
 }
 function evidence(text: string, kind: "price" | "schedule"): string[] {
   const re = kind === "price"
@@ -88,16 +90,7 @@ Deno.serve(async (req) => {
         .eq("id", job.source_id)
         .maybeSingle();
       if (sourceError) throw new Error("게시글 관련성 조회 실패: " + sourceError.message);
-      if (!source || !isRelevantBlog(String(job.studio_name), String(source.title ?? ""), String(source.description ?? ""))) {
-        const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
-          status: "rejected",
-          last_error: "학원명 또는 발레 수업 관련성이 확인되지 않아 본문 수집 제외",
-          updated_at: new Date().toISOString(),
-        }).eq("source_id", job.source_id);
-        if (rejectError) throw new Error("무관 게시글 제외 처리 실패: " + rejectError.message);
-        results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "관련성 부족" });
-        continue;
-      }
+      if (sourceError) throw new Error("게시글 관련성 조회 실패: " + sourceError.message);
       const postUrl = safeBlogUrl(job.post_url);
       if (!postUrl) throw new Error("네이버 블로그 도메인이 아닌 URL은 수집하지 않습니다.");
       const first = await fetchBlog(postUrl);
@@ -113,6 +106,16 @@ Deno.serve(async (req) => {
         }
       }
       const textBody = stripTags(html);
+      if (!source || !isRelevantBlog(String(job.studio_name), String(source.title ?? ""), String(source.description ?? ""), textBody)) {
+        const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
+          status: "rejected",
+          last_error: "본문·제목·요약에서 해당 학원명이 확인되지 않아 수집 제외",
+          updated_at: new Date().toISOString(),
+        }).eq("source_id", job.source_id);
+        if (rejectError) throw new Error("무관 게시글 제외 처리 실패: " + rejectError.message);
+        results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "학원명 미확인" });
+        continue;
+      }
       const images = extractImages(html, pageUrl);
       const prices = evidence(textBody, "price");
       const schedules = evidence(textBody, "schedule");
