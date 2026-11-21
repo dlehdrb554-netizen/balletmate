@@ -41,21 +41,40 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
   if (networkSearches >= MAX_NETWORK_SEARCHES_PER_APP_SESSION) throw new Error("이번 앱 실행 중 지도 검색 한도(40회)에 도달했습니다. 잠시 후 앱을 다시 실행해 주세요.");
   networkSearches += 1;
 
-  let query = supabase
-    .from("studios")
-    .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at")
-    .eq("is_active", true)
-    .limit(300);
-  if (bounds) {
-    query = query
+  const applyBounds = (query: any) => {
+    if (!bounds) return query;
+    return query
       .gte("latitude", bounds.latitude - bounds.latitudeDelta / 2)
       .lte("latitude", bounds.latitude + bounds.latitudeDelta / 2)
       .gte("longitude", bounds.longitude - bounds.longitudeDelta / 2)
       .lte("longitude", bounds.longitude + bounds.longitudeDelta / 2);
+  };
+
+  let result = await applyBounds(supabase
+    .from("studios")
+    .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at")
+    .eq("is_active", true)
+    .limit(300));
+
+  // Keep map discovery working on projects that have not run studio_media.sql yet.
+  if (result.error && /image_urls|image_source_name|image_checked_at/i.test(result.error.message)) {
+    result = await applyBounds(supabase
+      .from("studios")
+      .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url")
+      .eq("is_active", true)
+      .limit(300));
+    if (!result.error && result.data) {
+      result.data = result.data.map((row) => ({
+        ...row,
+        image_urls: [],
+        image_source_name: null,
+        image_checked_at: null,
+      }));
+    }
   }
-  const { data, error } = await query;
-  if (error) throw error;
-  const rows = data ?? [];
+
+  if (result.error) throw result.error;
+  const rows = (result.data ?? []) as StudioRecord[];
   studioCache.set(key, { savedAt: Date.now(), rows });
   return rows;
 }
