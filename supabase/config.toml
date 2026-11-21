@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.studio-discovery-worker]
 verify_jwt = false
+
+[functions.search-studio-blogs]
+verify_jwt = false
