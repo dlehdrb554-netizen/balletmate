@@ -11,8 +11,7 @@ ALTER TABLE public.studio_image_ocr_results
   ADD COLUMN IF NOT EXISTS schedule_time text;
 
 CREATE UNIQUE INDEX IF NOT EXISTS studio_image_ocr_source_image_uidx
-  ON public.studio_image_ocr_results(source_id, image_url)
-  WHERE source_id IS NOT NULL AND image_url IS NOT NULL;
+  ON public.studio_image_ocr_results(source_id, image_url);
 
 CREATE INDEX IF NOT EXISTS studio_image_ocr_amount_idx
   ON public.studio_image_ocr_results(studio_id, amount_krw)
