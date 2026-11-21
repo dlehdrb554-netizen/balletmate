@@ -35,7 +35,6 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
 export default function Home() {
   const router = useRouter();
   const map = useRef<MapView>(null);
-  const suppressRegionChangeRef = useRef(false);
   const [studios,setStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
   const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");
   const [region,setRegion]=useState(INITIAL);
@@ -94,11 +93,11 @@ export default function Home() {
       if(status!=="granted"){setLocationGranted(false);Alert.alert("위치 권한","권한이 없어 기본 지역에서 지도를 표시합니다. 설정에서 위치 권한을 허용할 수 있어요.");return;}
       const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
       const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-      suppressRegionChangeRef.current=true;map.current?.animateToRegion(r,650);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setMapMoved(false);
+      map.current?.animateToRegion(r,650);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setMapMoved(false);
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
-  useEffect(()=>{let active=true;const initializeLocation=async()=>{try{let permission=await Location.getForegroundPermissionsAsync();if(permission.status==="undetermined")permission=await Location.requestForegroundPermissionsAsync();if(!active)return;setLocationGranted(permission.status==="granted");if(permission.status!=="granted")return;const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});if(!active)return;const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.04,longitudeDelta:0.04};suppressRegionChangeRef.current=true;map.current?.animateToRegion(r,500);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setMapMoved(false);}catch{if(active)setLocationGranted(false);}};initializeLocation();return()=>{active=false;};},[]);
+  useEffect(()=>{let active=true;const initializeLocation=async()=>{try{let permission=await Location.getForegroundPermissionsAsync();if(permission.status==="undetermined")permission=await Location.requestForegroundPermissionsAsync();if(!active)return;setLocationGranted(permission.status==="granted");if(permission.status!=="granted")return;const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});if(!active)return;const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.04,longitudeDelta:0.04};map.current?.animateToRegion(r,500);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setMapMoved(false);}catch{if(active)setLocationGranted(false);}};initializeLocation();return()=>{active=false;};},[]);
   useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,cache])=>{if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))setFavoriteIds(parsed.filter(x=>typeof x==="string"));}if(cache){const parsed=JSON.parse(cache);if(Array.isArray(parsed))setFavoriteStudios(parsed);}}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
   useEffect(()=>{if(favoritesReady){AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});AsyncStorage.setItem("balletmate.favoriteStudios.v1",JSON.stringify(favoriteStudios)).catch(()=>{});}},[favoriteIds,favoriteStudios,favoritesReady]);
   const favoriteSyncUser=useRef<string|null>(null);
@@ -173,7 +172,7 @@ export default function Home() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFilters}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/><Chip label="쿠폰" active={coupon} onPress={()=>setCoupon(!coupon)}/><Chip label="초급" active={level==="초급"} onPress={()=>setLevel(level==="초급"?null:"초급")}/><Chip label="전체" onPress={resetFilters}/></ScrollView>
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
-        <MapView ref={map} style={StyleSheet.absoluteFill} initialRegion={INITIAL} onRegionChangeComplete={r=>{setRegion(r);if(suppressRegionChangeRef.current){suppressRegionChangeRef.current=false;return;}setMapMoved(true);}} showsUserLocation={locationGranted} showsMyLocationButton={false} onPress={()=>setSelected(null)}>
+        <MapView ref={map} style={StyleSheet.absoluteFill} initialRegion={INITIAL} onRegionChangeComplete={r=>{setRegion(r);setMapMoved(true);}} showsUserLocation={locationGranted} showsMyLocationButton={false} onPress={()=>setSelected(null)}>
           {results.map(s=><Marker key={s.id} coordinate={{latitude:s.lat,longitude:s.lng}} onPress={()=>{setSelected(s);}} tracksViewChanges={false}><View style={[styles.pin,selected?.id===s.id&&styles.pinSelected]}><Text style={[styles.pinText,selected?.id===s.id&&styles.pinTextSelected]}>{s.price>0?"₩"+Math.round(s.price/1000)+"k":"문의"}</Text></View></Marker>)}
         </MapView>
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"} onPress={searchArea}><Text style={styles.areaSearchText}>⌕  이 지역에서 재검색</Text></Pressable>}
