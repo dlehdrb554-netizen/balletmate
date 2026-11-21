@@ -5,6 +5,9 @@ alter table public.studios
   add column if not exists source_url text,
   add column if not exists source_name text,
   add column if not exists verified_at timestamptz,
+  add column if not exists image_urls text[] not null default '{}',
+  add column if not exists image_source_name text,
+  add column if not exists image_checked_at timestamptz,
   add column if not exists image_usage_note text;
 
 create table if not exists public.studio_image_crawl_queue (
