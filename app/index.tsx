@@ -25,7 +25,8 @@ const DATA: Studio[] = [
   {id:"s6",name:"플리에 발레 아카데미",lat:37.6530,lng:126.8578,area:"고양시 덕양구",tags:["성인","키즈","중급"],price:28000,coupon:false,adult:true,kids:true,level:["초급","중급"],days:["평일","주말"],time:"오전 · 오후 · 저녁",duration:60,rating:4.8,description:"연령별·수준별 클래스 운영."}
 ];
 const INITIAL: Region = {latitude:37.658,longitude:126.812,latitudeDelta:0.055,longitudeDelta:0.055};
-const distanceKm=(lat1:number,lon1:number,lat2:number,lon2:number)=>{const rad=(n:number)=>n*Math.PI/180;const dLat=rad(lat2-lat1),dLon=rad(lon2-lon1);const a=Math.sin(dLat/2)**2+Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2;return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));};\nconst COLORS = {ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",bg:"#FAF9FC",line:"#EAE7F0",white:"#FFFFFF",pink:"#F8E8F1"};
+const distanceKm=(lat1:number,lon1:number,lat2:number,lon2:number)=>{const rad=(n:number)=>n*Math.PI/180;const dLat=rad(lat2-lat1),dLon=rad(lon2-lon1);const a=Math.sin(dLat/2)**2+Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2;return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));};
+const COLORS = {ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",bg:"#FAF9FC",line:"#EAE7F0",white:"#FFFFFF",pink:"#F8E8F1"};
 
 function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>void}) {
   return <Pressable onPress={onPress} style={[styles.chip,active&&styles.chipActive]}><Text style={[styles.chipText,active&&styles.chipTextActive]}>{label}</Text></Pressable>;
@@ -56,7 +57,9 @@ export default function Home() {
   const [level,setLevel]=useState<string|null>(null);
   const [dayFilter,setDayFilter]=useState<string|null>(null);
   const [timeFilter,setTimeFilter]=useState<string|null>(null);
-  const [maxPrice,setMaxPrice]=useState<number|null>(null);\n  const [durationFilter,setDurationFilter]=useState<number|null>(null);\n  const [maxDistance,setMaxDistance]=useState<number|null>(null);
+  const [maxPrice,setMaxPrice]=useState<number|null>(null);
+  const [durationFilter,setDurationFilter]=useState<number|null>(null);
+  const [maxDistance,setMaxDistance]=useState<number|null>(null);
   const [locationLoading,setLocationLoading]=useState(false);
   const [locationGranted,setLocationGranted]=useState(false);
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);
@@ -70,7 +73,9 @@ export default function Home() {
     if(level&&!s.level.includes(level))return false;
     if(dayFilter&&!s.days.includes(dayFilter))return false;
     if(timeFilter&&!s.time.includes(timeFilter))return false;
-    if(maxPrice!==null&&(!s.price||s.price>maxPrice))return false;\n    if(durationFilter!==null&&s.duration!==durationFilter)return false;\n    if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
+    if(maxPrice!==null&&(!s.price||s.price>maxPrice))return false;
+    if(durationFilter!==null&&s.duration!==durationFilter)return false;
+    if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
     if(areaLocked){
       const latSpan=searchedRegion.latitudeDelta/2;
       const lngSpan=searchedRegion.longitudeDelta/2;
