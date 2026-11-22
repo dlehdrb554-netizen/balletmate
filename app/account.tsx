@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -103,7 +104,7 @@ export default function Account(){
     <Text style={s.sub}>로그인 없이도 학원 탐색과 찜을 이용할 수 있어요.</Text>
     {session?
      <View style={s.card}>
-      <View style={s.avatar}><Text style={{fontSize:24}}>🩰</Text></View>
+      <View style={s.avatar}><MaterialCommunityIcons name="human-female-dance" size={30} color={C.purple} /></View>
       <Text style={s.name}>{display||"회원"}</Text>
       <Text style={s.sub}>로그인 중</Text>
       <Pressable style={s.primary} onPress={logout}><Text style={s.primaryText}>로그아웃</Text></Pressable>
@@ -143,7 +144,7 @@ export default function Account(){
 }
 
 const s=StyleSheet.create({
- safe:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:12,paddingBottom:24},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
+ safe:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:8,paddingBottom:24},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
  brand:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:18},title:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:14},
  sub:{fontSize:13,color:C.muted,marginTop:8,lineHeight:19},card:{backgroundColor:"#fff",borderRadius:18,borderWidth:1,borderColor:C.line,padding:16,marginTop:20},
  tabs:{flexDirection:"row",backgroundColor:"#F5F3F8",padding:4,borderRadius:12,marginBottom:12},tab:{flex:1,alignItems:"center",padding:10,borderRadius:9},
