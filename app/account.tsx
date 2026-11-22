@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable,, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
@@ -142,16 +143,16 @@ export default function Account(){
 }
 
 const s=StyleSheet.create({
- safe:{flex:1,backgroundColor:C.bg},content:{padding:20,paddingBottom:40},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
- brand:{fontSize:24,fontWeight:"900",color:C.ink,marginTop:25},title:{fontSize:24,fontWeight:"900",color:C.ink,marginTop:18},
- sub:{fontSize:13,color:C.muted,marginTop:8,lineHeight:19},card:{backgroundColor:"#fff",borderRadius:20,borderWidth:1,borderColor:C.line,padding:18,marginTop:25},
+ safe:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:12,paddingBottom:24},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
+ brand:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:18},title:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:14},
+ sub:{fontSize:13,color:C.muted,marginTop:8,lineHeight:19},card:{backgroundColor:"#fff",borderRadius:18,borderWidth:1,borderColor:C.line,padding:16,marginTop:20},
  tabs:{flexDirection:"row",backgroundColor:"#F5F3F8",padding:4,borderRadius:12,marginBottom:12},tab:{flex:1,alignItems:"center",padding:10,borderRadius:9},
  tabOn:{backgroundColor:"#fff"},tabTxt:{color:C.muted,fontWeight:"700"},tabTxtOn:{color:C.purple,fontWeight:"800"},
- label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:12,marginBottom:7},input:{height:48,borderWidth:1,borderColor:C.line,borderRadius:12,paddingHorizontal:12,fontSize:14,color:C.ink},
+ label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:12,marginBottom:7},input:{height:46,borderWidth:1,borderColor:C.line,borderRadius:12,paddingHorizontal:12,fontSize:14,color:C.ink},
  row:{flexDirection:"row",alignItems:"center",gap:8},smallBtn:{backgroundColor:C.purple,borderRadius:11,paddingHorizontal:12,height:46,justifyContent:"center"},
  smallBtnText:{color:"#fff",fontWeight:"800",fontSize:12},verified:{backgroundColor:C.green},feedback:{fontSize:11,fontWeight:"700",marginTop:5,minHeight:15},
- primary:{backgroundColor:C.purple,height:49,borderRadius:13,alignItems:"center",justifyContent:"center",marginTop:20},primaryText:{color:"#fff",fontWeight:"900"},
+ primary:{backgroundColor:C.purple,height:46,borderRadius:13,alignItems:"center",justifyContent:"center",marginTop:20},primaryText:{color:"#fff",fontWeight:"900"},
  note:{fontSize:11,color:C.muted,lineHeight:17,marginTop:12},avatar:{height:58,width:58,borderRadius:19,backgroundColor:C.pale,alignItems:"center",justifyContent:"center",alignSelf:"center"},
- name:{fontSize:20,color:C.ink,fontWeight:"900",textAlign:"center",marginTop:12},info:{backgroundColor:C.pale,padding:15,borderRadius:14,marginTop:18},
+ name:{fontSize:20,color:C.ink,fontWeight:"900",textAlign:"center",marginTop:12},info:{backgroundColor:C.pale,padding:13,borderRadius:14,marginTop:18},
  infoTitle:{fontWeight:"900",color:C.purple,marginBottom:6}
 });
