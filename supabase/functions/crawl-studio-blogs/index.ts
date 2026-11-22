@@ -294,7 +294,7 @@ Deno.serve(async (req) => {
         if (photoError) photoCandidateWarning = photoError.message;
         else if (queuedPhotos?.length) {
           // Newly discovered blog photos are analyzed and published/excluded immediately.
-          const classifierEndpoint = url.replace(/\\/$/, "") + "/functions/v1/classify-studio-photo";
+          const classifierEndpoint = url.replace(/\/$/, "") + "/functions/v1/classify-studio-photo";
           let aiProcessed = 0, aiFailed = 0;
           for (const photo of queuedPhotos) {
             try {
