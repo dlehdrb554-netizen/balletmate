@@ -278,6 +278,20 @@ Deno.serve(async (req) => {
         continue;
       }
       const images = extractImages(html, pageUrl);
+      let photoCandidateWarning: string | null = null;
+      if (images.length) {
+        const photoCandidates = images.map((image_url) => ({
+          studio_id: job.studio_id,
+          studio_name: String(job.studio_name),
+          image_url,
+          source_page_url: postUrl.toString(),
+          source_host: postUrl.hostname,
+          review_status: "pending",
+        }));
+        const { error: photoError } = await db.from("studio_photo_candidates")
+          .upsert(photoCandidates, { onConflict: "studio_id,image_url", ignoreDuplicates: true });
+        if (photoError) photoCandidateWarning = photoError.message;
+      }
       const prices = evidence(textBody, "price");
       const schedules = evidence(textBody, "schedule");
       const evidenceCandidates = [
@@ -303,7 +317,7 @@ Deno.serve(async (req) => {
         .update({ status: "completed", last_error: null, updated_at: new Date().toISOString() })
         .eq("source_id", job.source_id);
       if (doneError) throw new Error("완료 상태 저장 실패: " + doneError.message);
-      results.push({ sourceId: job.source_id, studio: job.studio_name, textLength: textBody.length, images: images.length, priceEvidence: prices.length, scheduleEvidence: schedules.length, status, ...(candidateWarning ? { candidateWarning } : {}) });
+      results.push({ sourceId: job.source_id, studio: job.studio_name, textLength: textBody.length, images: images.length, priceEvidence: prices.length, scheduleEvidence: schedules.length, status, ...(candidateWarning ? { candidateWarning } : {}), ...(photoCandidateWarning ? { photoCandidateWarning } : {}) });
     } catch (e) {
       const message = e instanceof Error ? e.message : "알 수 없는 오류";
       const terminal = Number(job.attempts) >= 4;
