@@ -32,7 +32,9 @@ function parseOcrFields(text:string){
   const weekMatch=compact.match(/(\d+)\s*주(?:간)?/);
   const ticketMatch=compact.match(/(\d+)\s*회\s*(?:권|수강권|이용권|패키지)/);
   const countMatch=compact.match(/(\d+)\s*회\s*(?=(?:수업|레슨|이용|패키지|권|\d+\s*원|\d+\s*만))/);
-  const price_period=monthMatch?monthMatch[1]+"개월":weekMatch?weekMatch[1]+"주":/(연간|1년|연\s*(?:수강료|회비|등록비|비용|가격))/.test(compact)?"연 단위":/(매월|월\s*(?:수강료|회비|등록비|비용|가격)|월간|한\s*달|월\s*\d+\s*회)/.test(compact)?"월 단위":ticketMatch?ticketMatch[1]+"회권":countMatch?countMatch[1]+"회":/(1회당|회당|원데이|일일\s*(?:수강|체험))/.test(compact)?"1회":"기간 미확인";
+  const weeklyFrequency=compact.match(/주\s*(\d+)\s*회/);
+  const sessionCount=countMatch&&!(weeklyFrequency&&countMatch[1]===weeklyFrequency[1])?countMatch:null;
+  const price_period=monthMatch?monthMatch[1]+"개월":weekMatch?weekMatch[1]+"주":/(연간|1년|연\s*(?:수강료|회비|등록비|비용|가격))/.test(compact)?"연 단위":/(매월|월\s*(?:수강료|회비|등록비|비용|가격)|월간|한\s*달|월\s*\d+\s*회)/.test(compact)?"월 단위":ticketMatch?ticketMatch[1]+"회권":sessionCount?sessionCount[1]+"회":/(1회당|회당|원데이|일일\s*(?:수강|체험))/.test(compact)?"1회":"기간 미확인";
   const freqMatch=compact.match(/주\s*(\d{1,2})\s*회/);
   const frequencyCandidate=freqMatch?Number(freqMatch[1]):null;
   const frequency_per_week=frequencyCandidate&&frequencyCandidate>=1&&frequencyCandidate<=14?frequencyCandidate:null;
