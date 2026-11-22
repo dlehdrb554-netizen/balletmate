@@ -95,17 +95,19 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
   const tokens=term.split(/\s+/).filter(token=>token.length>=2);
   const patterns=[`name.ilike.%${term}%`,`address.ilike.%${term}%`,`district.ilike.%${term}%`];
   if(compact.length>=2&&compact!==term)patterns.push(`name.ilike.%${compact}%`,`address.ilike.%${compact}%`);
-  const {data,error}=await supabase.from("studios").select(columns).eq("is_active",true)
-    .or(patterns.join(",")).order("name").limit(100);
-  if(error)throw error;
-  const rows=(data||[]) as any[];
+  const searchQuery=(table:"studio_map_search_app"|"studios",needle:string)=>supabase!.from(table).select(columns)
+    .eq("is_active",true).or(needle).order("name").limit(100);
+  let result=await searchQuery("studio_map_search_app",patterns.join(","));
+  if(result.error)result=await searchQuery("studios",patterns.join(","));
+  if(result.error)throw result.error;
+  const rows=(result.data||[]) as any[];
   // Korean multi-word queries often contain both a neighborhood and an academy name.
   // If the full phrase has no match, search meaningful tokens independently and intersect loosely.
   if(rows.length||tokens.length<2)return rows.map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
   const tokenResults=await Promise.all(tokens.slice(0,3).map(async token=>{
-    const result=await supabase!.from("studios").select(columns).eq("is_active",true)
-      .or([`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`].join(","))
-      .order("name").limit(100);
+    const filter=[`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`].join(",");
+    let result=await searchQuery("studio_map_search_app",filter);
+    if(result.error)result=await searchQuery("studios",filter);
     if(result.error)throw result.error;
     return result.data||[];
   }));
