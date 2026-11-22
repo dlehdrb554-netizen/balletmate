@@ -474,7 +474,7 @@ export default function Admin() {
     }
     setPhotoAutoScanBusy(false);
     await loadPhotoCandidates();
-    Alert.alert("사진 자동 처리 완료",`전체 ${targets.length}장 · 분석 ${success}장 · 공개 연계 ${published}장 · 제외 ${excluded}장 · 실패 ${failed}장\\nAI가 발레 관련 사진은 학원 갤러리에 자동 연계하고, 인물·무관·판단 불가 및 신뢰도 낮은 사진은 제외했습니다.`);
+    Alert.alert("사진 자동 처리 완료",`전체 ${targets.length}장 · 분석 ${success}장 · 공개 연계 ${published}장 · 제외 ${excluded}장 · 실패 ${failed}장\\nAI가 발레 관련 사진은 갤러리에 자동 연계하고, 인물·무관·판단 불가 및 신뢰도 낮은 사진은 제외했습니다.`);
   };
   const classifyPhotoMaterial=async(item:any,type:"price"|"schedule"|"other")=>{
     if(!supabase)return;
@@ -1411,12 +1411,12 @@ export default function Admin() {
     <Pressable onPress={loadPhotoCandidates} disabled={photoReviewBusy}><Text style={styles.refresh}>{photoReviewBusy?"조회 중…":"새로고침"}</Text></Pressable>
   </View>
   <Text style={styles.hint}>대기 {photoCandidateTotal.toLocaleString("ko-KR")}건 · 불러온 {photoCandidateRows.length}건 · 현재 탭 {photoFilteredCandidates.length}건</Text>
-  <Text style={styles.hint}>AI가 사진을 자동 판별해 발레 수업·시간표·가격표·포스터는 학원 갤러리에 자동 연계합니다. 인물·로고·무관·판단 불가 또는 신뢰도 72% 미만은 자동 제외합니다. OCR 없이 사진 유형만 판단합니다.</Text>
-  <View style={styles.photoFilterRow}><Pressable style={styles.secondary} disabled={photoAutoScanBusy||photoReviewBusy} onPress={runPhotoAutoScan}><Text style={styles.secondaryText}>{photoAutoScanBusy?"전체 사진 처리 중…":"전체 대기 사진 AI 자동 처리"}</Text></Pressable></View>
+  <Text style={styles.hint}>AI가 사진 내용을 분류해 발레 관련 사진·시간표·가격표·포스터·로고는 검수 없이 자동 연계합니다. 얼굴이 보이는 인물 사진·무관 이미지·판단 불가 또는 신뢰도 60% 미만은 자동 제외합니다. OCR은 하지 않습니다.</Text>
+  <View style={styles.photoFilterRow}><Pressable style={styles.secondary} disabled={photoAutoScanBusy||photoReviewBusy} onPress={runPhotoAutoScan}><Text style={styles.secondaryText}>{photoAutoScanBusy?"전체 사진 처리 중…":"전체 사진 자동 분류·등록"}</Text></Pressable></View>
   <View style={styles.photoFilterRow}>{([{key:"unclassified",label:"자료 미분류"},{key:"price",label:"가격"},{key:"schedule",label:"시간표"},{key:"other",label:"기타"},{key:"all",label:"전체"}] as {key:typeof photoMaterialFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoMaterialFilter(option.key)} style={[styles.photoFilterButton,photoMaterialFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoMaterialFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><View style={styles.photoFilterRow}>{([{key:"priority",label:"발레 우선"},{key:"ballet",label:"AI 발레 사진"},{key:"excluded",label:"AI 제외 후보"},{key:"suspect",label:"의심/보류"},{key:"all",label:"전체"}] as {key:PhotoAutoFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoAutoFilter(option.key)} style={[styles.photoFilterButton,photoAutoFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoAutoFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View>
-  {photoAutoFilter==="priority"&&<Text style={styles.hint}>AI가 발레 사진으로 판단한 사진을 우선 표시하고, 아직 분석되지 않은 사진은 기존 휴리스틱 기준으로 보여줍니다.</Text>}
-  {photoAutoFilter==="suspect"&&<Text style={styles.hint}>얼굴 감지 또는 AI가 발레 사진이 아닌 유형으로 판단한 사진을 검토합니다.</Text>}
-  {photoAutoFilter==="ballet"&&<Text style={styles.hint}>AI 분류가 발레 수업/학원 사진인 후보만 표시합니다.</Text>}{photoAutoFilter==="excluded"&&<Text style={styles.hint}>AI 분류가 발레 사진이 아닌 후보만 표시합니다. 자동 삭제는 하지 않습니다.</Text>}{photoAutoFilter==="all"&&<Text style={styles.hint}>AI 분류와 관계없이 불러온 후보 전체를 표시합니다.</Text>}
+  {photoAutoFilter==="priority"&&<Text style={styles.hint}>AI 자동 분류 결과를 우선 표시합니다. 자동 처리 실패 사진은 재시도 대상입니다.</Text>}
+  {photoAutoFilter==="suspect"&&<Text style={styles.hint}>AI가 인물·무관·판단 불가로 분류한 제외 사진입니다.</Text>}
+  {photoAutoFilter==="ballet"&&<Text style={styles.hint}>AI 분류가 발레 수업/학원 사진인 후보만 표시합니다.</Text>}{photoAutoFilter==="excluded"&&<Text style={styles.hint}>AI가 자동 제외 처리한 사진 유형입니다.</Text>}{photoAutoFilter==="all"&&<Text style={styles.hint}>AI 분류와 관계없이 불러온 후보 전체를 표시합니다.</Text>}
   {photoReviewBusy&&<ActivityIndicator color={c.purple}/>}
   {photoFilteredCandidates.map(item=><View key={"photo-candidate-"+item.id} style={styles.photoReviewCard}>
     
