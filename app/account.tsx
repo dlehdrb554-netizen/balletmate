@@ -38,7 +38,13 @@ export default function Account(){
    ]).then(([profile,role])=>{
     if(!active)return;
     const metadata=session.user.user_metadata||{};
-    setDisplay(profile.data?.username||metadata.full_name||metadata.name||metadata.nickname||session.user.email?.split("@")[0]||"소셜 회원");
+    const username=profile.data?.username||"";
+    if(username.startsWith("social_")){
+     setDisplay("가입 정보 설정 필요");
+     router.replace("/complete-profile");
+    }else{
+     setDisplay(username||metadata.full_name||metadata.name||metadata.nickname||session.user.email?.split("@")[0]||"회원");
+    }
     setAdminRole(!role.error&&role.data===true);
    });
   }else {setDisplay("");setAdminRole(null);}
