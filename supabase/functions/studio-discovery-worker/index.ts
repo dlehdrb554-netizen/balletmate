@@ -16,7 +16,7 @@ async function findHomepageCandidate(name:string,address:string|null,clientId:st
    const title=String(item.title||"").replace(/<[^>]*>/g,""),desc=String(item.description||"").replace(/<[^>]*>/g,"");
    const titleNorm=normalize(title),descNorm=normalize(desc);
    if(target.length>=4&&(titleNorm.includes(target)||descNorm.includes(target)))return link;
-   const parts=name.split(/[\\s·()\\-]+/).filter(x=>x.length>=2).map(normalize);
+   const parts=name.split(/[\s·()\-]+/).filter(x=>x.length>=2).map(normalize);
    if(parts.length>=2&&parts.every(part=>titleNorm.includes(part)))return link;
   }
  }catch{/* optional Naver homepage search */}
