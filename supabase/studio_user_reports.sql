@@ -28,3 +28,69 @@ for select to authenticated using (public.is_balletmate_admin());
 drop policy if exists "admins update studio reports" on public.studio_user_reports;
 create policy "admins update studio reports" on public.studio_user_reports
 for update to authenticated using (public.is_balletmate_admin()) with check (public.is_balletmate_admin());
+
+-- Admin RPCs: avoid PostgREST relationship resolution/RLS edge cases in the admin report list.
+create or replace function public.admin_list_studio_user_reports()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $reports_list$
+begin
+  if not public.is_balletmate_admin() then
+    raise exception 'Admin access required';
+  end if;
+
+  return coalesce((
+    select jsonb_agg(
+      jsonb_build_object(
+        'id', r.id,
+        'studio_id', r.studio_id,
+        'studio_name', s.name,
+        'reporter_id', r.reporter_id,
+        'category', r.category,
+        'description', r.description,
+        'status', r.status,
+        'admin_note', r.admin_note,
+        'created_at', r.created_at,
+        'reviewed_by', r.reviewed_by,
+        'reviewed_at', r.reviewed_at
+      ) order by r.created_at desc
+    )
+    from public.studio_user_reports r
+    left join public.studios s on s.id = r.studio_id
+  ), '[]'::jsonb);
+end;
+$reports_list$;
+
+create or replace function public.admin_update_studio_user_report(
+  p_report_id bigint,
+  p_status text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $reports_update$
+begin
+  if not public.is_balletmate_admin() then
+    raise exception 'Admin access required';
+  end if;
+  if p_status not in ('in_review','resolved','rejected') then
+    raise exception 'Invalid report status';
+  end if;
+
+  update public.studio_user_reports
+  set status = p_status,
+      reviewed_by = auth.uid(),
+      reviewed_at = now()
+  where id = p_report_id;
+
+  return found;
+end;
+$reports_update$;
+
+revoke all on function public.admin_list_studio_user_reports() from public, anon;
+revoke all on function public.admin_update_studio_user_report(bigint,text) from public, anon;
+grant execute on function public.admin_list_studio_user_reports() to authenticated;
+grant execute on function public.admin_update_studio_user_report(bigint,text) to authenticated;
