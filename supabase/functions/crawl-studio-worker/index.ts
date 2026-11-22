@@ -6,14 +6,31 @@ const json = (body: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST 요청만 허용됩니다." }, 405);
   const secret = Deno.env.get("CRAWL_WORKER_SECRET");
-  if (!secret || req.headers.get("x-crawl-secret") !== secret) return json({ error: "Unauthorized" }, 401);
+  const isWorkerRequest = Boolean(secret && req.headers.get("x-crawl-secret") === secret);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) return json({ error: "서버 환경설정이 누락되었습니다." }, 500);
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: jobs, error: claimError } = await adminClient.rpc("claim_studio_image_crawl_queue", { p_limit: 5 });
+  if (!isWorkerRequest) {
+    const authorization = req.headers.get("Authorization");
+    if (!authorization || !anonKey) return json({ error: "Worker secret 또는 관리자 로그인이 필요합니다." }, 401);
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: userData, error: authError } = await userClient.auth.getUser();
+    if (authError || !userData.user) return json({ error: "관리자 세션을 확인할 수 없습니다." }, 401);
+    const { data: admin } = await adminClient.from("admin_users").select("user_id").eq("user_id", userData.user.id).maybeSingle();
+    if (!admin) return json({ error: "관리자만 사진 자동 분류를 실행할 수 있습니다." }, 403);
+  }
+
+  // Scheduled requests also claim website-crawl jobs. Admin-triggered requests only process one Vision candidate.
+  const { data: jobs, error: claimError } = isWorkerRequest
+    ? await adminClient.rpc("claim_studio_image_crawl_queue", { p_limit: 5 })
+    : { data: [], error: null };
   if (claimError) return json({ error: "대기 작업 확보 실패: " + claimError.message }, 500);
 
   let crawlSucceeded = 0;
@@ -106,7 +123,7 @@ Deno.serve(async (req) => {
       });
       const usagePayload = await usageResponse.json().catch(() => ({}));
       const usageGroups = usagePayload?.data?.viewer?.accounts?.[0]?.aiInferenceAdaptiveGroups;
-      const neurons = usageGroups?.[0]?.sum?.totalNeurons;
+      const neurons = Array.isArray(usageGroups) && usageGroups.length === 0 ? 0 : usageGroups?.[0]?.sum?.totalNeurons;
       if (!usageResponse.ok || usagePayload?.errors?.length || !Array.isArray(usageGroups) || !Number.isFinite(Number(neurons))) {
         visionPauseReason = "Cloudflare Neurons 사용량을 확인할 수 없어 안전을 위해 자동 분류를 일시 중지했습니다.";
       } else {
@@ -123,15 +140,18 @@ Deno.serve(async (req) => {
   const { count: processedToday, error: countError } = await adminClient
     .from("studio_photo_candidates")
     .select("id", { count: "exact", head: true })
-    .in("review_status", ["approved", "rejected"])
-    .gte("reviewed_at", dayStart);
+    .gte("auto_classified_at", dayStart);
   if (countError) {
     return json({ crawlClaimed: jobs?.length || 0, crawlSucceeded, crawlFailed, crawlResults,
       visionProcessed: 0, visionFailed: 0, visionError: "일일 처리량 조회 실패: " + countError.message }, 500);
   }
 
+  const { count: pendingPhotoCandidates, error: pendingCountError } = await adminClient
+    .from("studio_photo_candidates")
+    .select("id", { count: "exact", head: true })
+    .eq("review_status", "pending");
   const dailyRemaining = Math.max(0, visionDailyLimit - (processedToday || 0));
-  const batchSize = visionPauseReason ? 0 : Math.min(1, dailyRemaining);
+  const batchSize = visionPauseReason || pendingCountError ? 0 : Math.min(1, dailyRemaining);
   let visionProcessed = 0;
   let visionFailed = 0;
   const visionResults: Array<{ candidateId: number; ok: boolean; detail?: string }> = [];
@@ -208,6 +228,9 @@ Deno.serve(async (req) => {
     visionFailed,
     visionDailyLimit,
     visionProcessedToday: processedToday || 0,
+    visionPendingCandidates: pendingPhotoCandidates ?? null,
+    visionPendingCountError: pendingCountError?.message ?? null,
+    triggerMode: isWorkerRequest ? "scheduled" : "admin_manual",
     cloudflareNeuronsToday: accountNeuronsToday,
     cloudflareNeuronPauseThreshold: neuronPauseThreshold,
     visionPaused: Boolean(visionPauseReason),
