@@ -28,7 +28,7 @@ async function findHomepageCandidate(name:string,address:string|null,clientId:st
     const exactName=target.length>=3&&(titleNorm.includes(target)||descNorm.includes(target));
     const allNameTokens=tokens.length>0&&tokens.every(token=>combined.includes(token));
     const meaningfulOverlap=tokens.length>=2&&tokens.filter(token=>combined.includes(token)).length>=2&&/(발레|ballet)/i.test(title+" "+desc);
-    const addressTokens=String(address||"").split(/[\\s,]+/).map(normalize).filter(token=>token.length>=3&&!/^(서울|인천|경기|대한민국)$/.test(token));
+    const addressTokens=String(address||"").split(/[\s,]+/).map(normalize).filter(token=>token.length>=3&&!/^(서울|인천|경기|대한민국)$/.test(token));
     const addressAndBallet=addressTokens.some(token=>combined.includes(token))&&/(발레|ballet|dance studio)/i.test(title+" "+desc);
     if(exactName||allNameTokens||meaningfulOverlap||addressAndBallet)return {url:link,error:null};
    }
