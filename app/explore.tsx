@@ -211,7 +211,7 @@ export default function Home() {
       const parsed=JSON.parse(raw);
       if(!parsed||!Array.isArray(parsed.ids)||!Array.isArray(parsed.studios))return;
       const studios:Studio[]=parsed.studios.filter((x:any)=>x&&typeof x.id==="string");
-      const validIds=[...new Set(parsed.ids.filter((id:any)=>typeof id==="string"))].slice(0,3);
+      const validIds: string[]=[...new Set<string>((parsed.ids as unknown[]).filter((id): id is string=>typeof id==="string"))].slice(0,3);
       const available=new Set(studios.map(x=>x.id));
       setCompareIds(validIds.filter(id=>available.has(id)));
       setCompareCache(studios.filter(x=>validIds.includes(x.id)));
