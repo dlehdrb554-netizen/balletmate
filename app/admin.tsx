@@ -454,13 +454,10 @@ export default function Admin() {
     try{
       const isPrice=kind==="price";
       const offset=isPrice?publicPriceOffset:publicScheduleOffset;
-      const table=isPrice?"studio_public_prices":"studio_public_schedules";
-      const columns=isPrice
-        ?"id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active,image_urls"
-        :"id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active,image_urls";
-      const baseQuery=supabase.from(table).select(columns);
-      const filteredQuery=isPrice?baseQuery.eq("is_active",true):baseQuery;
-      const {data,error}=await filteredQuery.order("published_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+99);
+      const result:any=isPrice
+        ? await supabase.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active,image_urls").eq("is_active",true).order("published_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+99)
+        : await supabase.from("studio_public_schedules").select("id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active,image_urls").order("published_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+99);
+      const {data,error}=result;
       if(error)throw error;
       const page=data||[];
       const ids=[...new Set(page.map((row:any)=>row.studio_id).filter(Boolean))];
