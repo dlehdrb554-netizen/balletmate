@@ -110,7 +110,7 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
  */
 export async function searchStudiosByKakao(query: string): Promise<StudioRecord[]> {
   if (!supabase) return [];
-  const term = query.trim().replace(/\\s+/g, " ");
+  const term = query.trim().replace(/\s+/g, " ");
   if (term.length < 2) return [];
   const { data, error } = await supabase.functions.invoke("search-studios-kakao", {
     body: { query: term },
