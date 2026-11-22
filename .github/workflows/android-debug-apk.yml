@@ -17,7 +17,7 @@ on:
       - "package-lock.json"
 
 concurrency:
-  group: balletmate-ocr-ui-final-${{ github.ref }}
+  group: balletmate-photo-ai-filter-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
