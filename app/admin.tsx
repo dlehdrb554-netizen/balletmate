@@ -458,8 +458,16 @@ export default function Admin() {
     setPhotoAiTestBusy(true);
     try{
       const {data,error}=await supabase.functions.invoke("classify-studio-photo",{body:{action:"connection_test"}});
-      if(error||data?.ok!==true){
-        const detail=[data?.error||error?.message||"연결 테스트 실패",data?.stage?"단계: "+data.stage:"",data?.status?"HTTP "+data.status:"",data?.detail||""].filter(Boolean).join("\n");
+      let functionErrorBody:any=null;
+      if(error?.context){
+        try{functionErrorBody=await error.context.clone().json();}catch{
+          try{functionErrorBody={detail:await error.context.clone().text()};}catch{}
+        }
+      }
+      const failure=data?.ok!==true||!!error;
+      if(failure){
+        const payload=data||functionErrorBody||{};
+        const detail=[payload?.error||error?.message||"연결 테스트 실패",payload?.stage?"단계: "+payload.stage:"",payload?.status?"Cloudflare HTTP "+payload.status:"",payload?.detail||payload?.message||""].filter(Boolean).join("\n");
         Alert.alert("Cloudflare AI 연결 실패",detail);
       }else{
         Alert.alert("Cloudflare AI 연결 성공","모델: "+data.model+"\nMeta 라이선스 요청: "+(data.licenseAccepted?"성공":"응답 확인 필요")+"\n이미지 추론: "+data.inference+"\n\n모델 응답:\n"+data.response+"\n\n테스트는 샘플 이미지로 진행했으며 기존 사진 후보와 학원 데이터는 변경하지 않았습니다.");
