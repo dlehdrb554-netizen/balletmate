@@ -8,11 +8,16 @@ Deno.serve(async(req)=>{
  const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),key=Deno.env.get("GOOGLE_GEMINI_API_KEY");
  if(!url||!anon||!service)return json({error:"Server configuration missing"},500);
  if(!key)return json({error:"GOOGLE_GEMINI_API_KEY secret missing"},503);
- const auth=req.headers.get("Authorization");if(!auth)return json({error:"Login required"},401);
- const userClient=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
- const {data:user,error:userError}=await userClient.auth.getUser();if(userError||!user.user)return json({error:"Invalid session"},401);
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
- const {data:admin}=await db.from("admin_users").select("user_id").eq("user_id",user.user.id).maybeSingle();if(!admin)return json({error:"Admin only"},403);
+ const internal=req.headers.get("x-photo-auto-secret")===service;
+ let userId:string|null=null;
+ if(!internal){
+  const auth=req.headers.get("Authorization");if(!auth)return json({error:"Login required"},401);
+  const userClient=createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
+  const {data:user,error:userError}=await userClient.auth.getUser();if(userError||!user.user)return json({error:"Invalid session"},401);
+  const {data:admin}=await db.from("admin_users").select("user_id").eq("user_id",user.user.id).maybeSingle();if(!admin)return json({error:"Admin only"},403);
+  userId=user.user.id;
+ }
  let body:any;try{body=await req.json();}catch{return json({error:"Invalid JSON"},400);}
  if(!Number.isInteger(body.candidateId))return json({error:"candidateId required"},400);
  const {data:candidate,error:candidateError}=await db.from("studio_photo_candidates").select("id,studio_id,studio_name,image_url,source_page_url,review_status").eq("id",body.candidateId).eq("review_status","pending").single();
@@ -34,7 +39,7 @@ Deno.serve(async(req)=>{
  const keep=["ballet_class","schedule","price","poster"].includes(result.category)&&result.confidence>=0.72;
  const materialType=result.category==="schedule"?"schedule":result.category==="price"?"price":null;
  const now=new Date().toISOString();
- const {error:updateError}=await db.from("studio_photo_candidates").update({auto_classification:result.category,auto_confidence:result.confidence,auto_reason:result.reason,auto_classified_at:now,material_type:materialType,review_status:keep?"approved":"rejected",reviewed_at:now,reviewed_by:user.user.id}).eq("id",candidate.id).eq("review_status","pending");
+ const {error:updateError}=await db.from("studio_photo_candidates").update({auto_classification:result.category,auto_confidence:result.confidence,auto_reason:result.reason,auto_classified_at:now,material_type:materialType,review_status:keep?"approved":"rejected",reviewed_at:now,reviewed_by:userId}).eq("id",candidate.id).eq("review_status","pending");
  if(updateError)return json({error:updateError.message},500);
  const {data:studio,error:studioError}=await db.from("studios").select("image_urls,image_source_name,image_usage_note").eq("id",candidate.studio_id).single();
  if(studioError)return json({error:"Classified, but studio gallery update failed: "+studioError.message},500);
