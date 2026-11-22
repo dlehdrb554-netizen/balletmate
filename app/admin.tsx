@@ -146,6 +146,20 @@ export default function Admin() {
     return ()=>subscription.unsubscribe();
   },[checkAdmin]);
 
+  const requeueStudioBlogSearch=(studio:StudioRow)=>{
+    if(!supabase)return;
+    Alert.alert("블로그 검색 다시 요청",studio.name+"의 네이버 블로그 검색을 대기열에 다시 등록할까요?",[
+      {text:"취소",style:"cancel"},
+      {text:"요청",onPress:async()=>{
+        setBusy(true);
+        const {error}=await supabase!.rpc("admin_requeue_studio_blog_search",{p_studio_id:studio.id});
+        if(error)Alert.alert("요청 실패",error.message);
+        else Alert.alert("요청 등록","검색 대기열에 등록했습니다. 자동 작업이 순차적으로 처리합니다.");
+        setBusy(false);await loadDashboard();
+      }}
+    ]);
+  };
+
   const retryFailedQueues=async()=>{
     const client=supabase;
     if(!client)return;
@@ -881,7 +895,7 @@ export default function Admin() {
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원 · {visibleStudioRows.length}/{rows.length}</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>
       <TextInput style={styles.input} value={studioSearch} onChangeText={setStudioSearch} placeholder="학원명·지역·주소·전화 검색" autoCapitalize="none"/>
       <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"missing_photo",label:"사진 없음"},{key:"missing_website",label:"홈페이지 없음"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>setStudioListFilter(option.key)}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
-      {visibleStudioRows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>{setClassStudio(r);resetClass();}}><Text style={styles.action}>수업관리</Text></Pressable><Pressable onPress={()=>uploadPhotos(r.id,r.name)} disabled={busy||((r.image_urls||[]).length>=10)}><Text style={styles.action}>사진 업로드</Text></Pressable><Pressable onPress={()=>runBlogImageOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"블로그 OCR"}</Text></Pressable><Pressable onPress={()=>runLocalOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"사진 OCR"}</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
+      {visibleStudioRows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>{setClassStudio(r);resetClass();}}><Text style={styles.action}>수업관리</Text></Pressable><Pressable onPress={()=>uploadPhotos(r.id,r.name)} disabled={busy||((r.image_urls||[]).length>=10)}><Text style={styles.action}>사진 업로드</Text></Pressable><Pressable onPress={()=>requeueStudioBlogSearch(r)} disabled={busy}><Text style={styles.action}>블로그 검색 재요청</Text></Pressable><Pressable onPress={()=>runBlogImageOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"블로그 OCR"}</Text></Pressable><Pressable onPress={()=>runLocalOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"사진 OCR"}</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
       {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}{rows.length>0&&!visibleStudioRows.length&&<Text style={styles.hint}>검색/필터 조건에 맞는 학원이 없습니다.</Text>}
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
