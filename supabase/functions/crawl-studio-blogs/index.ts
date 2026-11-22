@@ -141,7 +141,7 @@ function pricePeriod(line: string): { label: string; frequencyPerWeek: number | 
   const sessions = line.match(/(\d+)\s*회\s*(?:권|수강권|이용권|패키지)/);
   if (sessions) return { label: sessions[1] + "회권", frequencyPerWeek };
   const count = line.match(/(\d+)\s*회\s*(?=(?:수업|레슨|이용|패키지|권|\d+\s*원|\d+\s*만))/);
-  if (count) return { label: count[1] + "회", frequencyPerWeek };
+  if (count && !(frequency && Number(count[1]) === frequencyPerWeek && /주\s*\d+\s*회/.test(line))) return { label: count[1] + "회", frequencyPerWeek };
   if (/(1회당|회당|1회\s*(?:수강료|가격)|원데이|일일\s*(?:수강|체험))/.test(line)) {
     return { label: "1회", frequencyPerWeek };
   }
