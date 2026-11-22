@@ -57,7 +57,11 @@ begin
         'reviewed_at', r.reviewed_at
       ) order by r.created_at desc
     )
-    from public.studio_user_reports r
+    from (
+      select * from public.studio_user_reports
+      order by created_at desc
+      limit 40
+    ) r
     left join public.studios s on s.id = r.studio_id
   ), '[]'::jsonb);
 end;
