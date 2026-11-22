@@ -36,7 +36,11 @@ export async function fetchStudioBlogPosts(studioId: string): Promise<StudioBlog
       p_studio_id: studioId,
     });
     if (error) throw error;
-    const rows = (Array.isArray(data) ? data : []) as StudioBlogPost[];
+    const rows = (Array.isArray(data) ? data : []).map((post:any)=>({
+      ...post,
+      // Keep the app's retained photo payload small: at most three distinct HTTPS photos per post.
+      image_urls:[...new Set((Array.isArray(post.image_urls)?post.image_urls:[]).filter((url:any)=>typeof url==="string"&&/^https:\/\//i.test(url)))].slice(0,3),
+    })) as StudioBlogPost[];
     blogCache.set(studioId, { savedAt: Date.now(), rows });
     return rows;
   })().catch((error) => {
