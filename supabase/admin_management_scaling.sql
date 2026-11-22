@@ -77,3 +77,25 @@ GRANT EXECUTE ON FUNCTION public.admin_delete_studio_photo_candidate(bigint) TO 
 
 COMMENT ON FUNCTION public.admin_clear_discovery_runs() IS
   'Clears operational discovery/error/duplicate-run history only; does not change studio records or undo deduplication.';
+
+
+CREATE OR REPLACE FUNCTION public.admin_published_candidate_ids()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE result jsonb;
+BEGIN
+  IF NOT public.is_balletmate_admin() THEN
+    RAISE EXCEPTION 'admin access required' USING ERRCODE = '42501';
+  END IF;
+  SELECT jsonb_build_object(
+    'prices', COALESCE((SELECT jsonb_agg(DISTINCT candidate_id) FROM public.studio_public_prices WHERE candidate_id IS NOT NULL), '[]'::jsonb),
+    'schedules', COALESCE((SELECT jsonb_agg(DISTINCT candidate_id) FROM public.studio_public_schedules WHERE candidate_id IS NOT NULL), '[]'::jsonb)
+  ) INTO result;
+  RETURN result;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.admin_published_candidate_ids() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_published_candidate_ids() TO authenticated;
