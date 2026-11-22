@@ -99,3 +99,30 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_published_candidate_ids() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_published_candidate_ids() TO authenticated;
+
+
+CREATE OR REPLACE FUNCTION public.admin_delete_verified_evidence_candidate(
+  p_candidate_id bigint,
+  p_candidate_type text
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_balletmate_admin() THEN
+    RAISE EXCEPTION 'admin access required' USING ERRCODE = '42501';
+  END IF;
+  IF p_candidate_type NOT IN ('price','schedule') THEN
+    RAISE EXCEPTION 'invalid candidate type';
+  END IF;
+  DELETE FROM public.studio_blog_evidence_candidates
+  WHERE id = p_candidate_id
+    AND candidate_type = p_candidate_type
+    AND review_status = 'verified';
+  RETURN FOUND;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.admin_delete_verified_evidence_candidate(bigint,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_delete_verified_evidence_candidate(bigint,text) TO authenticated;
