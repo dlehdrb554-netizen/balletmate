@@ -47,7 +47,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $trigger$
 begin
   if coalesce(new.is_active, true)
      and (tg_op = 'INSERT' or old.is_active is distinct from new.is_active) then
@@ -58,7 +58,7 @@ begin
   end if;
   return new;
 end;
-$$;
+$trigger$;
 
 drop trigger if exists studios_enqueue_blog_search on public.studios;
 create trigger studios_enqueue_blog_search
@@ -75,7 +75,7 @@ returns table(studio_id uuid, studio_name text, attempts integer)
 language sql
 security definer
 set search_path = public
-as $$$
+as $claim$
   with picked as (
     select q.studio_id
     from public.studio_blog_search_queue q
@@ -93,14 +93,14 @@ as $$$
   )
   select c.studio_id, s.name, c.attempts
     from claimed c join public.studios s on s.id = c.studio_id;
-$$;
+$claim$;
 
 create or replace function public.admin_requeue_studio_blog_search(p_studio_id uuid)
 returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $trigger$
 begin
   if not public.is_balletmate_admin() then
     raise exception 'administrator access required' using errcode='42501';
@@ -111,7 +111,7 @@ begin
     set status='pending',attempts=0,last_error=null,updated_at=now();
   return true;
 end;
-$$;
+$admin$;
 revoke all on function public.admin_requeue_studio_blog_search(uuid) from public, anon;
 grant execute on function public.admin_requeue_studio_blog_search(uuid) to authenticated;
 
@@ -119,7 +119,7 @@ revoke all on function public.claim_studio_blog_search_jobs(integer) from public
 grant execute on function public.claim_studio_blog_search_jobs(integer) to service_role;
 
 -- Search is throttled to one small batch every five minutes.
-do $$
+do $cron$
 declare old_job record;
 begin
   for old_job in select jobid from cron.job where jobname = 'balletmate-naver-blog-search'
@@ -129,7 +129,7 @@ begin
   perform cron.schedule(
     'balletmate-naver-blog-search',
     '*/5 * * * *',
-    $job$
+$job$
       select net.http_post(
         url := 'https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/search-studio-blogs',
         headers := jsonb_build_object(
@@ -139,6 +139,6 @@ begin
         body := '{"batchSize":3}'::jsonb,
         timeout_milliseconds := 15000
       );
-    $job$
+$job$
   );
-end $$;
+end $cron$;
