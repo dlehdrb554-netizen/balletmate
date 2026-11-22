@@ -88,12 +88,30 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
  */
 export async function searchStudiosByName(query:string):Promise<StudioRecord[]> {
   if(!supabase)return [];
-  const term=query.trim();
+  const term=query.trim().replace(/[,%()]/g," ").replace(/\s+/g," ").trim();
   if(term.length<2)return [];
   const columns="id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,details_checked_at,details_status";
-  const {data,error}=await supabase.from("studios").select(columns).eq("is_active",true).ilike("name","%"+term+"%").order("name").limit(100);
+  const compact=term.replace(/[\s·ㆍ()_/-]/g,"");
+  const tokens=term.split(/\s+/).filter(token=>token.length>=2);
+  const patterns=[`name.ilike.%${term}%`,`address.ilike.%${term}%`,`district.ilike.%${term}%`];
+  if(compact.length>=2&&compact!==term)patterns.push(`name.ilike.%${compact}%`,`address.ilike.%${compact}%`);
+  const {data,error}=await supabase.from("studios").select(columns).eq("is_active",true)
+    .or(patterns.join(",")).order("name").limit(100);
   if(error)throw error;
-  return (data||[]).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
+  const rows=(data||[]) as any[];
+  // Korean multi-word queries often contain both a neighborhood and an academy name.
+  // If the full phrase has no match, search meaningful tokens independently and intersect loosely.
+  if(rows.length||tokens.length<2)return rows.map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
+  const tokenResults=await Promise.all(tokens.slice(0,3).map(async token=>{
+    const result=await supabase!.from("studios").select(columns).eq("is_active",true)
+      .or([`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`].join(","))
+      .order("name").limit(100);
+    if(result.error)throw result.error;
+    return result.data||[];
+  }));
+  const merged=new Map<string,any>();
+  tokenResults.flat().forEach((row:any)=>merged.set(row.id,row));
+  return [...merged.values()].map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
 }
 
 const inFlightStudioSearches = new Map<string, Promise<StudioRecord[]>>();
