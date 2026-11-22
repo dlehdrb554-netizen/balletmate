@@ -244,7 +244,7 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       if(!namesError)for(const item of names||[])studioNames.set(item.id,item.name);
     }
     if(published.error)Alert.alert("공개 가격 조회 실패",published.error.message);
-    else {setPublishedCandidateIds(publishedRows.map((row:any)=>Number(row.candidate_id)));setActivePublicPrices(publishedRows.filter((row:any)=>row.is_active&&(!row.expires_at||row.expires_at>=today)).map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));}
+    else {setPublishedCandidateIds(publishedRows.map((row:any)=>Number(row.candidate_id)));setActivePublicPrices(publishedRows.filter((row:any)=>row.is_active).map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));}
     if(publishedSchedules.error)Alert.alert("공개 시간표 조회 실패",publishedSchedules.error.message);
     else {setPublishedScheduleCandidateIds(scheduleRows.map((row:any)=>Number(row.candidate_id)));setActivePublicSchedules(scheduleRows.filter((row:any)=>row.is_active&&(!row.expires_at||row.expires_at>=today)).map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));}
     setEvidenceBusy(false);
@@ -265,9 +265,9 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
   const generateScheduleClassCandidate=async(item:EvidenceCandidate)=>{
     if(!supabase||item.review_status!=="verified"||item.candidate_type!=="schedule")return;
     const sourceDate=item.source_post_date;
-    const expiry=sourceDate?datePlusDays(sourceDate,180):null;
+    const expiry=sourceDate?datePlusDays(sourceDate,45):null;
     if(!sourceDate||!expiry||expiry<seoulDate()){
-      Alert.alert("최신 자료 확인","원문 게시일이 없거나 180일이 지난 자료는 시간표 후보로 만들지 않습니다.");return;
+      Alert.alert("최신 자료 확인","원문 게시일이 없거나 45일이 지난 자료는 시간표 후보로 만들지 않습니다.");return;
     }
     const raw=(item.normalized_value||item.candidate_value||"")+" "+(item.evidence_text||"");
     const parsed=parseScheduleEvidence(raw);
@@ -646,9 +646,9 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
     try{
       const sourcePostDate=item.source_post_date||null;
       const today=seoulDate();
-      const expiresAt=datePlusDays(sourcePostDate||today,sourcePostDate?180:30);
+      const expiresAt=datePlusDays(sourcePostDate||today,sourcePostDate?45:30);
       if(!expiresAt)throw new Error("만료일을 계산하지 못했습니다.");
-      if(sourcePostDate&&expiresAt<today){Alert.alert("오래된 시간표","원문 게시일로부터 180일이 지나 공개하지 않았습니다. 최신 자료를 다시 수집해 주세요.");return;}
+      if(sourcePostDate&&expiresAt<today){Alert.alert("오래된 시간표","원문 게시일로부터 45일이 지나 최신 시간표로 공개하지 않았습니다. 최신 자료를 다시 수집해 주세요.");return;}
       if(!sourcePostDate){const confirmed=await new Promise<boolean>(resolve=>Alert.alert("게시일 미확인 시간표","원문 게시일이 확인되지 않습니다. 원문을 직접 확인하고 현재 운영 중인 시간표임을 확인한 경우에만 공개하세요. 게시일 미확인 상태로 30일 후 자동 만료됩니다.",[{text:"취소",style:"cancel",onPress:()=>resolve(false)},{text:"확인했고 공개",onPress:()=>resolve(true)}]));if(!confirmed)return;}
       const {error}=await supabase.from("studio_public_schedules").insert({
         candidate_id:item.id,studio_id:item.studio_id,schedule_text:scheduleText,
@@ -675,7 +675,7 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       setEvidenceBusy(true);let ok=0,failed=0;
       for(const item of valid){
         const sourcePostDate=item.source_post_date||null;
-        const expiry=datePlusDays(sourcePostDate||today,sourcePostDate?180:30);
+        const expiry=datePlusDays(sourcePostDate||today,sourcePostDate?45:30);
         const textValue=(item.normalized_value||item.candidate_value||"").replace(/^OCR#\d+\s*/i,"").trim();
         if(!textValue||!item.source_url||!item.evidence_text||!expiry){failed++;continue;}
         const {error}=await supabase!.from("studio_public_schedules").insert({candidate_id:item.id,studio_id:item.studio_id,schedule_text:textValue,evidence_text:item.evidence_text,source_title:item.source_title,source_url:item.source_url,source_post_date:sourcePostDate,expires_at:expiry,published_by:session?.user?.id||null,is_active:true});
@@ -695,10 +695,7 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
     try{
       const sourcePostDate=item.source_post_date||null;
       if(!sourcePostDate){Alert.alert("원문 게시일 확인 필요","게시일을 확인할 수 없는 자료는 최신 여부를 보장할 수 없어 공개하지 않습니다.");return;}
-      const today=seoulDate();
-      const expiresAt=datePlusDays(sourcePostDate,180);
-      if(!expiresAt)throw new Error("원문 게시일을 날짜로 변환하지 못했습니다.");
-      if(expiresAt<today){Alert.alert("오래된 가격","원문 게시일로부터 180일이 지나 공개하지 않았습니다. 최신 가격 근거를 다시 수집해 주세요.");return;}
+      const expiresAt=null;
       const {error}=await supabase.from("studio_public_prices").insert({
         candidate_id:item.id,studio_id:item.studio_id,amount_krw:amount,
         price_period:item.price_period,frequency_per_week:item.price_frequency_per_week||null,
@@ -720,14 +717,13 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
     const today=seoulDate();
     const valid=selected.filter(item=>{
       const amount=Number(item.normalized_value);
-      const expiry=item.source_post_date?datePlusDays(item.source_post_date,180):null;
-      return item.candidate_type==="price"&&Number.isInteger(amount)&&amount>0&&!!item.price_period&&item.price_period!=="기간 미확인"&&!!item.source_post_date&&!!expiry&&expiry>=today&&!!item.source_url&&!!item.evidence_text;
+      return item.candidate_type==="price"&&Number.isInteger(amount)&&amount>0&&!!item.price_period&&item.price_period!=="기간 미확인"&&!!item.source_post_date&&!!item.source_url&&!!item.evidence_text;
     });
-    if(!valid.length){Alert.alert("공개할 자료 없음","가격·이용 기간·원문 게시일이 확인되고 180일 이내인 자료가 없습니다.");return;}
+    if(!valid.length){Alert.alert("공개할 자료 없음","가격·이용 기간·원문 게시일·원문 근거가 확인되는 자료가 없습니다.");return;}
     Alert.alert("가격 일괄 공개","선택 "+selected.length+"개 중 공개 가능한 "+valid.length+"개를 등록할까요?",[{text:"취소",style:"cancel"},{text:"공개",onPress:async()=>{
       setEvidenceBusy(true);let ok=0,failed=0;
       for(const item of valid){
-        const expiry=datePlusDays(item.source_post_date!,180);
+        const expiry=null;
         const {error}=await supabase!.from("studio_public_prices").insert({
           candidate_id:item.id,studio_id:item.studio_id,amount_krw:Number(item.normalized_value),
           price_period:item.price_period,frequency_per_week:item.price_frequency_per_week||null,
