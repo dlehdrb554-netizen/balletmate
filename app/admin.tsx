@@ -230,11 +230,11 @@ export default function Admin() {
       return {data:all,error:null};
     };
     const [pending,verified,verifiedSchedules,published,publishedSchedules]=await Promise.all([
-      fetchAll(()=>supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","pending").order("created_at",{ascending:false})),
-      fetchAll(()=>supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false})),
-      fetchAll(()=>supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false})),
-      fetchAll(()=>supabase.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false})),
-      fetchAll(()=>supabase.from("studio_public_schedules").select("id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false})),
+      fetchAll(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","pending").order("created_at",{ascending:false})),
+      fetchAll(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false})),
+      fetchAll(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false})),
+      fetchAll(()=>supabase!.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false})),
+      fetchAll(()=>supabase!.from("studio_public_schedules").select("id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false})),
     ]);
     if(pending.error)Alert.alert("자동 수집 자료 조회 실패",pending.error.message);
     else {setEvidenceRows((pending.data||[]) as EvidenceCandidate[]);setSelectedEvidenceIds(ids=>ids.filter(id=>(pending.data||[]).some((row:any)=>row.id===id)));}
