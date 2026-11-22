@@ -2,12 +2,13 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
 const normalize=(value:string)=>value.toLowerCase().replace(/[^a-z0-9가-힣]/g,"");
-async function findHomepageCandidate(name:string,address:string|null,clientId:string,clientSecret:string):Promise<string|null>{
+async function findHomepageCandidate(name:string,address:string|null,clientId:string,clientSecret:string):Promise<{url:string|null;error:string|null}>{
  try{
   const api=new URL("https://openapi.naver.com/v1/search/webkr.json");
   api.searchParams.set("query",name+" "+(address||"")+" 공식 홈페이지");api.searchParams.set("display","5");
   const response=await fetch(api.toString(),{headers:{"X-Naver-Client-Id":clientId,"X-Naver-Client-Secret":clientSecret},signal:AbortSignal.timeout(7000)});
-  if(!response.ok)return null;const payload=await response.json();const target=normalize(name);
+  if(!response.ok)return {url:null,error:"Naver API HTTP "+response.status};
+  const payload=await response.json();const target=normalize(name);
   const excluded=["naver.com","kakao.com","instagram.com","facebook.com","youtube.com","tiktok.com","blogspot.com","tistory.com","linktr.ee","google.com"];
   for(const item of payload.items||[]){
    const link=String(item.link||"");if(!link.startsWith("https://"))continue;
@@ -15,12 +16,12 @@ async function findHomepageCandidate(name:string,address:string|null,clientId:st
    if(excluded.some(domain=>host===domain||host.endsWith("."+domain)))continue;
    const title=String(item.title||"").replace(/<[^>]*>/g,""),desc=String(item.description||"").replace(/<[^>]*>/g,"");
    const titleNorm=normalize(title),descNorm=normalize(desc);
-   if(target.length>=4&&(titleNorm.includes(target)||descNorm.includes(target)))return link;
+   if(target.length>=4&&(titleNorm.includes(target)||descNorm.includes(target)))return {url:link,error:null};
    const parts=name.split(/[\s·()\-]+/).filter(x=>x.length>=2).map(normalize);
-   if(parts.length>=2&&parts.every(part=>titleNorm.includes(part)))return link;
+   if(parts.length>=2&&parts.every(part=>titleNorm.includes(part)))return {url:link,error:null};
   }
- }catch{/* optional Naver homepage search */}
- return null;
+  return {url:null,error:null};
+ }catch(e){return {url:null,error:e instanceof Error?e.message:"Naver request failed"};}
 }
 const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레","발레교습소","발레아카데미","무용학원"];
 const MAX_PAGES_PER_TERM=3;
@@ -40,6 +41,27 @@ Deno.serve(async(req)=>{
  const naverId=Deno.env.get("NAVER_CLIENT_ID"),naverSecret=Deno.env.get("NAVER_CLIENT_SECRET");let homepageSearches=0,homepagesFound=0;
  const errors:string[]=[];
  const seen=new Set<string>();
+ // Prioritize legacy studios so homepage discovery is not starved by regional place searches.
+ if(!naverId||!naverSecret){
+  errors.push("네이버 홈페이지 검색 건너뜀: NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET 환경변수 누락");
+ }else{
+  const {data:existing,error:existingError}=await db.from("studios")
+   .select("id,name,address")
+   .eq("is_active",true).is("website_url",null).is("homepage_search_checked_at",null)
+   .order("created_at",{ascending:true}).limit(10);
+  if(existingError)errors.push("기존 학원 홈페이지 검색 대상 조회 실패: "+existingError.message.slice(0,140));
+  for(const studio of existing||[]){
+   homepageSearches++;
+   const found=await findHomepageCandidate(String(studio.name||""),studio.address||null,naverId,naverSecret);
+   if(found.error){errors.push("네이버 검색 실패("+String(studio.name)+"): "+found.error.slice(0,100));continue;}
+   const checkedAt=new Date().toISOString();
+   const update:Record<string,unknown>={homepage_search_checked_at:checkedAt,updated_at:checkedAt};
+   if(found.url){update.website_url=found.url;update.source_name="Naver 홈페이지 검색 후보(미검증)";}
+   const {error:saveError}=await db.from("studios").update(update).eq("id",studio.id).is("website_url",null);
+   if(saveError)errors.push("기존 학원 홈페이지 후보 저장 실패: "+saveError.message.slice(0,120));
+   else if(found.url)homepagesFound++;
+  }
+ }
  for(const term of SEARCH_TERMS){
   for(let page=1;page<=MAX_PAGES_PER_TERM;page++){
    const api=new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
@@ -68,29 +90,11 @@ Deno.serve(async(req)=>{
      const {data,error}=await db.rpc("register_discovered_studio",{p_name:name,p_latitude:lat,p_longitude:lng,p_address:address,p_phone:item.phone||null,p_place_url:item.place_url||null,p_region:region.region_name});
      if(error)errors.push(error.message.slice(0,160));
      else {if(data?.[0]?.inserted)insertedCount++;else duplicateCount++;const studioId=data?.[0]?.studio_id;
-      if(studioId&&naverId&&naverSecret&&homepageSearches<2){const {data:siteRow}=await db.from("studios").select("website_url,homepage_search_checked_at").eq("id",studioId).maybeSingle();if(!siteRow?.website_url&&!siteRow?.homepage_search_checked_at){homepageSearches++;const checkedAt=new Date().toISOString();const candidate=await findHomepageCandidate(name,address,naverId,naverSecret);const update:Record<string,unknown>={homepage_search_checked_at:checkedAt,updated_at:checkedAt};if(candidate){update.website_url=candidate;update.source_name="Kakao Local 발견 · Naver 홈페이지 검색 후보(미검증)";}const {error:websiteError}=await db.from("studios").update(update).eq("id",studioId).is("website_url",null);if(websiteError)errors.push("홈페이지 후보 저장 실패: "+websiteError.message.slice(0,100));else if(candidate)homepagesFound++;}}
+      if(studioId&&naverId&&naverSecret&&homepageSearches<12){const {data:siteRow}=await db.from("studios").select("website_url,homepage_search_checked_at").eq("id",studioId).maybeSingle();if(!siteRow?.website_url&&!siteRow?.homepage_search_checked_at){homepageSearches++;const found=await findHomepageCandidate(name,address,naverId,naverSecret);if(found.error)errors.push("신규 학원 네이버 검색 실패: "+found.error.slice(0,100));else{const checkedAt=new Date().toISOString();const update:Record<string,unknown>={homepage_search_checked_at:checkedAt,updated_at:checkedAt};if(found.url){update.website_url=found.url;update.source_name="Kakao Local 발견 · Naver 홈페이지 검색 후보(미검증)";}const {error:websiteError}=await db.from("studios").update(update).eq("id",studioId).is("website_url",null);if(websiteError)errors.push("홈페이지 후보 저장 실패: "+websiteError.message.slice(0,100));else if(found.url)homepagesFound++;}}}
      }
     }
     if(payload?.meta?.is_end||docs.length<PAGE_SIZE)break;
    }catch(e){errors.push(term+": "+(e instanceof Error?e.message:"request failed"));break;}
-  }
- }
- // Also process existing studios that were registered before homepage search was added.
- if(naverId&&naverSecret){
-  const {data:existing,error:existingError}=await db.from("studios")
-   .select("id,name,address")
-   .eq("is_active",true).is("website_url",null).is("homepage_search_checked_at",null)
-   .order("created_at",{ascending:true}).limit(2);
-  if(existingError)errors.push("기존 학원 홈페이지 검색 대상 조회 실패: "+existingError.message.slice(0,140));
-  for(const studio of existing||[]){
-   homepageSearches++;
-   const checkedAt=new Date().toISOString();
-   const candidate=await findHomepageCandidate(String(studio.name||""),studio.address||null,naverId,naverSecret);
-   const update:Record<string,unknown>={homepage_search_checked_at:checkedAt,updated_at:checkedAt};
-   if(candidate){update.website_url=candidate;update.source_name="Naver 홈페이지 검색 후보(미검증)";}
-   const {error:saveError}=await db.from("studios").update(update).eq("id",studio.id).is("website_url",null);
-   if(saveError)errors.push("기존 학원 홈페이지 후보 저장 실패: "+saveError.message.slice(0,120));
-   else if(candidate)homepagesFound++;
   }
  }
  if(errors.length){
