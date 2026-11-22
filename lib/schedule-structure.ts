@@ -27,6 +27,7 @@ function toTime(hourRaw: string, minuteRaw?: string, meridiem?: string): string 
 
 function extractTimes(text: string): {start:string;end:string|null}[] {
   const results: {start:string;end:string|null}[]=[];
+  const rangeSpans: {start:number;end:number}[]=[];
   const range=/((?:오전|오후)?\s*\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}\s*분)?)\s*(?:오전|오후)?)\s*(?:-|~|〜|–|—|부터)\s*((?:오전|오후)?\s*\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}\s*분)?)\s*(?:오전|오후)?)/g;
   const parseOne=(value:string)=>{
     const normalized=value.replace(/\s+/g," ").trim();
@@ -35,16 +36,19 @@ function extractTimes(text: string): {start:string;end:string|null}[] {
   };
   let match:RegExpExecArray|null;
   while((match=range.exec(text))!==null){
+    rangeSpans.push({start:match.index,end:range.lastIndex});
     const startText=match[1],endText=match[2];
-    const endMeridiem=(endText.match(/오전|오후/)||[])[0];
-    const startMeridiem=(startText.match(/오전|오후/)||[])[0]||endMeridiem;
-    const endMeridiem=(endText.match(/오전|오후/)||[])[0]||startMeridiem;
+    const explicitEndMeridiem=(endText.match(/오전|오후/)||[])[0];
+    const explicitStartMeridiem=(startText.match(/오전|오후/)||[])[0];
+    const startMeridiem=explicitStartMeridiem||explicitEndMeridiem;
+    const endMeridiem=explicitEndMeridiem||explicitStartMeridiem;
     const start=parseOne(startMeridiem&&!/오전|오후/.test(startText)?startMeridiem+" "+startText:startText);
     const end=parseOne(endMeridiem&&!/오전|오후/.test(endText)?endMeridiem+" "+endText:endText);
     if(start&&end&&start!==end)results.push({start,end});
   }
   const singles=/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)\s*(오전|오후)?/g;
   while((match=singles.exec(text))!==null){
+    if(rangeSpans.some(span=>match.index>=span.start&&match.index<span.end))continue;
     const t=toTime(match[2],match[3]||match[4],match[1]||match[5]);
     if(t&&!results.some(r=>r.start===t||r.end===t))results.push({start:t,end:null});
   }
