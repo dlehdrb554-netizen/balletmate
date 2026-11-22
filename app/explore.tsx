@@ -308,7 +308,7 @@ export default function Home() {
         try{
           remoteRows=await searchStudiosByKakao(query);
           if(!remoteRows.length&&regionKey){
-            const nameQuery=query.split(/\\s+/).map(part=>part.replace(new RegExp(regionKey,"ig"),""))
+            const nameQuery=query.split(/\s+/).map(part=>part.replace(new RegExp(regionKey,"ig"),""))
               .filter(part=>part.length>=2&&!/^(서울특별시|서울시|서울|부산광역시|부산|인천광역시|인천|대구광역시|대구|광주광역시|광주|대전광역시|대전|울산광역시|울산|세종특별자치시|세종|경기도|충청남도|충청북도|전라남도|전라북도|경상남도|경상북도|강원특별자치도|제주특별자치도|대한민국|특별시|광역시|자치시|자치도|구|군|시|동|읍|면|역)$/.test(part)).join(" ").trim();
             if(nameQuery.length>=2)remoteRows=await searchStudiosByKakao(nameQuery);
           }
