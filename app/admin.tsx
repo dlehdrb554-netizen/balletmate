@@ -19,7 +19,7 @@ type StudioRow = {
 };
 
 const blank = {name:"",latitude:"",longitude:"",district:"",address:"",phone:"",website_url:"",source_url:"",source_name:"",verified_at:"",image_urls:"",image_source_name:"",image_usage_note:"",price_per_class:"",adult_classes:true,kids_classes:false,is_active:false};
-const STUDIO_PAGE_SIZE = 50;
+const STUDIO_PAGE_SIZE = 20;
 const c = {ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",white:"#FFFFFF",bg:"#FAF9FC"};
 const normalizeScheduleKey=(value:string)=>String(value||"").toLowerCase().replace(/[\s·,，、|/]+/g,"").trim();
 
@@ -82,6 +82,7 @@ export default function Admin() {
   const [photoReviewBusy,setPhotoReviewBusy]=useState(false);
   const [photoCandidateTotal,setPhotoCandidateTotal]=useState(0);
   const [photoCandidateOffset,setPhotoCandidateOffset]=useState(0);
+  const [failedPhotoCandidateIds,setFailedPhotoCandidateIds]=useState<number[]>([]);
   const [studioSearch,setStudioSearch]=useState("");
   const [studioAppliedSearch,setStudioAppliedSearch]=useState("");
   const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
@@ -451,41 +452,70 @@ export default function Admin() {
     const columns="id,studio_id,studio_name,source_id,source_title,source_url,source_post_date,candidate_type,candidate_value,normalized_value,price_period,price_frequency_per_week,evidence_text,confidence,review_status,created_at";
     const priceColumns="id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active,image_urls";
     const scheduleColumns="id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active,image_urls";
-    const [pending,verified,verifiedSchedules,published,publishedSchedules,publishedIds]=await Promise.all([
-      supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","pending").order("created_at",{ascending:false}).limit(100),
-      supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
-      supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
-      supabase.from("studio_public_prices").select(priceColumns,{count:"exact"}).eq("is_active",true).order("published_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
-      supabase.from("studio_public_schedules").select(scheduleColumns,{count:"exact"}).order("published_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
-      supabase.rpc("admin_published_candidate_ids"),
-    ]);
-    if(pending.error)Alert.alert("자동 수집 자료 조회 실패",pending.error.message);
-    else {setEvidenceRows((pending.data||[]) as EvidenceCandidate[]);setTotalEvidencePending(pending.count??(pending.data||[]).length);setSelectedEvidenceIds(ids=>ids.filter(id=>(pending.data||[]).some((row:any)=>row.id===id)));}
-    if(verified.error)Alert.alert("검증 가격 조회 실패",verified.error.message);
-    else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setVerifiedPriceTotal(verified.count??(verified.data||[]).length);setVerifiedPriceOffset((verified.data||[]).length);setSelectedPriceIds(ids=>ids.filter(id=>(verified.data||[]).some((row:any)=>row.id===id)));}
-    if(verifiedSchedules.error)Alert.alert("검증 시간표 조회 실패",verifiedSchedules.error.message);
-    else {setVerifiedScheduleRows((verifiedSchedules.data||[]) as EvidenceCandidate[]);setVerifiedScheduleTotal(verifiedSchedules.count??(verifiedSchedules.data||[]).length);setVerifiedScheduleOffset((verifiedSchedules.data||[]).length);setSelectedScheduleIds(ids=>ids.filter(id=>(verifiedSchedules.data||[]).some((row:any)=>row.id===id)));}
-    const publishedRows=published.data||[];
-    const scheduleRows=publishedSchedules.data||[];
-    setPublicPriceTotal(published.count??publishedRows.length);
-    setPublicScheduleTotal(publishedSchedules.count??scheduleRows.length);
-    setPublicPriceOffset(publishedRows.length);
-    setPublicScheduleOffset(scheduleRows.length);
-    const studioIds=[...new Set([...publishedRows,...scheduleRows].map((row:any)=>row.studio_id).filter(Boolean))];
-    const studioNames=new Map<string,string>();
-    if(studioIds.length){
-      const {data:names,error:namesError}=await supabase.from("studios").select("id,name").in("id",studioIds);
-      if(!namesError)for(const item of names||[])studioNames.set(item.id,item.name);
-    }
-    if(published.error)Alert.alert("공개 가격 조회 실패",published.error.message);
-    else if(publishedIds.error)Alert.alert("공개 후보 연결 조회 실패",publishedIds.error.message+"\nadmin_management_scaling.sql 적용 여부를 확인해 주세요.");
-    else {
+    try{
+      // Review and publication are separate workflows. Never fetch every admin
+      // dataset when opening either tab; this was causing unnecessary latency.
+      if(adminTab==="review"){
+        const {data,error,count}=await supabase.from("studio_blog_evidence_candidates")
+          .select(columns,{count:"exact"}).eq("review_status","pending")
+          .order("created_at",{ascending:false}).order("id",{ascending:false}).range(0,99);
+        if(error)throw error;
+        const rows=(data||[]) as EvidenceCandidate[];
+        setEvidenceRows(rows);
+        setTotalEvidencePending(count??rows.length);
+        setSelectedEvidenceIds(ids=>ids.filter(id=>rows.some(row=>row.id===id)));
+        return;
+      }
+      if(adminTab!=="publish")return;
+
+      const [verified,verifiedSchedules,published,publishedSchedules,publishedIds]=await Promise.all([
+        supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"})
+          .eq("review_status","verified").eq("candidate_type","price")
+          .order("reviewed_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
+        supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"})
+          .eq("review_status","verified").eq("candidate_type","schedule")
+          .order("reviewed_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
+        supabase.from("studio_public_prices").select(priceColumns,{count:"exact"}).eq("is_active",true)
+          .order("published_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
+        supabase.from("studio_public_schedules").select(scheduleColumns,{count:"exact"})
+          .order("published_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
+        supabase.rpc("admin_published_candidate_ids"),
+      ]);
+      if(verified.error)throw new Error("검증 가격 조회 실패: "+verified.error.message);
+      if(verifiedSchedules.error)throw new Error("검증 시간표 조회 실패: "+verifiedSchedules.error.message);
+      if(published.error)throw new Error("공개 가격 조회 실패: "+published.error.message);
+      if(publishedSchedules.error)throw new Error("공개 시간표 조회 실패: "+publishedSchedules.error.message);
+      if(publishedIds.error)throw new Error("공개 후보 연결 조회 실패: "+publishedIds.error.message+" (admin_management_scaling.sql 적용 여부 확인)");
+
+      const priceRows=(verified.data||[]) as EvidenceCandidate[];
+      const scheduleCandidateRows=(verifiedSchedules.data||[]) as EvidenceCandidate[];
+      const publishedRows=published.data||[];
+      const scheduleRows=publishedSchedules.data||[];
+      setVerifiedPriceRows(priceRows);
+      setVerifiedPriceTotal(verified.count??priceRows.length);
+      setVerifiedPriceOffset(priceRows.length);
+      setSelectedPriceIds(ids=>ids.filter(id=>priceRows.some(row=>row.id===id)));
+      setVerifiedScheduleRows(scheduleCandidateRows);
+      setVerifiedScheduleTotal(verifiedSchedules.count??scheduleCandidateRows.length);
+      setVerifiedScheduleOffset(scheduleCandidateRows.length);
+      setSelectedScheduleIds(ids=>ids.filter(id=>scheduleCandidateRows.some(row=>row.id===id)));
+      setPublicPriceTotal(published.count??publishedRows.length);
+      setPublicScheduleTotal(publishedSchedules.count??scheduleRows.length);
+      setPublicPriceOffset(publishedRows.length);
+      setPublicScheduleOffset(scheduleRows.length);
+
+      const studioIds=[...new Set([...publishedRows,...scheduleRows].map((row:any)=>row.studio_id).filter(Boolean))];
+      const studioNames=new Map<string,string>();
+      if(studioIds.length){
+        const {data:names,error:namesError}=await supabase.from("studios").select("id,name").in("id",studioIds);
+        if(namesError)throw new Error("학원명 조회 실패: "+namesError.message);
+        for(const item of names||[])studioNames.set(item.id,item.name);
+      }
       setPublishedCandidateIds(Array.isArray(publishedIds.data?.prices)?publishedIds.data.prices.map((id:any)=>Number(id)):[]);
-      setActivePublicPrices(publishedRows.filter((row:any)=>row.is_active).map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));
-    }
-    if(publishedSchedules.error)Alert.alert("공개 시간표 조회 실패",publishedSchedules.error.message);
-    else {
       setPublishedScheduleCandidateIds(Array.isArray(publishedIds.data?.schedules)?publishedIds.data.schedules.map((id:any)=>Number(id)):[]);
+      setActivePublicPrices(publishedRows.filter((row:any)=>row.is_active)
+        .map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));
+
       const seen=new Set<string>();const uniqueScheduleRows:any[]=[];let duplicates=0;
       for(const row of scheduleRows){
         const key=normalizeScheduleKey(row.schedule_text||"");
@@ -495,9 +525,13 @@ export default function Admin() {
       }
       setDuplicatePublicScheduleCount(duplicates);
       setActivePublicSchedules(uniqueScheduleRows.map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));
+    }catch(error:any){
+      Alert.alert("자료 조회 실패",error?.message||"관리자 자료를 불러오지 못했습니다.");
+    }finally{
+      setEvidenceBusy(false);
     }
-    setEvidenceBusy(false);
-  },[authorized]);
+  },[authorized,adminTab]);
+
   const loadMorePublicPage=async(kind:"price"|"schedule")=>{
     if(!supabase||evidenceBusy)return;
     setEvidenceBusy(true);
@@ -1218,11 +1252,14 @@ export default function Admin() {
   <Text style={styles.hint}>대기 {photoCandidateTotal.toLocaleString("ko-KR")}건 · 현재 표시 {photoCandidateRows.length}건</Text>\n  <Text style={styles.hint}>공식 홈페이지에서 수집한 사진 후보입니다. 사진과 원본을 확인하고, 학원 소유 또는 사용 허가가 확인된 경우에만 승인해 주세요. 승인된 사진만 학원 갤러리에 추가됩니다.</Text>
   {photoReviewBusy&&<ActivityIndicator color={c.purple}/>}
   {photoCandidateRows.map(item=><View key={"photo-candidate-"+item.id} style={[styles.evidenceCard,{flexDirection:"row",alignItems:"flex-start"}]}>
-    <Image source={{uri:item.image_url}} style={{width:92,height:76,borderRadius:9,backgroundColor:c.bg}} resizeMode="cover"/>
+    {failedPhotoCandidateIds.includes(Number(item.id))
+      ? <View style={{width:92,height:76,borderRadius:9,backgroundColor:c.bg,alignItems:"center",justifyContent:"center",padding:5}}><Ionicons name="image-outline" size={22} color={c.muted}/><Text style={styles.compactSecondary}>미리보기 차단</Text></View>
+      : <Image source={{uri:item.image_url,headers:{"Referer":item.source_page_url||"https://blog.naver.com/"}}} style={{width:92,height:76,borderRadius:9,backgroundColor:c.bg}} resizeMode="cover" onError={()=>setFailedPhotoCandidateIds(ids=>ids.includes(Number(item.id))?ids:[...ids,Number(item.id)])}/>}
+    
     <View style={{flex:1,minWidth:0,gap:5}}>
       <Text style={styles.evidenceStudio}>{item.studio_name}</Text>
       <Text style={styles.compactSecondary} numberOfLines={1}>{item.source_host||"출처 미확인"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text>
-      <Pressable onPress={()=>Linking.openURL(item.source_page_url).catch(()=>Alert.alert("출처 확인","원본 페이지를 열 수 없습니다."))}><Text style={styles.action}>원본 홈페이지 확인 ↗</Text></Pressable>
+      <View style={{flexDirection:"row",flexWrap:"wrap",gap:12}}><Pressable onPress={()=>Linking.openURL(item.image_url).catch(()=>Alert.alert("이미지 확인","원본 이미지를 열 수 없습니다."))}><Text style={styles.action}>원본 이미지 열기 ↗</Text></Pressable><Pressable onPress={()=>Linking.openURL(item.source_page_url).catch(()=>Alert.alert("출처 확인","원본 페이지를 열 수 없습니다."))}><Text style={styles.action}>원본 홈페이지 확인 ↗</Text></Pressable></View>
       <View style={styles.buttons}>
         <Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.secondaryText}>제외</Text></Pressable><Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={()=>deletePhotoCandidate(item)}><Text style={styles.secondaryText}>영구 삭제</Text></Pressable>
         <Pressable style={styles.button} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.buttonText}>사진 승인</Text></Pressable>
