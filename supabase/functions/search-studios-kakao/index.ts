@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
   for (const term of queries) {
     if (requestCount >= 8) break;
-    for (let page = 1; page <= 2 && requestCount < 8; page++) {
+    for (let page = 1; page <= 3 && requestCount < 8; page++) {
       const endpoint = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
       endpoint.searchParams.set("query", term);
       endpoint.searchParams.set("page", String(page));
