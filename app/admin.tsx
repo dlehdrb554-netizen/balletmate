@@ -726,7 +726,7 @@ export default function Admin() {
       {text:"취소",style:"cancel"},
       {text:"영구 삭제",style:"destructive",onPress:async()=>{
         setEvidenceBusy(true);
-        const {error}=await supabase!.from("studio_blog_evidence_candidates").delete().eq("id",item.id).eq("review_status","verified").eq("candidate_type","price");
+        const {error}=await supabase!.rpc("admin_delete_verified_evidence_candidate",{p_candidate_id:item.id,p_candidate_type:"price"});
         if(error)Alert.alert("가격 후보 삭제 실패",error.message);
         else {setVerifiedPriceRows(current=>current.filter(row=>row.id!==item.id));setSelectedPriceIds(current=>current.filter(id=>id!==item.id));setVerifiedPriceTotal(value=>Math.max(0,value-1));Alert.alert("삭제 완료","공개 대기 가격 후보를 삭제했습니다.");}
         setEvidenceBusy(false);
@@ -740,7 +740,7 @@ export default function Admin() {
       {text:"취소",style:"cancel"},
       {text:"영구 삭제",style:"destructive",onPress:async()=>{
         setEvidenceBusy(true);
-        const {error}=await supabase!.from("studio_blog_evidence_candidates").delete().eq("id",item.id).eq("review_status","verified").eq("candidate_type","schedule");
+        const {error}=await supabase!.rpc("admin_delete_verified_evidence_candidate",{p_candidate_id:item.id,p_candidate_type:"schedule"});
         if(error)Alert.alert("후보 삭제 실패",error.message);
         else {setVerifiedScheduleRows(current=>current.filter(row=>row.id!==item.id));setSelectedScheduleIds(current=>current.filter(id=>id!==item.id));Alert.alert("삭제 완료","검증된 시간표 후보를 삭제했습니다.");}
         setEvidenceBusy(false);
