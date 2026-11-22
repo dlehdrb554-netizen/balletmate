@@ -119,7 +119,6 @@ export default function Admin() {
   const [verifiedScheduleOffset,setVerifiedScheduleOffset]=useState(0);
   const [publicPriceOffset,setPublicPriceOffset]=useState(0);
   const [publicScheduleOffset,setPublicScheduleOffset]=useState(0);
-  const [photoCandidateOffset,setPhotoCandidateOffset]=useState(0);
   const [evidenceBusy,setEvidenceBusy]=useState(false);
   const [scheduleClassCandidates,setScheduleClassCandidates]=useState<any[]>([]);
   const [scheduleClassCandidateTotal,setScheduleClassCandidateTotal]=useState(0);
