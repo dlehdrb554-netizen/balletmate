@@ -3,12 +3,16 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-const normalize = (value: string) => value.toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_./-]/g, "");
+const normalize = (value: string) => value.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_./-]/g, "");
 
 function queryVariants(raw: string): string[] {
   const values = new Set<string>([raw]);
-  const compact = raw.replace(/\\s+/g, "");
+  const compact = raw.replace(/\s+/g, "");
   if (compact !== raw) values.add(compact);
+  const withoutGeneric = raw.replace(/(발레|학원|스튜디오|아카데미|무용)/g, "").trim();
+  if (withoutGeneric.length >= 2) values.add(withoutGeneric);
+  if (/발레/.test(raw) && !/학원/.test(raw)) values.add(raw + " 학원");
+  if (/발레/.test(raw) && raw.includes(" ")) values.add(raw.replace(/s+/g, ""));
   if (/퀸즈|퀸스/i.test(raw)) {
     values.add("퀸즈 발레");
     values.add("퀸스 발레");
@@ -36,7 +40,7 @@ Deno.serve(async (req) => {
 
   let body: { query?: unknown };
   try { body = await req.json(); } catch { return json({ error: "검색어를 확인해 주세요." }, 400); }
-  const query = String(body?.query ?? "").trim().replace(/\\s+/g, " ");
+  const query = String(body?.query ?? "").trim().replace(/\s+/g, " ");
   if (query.length < 2 || query.length > 80) return json({ error: "검색어는 2~80자로 입력해 주세요." }, 400);
 
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -72,12 +76,13 @@ Deno.serve(async (req) => {
           const category = String(item.category_name ?? "");
           const text = normalize(name + " " + category);
           const needle = normalize(query);
-          const tokens = query.split(/[\\s·ㆍ()_-]+/).map(normalize).filter(token => token.length >= 2 && !["학원","발레","무용"].includes(token));
+          const tokens = query.split(/[\s·ㆍ()_-]+/).map(normalize).filter(token => token.length >= 2 && !["학원","발레","무용"].includes(token));
           const nameAliasMatch =
             (/(퀸즈|퀸스|queens)/i.test(needle) && /(퀸즈|퀸스|queens)/i.test(text)) ||
             (/(더블유|wballet|w발레)/i.test(needle) && /(더블유|wballet|w발레)/i.test(text)) ||
             (/현대무용/.test(needle) && /(현대무용|현대댄스)/.test(text));
-          const meaningfulMatch = tokens.length === 0 || tokens.some(token => text.includes(token)) || text.includes(needle) || nameAliasMatch;
+          const nameMatch = text.includes(needle) || needle.includes(normalize(name));
+          const meaningfulMatch = nameMatch || nameAliasMatch || tokens.some(token => token.length >= 2 && text.includes(token)) || tokens.length === 0;
           if (!meaningfulMatch) continue;
           found.set(id, item);
         }
@@ -94,7 +99,7 @@ Deno.serve(async (req) => {
     const name = String(item.place_name).trim();
     const lat = Number(item.y), lng = Number(item.x);
     const address = String(item.road_address_name || item.address_name || "").trim() || null;
-    const region = address ? address.split(/\\s+/).slice(0, 2).join(" ") : "카카오 검색";
+    const region = address ? address.split(/\s+/).slice(0, 2).join(" ") : "카카오 검색";
     const { data, error } = await db.rpc("register_discovered_studio", {
       p_name: name, p_latitude: lat, p_longitude: lng, p_address: address,
       p_phone: item.phone || null, p_place_url: item.place_url || null, p_region: region,
