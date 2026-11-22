@@ -27,9 +27,9 @@ type PhotoAutoFilter="priority"|"suspect"|"all";
 const classifyPhotoCandidate=(item:any)=>{
   const source=String(item?.image_url||"")+" "+String(item?.source_page_url||"")+" "+String(item?.source_host||"");
   const suspectPatterns=[
-    /\\b(logo|icon|avatar|profile|banner|thumb|thumbnail|sns|badge|button|sprite|qr|qrcode)\\b/i,
+    /\b(logo|icon|avatar|profile|banner|thumb|thumbnail|sns|badge|button|sprite|qr|qrcode)\b/i,
     /(logo|아이콘|프로필|배너|썸네일|홍보물|포스터|qr)/i,
-    /\\.(svg|gif)(?:[?#]|$)/i
+    /\.(svg|gif)(?:[?#]|$)/i
   ];
   const reasons:string[]=[];
   if(suspectPatterns.some(pattern=>pattern.test(source)))reasons.push("아이콘·배너·홍보물 의심");
