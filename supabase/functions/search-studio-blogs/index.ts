@@ -79,7 +79,6 @@ Deno.serve(async (req) => {
       const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
       const studioQuery = String(job.studio_name);
       const searchQueries = new Set(SEARCH_SUFFIXES.map((suffix) => suffix ? `${studioQuery} ${suffix}` : studioQuery));
-      const normalizedStudio = normalize(studioQuery);
       if (/(퀸스|퀸즈)/.test(studioQuery)) {
         searchQueries.add(studioQuery.replace(/퀸스/g, "퀸즈"));
         searchQueries.add(studioQuery.replace(/퀸즈/g, "퀸스"));
@@ -88,7 +87,7 @@ Deno.serve(async (req) => {
         searchQueries.add("Queens Ballet");
         searchQueries.add("Queen's Ballet");
       }
-      if (/더블유|\\bW\\b|wballet/i.test(studioQuery)) {
+      if (/더블유|\bW\b|wballet/i.test(studioQuery)) {
         searchQueries.add("더블유발레");
         searchQueries.add("W발레");
         searchQueries.add("wballet");
