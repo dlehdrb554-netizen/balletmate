@@ -8,8 +8,6 @@ import { supabase } from "../lib/supabase";
 
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",green:"#18875B",yellow:"#FEE500"};
 const OAUTH_REDIRECT_URL="balletmate://auth/callback";
-// Kakao login only needs profile data; do not request account_email.
-const KAKAO_OAUTH_SCOPES="profile_nickname profile_image";
 
 export default function Account(){
  const router=useRouter();
@@ -39,13 +37,14 @@ export default function Account(){
     if(!active)return;
     const metadata=session.user.user_metadata||{};
     const username=profile.data?.username||"";
-    if(username.startsWith("social_")){
+    const isAdmin=!role.error&&role.data===true;
+    if(username.startsWith("social_")&&!isAdmin){
      setDisplay("가입 정보 설정 필요");
      router.replace("/complete-profile");
     }else{
-     setDisplay(username||metadata.full_name||metadata.name||metadata.nickname||session.user.email?.split("@")[0]||"회원");
+     setDisplay(isAdmin?"관리자":username||metadata.full_name||metadata.name||metadata.nickname||session.user.email?.split("@")[0]||"회원");
     }
-    setAdminRole(!role.error&&role.data===true);
+    setAdminRole(isAdmin);
    });
   }else {setDisplay("");setAdminRole(null);}
   return()=>{active=false;};
@@ -60,7 +59,6 @@ export default function Account(){
     options:{
      redirectTo:OAUTH_REDIRECT_URL,
      skipBrowserRedirect:true,
-     ...(provider==="kakao"?{scopes:KAKAO_OAUTH_SCOPES}:{})
     }
    });
    if(error)throw error;
