@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useRouter } from "expo-router";
 import { SafeAreaView, View, Text, Pressable, StyleSheet } from "react-native";
 
 /**
@@ -8,6 +9,7 @@ import { SafeAreaView, View, Text, Pressable, StyleSheet } from "react-native";
  * Restore the full home screen after identifying the native startup failure.
  */
 export default function Home() {
+  const router = useRouter();
   const [count, setCount] = useState(0);
   return (
     <SafeAreaView style={styles.root}>
@@ -18,7 +20,10 @@ export default function Home() {
         <Pressable style={styles.button} onPress={() => setCount((value) => value + 1)}>
           <Text style={styles.buttonText}>화면 동작 테스트 · {count}</Text>
         </Pressable>
-        <Text style={styles.note}>진단용 임시 화면이며 학원 검색 등 기존 기능은 이 빌드에서 사용할 수 없습니다.</Text>
+        <Pressable style={[styles.button,{backgroundColor:"#51429F"}]} onPress={() => router.push("/explore")}>
+          <Text style={styles.buttonText}>기존 학원 탐색 기능 테스트 열기</Text>
+        </Pressable>
+        <Text style={styles.note}>진단용 임시 화면이며 학원 탐색 기능은 아래 버튼으로 별도 테스트할 수 있습니다.</Text>
       </View>
     </SafeAreaView>
   );
