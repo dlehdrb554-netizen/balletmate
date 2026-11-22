@@ -104,6 +104,22 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
   return [...results.values()].map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
 }
 
+/**
+ * Search Kakao Local only when the database name search has no result.
+ * The Kakao REST key stays in the Edge Function, never in the mobile bundle.
+ */
+export async function searchStudiosByKakao(query: string): Promise<StudioRecord[]> {
+  if (!supabase) return [];
+  const term = query.trim().replace(/\\s+/g, " ");
+  if (term.length < 2) return [];
+  const { data, error } = await supabase.functions.invoke("search-studios-kakao", {
+    body: { query: term },
+  });
+  if (error) throw error;
+  const rows = Array.isArray(data?.studios) ? data.studios : [];
+  return rows as StudioRecord[];
+}
+
 const inFlightStudioSearches = new Map<string, Promise<StudioRecord[]>>();
 
 export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
