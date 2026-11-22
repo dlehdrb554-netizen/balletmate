@@ -139,6 +139,7 @@ export default function Admin() {
   const [reportRows,setReportRows]=useState<any[]>([]);
   const [reportsBusy,setReportsBusy]=useState(false);
   const [reportsError,setReportsError]=useState<string|null>(null);
+  const [reportEditingId,setReportEditingId]=useState<number|null>(null);
   const publicPendingScheduleRows=useMemo(()=>{
     const seen=new Set<string>();
     return verifiedScheduleRows.filter(item=>!publishedScheduleCandidateIds.includes(item.id)).filter(item=>{
@@ -963,6 +964,29 @@ export default function Admin() {
   const startEdit=(r:StudioRow)=>{
     setEditing(r.id);setForm({name:r.name,latitude:String(r.latitude),longitude:String(r.longitude),district:r.district||"",address:r.address||"",phone:r.phone||"",website_url:r.website_url||"",source_url:r.source_url||"",source_name:r.source_name||"",verified_at:r.verified_at?r.verified_at.slice(0,10):"",image_urls:(r.image_urls||[]).join("\n"),image_source_name:r.image_source_name||"",image_usage_note:r.image_usage_note||"",price_per_class:r.price_per_class==null?"":String(r.price_per_class),adult_classes:r.adult_classes,kids_classes:r.kids_classes,is_active:r.is_active});
   };
+  const openReportStudioEdit=async(report:any)=>{
+    if(!supabase||busy)return;
+    setBusy(true);
+    try{
+      const {data,error}=await supabase.from("studios").select(studioColumns).eq("id",report.studio_id).maybeSingle();
+      if(error)throw error;
+      if(!data)throw new Error("제보 대상 학원을 찾을 수 없습니다.");
+      setAdminTab("studios");
+      setReportEditingId(Number(report.id));
+      startEdit(data as StudioRow);
+      setStudioActionId(null);
+    }catch(error:any){Alert.alert("학원 정보 조회 실패",error?.message||"수정할 학원 정보를 불러오지 못했습니다.");}
+    finally{setBusy(false);}
+  };
+  const showStudioChangeHistory=async(report:any)=>{
+    if(!supabase)return;
+    const {data,error}=await supabase.rpc("admin_list_studio_information_change_logs",{p_studio_id:report.studio_id});
+    if(error){Alert.alert("변경 이력 조회 실패",error.message);return;}
+    const logs=Array.isArray(data)?data:[];
+    if(!logs.length){Alert.alert("변경 이력","이 학원의 관리자 정보 수정 이력이 아직 없습니다.");return;}
+    const summary=logs.slice(0,8).map((log:any)=>new Date(log.changed_at).toLocaleString("ko-KR")+"\n"+Object.keys(log.changed_fields||{}).join(", ")).join("\n\n");
+    Alert.alert("학원 정보 변경 이력",summary);
+  };
   const filteredStudioRows=useMemo(()=>rows.filter(row=>{
     const q=studioSearch.trim().toLowerCase();
     if(q&&!([row.name,row.district||"",row.address||"",row.phone||""].some(value=>value.toLowerCase().includes(q))))return false;
@@ -974,7 +998,7 @@ export default function Admin() {
     return true;
   }),[rows,studioSearch,studioListFilter]);
   const visibleStudioRows=filteredStudioRows.slice(0,studioVisibleLimit);
-  const reset=()=>{setEditing(null);setForm({...blank});};
+  const reset=()=>{setEditing(null);setReportEditingId(null);setForm({...blank});};
   const save=async()=>{
     if(!supabase)return;
     if(!form.name.trim()||!form.latitude.trim()||!form.longitude.trim()){Alert.alert("필수 정보","학원명과 위도/경도를 입력하세요.");return;}
@@ -988,9 +1012,22 @@ export default function Admin() {
     if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lng)||lng < -180||lng > 180|| (price!==null&&(!Number.isFinite(price)||price<0))){Alert.alert("입력 확인","좌표 또는 가격이 올바르지 않습니다.");return;}
     const payload={name:form.name.trim(),latitude:lat,longitude:lng,district:form.district.trim()||null,address:form.address.trim()||null,phone:form.phone.trim()||null,website_url:form.website_url.trim()||null,source_url:form.source_url.trim()||null,source_name:form.source_name.trim()||null,verified_at:verifiedAt?verifiedAt.toISOString():null,image_urls:imageUrls,image_source_name:form.image_source_name.trim()||(imageUrls.length&&!editing?"관리자 직접 등록":null),image_usage_note:form.image_usage_note.trim()||null,price_per_class:price,adult_classes:form.adult_classes,kids_classes:form.kids_classes,is_active:form.is_active,updated_at:new Date().toISOString()};
     setBusy(true);
+    const completedReportId=reportEditingId;
     const q=editing?supabase.from("studios").update(payload).eq("id",editing):supabase.from("studios").insert(payload);
     const {error}=await q;
-    if(error)Alert.alert("저장 실패",error.message);else{Alert.alert("저장 완료",form.is_active?"앱 공개 목록에 반영됩니다.":"비공개 상태로 저장했습니다.");reset();await load();}
+    if(error)Alert.alert("저장 실패",error.message);
+    else{
+      let reportStatusError:any=null;
+      if(completedReportId!==null){
+        const result=await supabase.rpc("admin_update_studio_user_report",{p_report_id:completedReportId,p_status:"resolved"});
+        reportStatusError=result.error;
+      }
+      reset();
+      await load();
+      if(completedReportId!==null)await loadReports();
+      if(reportStatusError)Alert.alert("정보 수정 완료","학원 정보는 저장했지만 제보 상태 변경에 실패했습니다. 제보 목록에서 다시 처리해 주세요.\n"+reportStatusError.message);
+      else Alert.alert("저장 완료",completedReportId!==null?"학원 정보 수정 및 제보 처리를 완료했습니다.":form.is_active?"앱 공개 목록에 반영됩니다.":"비공개 상태로 저장했습니다.");
+    }
     setBusy(false);
   };
   const verifyHomepageCandidate=(studio:StudioRow)=>{
@@ -1233,7 +1270,7 @@ export default function Admin() {
       ["공개 시간표",dashboard.public_schedules?.active??0,"활성 자료"],
       ["지역 발견",dashboard.discovery?.last_inserted??0,"최근 실행 신규 발견"]
     ].map(([label,value,caption])=><View key={String(label)} style={styles.statCard}><Text style={styles.statLabel}>{label}</Text><Text style={styles.statValue}>{Number(value).toLocaleString("ko-KR")}</Text><Text style={styles.statCaption}>{caption}</Text></View>)}</View><Text style={styles.hint}>최근 지역 탐색: {dashboard.discovery?.last_region||"실행 기록 없음"} · {dashboard.discovery?.last_run_at?new Date(dashboard.discovery.last_run_at).toLocaleString("ko-KR"):"기록 없음"}</Text>{dashboard.discovery?.last_error&&<Text style={styles.errorHint}>최근 탐색 오류: {[...new Set(String(dashboard.discovery.last_error).split(" | ").map((x:string)=>x.trim()).filter(Boolean))].join(" · ")}</Text>}<Pressable style={styles.secondary} disabled={retryBusy} onPress={retryFailedQueues}><Text style={styles.secondaryText}>{retryBusy?"재처리 요청 중…":"실패한 수집 작업 재처리"}</Text></Pressable></>:<Text style={styles.hint}>통계를 불러오는 중입니다.</Text>}</View>
-    <View style={styles.panel}><View style={styles.listHead}><View style={{flex:1,minWidth:0}}><Text style={styles.heading}>탐색 오류 기록</Text><Text style={styles.hint}>최근 40회 중복 제외 {discoveryDuplicateTotal.toLocaleString("ko-KR")}건 · 오류 {discoveryErrorRows.length}종</Text></View><View style={{flexDirection:"row",gap:12}}><Pressable onPress={loadDashboard}><Text style={styles.refresh}>새로고침</Text></Pressable><Pressable onPress={clearDiscoveryHistory} disabled={dashboardBusy}><Text style={[styles.refresh,{color:"#B95764"}]}>기록 초기화</Text></Pressable></View></View>{discoveryErrorRows.map((item:any,index:number)=><View key={"discovery-error-"+index} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.region_name} · {new Date(item.queried_at).toLocaleString("ko-KR")} · 최근 40건 중 {item.count}회</Text><Text style={styles.errorHint}>{item.error}</Text></View>)}{!discoveryErrorRows.length&&!dashboardBusy&&<Text style={styles.hint}>최근 탐색 오류가 없습니다.</Text>}</View><View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>학원 정보 사용자 제보 ({reportRows.filter(r=>r.status==="pending"||r.status==="in_review").length})</Text><Pressable onPress={loadReports}><Text style={styles.refresh}>{reportsBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{reportsError?<View><Text style={styles.hint}>제보 조회 오류: {reportsError}</Text><Pressable onPress={loadReports}><Text style={styles.action}>다시 시도</Text></Pressable></View>:reportRows.length?reportRows.map(report=><View key={"report-"+report.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{report.studio_name||"학원"} · {report.category} · {new Date(report.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.evidenceText}>{report.description}</Text><Text style={styles.rowMeta}>상태: {report.status==="pending"?"대기":report.status==="in_review"?"검토 중":report.status==="resolved"?"처리 완료":"기각"}</Text>{(report.status==="pending"||report.status==="in_review")&&<View style={styles.rowActions}><Pressable onPress={()=>updateReportStatus(report.id,"in_review")}><Text style={styles.action}>검토 중</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"resolved")}><Text style={styles.action}>처리 완료</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"rejected")}><Text style={styles.reject}>기각</Text></Pressable></View>}</View>):<Text style={styles.hint}>접수된 제보가 없습니다.</Text>}</View>
+    <View style={styles.panel}><View style={styles.listHead}><View style={{flex:1,minWidth:0}}><Text style={styles.heading}>탐색 오류 기록</Text><Text style={styles.hint}>최근 40회 중복 제외 {discoveryDuplicateTotal.toLocaleString("ko-KR")}건 · 오류 {discoveryErrorRows.length}종</Text></View><View style={{flexDirection:"row",gap:12}}><Pressable onPress={loadDashboard}><Text style={styles.refresh}>새로고침</Text></Pressable><Pressable onPress={clearDiscoveryHistory} disabled={dashboardBusy}><Text style={[styles.refresh,{color:"#B95764"}]}>기록 초기화</Text></Pressable></View></View>{discoveryErrorRows.map((item:any,index:number)=><View key={"discovery-error-"+index} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.region_name} · {new Date(item.queried_at).toLocaleString("ko-KR")} · 최근 40건 중 {item.count}회</Text><Text style={styles.errorHint}>{item.error}</Text></View>)}{!discoveryErrorRows.length&&!dashboardBusy&&<Text style={styles.hint}>최근 탐색 오류가 없습니다.</Text>}</View><View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>학원 정보 사용자 제보 ({reportRows.filter(r=>r.status==="pending"||r.status==="in_review").length})</Text><Pressable onPress={loadReports}><Text style={styles.refresh}>{reportsBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{reportsError?<View><Text style={styles.hint}>제보 조회 오류: {reportsError}</Text><Pressable onPress={loadReports}><Text style={styles.action}>다시 시도</Text></Pressable></View>:reportRows.length?reportRows.map(report=><View key={"report-"+report.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{report.studio_name||"학원"} · {report.category} · {new Date(report.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.evidenceText}>{report.description}</Text><Text style={styles.rowMeta}>상태: {report.status==="pending"?"대기":report.status==="in_review"?"검토 중":report.status==="resolved"?"처리 완료":"기각"}</Text><View style={styles.rowActions}><Pressable onPress={()=>openReportStudioEdit(report)}><Text style={styles.action}>학원 정보 수정</Text></Pressable><Pressable onPress={()=>showStudioChangeHistory(report)}><Text style={styles.action}>변경 이력</Text></Pressable>{(report.category==="가격/시간표 오류"||report.category==="사진 오류")&&<Pressable onPress={()=>setAdminTab(report.category==="사진 오류"?"review":"publish")}><Text style={styles.action}>관련 자료 검토</Text></Pressable>}{(report.status==="pending"||report.status==="in_review")&&<><Pressable onPress={()=>updateReportStatus(report.id,"in_review")}><Text style={styles.action}>검토 중</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"resolved")}><Text style={styles.action}>처리 완료</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"rejected")}><Text style={styles.reject}>기각</Text></Pressable></>}</View></View>):<Text style={styles.hint}>접수된 제보가 없습니다.</Text>}</View>
         </>}
     {adminTab==="publish"&&<>
 <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 가격</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 가격</Text><Text style={styles.compactAction}>관리</Text></View>{activePublicPrices.map((price,index)=><View key={"active-price-"+price.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{price.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{Number(price.amount_krw).toLocaleString("ko-KR")}원 · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Pressable onPress={()=>uploadMaterialPhotos("price",price)} disabled={evidenceBusy}><Text style={styles.compactAction}>사진 추가 · {Array.isArray(price.image_urls)?price.image_urls.length:0}/8장</Text></Pressable></View><Pressable onPress={()=>deactivatePublicPrice(price)} disabled={evidenceBusy}><Text style={styles.compactAction}>중단</Text></Pressable></View>)}{!activePublicPrices.length&&!evidenceBusy&&<Text style={styles.hint}>현재 공개 중인 가격이 없습니다.</Text>}{publicPriceOffset<publicPriceTotal&&<Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>loadMorePublicPage("price")}><Text style={styles.secondaryText}>다음 가격 이력 100개</Text></Pressable>}</View>
@@ -1272,7 +1309,7 @@ export default function Admin() {
 
     </View>}
     {adminTab==="studios"&&<>
-<View style={styles.panel}><Text style={styles.heading}>{editing?"학원 정보 수정":"학원 등록"}</Text>{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}{field("사진 URL (최대 10개, 줄바꿈 구분)","image_urls")}{editing&&form.image_urls.split(/[\\n,]+/).map(value=>value.trim()).filter(Boolean).map((url,index)=><View key={"edit-photo-"+index} style={styles.row}><Image source={{uri:url}} style={{width:62,height:52,borderRadius:8,backgroundColor:c.bg}} resizeMode="cover"/><Text style={[styles.compactSecondary,{flex:1}]} numberOfLines={1}>사진 {index+1}</Text><Pressable onPress={()=>removeStudioGalleryPhoto(editing,url)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
+<View style={styles.panel}><Text style={styles.heading}>{reportEditingId!==null?"제보 기반 학원 정보 수정":editing?"학원 정보 수정":"학원 등록"}</Text>{reportEditingId!==null&&<Text style={styles.hint}>제보 내용을 확인해 학원 정보를 수정하고 저장하면 해당 제보가 처리 완료로 변경됩니다. 폐업·이전이 확인된 경우 앱에 공개 토글을 끄세요.</Text>}{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}{field("사진 URL (최대 10개, 줄바꿈 구분)","image_urls")}{editing&&form.image_urls.split(/[\\n,]+/).map(value=>value.trim()).filter(Boolean).map((url,index)=><View key={"edit-photo-"+index} style={styles.row}><Image source={{uri:url}} style={{width:62,height:52,borderRadius:8,backgroundColor:c.bg}} resizeMode="cover"/><Text style={[styles.compactSecondary,{flex:1}]} numberOfLines={1}>사진 {index+1}</Text><Pressable onPress={()=>removeStudioGalleryPhoto(editing,url)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
     </View>
