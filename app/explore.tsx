@@ -140,14 +140,26 @@ export default function Home() {
     if(!client||!studioId||detailTab!=="reviews")return;
     let active=true;
     setReviewsLoading(true);
-    client.auth.getSession().then(({data})=>{if(active)setReviewUserId(data.session?.user.id||null);});
-    client.from("studio_reviews").select("id,studio_id,user_id,rating,content,created_at,updated_at")
-      .eq("studio_id",studioId).order("created_at",{ascending:false}).limit(100)
-      .then(({data,error})=>{if(!active)return;if(error){console.warn("Studio reviews unavailable:",error);setStudioReviews([]);}else{setStudioReviews(data||[]);const mine=(data||[]).find((row:any)=>row.user_id===reviewUserId);if(mine){setReviewRating(Number(mine.rating));setReviewText(mine.content||"");}}})
-      .finally(()=>{if(active)setReviewsLoading(false);});
+    (async()=>{
+      try{
+        const {data:authData}=await client.auth.getSession();
+        const userId=authData.session?.user.id||null;
+        if(active)setReviewUserId(userId);
+        const {data,error}=await client.from("studio_reviews")
+          .select("id,studio_id,user_id,rating,content,created_at,updated_at")
+          .eq("studio_id",studioId).order("created_at",{ascending:false}).limit(100);
+        if(!active)return;
+        if(error)throw error;
+        const rows=data||[];
+        setStudioReviews(rows);
+        const mine=rows.find((row:any)=>row.user_id===userId);
+        if(mine){setReviewRating(Number(mine.rating));setReviewText(mine.content||"");}
+        else{setReviewRating(5);setReviewText("");}
+      }catch(error){if(active){console.warn("Studio reviews unavailable:",error);setStudioReviews([]);}}
+      finally{if(active)setReviewsLoading(false);}
+    })();
     return()=>{active=false;};
   },[detailStudio?.id,detailTab]);
-
 
   useEffect(()=>{
     if(!supabase)return;
