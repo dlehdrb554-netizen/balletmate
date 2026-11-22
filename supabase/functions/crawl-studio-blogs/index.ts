@@ -51,7 +51,7 @@ function extractImages(html: string, base: string): string[] {
       try {
         const u = new URL(raw, base);
         if (u.protocol !== "https:" || !/(^|\.)pstatic\.net$|(^|\.)naver\.net$/i.test(u.hostname) ||
-            /\.svg(\?|$)/i.test(u.pathname)) continue;
+            /\.(svg|gif)(\?|$)/i.test(u.pathname) || /(profile|emoticon|sticker|icon)/i.test(u.pathname)) continue;
         // Naver often serves one image with different resize query strings.
         // Deduplicate by stable path while preserving the first usable URL.
         const stableKey = u.origin + u.pathname;
@@ -62,7 +62,7 @@ function extractImages(html: string, base: string): string[] {
       } catch { /* Ignore invalid image URLs. */ }
       break;
     }
-    if (out.length >= 40) break;
+    if (out.length >= 6) break;
   }
   return out;
 }
