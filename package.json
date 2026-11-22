@@ -32,7 +32,8 @@
     "@expo/vector-icons": "^15.0.3",
     "expo-font": "~14.0.12",
     "expo-dev-client": "~6.0.20",
-    "@infinitered/react-native-mlkit-face-detection": "^5.0.0"
+    "@infinitered/react-native-mlkit-face-detection": "^5.0.0",
+    "expo-image": "~3.0.11"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
