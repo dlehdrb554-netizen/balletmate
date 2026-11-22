@@ -398,14 +398,13 @@ export default function Admin() {
     const columns="id,studio_id,studio_name,source_id,source_title,source_url,source_post_date,candidate_type,candidate_value,normalized_value,price_period,price_frequency_per_week,evidence_text,confidence,review_status,created_at";
     const priceColumns="id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active,image_urls";
     const scheduleColumns="id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active,image_urls";
-    const [pending,verified,verifiedSchedules,published,publishedSchedules,publishedPriceIds,publishedScheduleIds]=await Promise.all([
+    const [pending,verified,verifiedSchedules,published,publishedSchedules,publishedIds]=await Promise.all([
       supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","pending").order("created_at",{ascending:false}).limit(100),
       supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
       supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
       supabase.from("studio_public_prices").select(priceColumns,{count:"exact"}).eq("is_active",true).order("published_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
       supabase.from("studio_public_schedules").select(scheduleColumns,{count:"exact"}).order("published_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
-      readAllRows(()=>supabase!.from("studio_public_prices").select("candidate_id").not("candidate_id","is",null)),
-      readAllRows(()=>supabase!.from("studio_public_schedules").select("candidate_id").not("candidate_id","is",null)),
+      supabase.rpc("admin_published_candidate_ids"),
     ]);
     if(pending.error)Alert.alert("자동 수집 자료 조회 실패",pending.error.message);
     else {setEvidenceRows((pending.data||[]) as EvidenceCandidate[]);setTotalEvidencePending(pending.count??(pending.data||[]).length);setSelectedEvidenceIds(ids=>ids.filter(id=>(pending.data||[]).some((row:any)=>row.id===id)));}
@@ -426,13 +425,14 @@ export default function Admin() {
       if(!namesError)for(const item of names||[])studioNames.set(item.id,item.name);
     }
     if(published.error)Alert.alert("공개 가격 조회 실패",published.error.message);
+    else if(publishedIds.error)Alert.alert("공개 후보 연결 조회 실패",publishedIds.error.message+"\nadmin_management_scaling.sql 적용 여부를 확인해 주세요.");
     else {
-      setPublishedCandidateIds((publishedPriceIds.data||[]).map((row:any)=>Number(row.candidate_id)));
+      setPublishedCandidateIds(Array.isArray(publishedIds.data?.prices)?publishedIds.data.prices.map((id:any)=>Number(id)):[]);
       setActivePublicPrices(publishedRows.filter((row:any)=>row.is_active).map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));
     }
     if(publishedSchedules.error)Alert.alert("공개 시간표 조회 실패",publishedSchedules.error.message);
     else {
-      setPublishedScheduleCandidateIds((publishedScheduleIds.data||[]).map((row:any)=>Number(row.candidate_id)));
+      setPublishedScheduleCandidateIds(Array.isArray(publishedIds.data?.schedules)?publishedIds.data.schedules.map((id:any)=>Number(id)):[]);
       const seen=new Set<string>();const uniqueScheduleRows:any[]=[];let duplicates=0;
       for(const row of scheduleRows){
         const key=normalizeScheduleKey(row.schedule_text||"");
