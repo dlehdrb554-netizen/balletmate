@@ -8,6 +8,7 @@ const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || "sb_publish
 export const supabaseConfigured = Boolean(url && anonKey);
 export const supabase = supabaseConfigured ? createClient(url!, anonKey!, {
   auth: {
+    flowType: "pkce",
     storage: AsyncStorage,
     persistSession: true,
     autoRefreshToken: true,
