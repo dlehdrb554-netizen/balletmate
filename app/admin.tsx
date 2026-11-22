@@ -324,7 +324,7 @@ export default function Admin() {
       const deduped=dedupeStudioRows([...rows,...page]);
       setRows(deduped.rows as StudioRow[]);
       setStudioDbOffset(start+page.length);
-      setStudioHasMore(page.length===500);
+      setStudioHasMore(page.length===STUDIO_PAGE_SIZE);
     }catch(error:any){Alert.alert("추가 조회 실패",error?.message||"다음 학원 목록을 불러오지 못했습니다.");}
     finally{setBusy(false);}
   };
@@ -339,13 +339,13 @@ export default function Admin() {
       const query=term
         ? baseQuery.or(`name.ilike.%${term}%,district.ilike.%${term}%,address.ilike.%${term}%,phone.ilike.%${term}%`)
         : baseQuery;
-      const {data,error}=await query.order("name").order("id").range(0,499);
+      const {data,error}=await query.order("name").order("id").range(0,STUDIO_PAGE_SIZE-1);
       if(error)throw error;
       const page=data||[];
       const deduped=dedupeStudioRows(page);
       setRows(deduped.rows as StudioRow[]);
       setStudioDbOffset(page.length);
-      setStudioHasMore(page.length===500);
+      setStudioHasMore(page.length===STUDIO_PAGE_SIZE);
       setStudioVisibleLimit(100);
     }catch(error:any){Alert.alert("학원 검색 실패",error?.message||"전체 학원 검색을 완료하지 못했습니다.");}
     finally{setBusy(false);}
