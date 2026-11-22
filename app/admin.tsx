@@ -131,13 +131,13 @@ export default function Admin() {
   const retryFailedQueues=async()=>{
     const client=supabase;
     if(!client)return;
-    Alert.alert("실패 작업 재처리","실패한 블로그 검색·게시글·이미지 수집 작업을 대기열로 돌리고 재시도 횟수를 초기화할까요?",[
+    Alert.alert("실패 작업 재처리","실패한 블로그 검색·게시글 수집 작업을 대기열로 돌리고 재시도 횟수를 초기화할까요?",[
       {text:"취소",style:"cancel"},
       {text:"재처리",onPress:async()=>{
         setRetryBusy(true);
         const {data,error}=await client.rpc("balletmate_admin_retry_failed_collection_jobs");
         if(error)Alert.alert("재처리 요청 실패",error.message);
-        else {Alert.alert("재처리 예약 완료", "블로그 검색 "+(data.blog_search_requeued||0)+"개 · 게시글 "+(data.blog_post_requeued||0)+"개 · 이미지 "+(data.image_requeued||0)+"개");await loadDashboard();}
+        else {Alert.alert("재처리 예약 완료", "블로그 검색 "+(data.blog_search_requeued||0)+"개 · 게시글 "+(data.blog_post_requeued||0)+"개");await loadDashboard();}
         setRetryBusy(false);
       }}
     ]);
@@ -796,8 +796,8 @@ export default function Admin() {
       ["학원",dashboard.studios?.total??0,"공개 "+(dashboard.studios?.active??0)],
       ["블로그 검색",dashboard.blog_search?.pending??0,"대기 · 진행 "+(dashboard.blog_search?.processing??0)+" · 실패 "+(dashboard.blog_search?.failed??0)],
       ["게시글 수집",dashboard.blog_posts?.pending??0,"대기 · 진행 "+(dashboard.blog_posts?.processing??0)+" · 실패 "+(dashboard.blog_posts?.failed??0)],
-      ["이미지 수집",dashboard.image_crawl?.pending??0,"대기 · 진행 "+(dashboard.image_crawl?.processing??0)+" · 실패 "+(dashboard.image_crawl?.failed??0)],
-      ["장기 정체",Number(dashboard.blog_search?.stalled||0)+Number(dashboard.blog_posts?.stalled||0)+Number(dashboard.image_crawl?.stalled||0),"검색·게시글 20분 / 이미지 30분"],
+      ["사진 미확보 학원",dashboard.photos?.missing??0,"사진이 등록되지 않은 활성 학원"],
+      ["장기 정체",Number(dashboard.blog_search?.stalled||0)+Number(dashboard.blog_posts?.stalled||0),"검색·게시글 20분 이상"],
       ["근거 검수",dashboard.evidence?.pending??0,"가격·시간표 후보"],
       ["OCR 검수",dashboard.ocr?.pending??0,"대기 자료"],
       ["시간표 후보",dashboard.schedule_candidates?.pending??0,"등록 대기"],
