@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { supabase } from "../lib/supabase";
 import * as ImagePicker from "expo-image-picker";
-import { extractTextFromImage, isSupported, TextRecognitionScript } from "@zhanziyang/expo-text-extractor";
+
 import * as FileSystem from "expo-file-system/legacy";
 import { fetchStudioBlogPosts } from "../lib/studio-blog-content";
 import { parseScheduleEvidence } from "../lib/schedule-structure";
@@ -75,6 +75,18 @@ const datePlusDays=(date:string,days:number):string|null=>{
   if(!Number.isFinite(value.getTime()))return null;
   value.setUTCDate(value.getUTCDate()+days);
   return value.toISOString().slice(0,10);
+};
+
+const loadOcrModule=async()=>{
+  try{
+    const module=await import("@zhanziyang/expo-text-extractor");
+    if(!module.isSupported){Alert.alert("OCR 미지원","현재 Android 빌드에는 OCR 네이티브 모듈이 포함되어 있지 않습니다. 관리자 기능의 나머지 메뉴는 계속 이용할 수 있습니다.");return null;}
+    return module;
+  }catch(error:any){
+    Alert.alert("OCR 모듈을 사용할 수 없음","OCR 기능은 현재 빌드에서 비활성화되어 있습니다. 관리자 화면은 계속 이용할 수 있습니다.");
+    console.warn("Optional OCR module unavailable:",error);
+    return null;
+  }
 };
 
 export default function Admin() {
@@ -296,7 +308,7 @@ export default function Admin() {
   useEffect(()=>{loadOcr();},[loadOcr]);
   const runLocalOcr=async(id:string,name:string)=>{
     if(!supabase)return;
-    if(!isSupported){Alert.alert("OCR 미지원","현재 실행 환경에는 OCR 네이티브 모듈이 없습니다. Expo Go가 아닌 새 Android 개발 빌드가 필요합니다.");return;}
+    const ocr=await loadOcrModule();if(!ocr)return;
     const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
     if(!permission.granted){Alert.alert("사진 권한","사진 보관함 접근 권한을 허용해 주세요.");return;}
     const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:5,quality:1});
@@ -305,7 +317,7 @@ export default function Admin() {
     try{
       for(let i=0;i<picked.assets.length;i++){
         const asset=picked.assets[i];
-        const lines=await extractTextFromImage(asset.uri,Platform.OS==="android"?{script:TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});
+        const lines=await ocr.extractTextFromImage(asset.uri,Platform.OS==="android"?{script:ocr.TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});
         const extracted=(lines||[]).join("\n").trim();if(!extracted)continue;
         const priceHit=/(원|만원|천원|회권|수강료|월\s*\d+회|등록비|개월권)/i.test(extracted);
         const scheduleHit=/(월|화|수|목|금|토|일)요일|\b(월|화|수|목|금|토|일)\b|오전|오후|\d{1,2}:\d{2}|시간표|타임/i.test(extracted);
@@ -320,7 +332,7 @@ export default function Admin() {
 
   const runBlogImageOcr=async(id:string,name:string)=>{
     if(!supabase)return;
-    if(!isSupported){Alert.alert("OCR 미지원","현재 실행 환경에는 OCR 네이티브 모듈이 없습니다. 새 Android 개발 빌드가 필요합니다.");return;}
+    const ocr=await loadOcrModule();if(!ocr)return;
     if(!FileSystem.cacheDirectory){Alert.alert("임시 저장소 오류","기기 임시 저장소를 사용할 수 없습니다.");return;}
     setOcrBusy(true);
     let processed=0,skipped=0,failed=0;
@@ -345,7 +357,7 @@ export default function Admin() {
           localUri=dir+"studio-"+id+"-source-"+item.source_id+"-"+i+"."+ext;
           const downloaded=await FileSystem.downloadAsync(item.image_url,localUri,{headers:{"User-Agent":"Mozilla/5.0 BalletmateImageOCR"}});
           if(downloaded.status<200||downloaded.status>=300)throw new Error("이미지 다운로드 HTTP "+downloaded.status);
-          const lines=await extractTextFromImage(downloaded.uri,Platform.OS==="android"?{script:TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});
+          const lines=await ocr.extractTextFromImage(downloaded.uri,Platform.OS==="android"?{script:ocr.TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});
           const extracted=(lines||[]).join("\n").trim();
           if(extracted.length<3){skipped++;continue;}
           const parsed=parseOcrFields(extracted);
@@ -370,7 +382,7 @@ export default function Admin() {
 
   const runBatchBlogImageOcr=async()=>{
     if(!supabase)return;
-    if(!isSupported){Alert.alert("OCR 미지원","이 기능은 Expo Go가 아닌 새 Android 개발 빌드에서 실행해야 합니다.");return;}
+    const ocr=await loadOcrModule();if(!ocr)return;
     if(!FileSystem.cacheDirectory){Alert.alert("임시 저장소 오류","기기 임시 저장소를 사용할 수 없습니다.");return;}
     if(!rows.length){Alert.alert("학원 데이터 없음","먼저 학원 목록을 새로고침해 주세요.");return;}
     setOcrBusy(true);
@@ -426,7 +438,7 @@ export default function Admin() {
           localUri=dir+"batch-"+item.source_id+"-"+i+"."+ext;
           const downloaded=await FileSystem.downloadAsync(item.image_url,localUri,{headers:{"User-Agent":"Mozilla/5.0 BalletmateImageOCR"}});
           if(downloaded.status<200||downloaded.status>=300)throw new Error("이미지 다운로드 HTTP "+downloaded.status);
-          const lines=await extractTextFromImage(downloaded.uri,Platform.OS==="android"?{script:TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});
+          const lines=await ocr.extractTextFromImage(downloaded.uri,Platform.OS==="android"?{script:ocr.TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});
           const extracted=(lines||[]).join("\n").trim();
           if(extracted.length<3){skipped++;continue;}
           const parsed=parseOcrFields(extracted);
