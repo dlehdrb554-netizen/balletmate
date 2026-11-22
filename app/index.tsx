@@ -5,7 +5,7 @@ import {
   ActivityIndicator, Animated, FlatList, Image, Keyboard, Linking, Modal, PanResponder, Pressable, SafeAreaView, ScrollView,
   StyleSheet, Text, TextInput, View, Alert
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
 import { fetchStudios } from "../lib/studios";
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
 import { fetchStudioBlogPosts, StudioBlogPost, fetchStudioPublicPrices, StudioPublicPrice, fetchStudioPublicSchedules, StudioPublicSchedule } from "../lib/studio-blog-content";
@@ -35,7 +35,7 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
 }
 export default function Home() {
   const router = useRouter();
-  const map = useRef<MapView>(null);
+  const map = useRef<any>(null);
   const [studios,setStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
   const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");
   const [region,setRegion]=useState(INITIAL);
@@ -44,7 +44,7 @@ export default function Home() {
   const [classSearchIds,setClassSearchIds]=useState<string[]>([]);
   const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
-  const [view,setView]=useState<"map"|"list"|"favorites">("map");
+  const [view,setView]=useState<"map"|"list"|"favorites">("list");
   const [listSort,setListSort]=useState<"distance"|"price">("distance");
   const [menuOpen,setMenuOpen]=useState(false);
   const [filterOpen,setFilterOpen]=useState(false);
@@ -153,7 +153,7 @@ export default function Home() {
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
-  useEffect(()=>{let active=true;const initializeLocation=async()=>{try{let permission=await Location.getForegroundPermissionsAsync();if(permission.status==="undetermined")permission=await Location.requestForegroundPermissionsAsync();if(!active)return;setLocationGranted(permission.status==="granted");if(permission.status!=="granted")return;const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});if(!active)return;const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.04,longitudeDelta:0.04};map.current?.animateToRegion(r,500);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setMapMoved(false);}catch{if(active)setLocationGranted(false);}};initializeLocation();return()=>{active=false;};},[]);
+  // Location permissions and GPS are requested only after the user taps the location button.
   useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,cache])=>{let savedIds:string[]=[];let savedStudios:Studio[]=[];if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))savedIds=parsed.filter(x=>typeof x==="string");}if(cache){const parsed=JSON.parse(cache);if(Array.isArray(parsed))savedStudios=parsed.filter((x:any)=>x&&typeof x.id==="string");}guestFavoritesRef.current={ids:savedIds,studios:savedStudios};setFavoriteIds(savedIds);setFavoriteStudios(savedStudios);}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
   useEffect(()=>{if(favoritesReady){AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});AsyncStorage.setItem("balletmate.favoriteStudios.v1",JSON.stringify(favoriteStudios)).catch(()=>{});}},[favoriteIds,favoriteStudios,favoritesReady]);
   const favoriteSyncUser=useRef<string|null>(null);
@@ -253,9 +253,7 @@ export default function Home() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFilters}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/><Chip label="쿠폰" active={coupon} onPress={()=>setCoupon(!coupon)}/><Chip label="초급" active={level==="초급"} onPress={()=>setLevel(level==="초급"?null:"초급")}/><Chip label="전체" onPress={resetFilters}/></ScrollView>
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
-        <MapView ref={map} style={StyleSheet.absoluteFill} initialRegion={INITIAL} onRegionChangeComplete={r=>{setRegion(r);setMapMoved(true);}} showsUserLocation={locationGranted} showsMyLocationButton={false} onPress={()=>setSelected(null)}>
-          {results.map(s=><Marker key={s.id} coordinate={{latitude:s.lat,longitude:s.lng}} onPress={()=>{setSelected(s);openDetail(s);}} tracksViewChanges={false}><View style={[styles.pin,selected?.id===s.id&&styles.pinSelected]}><Text style={[styles.pinText,selected?.id===s.id&&styles.pinTextSelected]}>{s.price!==null?(s.price===0?"무료":"₩"+Math.round(s.price/1000)+"k"):"문의"}</Text></View></Marker>)}
-        </MapView>
+        <View style={[StyleSheet.absoluteFill,{backgroundColor:COLORS.bg,justifyContent:"center",alignItems:"center",padding:20}]}><Text style={{fontSize:18,fontWeight:"800",color:COLORS.ink}}>지도 모듈 진단 중</Text><Text style={{fontSize:12,color:COLORS.muted,textAlign:"center",marginTop:8}}>실행 종료 원인을 확인하기 위해 지도 기능을 임시로 제외했습니다.</Text><Pressable style={[styles.detailBtn,{marginTop:14}]} onPress={()=>setView("list")}><Text style={styles.detailBtnText}>학원 목록 열기</Text></Pressable></View>
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"} onPress={searchArea}><Text style={styles.areaSearchText}>⌕  이 지역에서 재검색</Text></Pressable>}
         <Pressable style={styles.locateButton} onPress={locate}><Text style={{fontSize:19}}>{locationLoading?"…":"◎"}</Text></Pressable>
         <View style={styles.mapCount}><Text style={styles.mapCountText}>주변 학원 <Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}</Text>곳{backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></View>
