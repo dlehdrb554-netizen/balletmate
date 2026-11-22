@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "postinstall": "node scripts/patch-ocr-expo-lifecycle.js"
+    "postinstall": "node scripts/patch-ocr-expo-lifecycle.js",
+    "preview:designer": "expo start --dev-client --tunnel",
+    "preview:lan": "expo start --dev-client --lan"
   },
   "dependencies": {
     "expo": "~54.0.38",
@@ -30,7 +32,8 @@
     "expo-linking": "~8.0.12",
     "react-native-webview": "13.15.0",
     "@expo/vector-icons": "^15.0.3",
-    "expo-font": "~14.0.12"
+    "expo-font": "~14.0.12",
+    "expo-dev-client": "~6.0.20"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
