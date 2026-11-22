@@ -288,9 +288,27 @@ Deno.serve(async (req) => {
           source_host: postUrl.hostname,
           review_status: "pending",
         }));
-        const { error: photoError } = await db.from("studio_photo_candidates")
-          .upsert(photoCandidates, { onConflict: "studio_id,image_url", ignoreDuplicates: true });
+        const { data: queuedPhotos, error: photoError } = await db.from("studio_photo_candidates")
+          .upsert(photoCandidates, { onConflict: "studio_id,image_url", ignoreDuplicates: true })
+          .select("id");
         if (photoError) photoCandidateWarning = photoError.message;
+        else if (queuedPhotos?.length) {
+          // Newly discovered blog photos are analyzed and published/excluded immediately.
+          const classifierEndpoint = url.replace(/\\/$/, "") + "/functions/v1/classify-studio-photo";
+          let aiProcessed = 0, aiFailed = 0;
+          for (const photo of queuedPhotos) {
+            try {
+              const vision = await fetch(classifierEndpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key, "x-photo-auto-secret": key },
+                body: JSON.stringify({ candidateId: photo.id }),
+                signal: AbortSignal.timeout(25000),
+              });
+              if (vision.ok) aiProcessed++; else aiFailed++;
+            } catch { aiFailed++; }
+          }
+          photoCandidateWarning = "AI 자동 분류 " + aiProcessed + "장" + (aiFailed ? " (실패 " + aiFailed + "장)" : "");
+        }
       }
       const prices = evidence(textBody, "price");
       const schedules = evidence(textBody, "schedule");
