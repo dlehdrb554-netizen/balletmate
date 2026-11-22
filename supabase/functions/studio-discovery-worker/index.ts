@@ -88,7 +88,7 @@ Deno.serve(async(req)=>{
  const {data:regions,error:regionError}=await db.rpc("next_studio_discovery_region");
  if(regionError||!regions?.length)return json({error:"지역 배정 실패: "+(regionError?.message||"empty")},500);
  const region=regions[0];
- let resultCount=0,insertedCount=0,duplicateCount=0,requestCount=0,kakaoDetailChecks=0,kakaoBlogCandidates=0;
+ let resultCount=0,insertedCount=0,duplicateCount=0,requestCount=0,kakaoDetailChecks=0,kakaoBlogCandidates=0,kakaoChannelCandidates=0;
  const naverId=Deno.env.get("NAVER_CLIENT_ID"),naverSecret=Deno.env.get("NAVER_CLIENT_SECRET");let homepageSearches=0,homepagesFound=0;
  const errors:string[]=[];
  const addError=(message:string)=>{const normalized=message.trim();if(normalized&&!errors.includes(normalized))errors.push(normalized);};
@@ -156,7 +156,7 @@ Deno.serve(async(req)=>{
        }
        if(officialLinks.channel){
         const {error:channelError}=await db.from("studios").update({kakao_channel_url:officialLinks.channel,updated_at:new Date().toISOString()}).eq("id",studioId);
-        if(channelError)addError("카카오톡 채널 후보 저장 실패("+name+"): "+channelError.message.slice(0,100));
+        if(channelError)addError("카카오톡 채널 후보 저장 실패("+name+"): "+channelError.message.slice(0,100));else kakaoChannelCandidates++;
        }
       }
       if(studioId&&naverId&&naverSecret&&homepageSearches<12){const {data:siteRow}=await db.from("studios").select("website_url,homepage_search_checked_at").eq("id",studioId).maybeSingle();if(!siteRow?.website_url&&!siteRow?.homepage_search_checked_at){homepageSearches++;const found=await findHomepageCandidate(name,address,naverId,naverSecret);if(found.error)addError("신규 학원 네이버 검색 실패: "+found.error.slice(0,100));else{const checkedAt=new Date().toISOString();const update:Record<string,unknown>={homepage_search_checked_at:checkedAt,updated_at:checkedAt};if(found.url){update.website_url=found.url;update.source_name="Kakao Local 발견 · Naver 홈페이지 검색 후보(미검증)";}const {error:websiteError}=await db.from("studios").update(update).eq("id",studioId).is("website_url",null);if(websiteError)addError("홈페이지 후보 저장 실패: "+websiteError.message.slice(0,100));else if(found.url)homepagesFound++;}}}
@@ -175,5 +175,5 @@ Deno.serve(async(req)=>{
   duplicate_count:duplicateCount,homepage_search_count:homepageSearches,
   homepage_found_count:homepagesFound,error:errors.join(" | ").slice(0,1000)||null
  });
- return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,kakaoDetailChecks,kakaoBlogCandidates,homepageSearches,homepagesFound,errors,logSaved:!logError,logError:logError?.message});
+ return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,kakaoDetailChecks,kakaoBlogCandidates,kakaoChannelCandidates,homepageSearches,homepagesFound,errors,logSaved:!logError,logError:logError?.message});
 });
