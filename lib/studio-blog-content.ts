@@ -15,6 +15,7 @@ export type StudioBlogPost = {
 };
 
 const blogCache = new Map<string, { savedAt: number; rows: StudioBlogPost[] }>();
+const inFlightBlogRequests = new Map<string, Promise<StudioBlogPost[]>>();
 const BLOG_CACHE_MS = 10 * 60_000;
 const MAX_BLOG_REQUESTS_PER_APP_SESSION = 30;
 let blogRequests = 0;
@@ -23,19 +24,30 @@ export async function fetchStudioBlogPosts(studioId: string): Promise<StudioBlog
   if (!supabase) return [];
   const cached = blogCache.get(studioId);
   if (cached && Date.now() - cached.savedAt < BLOG_CACHE_MS) return cached.rows;
+  const inFlight = inFlightBlogRequests.get(studioId);
+  if (inFlight) return inFlight;
   if (blogRequests >= MAX_BLOG_REQUESTS_PER_APP_SESSION) {
     throw new Error("이번 앱 실행 중 블로그 자료 조회 한도(30회)에 도달했습니다.");
   }
-  blogRequests += 1;
-  const { data, error } = await supabase.rpc("get_studio_blog_public_details", {
-    p_studio_id: studioId,
-  });
-  if (error) throw error;
-  const rows = (Array.isArray(data) ? data : []) as StudioBlogPost[];
-  blogCache.set(studioId, { savedAt: Date.now(), rows });
-  return rows;
-}
 
+  blogRequests += 1;
+  const request = (async () => {
+    const { data, error } = await supabase.rpc("get_studio_blog_public_details", {
+      p_studio_id: studioId,
+    });
+    if (error) throw error;
+    const rows = (Array.isArray(data) ? data : []) as StudioBlogPost[];
+    blogCache.set(studioId, { savedAt: Date.now(), rows });
+    return rows;
+  })().catch((error) => {
+    blogRequests = Math.max(0, blogRequests - 1);
+    throw error;
+  }).finally(() => {
+    if (inFlightBlogRequests.get(studioId) === request) inFlightBlogRequests.delete(studioId);
+  });
+  inFlightBlogRequests.set(studioId, request);
+  return request;
+}
 
 export type StudioPublicPrice = {
   id:number;
@@ -52,25 +64,31 @@ export type StudioPublicPrice = {
 };
 
 const publicPriceCache = new Map<string, { savedAt:number; rows:StudioPublicPrice[] }>();
+const inFlightPublicPriceRequests = new Map<string, Promise<StudioPublicPrice[]>>();
 export async function fetchStudioPublicPrices(studioId:string):Promise<StudioPublicPrice[]> {
   if(!supabase)return [];
   const cached=publicPriceCache.get(studioId);
   if(cached&&Date.now()-cached.savedAt<BLOG_CACHE_MS)return cached.rows;
-  const {data,error}=await supabase.from("studio_public_prices_app")
-    .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at,expires_at")
-    .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
-  let rowsData:any=data;
-  if(error&&/expires_at|column/i.test(error.message)){
-    // Older installations may not have run the freshness migration yet.
-    const fallback=await supabase.from("studio_public_prices_app")
-      .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at")
+  const inFlight=inFlightPublicPriceRequests.get(studioId);
+  if(inFlight)return inFlight;
+  const request=(async()=>{
+    const {data,error}=await supabase.from("studio_public_prices_app")
+      .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at,expires_at")
       .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
-    if(fallback.error)throw fallback.error;
-    rowsData=fallback.data;
-  }else if(error)throw error;
-  const rows=(rowsData||[]) as StudioPublicPrice[];
-  publicPriceCache.set(studioId,{savedAt:Date.now(),rows});
-  return rows;
+    let rowsData:any=data;
+    if(error&&/expires_at|column/i.test(error.message)){
+      const fallback=await supabase.from("studio_public_prices_app")
+        .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at")
+        .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
+      if(fallback.error)throw fallback.error;
+      rowsData=fallback.data;
+    }else if(error)throw error;
+    const rows=(rowsData||[]) as StudioPublicPrice[];
+    publicPriceCache.set(studioId,{savedAt:Date.now(),rows});
+    return rows;
+  })().finally(()=>{if(inFlightPublicPriceRequests.get(studioId)===request)inFlightPublicPriceRequests.delete(studioId);});
+  inFlightPublicPriceRequests.set(studioId,request);
+  return request;
 }
 
 export type StudioPublicSchedule = {
@@ -86,15 +104,22 @@ export type StudioPublicSchedule = {
 };
 
 const publicScheduleCache = new Map<string, { savedAt:number; rows:StudioPublicSchedule[] }>();
+const inFlightPublicScheduleRequests = new Map<string, Promise<StudioPublicSchedule[]>>();
 export async function fetchStudioPublicSchedules(studioId:string):Promise<StudioPublicSchedule[]> {
   if(!supabase)return [];
   const cached=publicScheduleCache.get(studioId);
   if(cached&&Date.now()-cached.savedAt<BLOG_CACHE_MS)return cached.rows;
-  const {data,error}=await supabase.from("studio_public_schedules_app")
-    .select("id,studio_id,schedule_text,evidence_text,source_title,source_url,source_post_date,published_at,expires_at")
-    .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
-  if(error)throw error;
-  const rows=(data||[]) as StudioPublicSchedule[];
-  publicScheduleCache.set(studioId,{savedAt:Date.now(),rows});
-  return rows;
+  const inFlight=inFlightPublicScheduleRequests.get(studioId);
+  if(inFlight)return inFlight;
+  const request=(async()=>{
+    const {data,error}=await supabase.from("studio_public_schedules_app")
+      .select("id,studio_id,schedule_text,evidence_text,source_title,source_url,source_post_date,published_at,expires_at")
+      .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
+    if(error)throw error;
+    const rows=(data||[]) as StudioPublicSchedule[];
+    publicScheduleCache.set(studioId,{savedAt:Date.now(),rows});
+    return rows;
+  })().finally(()=>{if(inFlightPublicScheduleRequests.get(studioId)===request)inFlightPublicScheduleRequests.delete(studioId);});
+  inFlightPublicScheduleRequests.set(studioId,request);
+  return request;
 }
