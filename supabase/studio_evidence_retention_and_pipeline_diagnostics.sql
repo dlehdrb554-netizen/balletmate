@@ -33,7 +33,7 @@ SET review_status='rejected', reviewed_at=COALESCE(reviewed_at,now())
 WHERE review_status='verified'
   AND source_post_date IS NOT NULL
   AND ((candidate_type='price' AND source_post_date < CURRENT_DATE-180)
-    OR (candidate_type='schedule' AND source_post_date < CURRENT_DATE-45)
+    OR (candidate_type='schedule' AND source_post_date < CURRENT_DATE-45))
   AND NOT EXISTS (
     SELECT 1 FROM public.studio_public_prices p WHERE p.candidate_id=studio_blog_evidence_candidates.id AND p.is_active
   )
@@ -59,8 +59,7 @@ BEGIN
   SET review_status='rejected',reviewed_at=COALESCE(reviewed_at,now())
   WHERE review_status IN ('pending','verified') AND source_post_date IS NOT NULL
     AND ((candidate_type='price' AND source_post_date<CURRENT_DATE-180)
-      OR (candidate_type='schedule' AND source_post_date<CURRENT_DATE-45)
-    )
+      OR (candidate_type='schedule' AND source_post_date<CURRENT_DATE-45))
     AND NOT EXISTS (SELECT 1 FROM public.studio_public_prices p WHERE p.candidate_id=studio_blog_evidence_candidates.id AND p.is_active)
     AND NOT EXISTS (SELECT 1 FROM public.studio_public_schedules s WHERE s.candidate_id=studio_blog_evidence_candidates.id AND s.is_active);
   GET DIAGNOSTICS candidates_count=ROW_COUNT;
