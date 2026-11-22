@@ -47,6 +47,10 @@ jobs:
 
       - name: Verify Expo native dependency versions
         run: npm ls expo expo-modules-core react-native
+      - name: Diagnose Expo Android autolinking publication metadata
+        run: |
+          npx expo-modules-autolinking resolve --platform android --json > autolinking-android.json
+          node -e "const c=require('./autolinking-android.json'); for(const [i,m] of (c.modules||[]).entries()) { for(const p of (m.projects||[])) if(p.publication && !p.publication.version) console.log('MISSING_PUBLICATION_VERSION',i,m.packageName,p.name,JSON.stringify(p.publication)); }"
 
       - name: Generate Android native project
         env:
