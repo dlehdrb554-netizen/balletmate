@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-const SEARCH_SUFFIXES = ["수강료", "스케줄"];
+const SEARCH_SUFFIXES = ["", "발레", "시간표", "수강료"];
 const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
 const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, "");
@@ -12,9 +12,18 @@ const academyAlias = (studioName: string) => normalize(studioName)
 const blogAccountKey = (raw: string): string => {
   try {
     const u = new URL(raw);
-    if (u.protocol !== "https:" || !BLOG_HOSTS.has(u.hostname.toLowerCase())) return "";
-    return u.pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+    if (!BLOG_HOSTS.has(u.hostname.toLowerCase())) return "";
+    // Naver mobile PostList links put the account ID in the blogId query.
+    const queryId = u.searchParams.get("blogId") || u.searchParams.get("blogid");
+    if (queryId) return queryId.trim().toLowerCase();
+    const first = u.pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+    if (/^(postlist|postview)\\.naver$/i.test(first)) return "";
+    return first;
   } catch { return ""; }
+};
+const canonicalBlogUrl = (raw: string): string => {
+  const key = blogAccountKey(raw);
+  return key ? `https://blog.naver.com/${key}` : "";
 };
 const isRelevantBlog = (studioName: string, title: string, description: string, bloggerUrl: string, officialAccounts: string[]): boolean => {
   const alias = academyAlias(studioName);
@@ -69,7 +78,7 @@ Deno.serve(async (req) => {
       if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
       const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
       for (const suffix of SEARCH_SUFFIXES) {
-        const query = `${job.studio_name} ${suffix}`;
+        const query = suffix ? `${job.studio_name} ${suffix}` : String(job.studio_name);
         const endpoint = new URL("https://openapi.naver.com/v1/search/blog.json");
         endpoint.searchParams.set("query", query);
         endpoint.searchParams.set("display", "10");
@@ -108,7 +117,7 @@ Deno.serve(async (req) => {
             post_url: postUrl,
             description: description || null,
             blogger_name: cleanText(item.bloggername) || null,
-            blogger_url: cleanText(item.bloggerlink) || null,
+            blogger_url: canonicalBlogUrl(cleanText(item.bloggerlink)) || null,
             post_date: postDate,
             collected_at: new Date().toISOString(),
           }];
@@ -121,57 +130,75 @@ Deno.serve(async (req) => {
           saved += data?.length ?? rows.length;
         }
 
-        // Suggest only accounts whose returned post title/description explicitly
-        // contains this academy's normalized name. Suggestions never become public
-        // until an administrator approves the account.
+        // Candidate discovery is broader than public-source filtering: account name,
+        // post text, Naver profile ID and repeated appearances contribute confidence.
+        // Candidates are never public until an administrator approves them.
         const alias = academyAlias(String(job.studio_name));
-        const accountCandidates = new Map<string, { blogger_url: string; blogger_name: string | null; title: string; post_url: string }>();
+        const aliasTokens = String(job.studio_name).split(/[\\s·ㆍ()[\\]_-]+/)
+          .map((token) => normalize(token)).filter((token) => token.length >= 2 &&
+            !/(발레|학원|스튜디오|아카데미|센터|무용|키즈|성인|교습소)$/.test(token));
+        const accountCandidates = new Map<string, {
+          blogger_url: string; blogger_name: string | null; samples: Array<{title:string;post_url:string}>;
+          score: number; matchCount: number;
+        }>();
         for (const item of items as Array<Record<string, unknown>>) {
           const bloggerUrl = cleanText(item.bloggerlink);
+          const canonicalUrl = canonicalBlogUrl(bloggerUrl);
           const title = cleanText(item.title);
           const description = cleanText(item.description);
-          if (!isNaverBlogUrl(bloggerUrl) || !title || alias.length < 3) continue;
+          if (!canonicalUrl || !title || alias.length < 2) continue;
           const bloggerName = cleanText(item.bloggername);
-          const matchedByName = normalize(bloggerName).includes(alias);
-          const matchedByPost = normalize(title + " " + description).includes(alias);
-          if (!matchedByName && !matchedByPost) continue;
-          const key = blogAccountKey(bloggerUrl);
-          if (!key || officialAccounts.some((account) => blogAccountKey(account) === key)) continue;
-          if (!accountCandidates.has(key)) {
-            accountCandidates.set(key, {
-              blogger_url: `https://blog.naver.com/${key}`,
-              blogger_name: bloggerName || null,
-              title,
-              post_url: cleanText(item.link),
-            });
+          const accountKey = blogAccountKey(bloggerUrl);
+          const postText = normalize(title + " " + description);
+          const bloggerNorm = normalize(bloggerName);
+          const directName = bloggerNorm.includes(alias);
+          const directPost = postText.includes(alias);
+          const tokenHits = aliasTokens.filter((token) => postText.includes(token) || bloggerNorm.includes(token)).length;
+          const balletIntent = /(발레|바레|시간표|스케줄|수강료|가격|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + " " + description);
+          const profileBallet = /(ballet|balletstudio|balletacademy|barre)/i.test(accountKey + " " + bloggerName);
+          const queryNameSearch = normalize(query).includes(alias);
+          const score = directName ? 95 : directPost ? 88 : tokenHits >= 2 ? 78 :
+            profileBallet && (queryNameSearch || balletIntent) ? 68 :
+            tokenHits === 1 && balletIntent ? 55 : 0;
+          if (score < 45) continue;
+          if (officialAccounts.some((account) => blogAccountKey(account) === accountKey)) continue;
+          const existing = accountCandidates.get(accountKey) || {
+            blogger_url: canonicalUrl, blogger_name: bloggerName || null, samples: [], score: 0, matchCount: 0,
+          };
+          existing.score = Math.max(existing.score, score);
+          existing.matchCount++;
+          if (!existing.blogger_name && bloggerName) existing.blogger_name = bloggerName;
+          const postUrl = cleanText(item.link);
+          if (postUrl && !existing.samples.some((sample) => sample.post_url === postUrl)) {
+            existing.samples.push({ title, post_url: postUrl });
+            existing.samples = existing.samples.slice(-5);
           }
+          accountCandidates.set(accountKey, existing);
         }
         for (const candidate of accountCandidates.values()) {
           const { data: prior, error: priorError } = await db.from("studio_blog_account_candidates")
-            .select("id,matched_post_count,sample_posts,review_status")
+            .select("id,matched_post_count,sample_posts,review_status,match_score")
             .eq("studio_id", job.studio_id)
             .eq("blogger_url", candidate.blogger_url)
             .maybeSingle();
           if (priorError) throw new Error("공식 블로그 후보 조회 실패: " + priorError.message);
-          const samples = Array.isArray(prior?.sample_posts) ? prior.sample_posts : [];
-          const { count: matchedCount, error: countError } = await db.from("studio_blog_sources")
+          const priorSamples = Array.isArray(prior?.sample_posts) ? prior.sample_posts : [];
+          const mergedSamples = [...priorSamples, ...candidate.samples]
+            .filter((post, index, all) => all.findIndex((item) => item.post_url === post.post_url) === index).slice(-5);
+          const { count: sourceCount, error: countError } = await db.from("studio_blog_sources")
             .select("id", { count: "exact", head: true })
             .eq("studio_id", job.studio_id)
             .eq("blogger_url", candidate.blogger_url);
           if (countError) throw new Error("후보 게시물 수 확인 실패: " + countError.message);
-          const nextSamples = [
-            ...samples,
-            { title: candidate.title, post_url: candidate.post_url },
-          ].filter((post, index, all) => all.findIndex((item) => item.post_url === post.post_url) === index).slice(-5);
           const { error: candidateError } = await db.from("studio_blog_account_candidates")
             .upsert({
               studio_id: job.studio_id,
               studio_name: String(job.studio_name),
               blogger_url: candidate.blogger_url,
               blogger_name: candidate.blogger_name,
-              matched_post_count: Math.max(1, Number(matchedCount ?? 0)),
-              sample_posts: nextSamples,
-              match_score: normalize(candidate.blogger_name ?? "").includes(alias) ? 95 : 85,
+              matched_post_count: Math.max(candidate.matchCount, Number(sourceCount ?? 0), Number(prior?.matched_post_count ?? 0)),
+              sample_posts: mergedSamples,
+              match_score: Math.max(candidate.score, Number(prior?.match_score ?? 0)),
               last_seen_at: new Date().toISOString(),
             }, { onConflict: "studio_id,blogger_url" });
           if (candidateError) throw new Error("공식 블로그 후보 저장 실패: " + candidateError.message);
