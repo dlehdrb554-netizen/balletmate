@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
       visionProcessed: 0, visionFailed: 0, visionError: "일일 처리량 조회 실패: " + countError.message }, 500);
   }
 
-  const dailyRemaining = Math.max(0, 20 - (processedToday || 0));
+  const dailyRemaining = Math.max(0, 250 - (processedToday || 0));
   const batchSize = Math.min(1, dailyRemaining);
   let visionProcessed = 0;
   let visionFailed = 0;
@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
     crawlResults,
     visionProcessed,
     visionFailed,
-    visionDailyLimit: 20,
+    visionDailyLimit: 250,
     visionProcessedToday: processedToday || 0,
     visionResults,
   });
