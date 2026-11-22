@@ -45,9 +45,20 @@ Deno.serve(async(req)=>{
  if(studioError)return json({error:"Classified, but studio gallery update failed: "+studioError.message},500);
  const current=Array.isArray(studio.image_urls)?studio.image_urls:[];
  if(keep){
-  if(!current.includes(candidate.image_url)&&current.length<10){
+  if(!current.includes(candidate.image_url)){
    const {error:galleryError}=await db.from("studios").update({image_urls:[...current,candidate.image_url],image_source_name:studio.image_source_name||candidate.source_host||"AI 자동 분류",image_usage_note:studio.image_usage_note||"AI 비전 분류로 자동 연계된 사진. 출처: "+candidate.source_page_url,updated_at:now}).eq("id",candidate.studio_id);
    if(galleryError)return json({error:"Classified and approved, but gallery update failed: "+galleryError.message},500);
+  }
+  if(materialType){
+   const table=materialType==="schedule"?"studio_public_schedules":"studio_public_prices";
+   const {data:material}=await db.from(table).select("id,image_urls").eq("studio_id",candidate.studio_id).eq("is_active",true).order("published_at",{ascending:false}).limit(1).maybeSingle();
+   if(material?.id){
+    const materialImages=Array.isArray(material.image_urls)?material.image_urls:[];
+    if(!materialImages.includes(candidate.image_url)){
+     const {error:materialError}=await db.from(table).update({image_urls:[...materialImages,candidate.image_url]}).eq("id",material.id);
+     if(materialError)return json({error:"Gallery updated but supporting material image link failed: "+materialError.message},500);
+    }
+   }
   }
  }else if(current.includes(candidate.image_url)){
   const {error:removeError}=await db.from("studios").update({image_urls:current.filter((u:string)=>u!==candidate.image_url),updated_at:now}).eq("id",candidate.studio_id);
