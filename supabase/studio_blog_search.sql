@@ -100,7 +100,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $trigger$
+as $admin$
 begin
   if not public.is_balletmate_admin() then
     raise exception 'administrator access required' using errcode='42501';
