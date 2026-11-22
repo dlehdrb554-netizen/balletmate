@@ -10,7 +10,7 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
         <Text style={styles.description}>일시적인 오류일 수 있습니다. 다시 시도하거나 앱을 재실행해 주세요.</Text>
         <Pressable onPress={retry} style={styles.button}><Text style={styles.buttonText}>다시 시도</Text></Pressable>
         <Text style={styles.detailsTitle}>오류 정보</Text>
-        <Text selectable style={styles.details}>{error?.message || "알 수 없는 오류"}</Text>
+        <Text selectable style={styles.details}>{error?.stack || error?.message || "알 수 없는 오류"}</Text>
       </ScrollView>
     </SafeAreaView>
   );
