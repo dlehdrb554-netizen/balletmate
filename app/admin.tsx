@@ -172,7 +172,7 @@ export default function Admin() {
   };
   const saveOfficialBlogAccounts=async()=>{
     if(!supabase||!officialBlogStudio)return;
-    const urls=[...new Set(officialBlogUrls.split(/[\\r\\n,]+/).map(value=>value.trim()).filter(Boolean))];
+    const urls=[...new Set(officialBlogUrls.split(/[\r\n,]+/).map(value=>value.trim()).filter(Boolean))];
     if(urls.length>5){Alert.alert("등록 한도","학원별 공식 블로그는 최대 5개까지 등록할 수 있습니다.");return;}
     setOfficialBlogBusy(true);
     const {data,error}=await supabase.rpc("admin_set_studio_official_blog_accounts",{p_studio_id:officialBlogStudio.id,p_blogger_urls:urls});
