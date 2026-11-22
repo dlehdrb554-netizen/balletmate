@@ -6,7 +6,7 @@ function stripHtml(value:unknown):string{
  return String(value||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
 }
 async function findHomepageCandidate(name:string,address:string|null,clientId:string,clientSecret:string):Promise<{url:string|null;error:string|null}>{
- const queries=[name+" "+(address||"")+" 발레학원 홈페이지",'"'+name+'" 발레 공식 홈페이지"];
+ const queries=[name+" "+(address||"")+" 발레학원 홈페이지",`"${name}" 발레 공식 홈페이지`];
  if(/[a-z]/i.test(name))queries.push(name+" ballet studio official website");
  if(address)queries.push(address+" "+name+" ballet studio");
  const target=normalize(name);
