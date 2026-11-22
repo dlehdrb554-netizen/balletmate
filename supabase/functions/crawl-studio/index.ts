@@ -130,9 +130,10 @@ Deno.serve(async (req) => {
   if (!body.studioId || typeof body.studioId !== "string") return json({ error: "학원 ID가 필요합니다." }, 400);
 
   const { data: studio, error: studioError } = await client.from("studios")
-    .select("id,name,district,address,website_url,image_urls,image_source_name,source_url")
+    .select("id,name,district,address,website_url,source_name,image_urls,image_source_name,source_url")
     .eq("id", body.studioId).single();
   if (studioError || !studio) return json({ error: "학원 정보를 찾을 수 없습니다." }, 404);
+  if (String(studio.source_name || "").includes("홈페이지 검색 후보") && String(studio.source_name || "").includes("미검증")) return json({ error: "관리자 확인 전 홈페이지 후보입니다. 홈페이지 주소를 먼저 확인·승인해 주세요." }, 409);
   if (!studio.website_url) return json({ error: "공식 홈페이지 주소가 아직 확인되지 않았습니다. 카카오 장소 상세 링크는 별도로 제공하며, 해당 페이지를 무단 수집하지 않습니다." }, 400);
 
   let pageUrl: URL;
