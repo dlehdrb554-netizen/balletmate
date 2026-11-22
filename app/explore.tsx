@@ -14,7 +14,7 @@ import { fetchCouponsForStudio, StudioCoupon } from "../lib/coupons";
 import { fetchStudioBlogPosts, StudioBlogPost, fetchStudioPublicPrices, StudioPublicPrice, fetchStudioPublicSchedules, StudioPublicSchedule } from "../lib/studio-blog-content";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import * as Location from "expo-location";
-import MapView, { Marker } from "react-native-maps";
+import KakaoMap, { KakaoMapHandle } from "../components/KakaoMap";
 
 type Studio = {
   id: string; name: string; lat: number; lng: number; area: string;
@@ -39,7 +39,7 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
 }
 export default function Home() {
   const router = useRouter();
-  const map = useRef<any>(null);
+  const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
   const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");
   const [region,setRegion]=useState(INITIAL);
@@ -113,6 +113,7 @@ export default function Home() {
   const [maxDistance,setMaxDistance]=useState<number|null>(null);
   const [locationLoading,setLocationLoading]=useState(false);
   const [locationGranted,setLocationGranted]=useState(false);
+  const [currentLocation,setCurrentLocation]=useState<{latitude:number;longitude:number}|null>(null);
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);
   const [areaLocked,setAreaLocked]=useState(false);
 
@@ -200,7 +201,7 @@ export default function Home() {
       if(status!=="granted"){setLocationGranted(false);Alert.alert("위치 권한","권한이 없어 기본 지역에서 지도를 표시합니다. 설정에서 위치 권한을 허용할 수 있어요.");return;}
       const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
       const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-      map.current?.animateToRegion(r,650);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setMapMoved(false);
+      map.current?.animateToRegion(r,650);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setCurrentLocation({latitude:p.coords.latitude,longitude:p.coords.longitude});setMapMoved(false);
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
@@ -321,7 +322,7 @@ export default function Home() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFilters}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/><Chip label="쿠폰" active={coupon} onPress={()=>setCoupon(!coupon)}/><Chip label="초급" active={level==="초급"} onPress={()=>setLevel(level==="초급"?null:"초급")}/><Chip label="전체" onPress={resetFilters}/></ScrollView>
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
-        <MapView ref={map} style={StyleSheet.absoluteFill} initialRegion={region} onRegionChangeComplete={(next)=>{setRegion(next);setMapMoved(true);}} showsUserLocation={locationGranted} showsMyLocationButton={false} onMapReady={()=>{}}><>{results.map(studio=><Marker key={studio.id} coordinate={{latitude:studio.lat,longitude:studio.lng}} title={studio.name} description={studio.area} onPress={()=>setSelected(studio)} pinColor={selected?.id===studio.id?"#7661D8":"#B59AEF"}/>)}</></MapView>
+        <KakaoMap ref={map} initialRegion={region} markers={results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng}))} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={(next)=>{setRegion(next);setMapMoved(true);}} onMarkerPress={(id)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);}} />
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"} onPress={searchArea}><Text style={styles.areaSearchText}>⌕  이 지역에서 재검색</Text></Pressable>}
         <Pressable style={styles.locateButton} onPress={locate}><Text style={{fontSize:19}}>{locationLoading?"…":"◎"}</Text></Pressable>
         <View style={styles.mapCount}><Text style={styles.mapCountText}>주변 학원 <Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}</Text>곳{backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></View>
