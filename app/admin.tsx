@@ -923,7 +923,7 @@ export default function Admin() {
   const verifyHomepageCandidate=(studio:StudioRow)=>{
     if(!supabase||!studio.website_url)return;
     Alert.alert("공식 홈페이지 후보 확인",
-      studio.name+"\\n"+studio.website_url+"\\n\\n해당 주소가 이 학원의 공식 홈페이지인지 확인해 주세요. 홈페이지를 열어 확인한 뒤 승인하면 사진·가격·시간표 수집 대기열에 등록됩니다.",
+      studio.name+"\n"+studio.website_url+"\n\n해당 주소가 이 학원의 공식 홈페이지인지 확인해 주세요. 홈페이지를 열어 확인한 뒤 승인하면 사진·가격·시간표 수집 대기열에 등록됩니다.",
       [
         {text:"취소",style:"cancel"},
         {text:"홈페이지 열기",onPress:()=>Linking.openURL(studio.website_url!).catch(()=>Alert.alert("홈페이지 연결","주소를 열 수 없습니다."))},
