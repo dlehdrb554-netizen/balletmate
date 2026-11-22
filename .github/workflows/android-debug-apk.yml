@@ -17,7 +17,7 @@ on:
       - "package-lock.json"
 
 concurrency:
-  group: balletmate-ui-refresh-${{ github.ref }}
+  group: balletmate-final-admin-search-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
