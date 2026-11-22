@@ -257,6 +257,7 @@ GRANT EXECUTE ON FUNCTION public.claim_studio_image_crawl_queue(integer) TO auth
 
 -- Re-run homepage discovery once for active studios previously checked only
 -- with Korean queries. The migration flag makes this safe to re-run.
+ALTER TABLE public.studios ADD COLUMN IF NOT EXISTS homepage_search_checked_at timestamptz;
 CREATE TABLE IF NOT EXISTS public.balletmate_system_migration_flags (
   migration_key text PRIMARY KEY,
   applied_at timestamptz NOT NULL DEFAULT now()
