@@ -6,7 +6,7 @@ import {
   ActivityIndicator, Animated, FlatList, Image, Keyboard, Linking, Modal, PanResponder, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View, Alert
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
 import { fetchStudios } from "../lib/studios";
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
@@ -40,6 +40,7 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
 }
 export default function Home() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
   const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");
@@ -425,7 +426,7 @@ export default function Home() {
          <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세 정보</Text><View style={{flexDirection:"row",alignItems:"center",gap:14}}><Pressable onPress={()=>setDetailExpanded(v=>!v)}><Text style={styles.expandText}>{detailExpanded?"접기":"펼치기"}</Text></Pressable><Pressable onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
          <Text style={styles.dragHint}>위아래로 끌어 창 크기 조절 · 아래로 길게 끌면 닫기</Text>
         </View>
-        <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:20}}>{detailStudio&&<>
+        <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}>{detailStudio&&<>
           <View style={{marginTop:10}}>{studioCard(detailStudio,true)}</View>
           <Text style={styles.sectionTitle}>학원 실제 사진</Text>
           {(detailStudio.imageUrls||[]).length>0?
