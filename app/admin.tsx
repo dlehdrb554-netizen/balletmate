@@ -465,7 +465,7 @@ export default function Admin() {
           localUri=dir+"batch-"+item.source_id+"-"+i+"."+ext;
           const downloaded=await FileSystem.downloadAsync(item.image_url,localUri,{headers:{"User-Agent":"Mozilla/5.0 BalletmateImageOCR"}});
           if(downloaded.status<200||downloaded.status>=300)throw new Error("이미지 다운로드 HTTP "+downloaded.status);
-          const resized=await ImageManipulator.manipulateAsync(downloaded.uri,[ {resize:{width:1500}} ],{compress:0.72,format:ImageManipulator.SaveFormat.JPEG);
+          const resized=await ImageManipulator.manipulateAsync(downloaded.uri,[ {resize:{width:1500}} ],{compress:0.72,format:ImageManipulator.SaveFormat.JPEG});
           let lines:any[]=[];
           try{lines=await ocr.extractTextFromImage(resized.uri,Platform.OS==="android"?{script:ocr.TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});}finally{await FileSystem.deleteAsync(resized.uri,{idempotent:true}).catch(()=>{});}
           const extracted=(lines||[]).join("\n").trim();
