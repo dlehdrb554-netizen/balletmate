@@ -209,6 +209,7 @@ export default function Home() {
     "화곡":{latitude:37.5416,longitude:126.8466},"화곡동":{latitude:37.5416,longitude:126.8466},"화곡역":{latitude:37.5423,longitude:126.8403},
     "까치산":{latitude:37.5317,longitude:126.8489},"까치산역":{latitude:37.5317,longitude:126.8489},
     "천호":{latitude:37.5386,longitude:127.1238},"천호동":{latitude:37.5386,longitude:127.1238},"천호역":{latitude:37.5386,longitude:127.1238},
+    "미아사거리":{latitude:37.6131,longitude:127.0300},"미아사거리역":{latitude:37.6131,longitude:127.0300},
     "강서구":{latitude:37.5509,longitude:126.8495},"양천구":{latitude:37.5169,longitude:126.8664},"목동":{latitude:37.5260,longitude:126.8750},
     "마곡":{latitude:37.5600,longitude:126.8265},"발산":{latitude:37.5580,longitude:126.8370},"등촌":{latitude:37.5507,longitude:126.8640},
     "송파":{latitude:37.5145,longitude:127.1059},"잠실":{latitude:37.5133,longitude:127.1000},"강남":{latitude:37.4979,longitude:127.0276},
@@ -266,7 +267,7 @@ export default function Home() {
     }
     try{
       let geocoded:Location.LocationGeocodedLocation[]=[];
-      const candidates=[query+" 대한민국",query+"역 대한민국",query+" 사거리 대한민국",query+" 경기도 대한민국",query+" 서울 대한민국",query+" 강북구 서울 대한민국"];
+      const candidates=[query+" 대한민국",query+" 아파트 대한민국",query+"역 대한민국",query+" 사거리 대한민국",query+" 서울시 대한민국",query+" 경기도 대한민국",query+" 서울 대한민국",query+" 강북구 서울 대한민국"];
       for(const candidate of candidates){try{geocoded=await Location.geocodeAsync(candidate);if(geocoded.length)break;}catch{}}
       if(geocoded.length){
         const next={latitude:geocoded[0].latitude,longitude:geocoded[0].longitude,latitudeDelta:0.035,longitudeDelta:0.035};
