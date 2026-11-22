@@ -39,8 +39,6 @@ Deno.serve(async(req)=>{
  const keep=["ballet_class","schedule","price","poster","logo"].includes(result.category)&&result.confidence>=0.60;
  const materialType=result.category==="schedule"?"schedule":result.category==="price"?"price":result.category==="poster"||result.category==="logo"?"other":null;
  const now=new Date().toISOString();
- const {error:updateError}=await db.from("studio_photo_candidates").update({auto_classification:result.category,auto_confidence:result.confidence,auto_reason:result.reason,auto_classified_at:now,material_type:materialType,review_status:keep?"approved":"rejected",reviewed_at:now,reviewed_by:userId}).eq("id",candidate.id).eq("review_status","pending");
- if(updateError)return json({error:updateError.message},500);
  const {data:studio,error:studioError}=await db.from("studios").select("image_urls,image_source_name,image_usage_note").eq("id",candidate.studio_id).single();
  if(studioError)return json({error:"Classified, but studio gallery update failed: "+studioError.message},500);
  const current=Array.isArray(studio.image_urls)?studio.image_urls:[];
@@ -64,5 +62,7 @@ Deno.serve(async(req)=>{
   const {error:removeError}=await db.from("studios").update({image_urls:current.filter((u:string)=>u!==candidate.image_url),updated_at:now}).eq("id",candidate.studio_id);
   if(removeError)return json({error:"Classified as excluded, but gallery removal failed: "+removeError.message},500);
  }
+ const {error:updateError}=await db.from("studio_photo_candidates").update({auto_classification:result.category,auto_confidence:result.confidence,auto_reason:result.reason,auto_classified_at:now,material_type:materialType,review_status:keep?"approved":"rejected",reviewed_at:now,reviewed_by:userId}).eq("id",candidate.id).eq("review_status","pending");
+ if(updateError)return json({error:updateError.message},500);
  return json({candidateId:candidate.id,...result,decision:keep?"published":"excluded",materialType});
 });
