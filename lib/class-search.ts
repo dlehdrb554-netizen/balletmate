@@ -15,6 +15,41 @@ const MAX_REQUESTS_PER_SESSION = 20;
 const cache = new Map<string, { savedAt: number; studioIds: string[] }>();
 const inFlight = new Map<string, Promise<string[]>>();
 let requestCount = 0;
+const nameCache = new Map<string, { savedAt: number; studioIds: string[] }>();
+const nameInFlight = new Map<string, Promise<string[]>>();
+
+export async function searchStudioIdsByClassName(query: string): Promise<string[]> {
+  if (!supabase) return [];
+  const normalized = query.trim().toLocaleLowerCase("ko-KR");
+  if (normalized.length < 2) return [];
+  const cached = nameCache.get(normalized);
+  if (cached && Date.now() - cached.savedAt < CACHE_MS) return cached.studioIds;
+  const existing = nameInFlight.get(normalized);
+  if (existing) return existing;
+  if (requestCount >= MAX_REQUESTS_PER_SESSION) {
+    throw new Error("수업명 검색 한도에 도달했습니다. 잠시 후 다시 이용해 주세요.");
+  }
+  requestCount += 1;
+  const request = (async () => {
+    const { data, error } = await supabase
+      .from("classes")
+      .select("studio_id")
+      .eq("is_active", true)
+      .ilike("title", "%" + query.trim() + "%")
+      .limit(100);
+    if (error) throw error;
+    const studioIds = [...new Set<string>((data || []).map((row: any) => row.studio_id).filter((id: any): id is string => typeof id === "string"))];
+    nameCache.set(normalized, { savedAt: Date.now(), studioIds });
+    return studioIds;
+  })().catch((error) => {
+    requestCount = Math.max(0, requestCount - 1);
+    throw error;
+  }).finally(() => {
+    if (nameInFlight.get(normalized) === request) nameInFlight.delete(normalized);
+  });
+  nameInFlight.set(normalized, request);
+  return request;
+}
 
 const hasClassFilter = (f: ClassSearchFilters) =>
   !!(f.audiences?.length || f.level || f.classType || f.weekdayGroup || f.timeOfDay || f.durationMinutes || f.maxPrice !== null && f.maxPrice !== undefined);
