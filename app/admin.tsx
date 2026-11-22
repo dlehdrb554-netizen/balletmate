@@ -99,6 +99,8 @@ export default function Admin() {
   const [checking,setChecking]=useState(true);
   const [busy,setBusy]=useState(false);
   const [rows,setRows]=useState<StudioRow[]>([]);
+  const [studioSearch,setStudioSearch]=useState("");
+  const [studioListFilter,setStudioListFilter]=useState<"all"|"missing_photo"|"missing_website"|"active"|"inactive">("all");
   const [form,setForm]=useState({...blank});
   const [editing,setEditing]=useState<string|null>(null);
   const [csvText,setCsvText]=useState("");
@@ -631,6 +633,15 @@ export default function Admin() {
   const startEdit=(r:StudioRow)=>{
     setEditing(r.id);setForm({name:r.name,latitude:String(r.latitude),longitude:String(r.longitude),district:r.district||"",address:r.address||"",phone:r.phone||"",website_url:r.website_url||"",source_url:r.source_url||"",source_name:r.source_name||"",verified_at:r.verified_at?r.verified_at.slice(0,10):"",image_urls:(r.image_urls||[]).join("\n"),image_source_name:r.image_source_name||"",image_usage_note:r.image_usage_note||"",price_per_class:r.price_per_class==null?"":String(r.price_per_class),adult_classes:r.adult_classes,kids_classes:r.kids_classes,is_active:r.is_active});
   };
+  const visibleStudioRows=rows.filter(row=>{
+    const q=studioSearch.trim().toLowerCase();
+    if(q&&!([row.name,row.district||"",row.address||"",row.phone||""].some(value=>value.toLowerCase().includes(q))))return false;
+    if(studioListFilter==="missing_photo"&&(row.image_urls||[]).length>0)return false;
+    if(studioListFilter==="missing_website"&&!!row.website_url)return false;
+    if(studioListFilter==="active"&&!row.is_active)return false;
+    if(studioListFilter==="inactive"&&row.is_active)return false;
+    return true;
+  });
   const reset=()=>{setEditing(null);setForm({...blank});};
   const save=async()=>{
     if(!supabase)return;
@@ -867,9 +878,11 @@ export default function Admin() {
       {!classRows.length&&!classBusy&&<Text style={styles.hint}>등록된 수업이 없습니다.</Text>}
     </View>}
     <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active,image_urls,image_usage_note · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,25000,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
-    <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>{busy&&<ActivityIndicator color={c.purple}/>}
-      {rows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>{setClassStudio(r);resetClass();}}><Text style={styles.action}>수업관리</Text></Pressable><Pressable onPress={()=>uploadPhotos(r.id,r.name)} disabled={busy||((r.image_urls||[]).length>=10)}><Text style={styles.action}>사진 업로드</Text></Pressable><Pressable onPress={()=>runBlogImageOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"블로그 OCR"}</Text></Pressable><Pressable onPress={()=>runLocalOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"사진 OCR"}</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
-      {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}
+    <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원 · {visibleStudioRows.length}/{rows.length}</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>
+      <TextInput style={styles.input} value={studioSearch} onChangeText={setStudioSearch} placeholder="학원명·지역·주소·전화 검색" autoCapitalize="none"/>
+      <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"missing_photo",label:"사진 없음"},{key:"missing_website",label:"홈페이지 없음"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>setStudioListFilter(option.key)}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
+      {visibleStudioRows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><Pressable onPress={()=>startEdit(r)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>{setClassStudio(r);resetClass();}}><Text style={styles.action}>수업관리</Text></Pressable><Pressable onPress={()=>uploadPhotos(r.id,r.name)} disabled={busy||((r.image_urls||[]).length>=10)}><Text style={styles.action}>사진 업로드</Text></Pressable><Pressable onPress={()=>runBlogImageOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"블로그 OCR"}</Text></Pressable><Pressable onPress={()=>runLocalOcr(r.id,r.name)} disabled={ocrBusy}><Text style={styles.action}>{ocrBusy?"OCR 처리 중":"사진 OCR"}</Text></Pressable><Pressable onPress={()=>crawlImages(r.id,r.name)} disabled={busy||!r.website_url}><Text style={[styles.action,!r.website_url&&{color:c.muted}]}>{r.website_url?"사진 수집":"홈페이지 필요"}</Text></Pressable><Pressable onPress={()=>remove(r.id,r.name)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
+      {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}{rows.length>0&&!visibleStudioRows.length&&<Text style={styles.hint}>검색/필터 조건에 맞는 학원이 없습니다.</Text>}
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
