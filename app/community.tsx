@@ -124,9 +124,9 @@ export default function Community(){
 
  return <SafeAreaView style={s.safe}>
   <View style={s.header}>
-   <Pressable onPress={()=>{if(selected){commentRequestId.current++;setSelected(null);setComments([]);}else router.push("/");}}><Text style={s.back}>‹ {selected?"목록":"지도"}</Text></Pressable>
+   <Pressable onPress={()=>{if(selected){commentRequestId.current++;setSelected(null);setComments([]);}else router.push("/");}}><><Ionicons name="chevron-back" size={16} color={C.muted} /><Text style={s.back}>{selected?"목록":"지도"}</Text></></Pressable>
    <Text style={s.heading}>발레 커뮤니티</Text>
-   <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={()=>userId?setComposer(true):requireLogin()}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>router.push("/")}><Text style={s.menuText}>☰</Text></Pressable></View>
+   <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={()=>userId?setComposer(true):requireLogin()}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>router.push("/")}><Ionicons name="menu-outline" size={22} color={C.ink} /></Pressable></View>
   </View>
   {selected?
    <ScrollView contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled">
