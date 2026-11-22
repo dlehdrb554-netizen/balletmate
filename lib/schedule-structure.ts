@@ -70,8 +70,7 @@ export function parseScheduleEvidence(text:string): StructuredSchedule | null {
   let dayRangeMatch:RegExpExecArray|null;
   while((dayRangeMatch=dayRange.exec(compact))!==null){
     const start=weekdayMap[dayRangeMatch[1]],end=weekdayMap[dayRangeMatch[2]];
-    if(start<=end)for(let d=start;d<=end;d++)days.add(d);
-    else for(let d=start;d<=6;d++)days.add(d),d=6;
+    for(let d=start;;d=(d+1)%7){days.add(d);if(d===end)break;}
   }
   if(/평일/.test(compact))for(const d of [1,2,3,4,5])days.add(d);
   if(/주말/.test(compact))for(const d of [0,6])days.add(d);
