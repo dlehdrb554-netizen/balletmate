@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-const SEARCH_SUFFIXES = ["수강료", "시간표"];
+const SEARCH_SUFFIXES = ["수강료", "스케줄"];
 const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
 const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, "");
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
       for (const suffix of SEARCH_SUFFIXES) {
         const query = `${job.studio_name} ${suffix}`;
-        const endpoint = new URL("https://naverapihub.apigw.ntruss.com/search/v1/blog");
+        const endpoint = new URL("https://openapi.naver.com/v1/search/blog.json");
         endpoint.searchParams.set("query", query);
         endpoint.searchParams.set("display", "10");
         endpoint.searchParams.set("sort", "date");
@@ -80,14 +80,14 @@ Deno.serve(async (req) => {
         const response = await fetch(endpoint.toString(), {
           method: "GET",
           headers: {
-            "X-NCP-APIGW-API-KEY-ID": clientId,
-            "X-NCP-APIGW-API-KEY": clientSecret,
+            "X-Naver-Client-Id": clientId,
+            "X-Naver-Client-Secret": clientSecret,
           },
           signal: AbortSignal.timeout(10000),
         });
         if (!response.ok) {
           const detail = (await response.text()).slice(0, 300);
-          throw new Error(`NAVER API HUB HTTP ${response.status}: ${detail}`);
+          throw new Error(`NAVER Search API HTTP ${response.status}: ${detail}`);
         }
         const payload = await response.json();
         const items = Array.isArray(payload?.items) ? payload.items : [];
