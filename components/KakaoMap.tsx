@@ -1,6 +1,7 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import WebView, { WebViewMessageEvent } from "react-native-webview";
+import Constants from "expo-constants";
 
 export type MapRegion = {
   latitude: number;
@@ -27,7 +28,7 @@ type Props = {
   onMarkerPress?: (id: string) => void;
 };
 
-const JS_KEY = "796faa03766bba20c84ad42e14a2d4e8";
+const JS_KEY = String(Constants.expoConfig?.extra?.kakaoJavascriptKey ?? "");
 
 function buildHtml(initialRegion: MapRegion) {
   const center = JSON.stringify({ lat: initialRegion.latitude, lng: initialRegion.longitude });
@@ -43,7 +44,7 @@ function buildHtml(initialRegion: MapRegion) {
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
   function pinImage(selected){
-    var color=selected?'%237661D8':'%23A58BEA';
+    var color=selected?'#7661D8':'#A58BEA';
     var svg='<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11 16 24 16 24s16-13 16-24C33 8.2 25.8 1 17 1z" fill="'+color+'" stroke="white" stroke-width="2"/><circle cx="17" cy="17" r="5" fill="white"/></svg>';
     return new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
   }
