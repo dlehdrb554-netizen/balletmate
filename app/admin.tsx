@@ -291,6 +291,7 @@ export default function Admin() {
   const studioColumns="id,name,latitude,longitude,district,address,phone,website_url,source_url,source_name,verified_at,image_urls,image_source_name,image_usage_note,price_per_class,adult_classes,kids_classes,is_active,created_at";
   const load=useCallback(async()=>{
     if(!supabase||!authorized)return;
+    setStudioAppliedSearch("");setStudioSearch("");
     setBusy(true);
     try{
       // Load one page only; do not block the UI with 10 sequential network requests.
@@ -329,7 +330,7 @@ export default function Admin() {
   const searchStudiosServer=async()=>{
     if(!supabase||busy)return;
     const term=studioSearch.trim().replace(/[%,_(),]/g," ").replace(/\\s+/g," ").trim();
-    setStudioAppliedSearch(term);
+    setStudioAppliedSearch(term);setStudioSearch(term);
     setBusy(true);
     try{
       const baseQuery=supabase.from("studios").select(studioColumns);
