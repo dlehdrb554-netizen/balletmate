@@ -36,7 +36,6 @@ SELECT
   schedule.latest_schedule_expiry,
   CASE
     WHEN schedule.latest_schedule_expiry IS NULL THEN 'no_published_schedule'
-    WHEN schedule.latest_schedule_expiry < CURRENT_DATE THEN 'expired'
     ELSE 'current'
   END AS schedule_freshness
 FROM public.studios s
