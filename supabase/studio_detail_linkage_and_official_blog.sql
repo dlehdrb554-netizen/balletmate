@@ -108,12 +108,14 @@ $function$;
 REVOKE ALL ON FUNCTION public.get_studio_blog_public_details(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_studio_blog_public_details(uuid) TO anon, authenticated;
 
--- Diagnostic result: show only 5 representative academies.
--- Prioritize academies with the most missing linked data.
+-- Diagnostic result: show five academies with the most linked data first.
+-- Include pipeline-stage counts so empty public fields can be traced to their source.
 WITH diagnostic AS (
   SELECT
     st.id,
     st.name,
+    st.website_url,
+    st.homepage_search_checked_at,
     (st.price_per_class IS NOT NULL) AS has_map_price,
     cardinality(COALESCE(st.image_urls, ARRAY[]::text[])) AS official_image_count,
     (SELECT count(*) FROM public.classes cl WHERE cl.studio_id = st.id AND cl.is_active = true) AS active_class_count,
@@ -121,19 +123,24 @@ WITH diagnostic AS (
       WHERE cl.studio_id = st.id AND cl.is_active = true AND cs.is_active = true) AS active_session_count,
     (SELECT count(*) FROM public.studio_public_prices pp WHERE pp.studio_id = st.id AND pp.is_active = true) AS approved_price_count,
     (SELECT count(*) FROM public.studio_public_schedules ps WHERE ps.studio_id = st.id AND ps.is_active = true AND ps.expires_at >= CURRENT_DATE) AS approved_schedule_count,
-    (SELECT count(*) FROM public.studio_blog_official_accounts oa WHERE oa.studio_name = st.name AND oa.is_active = true) AS verified_official_blog_count
+    (SELECT count(*) FROM public.studio_blog_official_accounts oa WHERE oa.studio_name = st.name AND oa.is_active = true) AS verified_official_blog_count,
+    (SELECT count(*) FROM public.studio_blog_sources bs WHERE bs.studio_id = st.id) AS collected_blog_post_count,
+    (SELECT count(*) FROM public.studio_blog_post_contents bc WHERE bc.studio_id = st.id AND bc.crawl_status = 'success') AS completed_blog_crawl_count,
+    (SELECT count(*) FROM public.studio_blog_evidence_candidates ec WHERE ec.studio_id = st.id AND ec.review_status = 'pending') AS pending_evidence_count
   FROM public.studios st
   WHERE st.is_active = true
 )
 SELECT *
 FROM diagnostic
 ORDER BY
-  (CASE WHEN NOT has_map_price THEN 1 ELSE 0 END
-   + CASE WHEN official_image_count = 0 THEN 1 ELSE 0 END
-   + CASE WHEN active_class_count = 0 THEN 1 ELSE 0 END
-   + CASE WHEN active_session_count = 0 THEN 1 ELSE 0 END
-   + CASE WHEN approved_price_count = 0 THEN 1 ELSE 0 END
-   + CASE WHEN approved_schedule_count = 0 THEN 1 ELSE 0 END
-   + CASE WHEN verified_official_blog_count = 0 THEN 1 ELSE 0 END) DESC,
+  (official_image_count
+   + active_class_count
+   + active_session_count
+   + approved_price_count
+   + approved_schedule_count
+   + verified_official_blog_count
+   + collected_blog_post_count
+   + completed_blog_crawl_count
+   + pending_evidence_count) DESC,
   name
 LIMIT 5;
