@@ -440,12 +440,15 @@ export default function Admin() {
   };
   const classifyPhotoCandidateAI=async(item:any,quiet=false)=>{
     if(!supabase)return false;
+    if(!quiet)setPhotoAutoScanBusy(true);
     const {data,error}=await supabase.functions.invoke("classify-studio-photo",{body:{candidateId:item.id}});
     if(error||data?.error){
       if(!quiet)Alert.alert("이미지 자동 분류 실패",data?.error||error?.message||"분류에 실패했습니다.");
+      if(!quiet)setPhotoAutoScanBusy(false);
       return false;
     }
     setPhotoCandidateRows(current=>current.map(row=>row.id===item.id?{...row,auto_classification:data.category,auto_confidence:data.confidence,auto_reason:data.reason,auto_classified_at:new Date().toISOString()}:row));
+    if(!quiet)setPhotoAutoScanBusy(false);
     return true;
   };
   const runPhotoAutoScan=async()=>{
@@ -1418,11 +1421,11 @@ export default function Admin() {
     </View>
     <View style={styles.photoReviewActions}>
       <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoCandidateAI(item)}><Text style={styles.photoReviewRejectText}>AI 분석</Text></Pressable><Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoMaterial(item,"price")}><Text style={styles.photoReviewRejectText}>가격 자료</Text></Pressable>
-      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>classifyPhotoMaterial(item,"schedule")}><Text style={styles.photoReviewRejectText}>시간표 자료</Text></Pressable>
-      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>classifyPhotoMaterial(item,"other")}><Text style={styles.photoReviewRejectText}>기타 자료</Text></Pressable>
-      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.photoReviewRejectText}>제외</Text></Pressable>
-      <Pressable style={styles.photoReviewDelete} disabled={photoReviewBusy} onPress={()=>deletePhotoCandidate(item)}><Text style={styles.photoReviewDeleteText}>영구 삭제</Text></Pressable>
-      <Pressable style={styles.photoReviewApprove} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.photoReviewApproveText}>승인</Text></Pressable>
+      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoMaterial(item,"schedule")}><Text style={styles.photoReviewRejectText}>시간표 자료</Text></Pressable>
+      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoMaterial(item,"other")}><Text style={styles.photoReviewRejectText}>기타 자료</Text></Pressable>
+      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.photoReviewRejectText}>제외</Text></Pressable>
+      <Pressable style={styles.photoReviewDelete} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>deletePhotoCandidate(item)}><Text style={styles.photoReviewDeleteText}>영구 삭제</Text></Pressable>
+      <Pressable style={styles.photoReviewApprove} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.photoReviewApproveText}>승인</Text></Pressable>
     </View>
   </View>)}
   {!photoCandidateRows.length&&!photoReviewBusy&&<Text style={styles.hint}>검토 대기 사진이 없습니다. 학원 관리에서 공식 홈페이지 사진 수집을 실행하면 후보가 여기에 표시됩니다.</Text>}{photoCandidateOffset<photoCandidateTotal&&<Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={loadMorePhotoCandidates}><Text style={styles.secondaryText}>다음 사진 12장</Text></Pressable>}
