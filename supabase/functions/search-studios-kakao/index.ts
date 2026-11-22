@@ -73,7 +73,11 @@ Deno.serve(async (req) => {
           const text = normalize(name + " " + category);
           const needle = normalize(query);
           const tokens = query.split(/[\\s·ㆍ()_-]+/).map(normalize).filter(token => token.length >= 2 && !["학원","발레","무용"].includes(token));
-          const meaningfulMatch = tokens.length === 0 || tokens.some(token => text.includes(token)) || text.includes(needle);
+          const nameAliasMatch =
+            (/(퀸즈|퀸스|queens)/i.test(needle) && /(퀸즈|퀸스|queens)/i.test(text)) ||
+            (/(더블유|wballet|w발레)/i.test(needle) && /(더블유|wballet|w발레)/i.test(text)) ||
+            (/현대무용/.test(needle) && /(현대무용|현대댄스)/.test(text));
+          const meaningfulMatch = tokens.length === 0 || tokens.some(token => text.includes(token)) || text.includes(needle) || nameAliasMatch;
           if (!meaningfulMatch) continue;
           found.set(id, item);
         }
