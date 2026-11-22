@@ -82,6 +82,18 @@ export default function Home() {
   const [compareIds,setCompareIds]=useState<string[]>([]);
   const [compareCache,setCompareCache]=useState<Studio[]>([]);
   const [compareReady,setCompareReady]=useState(false);
+  const [compareClassData,setCompareClassData]=useState<Record<string,StudioClass[]>>({});
+  const [compareClassLoading,setCompareClassLoading]=useState(false);
+  useEffect(()=>{
+    if(!compareOpen||compareIds.length===0)return;
+    let active=true;
+    setCompareClassLoading(true);
+    Promise.all(compareIds.map(async id=>[id,await fetchClassesForStudio(id)] as const))
+      .then(entries=>{if(active)setCompareClassData(Object.fromEntries(entries));})
+      .catch(error=>{if(active)console.warn("Comparison timetable unavailable:",error);})
+      .finally(()=>{if(active)setCompareClassLoading(false);});
+    return()=>{active=false;};
+  },[compareOpen,compareIds]);
   const [adult,setAdult]=useState(false);
   const [kids,setKids]=useState(false);
   const [coupon,setCoupon]=useState(false);
@@ -336,7 +348,7 @@ export default function Home() {
       <View style={styles.modalShade}><View style={styles.modal}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 비교</Text><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.filterHint}>최대 3곳까지 비교할 수 있습니다. 카드의 비교 버튼으로 선택을 변경하세요.</Text>
-        {compareIds.map(id=>{const s=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);if(!s)return null;return <View key={id} style={styles.compareRow}><Text style={styles.compareName}>{s.name}</Text><Text style={styles.compareInfo}>{s.area} · {s.level.join("/")}</Text><Text style={styles.compareInfo}>{[s.days.join(" · "),s.time].filter(Boolean).join(" / ")||"요일·시간 미등록"}</Text><Text style={styles.compareInfo}>{s.duration>0?s.duration+"분":"수업 시간 미등록"} · {s.coupon?"쿠폰 있음":"쿠폰 없음"}</Text><Text style={styles.comparePrice}>{s.price!==null?"₩"+s.price.toLocaleString()+" / 회":"가격 미등록"}</Text><Pressable onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}}><Text style={styles.removeCompare}>비교 목록에서 제외</Text></Pressable></View>})}
+        {compareIds.map(id=>{const s=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);if(!s)return null;return <View key={id} style={styles.compareRow}><Text style={styles.compareName}>{s.name}</Text><Text style={styles.compareInfo}>{s.area} · {s.level.join("/")}</Text><Text style={styles.compareInfo}>{[s.days.join(" · "),s.time].filter(Boolean).join(" / ")||"요일·시간 미등록"}</Text><Text style={styles.compareInfo}>{s.duration>0?s.duration+"분":"수업 시간 미등록"} · {s.coupon?"쿠폰 있음":"쿠폰 없음"}</Text><Text style={styles.comparePrice}>{s.price!==null?"₩"+s.price.toLocaleString()+" / 회":"가격 미등록"}</Text><Text style={styles.compareInfo}>등록 수업 및 시간표</Text>{compareClassLoading?<ActivityIndicator color={COLORS.purple}/>:((compareClassData[id]||[]).length?(compareClassData[id]||[]).map(cls=><View key={cls.id} style={{marginTop:6}}><Text style={styles.compareInfo}>{cls.title} · {cls.duration_minutes||"-"}분 · {cls.price!=null?"₩"+cls.price.toLocaleString()+" / 회":"가격 문의"}</Text><Text style={styles.compareInfo}>{cls.class_sessions?.length?cls.class_sessions.map(session=>["일","월","화","수","목","금","토"][session.weekday]+" "+session.start_time.slice(0,5)+(session.end_time?"–"+session.end_time.slice(0,5):"")).join(" / "):"시간표 미등록"}</Text></View>):<Text style={styles.compareInfo}>세부 수업 시간표가 등록되지 않았습니다.</Text>)}<Pressable onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}}><Text style={styles.removeCompare}>비교 목록에서 제외</Text></Pressable></View>})}
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
