@@ -1,4 +1,4 @@
-name: Android debug APK
+name: Android standalone APK
 
 on:
   workflow_dispatch:
@@ -55,12 +55,15 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://ykxvcqgdvifogahbbbwr.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_-wvNm1sapw3c1oSdMFLvTQ_BxOm2ADd
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: balletmate-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: balletmate-android-standalone
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
