@@ -7,8 +7,8 @@
    - `studio_photo_auto_classification.sql` (AI 분류 필드)
    - `studio_photo_auto_publish.sql` (기존 갤러리·수집 사진을 후보로 등록)
    - `studio_photo_reprocess_existing.sql` (기존 사진과 후보의 AI 재분석을 위해 대기 상태로 초기화; **한 번만 실행**)
-2. Google AI Studio에서 Gemini API Key를 발급해 Supabase Edge Function secret `GOOGLE_GEMINI_API_KEY`에 등록합니다.
-3. **무료 사용만 허용:** Google AI Studio의 Gemini API Free Tier를 사용하고, Google Cloud 프로젝트에 유료 결제를 연결하지 마세요. 무료 쿼터 초과 시 분류는 실패/대기 상태로 남고 유료 API로 자동 전환하지 않습니다.
+2. Google AI Studio에서 Gemini API Key를 발급해 Supabase Edge Function secret `GOOGLE_GEMINI_API_KEY`에 등록합니다. 모델은 이미지 입력 무료 구간이 명시된 `gemini-2.5-flash-lite`만 사용합니다.
+3. **무료 사용만 허용:** Google AI Studio의 Gemini API Free Tier만 사용합니다. Google Cloud 계정에 로그인하거나 프로젝트가 생성되더라도 결제 계정을 연결할 필요가 없습니다. 이 앱은 `gemini-2.5-flash-lite` 모델 ID만 호출하며 유료 모델로 자동 전환하지 않습니다. 프로젝트에 결제 계정을 연결하지 않은 상태를 유지하고, 무료 쿼터 초과 시 분류는 실패/대기 상태로 남깁니다.
 4. GitHub Actions `Deploy Balletmate Supabase Workers`가 Edge Function 배포를 수행합니다.
 
 ## 자동 운영 정책
@@ -21,6 +21,6 @@
 - 관리자 사진 메뉴의 **전체 사진 자동 분류·등록** 버튼으로 과거 사진과 대기 후보를 한 번에 순차 처리할 수 있습니다. 실패한 사진은 대기 상태로 남으므로 재시도할 수 있습니다.
 
 ## 무료 사용량/제한
-- Gemini Vision API 호출은 사진 1장당 1회입니다. 무료 tier에는 요청/일일 제한이 있을 수 있습니다. 처리 속도는 순차로 제한합니다.
+- Gemini 2.5 Flash-Lite Vision 무료 구간 API 호출은 사진 1장당 1회입니다. 무료 tier에는 요청/일일 제한이 있을 수 있습니다. 처리 속도는 순차로 제한합니다.
 - 무료 쿼터를 초과하거나 이미지 fetch/분류에 실패하면 그 사진은 대기 상태로 남고, 유료 API 사용이나 자동 결제 전환은 없습니다.
 - 분류 결과가 틀릴 수 있으므로 관리자 화면에서 제외된 사진/분류 결과를 조회할 수 있습니다.
