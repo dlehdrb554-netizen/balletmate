@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     try {
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-crawl-secret": secret },
+        headers: { "Content-Type": "application/json", "x-crawl-secret": secret || "" },
         body: JSON.stringify({ studioId: job.studio_id }),
         signal: AbortSignal.timeout(15000),
       });
