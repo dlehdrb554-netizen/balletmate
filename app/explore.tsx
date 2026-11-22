@@ -295,33 +295,25 @@ export default function Home() {
     const regionKey=Object.keys(REGIONAL_SEARCH).sort((a,b)=>b.length-a.length).find(key=>q.includes(key));
     let remoteRows:any[]=[];
     if(supabase&&query.length>=2){
+      // Always query Kakao as well as the local DB: a partial DB hit must not
+      // suppress a nationwide exact-place search.
       try{
-        remoteRows=await searchStudiosByName(query);
-        if(!remoteRows.length&&regionKey){
-          const nameQuery=query.split(/\s+/).map(part=>part.replace(new RegExp(regionKey,"ig"),"")).filter(part=>part.length>=2&&!/^(서울특별시|서울시|서울|부산광역시|부산|인천광역시|인천|대구광역시|대구|광주광역시|광주|대전광역시|대전|울산광역시|울산|세종특별자치시|세종|경기도|충청남도|충청북도|전라남도|전라북도|경상남도|경상북도|강원특별자치도|제주특별자치도|대한민국|특별시|광역시|자치시|자치도|구|군|시|동|읍|면|역)$/.test(part)).join(" ").trim();
-          if(nameQuery.length>=2)remoteRows=await searchStudiosByName(nameQuery);
-        }
-      }catch(error){console.warn("Nationwide studio name search failed:",error);}
-      // Database rows are the primary source. If none match, query Kakao Local
-      // nationwide through a server-side Edge Function and register discovered places.
-      if(!remoteRows.length){
-        try{
-          remoteRows=await searchStudiosByKakao(query);
-          if(!remoteRows.length&&regionKey){
-            const nameQuery=query.split(/\s+/).map(part=>part.replace(new RegExp(regionKey,"ig"),""))
-              .filter(part=>part.length>=2&&!/^(서울특별시|서울시|서울|부산광역시|부산|인천광역시|인천|대구광역시|대구|광주광역시|광주|대전광역시|대전|울산광역시|울산|세종특별자치시|세종|경기도|충청남도|충청북도|전라남도|전라북도|경상남도|경상북도|강원특별자치도|제주특별자치도|대한민국|특별시|광역시|자치시|자치도|구|군|시|동|읍|면|역)$/.test(part)).join(" ").trim();
-            if(nameQuery.length>=2)remoteRows=await searchStudiosByKakao(nameQuery);
-          }
-        }catch(error){console.warn("Kakao Local studio fallback failed:",error);Alert.alert("카카오 장소 검색 실패",String(error).slice(0,220));}
+        const dbRows=await searchStudiosByName(query);
+        const kakaoRows=await searchStudiosByKakao(query);
+        const byId=new Map<string,any>();
+        [...dbRows,...kakaoRows].forEach(row=>{if(row?.id)byId.set(String(row.id),row);});
+        remoteRows=[...byId.values()];
+      }catch(error){
+        console.warn("Nationwide studio search failed:",error);
+        try{remoteRows=await searchStudiosByName(query);}catch{}
       }
     }
     const mapped:Studio[]=remoteRows.map(r=>({id:r.id,name:r.name,lat:Number(r.latitude),lng:Number(r.longitude),area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,sourceName:r.source_name||undefined,verifiedAt:r.verified_at||undefined,imageUsageNote:r.image_usage_note||undefined,priceEvidenceText:r.price_evidence_text||undefined,scheduleEvidenceText:r.schedule_evidence_text||undefined,detailsSourceUrls:r.details_source_urls||[],kakaoChannelUrl:r.kakao_channel_url||undefined,detailsCheckedAt:r.details_checked_at||undefined,detailsStatus:r.details_status||undefined,classDurations:r.class_durations||[]}));
-    if(mapped.length)setGlobalSearchStudios(mapped);
+    setGlobalSearchStudios(mapped);
     let matchingClassIds=classSearchIds;
     if(!mapped.length&&supabase&&query.length>=2){try{matchingClassIds=await searchStudioIdsByClassName(query);setClassSearchIds(matchingClassIds);}catch{}}
-    const allStudios=[...new Map([...studios,...globalSearchStudios,...mapped].map(studio=>[studio.id,studio])).values()];
     const mappedIds=new Set(mapped.map(studio=>studio.id));
-    const matching=allStudios.filter(studio=>mappedIds.has(studio.id)||studio.name.toLowerCase().includes(q)||studio.area.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.tags.some(tag=>tag.toLowerCase().includes(q)||q.includes(tag.toLowerCase()))||matchingClassIds.includes(studio.id));
+    const matching=[...new Map([...mapped,...studios.filter(studio=>studio.name.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.area.toLowerCase().includes(q))].map(studio=>[studio.id,studio])).values()];
     if(matching.length){
       const target=matching.length===1?matching[0]:null;
       const latitude=target?target.lat:matching.reduce((sum,studio)=>sum+studio.lat,0)/matching.length;
