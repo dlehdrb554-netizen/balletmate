@@ -33,7 +33,7 @@ const mapStudioRecord = (r: StudioRecord): Studio => ({
   imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,
   sourceName:r.source_name||undefined,verifiedAt:r.verified_at||undefined,
   imageUsageNote:r.image_usage_note||undefined,priceEvidenceText:r.price_evidence_text||undefined,
-  scheduleEvidenceText:r.schedule_evidence_text||undefined,detailsSourceUrls:r.details_source_urls,kakao_channel_url||[],
+  scheduleEvidenceText:r.schedule_evidence_text||undefined,detailsSourceUrls:r.details_source_urls||[],kakaoChannelUrl:r.kakao_channel_url||undefined,
   detailsCheckedAt:r.details_checked_at||undefined,detailsStatus:r.details_status||undefined,
   classDurations:r.class_durations||[]
 });
