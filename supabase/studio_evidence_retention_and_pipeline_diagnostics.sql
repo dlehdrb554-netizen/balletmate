@@ -25,7 +25,7 @@ SET review_status='rejected', reviewed_at=COALESCE(reviewed_at,now())
 WHERE review_status='pending'
   AND source_post_date IS NOT NULL
   AND ((candidate_type='price' AND source_post_date < CURRENT_DATE-180)
-    OR (candidate_type='schedule' AND source_post_date < CURRENT_DATE-45);
+    OR (candidate_type='schedule' AND source_post_date < CURRENT_DATE-45));
 
 -- Verified but never published stale evidence is also retired.
 UPDATE public.studio_blog_evidence_candidates
