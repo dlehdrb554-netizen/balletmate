@@ -79,6 +79,8 @@ export default function Home() {
   const [reportCategory,setReportCategory]=useState("기타");
   const [reportDescription,setReportDescription]=useState("");
   const [reportSubmitting,setReportSubmitting]=useState(false);
+  const [freshness,setFreshness]=useState<any>(null);
+  const [freshnessLoading,setFreshnessLoading]=useState(false);
   const [studioClasses,setStudioClasses]=useState<StudioClass[]>([]);
   const [classesLoading,setClassesLoading]=useState(false);
   const [studioBlogPosts,setStudioBlogPosts]=useState<StudioBlogPost[]>([]);
@@ -128,6 +130,19 @@ export default function Home() {
     onShouldBlockNativeResponder:()=>true,
   })).current;
   useEffect(()=>{AsyncStorage.getItem("balletmate.mapProvider.v1").then(value=>{if(value==="google"||value==="kakao")setMapProvider(value);}).catch(()=>{});},[]);
+  useEffect(()=>{
+    const client=supabase;
+    const studioId=detailStudio?.id;
+    if(!client||!studioId){setFreshness(null);return;}
+    let active=true;
+    setFreshnessLoading(true);
+    client.from("studio_information_freshness_app").select("profile_freshness,official_details_freshness,photo_freshness,latest_price_date,price_freshness,latest_schedule_date,schedule_freshness").eq("studio_id",studioId).maybeSingle().then(({data,error})=>{
+      if(!active)return;
+      setFreshness(error?null:data);
+      setFreshnessLoading(false);
+    });
+    return ()=>{active=false;};
+  },[detailStudio?.id]);
   const [compareOpen,setCompareOpen]=useState(false);
   const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
   const [favoriteStudios,setFavoriteStudios]=useState<Studio[]>([]);
@@ -647,6 +662,17 @@ export default function Home() {
 <View style={{flexDirection:"row",gap:5,marginTop:8,marginBottom:8}}>{([{id:"home",label:"홈"},{id:"news",label:"소식"},{id:"reviews",label:"리뷰"},{id:"photos",label:"사진"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailTab(tab.id)} style={{flex:1,paddingVertical:10,borderRadius:10,backgroundColor:detailTab===tab.id?COLORS.pale:"#F8F7FA",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:detailTab===tab.id?COLORS.purple:COLORS.muted}}>{tab.label}</Text></Pressable>)}</View>
 <View style={{flex:1}}>{detailStudio&&<>
 {detailTab==="home"&&<ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}><View style={{marginTop:10}}>{studioCard(detailStudio,true)}</View>
+          <View style={{marginTop:8,padding:12,borderRadius:12,backgroundColor:"#F8F6FB",borderWidth:1,borderColor:"#EEE8F5"}}>
+            <Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink,marginBottom:7}}>정보 최신성</Text>
+            {freshnessLoading?<Text style={styles.photoCredit}>확인 상태 불러오는 중…</Text>:freshness?<>
+              <Text style={styles.photoCredit}>학원 기본정보 · {freshness.profile_freshness==="recent"?"최근 확인":freshness.profile_freshness==="stale"?"재확인 필요":"확인 기록 없음"}</Text>
+              <Text style={styles.photoCredit}>공식 홈페이지 · {freshness.official_details_freshness==="recent"?"최근 확인":freshness.official_details_freshness==="stale"?"재확인 필요":freshness.official_details_freshness==="no_official_site"?"홈페이지 미등록":"확인 기록 없음"}</Text>
+              <Text style={styles.photoCredit}>사진 · {freshness.photo_freshness==="recent"?"최근 확인":freshness.photo_freshness==="stale"?"재확인 필요":freshness.photo_freshness==="no_photos"?"등록 사진 없음":"확인 기록 없음"}</Text>
+              <Text style={styles.photoCredit}>가격 · {freshness.price_freshness==="source_date_visible"?"게시 기준일 "+(freshness.latest_price_date||"확인 불가"):"공개 가격 없음"}</Text>
+              <Text style={styles.photoCredit}>시간표 · {freshness.schedule_freshness==="current"?"유효한 공개 자료": "유효한 공개 자료 없음"}{freshness.latest_schedule_date?" · 게시 "+freshness.latest_schedule_date:""}</Text>
+              <Text style={styles.photoCredit}>가격은 게시 기준일을 표시하며, 현재 가격과 동일하다는 보증은 아닙니다.</Text>
+            </>:<Text style={styles.photoCredit}>최신성 정보를 불러오지 못했습니다. 기존 학원 정보는 그대로 표시합니다.</Text>}
+          </View>
           <Text style={styles.sectionTitle}>대표 이미지</Text>
           {representativeStudioImage?
             <><Pressable onPress={()=>{if(representativeStudioImage.url)Linking.openURL(representativeStudioImage.url).catch(()=>Alert.alert("사진 출처","원문을 열 수 없습니다."));}}><Image source={{uri:representativeStudioImage.uri}} style={[styles.studioPhoto,{width:"100%",height:210,backgroundColor:"#F8F6FB"}]} resizeMode="contain"/></Pressable>
