@@ -120,6 +120,54 @@ Deno.serve(async (req) => {
           if (error) throw new Error("게시물 저장 실패: " + error.message);
           saved += data?.length ?? rows.length;
         }
+
+        // Suggest only accounts whose returned post title/description explicitly
+        // contains this academy's normalized name. Suggestions never become public
+        // until an administrator approves the account.
+        const alias = academyAlias(String(job.studio_name));
+        const accountCandidates = new Map<string, { blogger_url: string; blogger_name: string | null; title: string; post_url: string }>();
+        for (const item of items as Array<Record<string, unknown>>) {
+          const bloggerUrl = cleanText(item.bloggerlink);
+          const title = cleanText(item.title);
+          const description = cleanText(item.description);
+          if (!isNaverBlogUrl(bloggerUrl) || !title || alias.length < 3) continue;
+          if (!normalize(title + " " + description).includes(alias)) continue;
+          const key = blogAccountKey(bloggerUrl);
+          if (!key || officialAccounts.some((account) => blogAccountKey(account) === key)) continue;
+          if (!accountCandidates.has(key)) {
+            accountCandidates.set(key, {
+              blogger_url: `https://blog.naver.com/${key}`,
+              blogger_name: cleanText(item.bloggername) || null,
+              title,
+              post_url: cleanText(item.link),
+            });
+          }
+        }
+        for (const candidate of accountCandidates.values()) {
+          const { data: prior, error: priorError } = await db.from("studio_blog_account_candidates")
+            .select("id,matched_post_count,sample_posts,review_status")
+            .eq("studio_id", job.studio_id)
+            .eq("blogger_url", candidate.blogger_url)
+            .maybeSingle();
+          if (priorError) throw new Error("공식 블로그 후보 조회 실패: " + priorError.message);
+          const samples = Array.isArray(prior?.sample_posts) ? prior.sample_posts : [];
+          const nextSamples = [
+            ...samples,
+            { title: candidate.title, post_url: candidate.post_url },
+          ].filter((post, index, all) => all.findIndex((item) => item.post_url === post.post_url) === index).slice(-5);
+          const { error: candidateError } = await db.from("studio_blog_account_candidates")
+            .upsert({
+              studio_id: job.studio_id,
+              studio_name: String(job.studio_name),
+              blogger_url: candidate.blogger_url,
+              blogger_name: candidate.blogger_name,
+              matched_post_count: Number(prior?.matched_post_count ?? 0) + 1,
+              sample_posts: nextSamples,
+              match_score: 85,
+              last_seen_at: new Date().toISOString(),
+            }, { onConflict: "studio_id,blogger_url" });
+          if (candidateError) throw new Error("공식 블로그 후보 저장 실패: " + candidateError.message);
+        }
       }
       const { error: finishError } = await db.from("studio_blog_search_queue")
         .update({ status: "completed", last_error: null, updated_at: new Date().toISOString() })
