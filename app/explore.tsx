@@ -527,6 +527,7 @@ export default function Home() {
           {!!detailStudio.sourceName&&<Text style={styles.photoCredit}>정보 출처: {detailStudio.sourceName}{detailStudio.verifiedAt?" · 확인 "+new Date(detailStudio.verifiedAt).toLocaleDateString("ko-KR"):""}</Text>}
           {!!detailStudio.sourceUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.sourceUrl!).catch(()=>Alert.alert("출처 연결","출처 페이지를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>정보 원문 확인 ›</Text></Pressable>}
           {!!detailStudio.description?.trim()&&<><Text style={styles.sectionTitle}>학원 소개</Text><Text style={styles.detailDescription}>{detailStudio.description}</Text></>}
+          {!!detailStudio.websiteUrl&&<View style={styles.infoRow}><Text style={styles.infoLabel}>공식 홈페이지</Text><Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>홈페이지 방문 ›</Text></Pressable></View>}
           {!!detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}
           {(!!detailStudio.detailsCheckedAt||!!detailStudio.priceEvidenceText||!!detailStudio.scheduleEvidenceText||(detailStudio.detailsSourceUrls||[]).length>0)&&<Text style={styles.sectionTitle}>공식 홈페이지에서 확인한 정보</Text>}
           {!!detailStudio.detailsCheckedAt&&<Text style={styles.photoCredit}>최근 확인: {new Date(detailStudio.detailsCheckedAt).toLocaleDateString("ko-KR")} · 원문 텍스트 자동 추출</Text>}
