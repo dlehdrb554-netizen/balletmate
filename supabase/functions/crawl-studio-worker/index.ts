@@ -36,6 +36,23 @@ Deno.serve(async (req) => {
       const payload = await response.json().catch(() => ({}));
       ok = response.ok;
       detail = payload?.error || payload?.reason || (ok ? "수집 완료" : "HTTP " + response.status);
+      if(ok){
+        // Immediately run visual classification for newly queued and existing unclassified photos.
+        const {data:candidates,error:candidateError}=await adminClient.from("studio_photo_candidates")
+          .select("id").eq("studio_id",job.studio_id).eq("review_status","pending").order("created_at",{ascending:false}).limit(10);
+        if(candidateError)detail+=" · AI 후보 조회 실패: "+candidateError.message;
+        else if(candidates?.length){
+          let classified=0,visionFailed=0;
+          const classifierEndpoint=supabaseUrl.replace(/\\/$/,"")+"/functions/v1/classify-studio-photo";
+          for(const candidate of candidates){
+            try{
+              const vision=await fetch(classifierEndpoint,{method:"POST",headers:{"Content-Type":"application/json","x-photo-auto-secret":serviceRoleKey},body:JSON.stringify({candidateId:candidate.id}),signal:AbortSignal.timeout(25000)});
+              if(vision.ok)classified++;else visionFailed++;
+            }catch{visionFailed++;}
+          }
+          detail+=" · 사진 AI 자동 처리 "+classified+"장"+(visionFailed?"(실패 "+visionFailed+"장)":"");
+        }
+      }
     } catch (error) {
       detail = error instanceof Error ? error.message : "요청 실패";
     }
