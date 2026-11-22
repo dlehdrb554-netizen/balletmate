@@ -12,7 +12,7 @@ function queryVariants(raw: string): string[] {
   const withoutGeneric = raw.replace(/(발레|학원|스튜디오|아카데미|무용)/g, "").trim();
   if (withoutGeneric.length >= 2) values.add(withoutGeneric);
   if (/발레/.test(raw) && !/학원/.test(raw)) values.add(raw + " 학원");
-  if (/발레/.test(raw) && raw.includes(" ")) values.add(raw.replace(/s+/g, ""));
+  if (/발레/.test(raw) && raw.includes(" ")) values.add(raw.replace(/\s+/g, ""));
   if (/퀸즈|퀸스/i.test(raw)) {
     values.add("퀸즈 발레");
     values.add("퀸스 발레");
