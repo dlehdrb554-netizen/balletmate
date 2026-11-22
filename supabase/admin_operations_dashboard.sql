@@ -31,12 +31,9 @@ begin
       'completed', (select count(*) from public.studio_blog_post_crawl_queue where status='completed'),
       'stalled', (select count(*) from public.studio_blog_post_crawl_queue where status='processing' and updated_at < now()-interval '20 minutes')
     ),
-    'image_crawl', jsonb_build_object(
-      'pending', (select count(*) from public.studio_image_crawl_queue where status='pending'),
-      'processing', (select count(*) from public.studio_image_crawl_queue where status='processing'),
-      'failed', (select count(*) from public.studio_image_crawl_queue where status='failed'),
-      'done', (select count(*) from public.studio_image_crawl_queue where status='done'),
-      'stalled', (select count(*) from public.studio_image_crawl_queue where status='processing' and updated_at < now()-interval '30 minutes')
+    'photos', jsonb_build_object(
+      'missing', (select count(*) from public.studios where coalesce(is_active,true) and coalesce(array_length(image_urls,1),0)=0),
+      'present', (select count(*) from public.studios where coalesce(is_active,true) and coalesce(array_length(image_urls,1),0)>0)
     ),
     'evidence', jsonb_build_object(
       'pending', (select count(*) from public.studio_blog_evidence_candidates where review_status='pending'),
@@ -81,7 +78,7 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare search_count integer; post_count integer; image_count integer;
+declare search_count integer; post_count integer;
 begin
   if not public.is_balletmate_admin() then
     raise exception 'administrator access required' using errcode='42501';
@@ -105,8 +102,7 @@ begin
   return jsonb_build_object(
     'blog_search_requeued', search_count,
     'blog_post_requeued', post_count,
-    'image_requeued', image_count,
-    'total', search_count+post_count+image_count
+    'total', search_count+post_count
   );
 end;
 $$;
