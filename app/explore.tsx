@@ -81,6 +81,7 @@ export default function Home() {
   const guestFavoritesRef=useRef<{ids:string[];studios:Studio[]}>({ids:[],studios:[]});
   const [compareIds,setCompareIds]=useState<string[]>([]);
   const [compareCache,setCompareCache]=useState<Studio[]>([]);
+  const [compareReady,setCompareReady]=useState(false);
   const [adult,setAdult]=useState(false);
   const [kids,setKids]=useState(false);
   const [coupon,setCoupon]=useState(false);
@@ -190,6 +191,23 @@ export default function Home() {
   // Location permissions and GPS are requested only after the user taps the location button.
   useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,cache])=>{let savedIds:string[]=[];let savedStudios:Studio[]=[];if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))savedIds=parsed.filter(x=>typeof x==="string");}if(cache){const parsed=JSON.parse(cache);if(Array.isArray(parsed))savedStudios=parsed.filter((x:any)=>x&&typeof x.id==="string");}guestFavoritesRef.current={ids:savedIds,studios:savedStudios};setFavoriteIds(savedIds);setFavoriteStudios(savedStudios);}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
   useEffect(()=>{if(favoritesReady){AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});AsyncStorage.setItem("balletmate.favoriteStudios.v1",JSON.stringify(favoriteStudios)).catch(()=>{});}},[favoriteIds,favoriteStudios,favoritesReady]);
+  useEffect(()=>{
+    AsyncStorage.getItem("balletmate.compare.v1").then(raw=>{
+      if(!raw)return;
+      const parsed=JSON.parse(raw);
+      if(!parsed||!Array.isArray(parsed.ids)||!Array.isArray(parsed.studios))return;
+      const studios:Studio[]=parsed.studios.filter((x:any)=>x&&typeof x.id==="string");
+      const validIds=[...new Set(parsed.ids.filter((id:any)=>typeof id==="string"))].slice(0,3);
+      const available=new Set(studios.map(x=>x.id));
+      setCompareIds(validIds.filter(id=>available.has(id)));
+      setCompareCache(studios.filter(x=>validIds.includes(x.id)));
+    }).catch(()=>{}).finally(()=>setCompareReady(true));
+  },[]);
+  useEffect(()=>{
+    if(compareReady){
+      AsyncStorage.setItem("balletmate.compare.v1",JSON.stringify({ids:compareIds,studios:compareCache})).catch(()=>{});
+    }
+  },[compareIds,compareCache,compareReady]);
   const favoriteSyncUser=useRef<string|null>(null);
   useEffect(()=>{
     const client=supabase;
