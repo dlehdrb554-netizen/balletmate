@@ -17,7 +17,7 @@ on:
       - "package-lock.json"
 
 concurrency:
-  group: android-debug-apk-${{ github.ref }}
+  group: android-debug-apk-final-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
