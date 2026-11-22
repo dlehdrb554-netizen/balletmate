@@ -65,6 +65,7 @@ export type StudioPublicPrice = {
   source_post_date:string|null;
   published_at:string;
   expires_at?:string|null;
+  image_urls?:string[]|null;
 };
 
 const publicPriceCache = new Map<string, { savedAt:number; rows:StudioPublicPrice[] }>();
@@ -77,7 +78,7 @@ export async function fetchStudioPublicPrices(studioId:string):Promise<StudioPub
   if(inFlight)return inFlight;
   const request=(async()=>{
     const {data,error}=await supabase.from("studio_public_prices_app")
-      .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at")
+      .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at,image_urls")
       .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
     let rowsData:any=data;
     if(error)throw error;
@@ -99,6 +100,7 @@ export type StudioPublicSchedule = {
   source_post_date:string|null;
   published_at:string;
   expires_at:string;
+  image_urls?:string[]|null;
 };
 
 const publicScheduleCache = new Map<string, { savedAt:number; rows:StudioPublicSchedule[] }>();
@@ -111,7 +113,7 @@ export async function fetchStudioPublicSchedules(studioId:string):Promise<Studio
   if(inFlight)return inFlight;
   const request=(async()=>{
     const {data,error}=await supabase.from("studio_public_schedules_app")
-      .select("id,studio_id,schedule_text,evidence_text,source_title,source_url,source_post_date,published_at,expires_at")
+      .select("id,studio_id,schedule_text,evidence_text,source_title,source_url,source_post_date,published_at,expires_at,image_urls")
       .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
     if(error)throw error;
     const rows=(data||[]) as StudioPublicSchedule[];
