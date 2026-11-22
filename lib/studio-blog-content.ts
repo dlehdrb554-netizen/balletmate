@@ -48,6 +48,7 @@ export type StudioPublicPrice = {
   source_url:string;
   source_post_date:string|null;
   published_at:string;
+  expires_at?:string|null;
 };
 
 const publicPriceCache = new Map<string, { savedAt:number; rows:StudioPublicPrice[] }>();
@@ -56,10 +57,18 @@ export async function fetchStudioPublicPrices(studioId:string):Promise<StudioPub
   const cached=publicPriceCache.get(studioId);
   if(cached&&Date.now()-cached.savedAt<BLOG_CACHE_MS)return cached.rows;
   const {data,error}=await supabase.from("studio_public_prices_app")
-    .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at")
+    .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at,expires_at")
     .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
-  if(error)throw error;
-  const rows=(data||[]) as StudioPublicPrice[];
+  let rowsData=data;
+  if(error&&/expires_at|column/i.test(error.message)){
+    // Older installations may not have run the freshness migration yet.
+    const fallback=await supabase.from("studio_public_prices_app")
+      .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at")
+      .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
+    if(fallback.error)throw fallback.error;
+    rowsData=fallback.data;
+  }else if(error)throw error;
+  const rows=(rowsData||[]) as StudioPublicPrice[];
   publicPriceCache.set(studioId,{savedAt:Date.now(),rows});
   return rows;
 }
