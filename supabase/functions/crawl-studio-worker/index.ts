@@ -15,14 +15,13 @@ Deno.serve(async (req) => {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: jobs, error: claimError } = await adminClient.rpc("claim_studio_image_crawl_queue", { p_limit: 10 });
   if (claimError) return json({ error: "대기 작업 확보 실패: " + claimError.message }, 500);
-  if (!jobs?.length) return json({ claimed: 0, succeeded: 0, failed: 0, message: "처리할 작업이 없습니다." });
 
-  let succeeded = 0;
-  let failed = 0;
-  const results: Array<{ studioId: string; ok: boolean; detail?: string }> = [];
+  let crawlSucceeded = 0;
+  let crawlFailed = 0;
+  const crawlResults: Array<{ studioId: string; ok: boolean; detail?: string }> = [];
 
-  // Sequential processing avoids bursts against Supabase and studio websites.
-  for (const job of jobs) {
+  // Crawl website jobs sequentially. Vision is handled by the separate global queue below.
+  for (const job of jobs || []) {
     const endpoint = supabaseUrl.replace(/\/$/, "") + "/functions/v1/crawl-studio";
     let ok = false;
     let detail = "";
@@ -36,23 +35,6 @@ Deno.serve(async (req) => {
       const payload = await response.json().catch(() => ({}));
       ok = response.ok;
       detail = payload?.error || payload?.reason || (ok ? "수집 완료" : "HTTP " + response.status);
-      if(ok){
-        // Immediately run visual classification for newly queued and existing unclassified photos.
-        const {data:candidates,error:candidateError}=await adminClient.from("studio_photo_candidates")
-          .select("id").eq("studio_id",job.studio_id).eq("review_status","pending").order("created_at",{ascending:false}).limit(10);
-        if(candidateError)detail+=" · AI 후보 조회 실패: "+candidateError.message;
-        else if(candidates?.length){
-          let classified=0,visionFailed=0;
-          const classifierEndpoint=(supabaseUrl.endsWith("/")?supabaseUrl.slice(0,-1):supabaseUrl)+"/functions/v1/classify-studio-photo";
-          for(const candidate of candidates){
-            try{
-              const vision=await fetch(classifierEndpoint,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+serviceRoleKey,"x-photo-auto-secret":serviceRoleKey},body:JSON.stringify({candidateId:candidate.id}),signal:AbortSignal.timeout(25000)});
-              if(vision.ok)classified++;else visionFailed++;
-            }catch{visionFailed++;}
-          }
-          detail+=" · 사진 AI 자동 처리 "+classified+"장"+(visionFailed?"(실패 "+visionFailed+"장)":"");
-        }
-      }
     } catch (error) {
       detail = error instanceof Error ? error.message : "요청 실패";
     }
@@ -71,16 +53,100 @@ Deno.serve(async (req) => {
     }).eq("id", job.id);
 
     if (updateError) {
-      failed++;
-      results.push({ studioId: job.studio_id, ok: false, detail: "큐 상태 저장 실패: " + updateError.message });
+      crawlFailed++;
+      crawlResults.push({ studioId: job.studio_id, ok: false, detail: "큐 상태 저장 실패: " + updateError.message });
     } else if (ok) {
-      succeeded++;
-      results.push({ studioId: job.studio_id, ok: true, detail });
+      crawlSucceeded++;
+      crawlResults.push({ studioId: job.studio_id, ok: true, detail });
     } else {
-      failed++;
-      results.push({ studioId: job.studio_id, ok: false, detail });
+      crawlFailed++;
+      crawlResults.push({ studioId: job.studio_id, ok: false, detail });
     }
   }
 
-  return json({ claimed: jobs.length, succeeded, failed, results });
+  // Enforce a conservative daily request ceiling for the Cloudflare free tier.
+  // The existing pg_cron job calls this worker every two minutes; at most two
+  // images are sent per run and no more than twenty are classified per UTC day.
+  const now = new Date();
+  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+  const { count: processedToday, error: countError } = await adminClient
+    .from("studio_photo_candidates")
+    .select("id", { count: "exact", head: true })
+    .in("review_status", ["approved", "rejected"])
+    .gte("reviewed_at", dayStart);
+  if (countError) {
+    return json({ crawlClaimed: jobs?.length || 0, crawlSucceeded, crawlFailed, crawlResults,
+      visionProcessed: 0, visionFailed: 0, visionError: "일일 처리량 조회 실패: " + countError.message }, 500);
+  }
+
+  const dailyRemaining = Math.max(0, 20 - (processedToday || 0));
+  const batchSize = Math.min(2, dailyRemaining);
+  let visionProcessed = 0;
+  let visionFailed = 0;
+  const visionResults: Array<{ candidateId: number; ok: boolean; detail?: string }> = [];
+
+  if (batchSize > 0) {
+    const retryBefore = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: candidates, error: candidateError } = await adminClient
+      .from("studio_photo_candidates")
+      .select("id")
+      .eq("review_status", "pending")
+      .or("auto_classified_at.is.null,auto_classified_at.lt." + retryBefore)
+      .order("created_at", { ascending: true })
+      .limit(batchSize);
+
+    if (candidateError) {
+      return json({ crawlClaimed: jobs?.length || 0, crawlSucceeded, crawlFailed, crawlResults,
+        visionProcessed, visionFailed, visionError: "Vision 대기열 조회 실패: " + candidateError.message }, 500);
+    }
+
+    const classifierEndpoint = supabaseUrl.replace(/\/$/, "") + "/functions/v1/classify-studio-photo";
+    for (const candidate of candidates || []) {
+      try {
+        const response = await fetch(classifierEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + serviceRoleKey,
+            "x-photo-auto-secret": serviceRoleKey,
+          },
+          body: JSON.stringify({ candidateId: candidate.id }),
+          signal: AbortSignal.timeout(45000),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (response.ok && payload?.candidateId) {
+          visionProcessed++;
+          visionResults.push({ candidateId: candidate.id, ok: true, detail: payload.decision || payload.category });
+        } else {
+          visionFailed++;
+          const reason = String(payload?.error || payload?.detail || "HTTP " + response.status).slice(0, 220);
+          await adminClient.from("studio_photo_candidates").update({
+            auto_classified_at: new Date().toISOString(),
+            auto_reason: "자동 판별 재시도 대기: " + reason,
+          }).eq("id", candidate.id).eq("review_status", "pending");
+          visionResults.push({ candidateId: candidate.id, ok: false, detail: reason });
+        }
+      } catch (error) {
+        visionFailed++;
+        const reason = error instanceof Error ? error.message : "Vision 요청 실패";
+        await adminClient.from("studio_photo_candidates").update({
+          auto_classified_at: new Date().toISOString(),
+          auto_reason: "자동 판별 재시도 대기: " + reason.slice(0, 180),
+        }).eq("id", candidate.id).eq("review_status", "pending");
+        visionResults.push({ candidateId: candidate.id, ok: false, detail: reason.slice(0, 220) });
+      }
+    }
+  }
+
+  return json({
+    crawlClaimed: jobs?.length || 0,
+    crawlSucceeded,
+    crawlFailed,
+    crawlResults,
+    visionProcessed,
+    visionFailed,
+    visionDailyLimit: 20,
+    visionProcessedToday: processedToday || 0,
+    visionResults,
+  });
 });
