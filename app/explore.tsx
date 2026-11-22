@@ -117,6 +117,7 @@ export default function Home() {
   const [currentLocation,setCurrentLocation]=useState<{latitude:number;longitude:number}|null>(null);
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);
   const [areaLocked,setAreaLocked]=useState(false);
+  const [regionalSearchLabel,setRegionalSearchLabel]=useState<string|null>(null);
 
   useEffect(()=>{
     if(!supabase)return;
@@ -195,14 +196,33 @@ export default function Home() {
       return distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng);
     });
   },[view,favoriteStudios,results,listSort,searchedRegion]);
+  const REGIONAL_SEARCH:Record<string,{latitude:number;longitude:number}> = {
+    "화곡":{latitude:37.5416,longitude:126.8466},"화곡동":{latitude:37.5416,longitude:126.8466},"화곡역":{latitude:37.5423,longitude:126.8403},
+    "까치산":{latitude:37.5317,longitude:126.8489},"까치산역":{latitude:37.5317,longitude:126.8489},
+    "천호":{latitude:37.5386,longitude:127.1238},"천호동":{latitude:37.5386,longitude:127.1238},"천호역":{latitude:37.5386,longitude:127.1238},
+    "강서구":{latitude:37.5509,longitude:126.8495},"양천구":{latitude:37.5169,longitude:126.8664},"목동":{latitude:37.5260,longitude:126.8750},
+    "마곡":{latitude:37.5600,longitude:126.8265},"발산":{latitude:37.5580,longitude:126.8370},"등촌":{latitude:37.5507,longitude:126.8640},
+    "송파":{latitude:37.5145,longitude:127.1059},"잠실":{latitude:37.5133,longitude:127.1000},"강남":{latitude:37.4979,longitude:127.0276},
+    "홍대":{latitude:37.5563,longitude:126.9236},"합정":{latitude:37.5495,longitude:126.9137},"신촌":{latitude:37.5551,longitude:126.9368},
+    "은평구":{latitude:37.6027,longitude:126.9291},"종로":{latitude:37.5729,longitude:126.9794},"광화문":{latitude:37.5720,longitude:126.9769},
+    "성수":{latitude:37.5446,longitude:127.0557},"건대":{latitude:37.5404,longitude:127.0692},"왕십리":{latitude:37.5614,longitude:127.0370}
+  };
   const submitSearch=async()=>{
+
     Keyboard.dismiss();
     const query=search.trim();
     if(!query){setAreaLocked(false);setSelected(null);return;}
     const q=query.toLowerCase();
+    const regionKey=Object.keys(REGIONAL_SEARCH).find(key=>q.includes(key));
+    if(regionKey){
+      const point=REGIONAL_SEARCH[regionKey];
+      const next={latitude:point.latitude,longitude:point.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
+      map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setRegionalSearchLabel(query);setSearch("");setClassSearchIds([]);
+      return;
+    }
     let matchingClassIds=classSearchIds;
     if(supabase&&query.length>=2){try{matchingClassIds=await searchStudioIdsByClassName(query);setClassSearchIds(matchingClassIds);}catch{}}
-    const matching=studios.filter(studio=>studio.name.toLowerCase().includes(q)||studio.area.toLowerCase().includes(q)||studio.tags.some(tag=>tag.toLowerCase().includes(q)||q.includes(tag.toLowerCase()))||matchingClassIds.includes(studio.id));
+    const matching=studios.filter(studio=>studio.name.toLowerCase().includes(q)||studio.area.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.tags.some(tag=>tag.toLowerCase().includes(q)||q.includes(tag.toLowerCase()))||matchingClassIds.includes(studio.id));
     if(matching.length){
       const target=matching.length===1?matching[0]:null;
       const latitude=target?target.lat:matching.reduce((sum,studio)=>sum+studio.lat,0)/matching.length;
@@ -214,12 +234,14 @@ export default function Home() {
     }
     // If no studio name/tag matches, interpret the query as an address or region and geocode it.
     try{
-      const geocoded=await Location.geocodeAsync(query);
+      const geocoded=await Location.geocodeAsync(query+" 대한민국");
       if(geocoded.length){
-        const next={latitude:geocoded[0].latitude,longitude:geocoded[0].longitude,latitudeDelta:0.045,longitudeDelta:0.045};
-        map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(null);
+        const next={latitude:geocoded[0].latitude,longitude:geocoded[0].longitude,latitudeDelta:0.035,longitudeDelta:0.035};
+        map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setRegionalSearchLabel(query);setSearch("");setClassSearchIds([]);
+        return;
       }
-    }catch(error){console.warn("Search location geocoding failed:",error);}
+      Alert.alert("지역 검색","해당 지역을 찾지 못했습니다. 동네명이나 역 이름으로 다시 검색해주세요.");
+    }catch(error){console.warn("Search location geocoding failed:",error);Alert.alert("지역 검색","지역 위치를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");}
   };
   const locate=async()=>{
     setLocationLoading(true);
