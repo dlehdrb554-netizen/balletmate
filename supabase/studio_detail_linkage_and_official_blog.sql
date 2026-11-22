@@ -108,7 +108,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.get_studio_blog_public_details(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_studio_blog_public_details(uuid) TO anon, authenticated;
 
--- Diagnostic result: show only 8 representative academies.
+-- Diagnostic result: show only 5 representative academies.
 -- Prioritize academies with the most missing linked data.
 WITH diagnostic AS (
   SELECT
@@ -136,4 +136,4 @@ ORDER BY
    + CASE WHEN approved_schedule_count = 0 THEN 1 ELSE 0 END
    + CASE WHEN verified_official_blog_count = 0 THEN 1 ELSE 0 END) DESC,
   name
-LIMIT 8;
+LIMIT 5;
