@@ -38,12 +38,16 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!kakaoKey || !supabaseUrl || !serviceKey) return json({ error: "서버 검색 설정이 누락되었습니다." }, 500);
 
-  let body: { query?: unknown };
+  let body: { query?: unknown; latitude?: unknown; longitude?: unknown; radius?: unknown };
   try { body = await req.json(); } catch { return json({ error: "검색어를 확인해 주세요." }, 400); }
   const query = String(body?.query ?? "").trim().replace(/\s+/g, " ");
   if (query.length < 2 || query.length > 80) return json({ error: "검색어는 2~80자로 입력해 주세요." }, 400);
 
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const latitude = Number(body.latitude), longitude = Number(body.longitude);
+  const hasBounds = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+    Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+  const radius = hasBounds ? Math.min(20000, Math.max(1000, Math.floor(Number(body.radius) || 5000))) : null;
   const found = new Map<string, any>();
   const queries = queryVariants(query);
   let requestCount = 0;
@@ -56,7 +60,12 @@ Deno.serve(async (req) => {
       endpoint.searchParams.set("query", term);
       endpoint.searchParams.set("page", String(page));
       endpoint.searchParams.set("size", "15");
-      endpoint.searchParams.set("sort", "accuracy");
+      endpoint.searchParams.set("sort", hasBounds ? "distance" : "accuracy");
+      if (hasBounds && radius !== null) {
+        endpoint.searchParams.set("x", String(longitude));
+        endpoint.searchParams.set("y", String(latitude));
+        endpoint.searchParams.set("radius", String(radius));
+      }
       requestCount++;
       try {
         const response = await fetch(endpoint.toString(), {
@@ -121,5 +130,5 @@ Deno.serve(async (req) => {
     if (error) errors.push("검색 결과 조회 실패: " + error.message.slice(0, 120));
     else studios = data ?? [];
   }
-  return json({ query, queries, requestCount, found: found.size, registered: ids.length, studios, errors: errors.slice(0, 5) });
+  return json({ query, queries, requestCount, found: found.size, registered: ids.length, radius, center: hasBounds ? { latitude, longitude } : null, studios, errors: errors.slice(0, 5) });
 });
