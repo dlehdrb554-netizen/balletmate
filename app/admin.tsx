@@ -307,6 +307,16 @@ export default function Admin() {
     finally{setBusy(false);}
   },[authorized]);
 
+  const readAllRows=async(makeQuery:()=>any)=>{
+    const all:any[]=[];
+    for(let offset=0;offset<10000;offset+=500){
+      const {data,error}=await makeQuery().range(offset,offset+499);
+      if(error)return {data:null,error};
+      const page=data||[];all.push(...page);if(page.length<500)break;
+    }
+    return {data:all,error:null};
+  };
+
   const loadEvidence=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setEvidenceBusy(true);
@@ -314,10 +324,10 @@ export default function Admin() {
     const today=seoulDate();
     const [pending,verified,verifiedSchedules,published,publishedSchedules]=await Promise.all([
       supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","pending").order("created_at",{ascending:false}).limit(100),
-      supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false}).limit(100),
-      supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false}).limit(100),
-      supabase.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false}).limit(100),
-      supabase.from("studio_public_schedules").select("id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false}).limit(100),
+      readAllRows(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false})),
+      readAllRows(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false})),
+      readAllRows(()=>supabase!.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false})),
+      readAllRows(()=>supabase!.from("studio_public_schedules").select("id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false})),
     ]);
     if(pending.error)Alert.alert("자동 수집 자료 조회 실패",pending.error.message);
     else {setEvidenceRows((pending.data||[]) as EvidenceCandidate[]);setTotalEvidencePending(pending.count??(pending.data||[]).length);setSelectedEvidenceIds(ids=>ids.filter(id=>(pending.data||[]).some((row:any)=>row.id===id)));}
