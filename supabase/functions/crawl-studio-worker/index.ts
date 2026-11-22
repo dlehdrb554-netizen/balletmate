@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
           const classifierEndpoint=(supabaseUrl.endsWith("/")?supabaseUrl.slice(0,-1):supabaseUrl)+"/functions/v1/classify-studio-photo";
           for(const candidate of candidates){
             try{
-              const vision=await fetch(classifierEndpoint,{method:"POST",headers:{"Content-Type":"application/json","x-photo-auto-secret":serviceRoleKey},body:JSON.stringify({candidateId:candidate.id}),signal:AbortSignal.timeout(25000)});
+              const vision=await fetch(classifierEndpoint,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+serviceRoleKey,"x-photo-auto-secret":serviceRoleKey},body:JSON.stringify({candidateId:candidate.id}),signal:AbortSignal.timeout(25000)});
               if(vision.ok)classified++;else visionFailed++;
             }catch{visionFailed++;}
           }
