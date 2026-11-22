@@ -108,18 +108,32 @@ $function$;
 REVOKE ALL ON FUNCTION public.get_studio_blog_public_details(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_studio_blog_public_details(uuid) TO anon, authenticated;
 
--- Diagnostic result: one row per academy showing which linked data exists.
-SELECT
-  st.id,
-  st.name,
-  (st.price_per_class IS NOT NULL) AS has_map_price,
-  cardinality(COALESCE(st.image_urls, ARRAY[]::text[])) AS official_image_count,
-  (SELECT count(*) FROM public.classes cl WHERE cl.studio_id = st.id AND cl.is_active = true) AS active_class_count,
-  (SELECT count(*) FROM public.class_sessions cs JOIN public.classes cl ON cl.id = cs.class_id
-    WHERE cl.studio_id = st.id AND cl.is_active = true AND cs.is_active = true) AS active_session_count,
-  (SELECT count(*) FROM public.studio_public_prices pp WHERE pp.studio_id = st.id AND pp.is_active = true) AS approved_price_count,
-  (SELECT count(*) FROM public.studio_public_schedules ps WHERE ps.studio_id = st.id AND ps.is_active = true AND ps.expires_at >= CURRENT_DATE) AS approved_schedule_count,
-  (SELECT count(*) FROM public.studio_blog_official_accounts oa WHERE oa.studio_name = st.name AND oa.is_active = true) AS verified_official_blog_count
-FROM public.studios st
-WHERE st.is_active = true
-ORDER BY st.name;
+-- Diagnostic result: show only 8 representative academies.
+-- Prioritize academies with the most missing linked data.
+WITH diagnostic AS (
+  SELECT
+    st.id,
+    st.name,
+    (st.price_per_class IS NOT NULL) AS has_map_price,
+    cardinality(COALESCE(st.image_urls, ARRAY[]::text[])) AS official_image_count,
+    (SELECT count(*) FROM public.classes cl WHERE cl.studio_id = st.id AND cl.is_active = true) AS active_class_count,
+    (SELECT count(*) FROM public.class_sessions cs JOIN public.classes cl ON cl.id = cs.class_id
+      WHERE cl.studio_id = st.id AND cl.is_active = true AND cs.is_active = true) AS active_session_count,
+    (SELECT count(*) FROM public.studio_public_prices pp WHERE pp.studio_id = st.id AND pp.is_active = true) AS approved_price_count,
+    (SELECT count(*) FROM public.studio_public_schedules ps WHERE ps.studio_id = st.id AND ps.is_active = true AND ps.expires_at >= CURRENT_DATE) AS approved_schedule_count,
+    (SELECT count(*) FROM public.studio_blog_official_accounts oa WHERE oa.studio_name = st.name AND oa.is_active = true) AS verified_official_blog_count
+  FROM public.studios st
+  WHERE st.is_active = true
+)
+SELECT *
+FROM diagnostic
+ORDER BY
+  (CASE WHEN NOT has_map_price THEN 1 ELSE 0 END
+   + CASE WHEN official_image_count = 0 THEN 1 ELSE 0 END
+   + CASE WHEN active_class_count = 0 THEN 1 ELSE 0 END
+   + CASE WHEN active_session_count = 0 THEN 1 ELSE 0 END
+   + CASE WHEN approved_price_count = 0 THEN 1 ELSE 0 END
+   + CASE WHEN approved_schedule_count = 0 THEN 1 ELSE 0 END
+   + CASE WHEN verified_official_blog_count = 0 THEN 1 ELSE 0 END) DESC,
+  name
+LIMIT 8;
