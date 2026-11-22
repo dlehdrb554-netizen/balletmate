@@ -100,7 +100,8 @@ export default function Admin() {
   const [ocrBusy,setOcrBusy]=useState(false);
   const [ocrRows,setOcrRows]=useState<any[]>([]);
   const [batchOcrOffset,setBatchOcrOffset]=useState(0);
-  const [scheduleClassCandidates,setScheduleClassCandidates]=useState<any[]>([]);\n  const [candidateTitles,setCandidateTitles]=useState<Record<number,string>>({});
+  const [scheduleClassCandidates,setScheduleClassCandidates]=useState<any[]>([]);
+  const [candidateTitles,setCandidateTitles]=useState<Record<number,string>>({});
 
   const checkAdmin=useCallback(async(s:any)=>{
     if(!s){setAuthorized(false);setChecking(false);return;}
