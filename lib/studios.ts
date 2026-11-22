@@ -109,12 +109,15 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
  * Search Kakao Local only when the database name search has no result.
  * The Kakao REST key stays in the Edge Function, never in the mobile bundle.
  */
-export async function searchStudiosByKakao(query: string): Promise<StudioRecord[]> {
+export async function searchStudiosByKakao(query: string, bounds?: SearchBounds): Promise<StudioRecord[]> {
   if (!supabase) return [];
   const term = query.trim().replace(/\s+/g, " ");
   if (term.length < 2) return [];
+  const radiusKmLat = bounds ? bounds.latitudeDelta * 111 / 2 : 0;
+  const radiusKmLng = bounds ? bounds.longitudeDelta * 111 * Math.cos(bounds.latitude * Math.PI / 180) / 2 : 0;
+  const radius = bounds ? Math.min(20000, Math.max(1000, Math.ceil(Math.sqrt(radiusKmLat ** 2 + radiusKmLng ** 2) * 1000))) : undefined;
   const { data, error } = await supabase.functions.invoke("search-studios-kakao", {
-    body: { query: term },
+    body: bounds ? { query: term, latitude: bounds.latitude, longitude: bounds.longitude, radius } : { query: term },
   });
   if (error) throw error;
   const rows = Array.isArray(data?.studios) ? data.studios : [];
