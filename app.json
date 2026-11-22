@@ -7,11 +7,6 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-    "autolinking": {
-      "android": {
-        "exclude": ["@zhanziyang/expo-text-extractor"]
-      }
-    },
     "plugins": [
       "expo-router",
       [
