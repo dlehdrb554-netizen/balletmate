@@ -945,10 +945,10 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
     if(!supabase)return;
     const current=rows.find(r=>r.id===id);
     const existing=current?.image_urls||[];
-    if(existing.length>=10){Alert.alert("사진 등록 한도","학원별 사진은 최대 10장까지 등록할 수 있습니다.");return;}
+    if(existing.length>=10){Alert.alert("사진 등록 한도","학원별 소개 사진은 최대 10장까지 등록할 수 있습니다.");return;}
     const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
     if(!permission.granted){Alert.alert("사진 권한","사진 보관함 접근 권한을 허용해 주세요.");return;}
-    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:Math.min(10,10-existing.length),quality:0.82});
+    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:Math.min(10,10-existing.length),quality:1});
     if(picked.canceled||!picked.assets?.length)return;
     const assets=picked.assets.slice(0,10-existing.length);
     const uploadedPaths:string[]=[];
@@ -957,27 +957,39 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       const urls:string[]=[];
       for(let i=0;i<assets.length;i++){
         const asset=assets[i];
-        const mime=asset.mimeType||"image/jpeg";
-        if(!["image/jpeg","image/png","image/webp"].includes(mime))throw new Error("JPG, PNG, WEBP 사진만 등록할 수 있습니다.");
-        if((asset.fileSize||0)>5*1024*1024)throw new Error("사진 한 장의 용량은 5MB 이하여야 합니다.");
-        const ext=mime==="image/png"?"png":mime==="image/webp"?"webp":"jpg";
-        const path=id+"/"+Date.now()+"_"+i+"."+ext;
-        const response=await fetch(asset.uri);
-        if(!response.ok)throw new Error("선택한 사진 파일을 읽지 못했습니다.");
-        const bytes=await response.arrayBuffer();
-        const {error:uploadError}=await supabase.storage.from("studio-photos").upload(path,bytes,{contentType:mime,cacheControl:"31536000",upsert:false});
-        if(uploadError)throw uploadError;
-        uploadedPaths.push(path);
-        urls.push(supabase.storage.from("studio-photos").getPublicUrl(path).data.publicUrl);
+        if(!["image/jpeg","image/png","image/webp"].includes(asset.mimeType||"image/jpeg"))throw new Error("JPG, PNG, WEBP 사진만 등록할 수 있습니다.");
+        if((asset.fileSize||0)>15*1024*1024)throw new Error("원본 사진은 한 장당 15MB 이하여야 합니다.");
+        const maxWidth=2000;
+        const sourceWidth=asset.width||maxWidth;
+        const resized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:Math.min(sourceWidth,maxWidth)}}],{compress:0.84,format:ImageManipulator.SaveFormat.JPEG});
+        try{
+          let response=await fetch(resized.uri);
+          if(!response.ok)throw new Error("최적화된 사진 파일을 읽지 못했습니다.");
+          let bytes=await response.arrayBuffer();
+          if(bytes.byteLength>1500*1024){
+            const compact=await ImageManipulator.manipulateAsync(resized.uri,[],{compress:0.68,format:ImageManipulator.SaveFormat.JPEG});
+            try{
+              response=await fetch(compact.uri);
+              if(!response.ok)throw new Error("압축된 사진 파일을 읽지 못했습니다.");
+              bytes=await response.arrayBuffer();
+            }finally{await FileSystem.deleteAsync(compact.uri,{idempotent:true}).catch(()=>{});}
+          }
+          if(bytes.byteLength>1800*1024)throw new Error("사진을 최적화한 뒤에도 1.8MB를 초과합니다. 다른 사진을 선택해 주세요.");
+          const path=id+"/"+Date.now()+"_"+i+".jpg";
+          const {error:uploadError}=await supabase.storage.from("studio-photos").upload(path,bytes,{contentType:"image/jpeg",cacheControl:"31536000",upsert:false});
+          if(uploadError)throw uploadError;
+          uploadedPaths.push(path);
+          urls.push(supabase.storage.from("studio-photos").getPublicUrl(path).data.publicUrl);
+        }finally{await FileSystem.deleteAsync(resized.uri,{idempotent:true}).catch(()=>{});}
       }
       const {error:updateError}=await supabase.from("studios").update({
         image_urls:[...existing,...urls],
         image_source_name:"관리자 직접 등록",
-        image_usage_note:current?.image_usage_note||"관리자가 직접 업로드한 사진",
+        image_usage_note:current?.image_usage_note||"관리자가 직접 업로드한 최적화 사진",
         updated_at:new Date().toISOString()
       }).eq("id",id);
       if(updateError)throw updateError;
-      Alert.alert("사진 등록 완료",name+" · "+urls.length+"장 업로드 완료");
+      Alert.alert("사진 등록 완료",name+" · "+urls.length+"장 최적화 후 업로드 완료");
       await load();
     }catch(error:any){
       if(uploadedPaths.length)await supabase.storage.from("studio-photos").remove(uploadedPaths);
