@@ -19,7 +19,8 @@ WHERE a.studio_name = matched.name
 
 ALTER TABLE public.studio_blog_official_accounts
   DROP CONSTRAINT IF EXISTS studio_blog_official_accounts_studio_account_key;
-CREATE UNIQUE INDEX IF NOT EXISTS studio_blog_official_accounts_studio_id_url_key
+DROP INDEX IF EXISTS public.studio_blog_official_accounts_studio_id_url_key;
+CREATE UNIQUE INDEX studio_blog_official_accounts_studio_id_url_key
   ON public.studio_blog_official_accounts(studio_id, blogger_url);
 
 CREATE OR REPLACE FUNCTION public.admin_get_studio_official_blog_accounts(p_studio_id uuid)
