@@ -82,6 +82,7 @@ export default function Home() {
   const [studioBlogPosts,setStudioBlogPosts]=useState<StudioBlogPost[]>([]);
   const [studioPublicPrices,setStudioPublicPrices]=useState<StudioPublicPrice[]>([]);
   const [studioPublicSchedules,setStudioPublicSchedules]=useState<StudioPublicSchedule[]>([]);
+  const [evidencePhotoIndexes,setEvidencePhotoIndexes]=useState<Record<string,number>>({});
   const [studioCoupons,setStudioCoupons]=useState<StudioCoupon[]>([]);
   const [blogLoading,setBlogLoading]=useState(false);
   const detailRequestId=useRef(0);
@@ -488,6 +489,25 @@ export default function Home() {
     ...studioBlogPosts.flatMap(post=>(post.image_urls||[]).map((uri,index)=>({uri,key:"blog-"+post.source_id+"-"+index,url:post.post_url,label:post.title}))),
   ] : [];
   const representativeStudioImage = detailPhotoItems[0] || null;
+  const evidencePhotosForSource=(sourceUrl:string)=>{
+    const post=studioBlogPosts.find(item=>item.post_url===sourceUrl);
+    if(!post)return [];
+    return [...new Set((post.image_urls||[]).filter(url=>/^https:\/\//i.test(url)))].slice(0,4);
+  };
+  const evidencePhotoGallery=(key:string,sourceUrl:string)=>{
+    const photos=evidencePhotosForSource(sourceUrl);
+    if(!photos.length)return null;
+    const index=Math.min(evidencePhotoIndexes[key]||0,photos.length-1);
+    return <View style={{marginTop:10,borderRadius:12,overflow:"hidden",backgroundColor:"#F8F6FB"}}>
+      <Image source={{uri:photos[index]}} style={{width:"100%",height:190,backgroundColor:"#F8F6FB"}} resizeMode="contain"/>
+      {photos.length>1&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:10,paddingVertical:7}}>
+        <Text style={styles.photoCredit}>사진 {index+1} / {photos.length}</Text>
+        <Pressable onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:(index+1)%photos.length}))} style={{paddingHorizontal:12,paddingVertical:6,borderRadius:16,backgroundColor:"#EEEAFB",flexDirection:"row",alignItems:"center",gap:4}}>
+          <Text style={{fontSize:11,color:COLORS.purple,fontWeight:"800"}}>다음 사진</Text><Ionicons name="chevron-forward" size={15} color={COLORS.purple}/>
+        </Pressable>
+      </View>}
+    </View>;
+  };
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");if(!studios.some(x=>x.id===s.id)){const r={latitude:s.lat,longitude:s.lng,latitudeDelta:0.04,longitudeDelta:0.04};setSearchedRegion(r);setAreaLocked(false);}map.current?.animateToRegion({latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018},400);}} style={[styles.studioCard,compact&&styles.compactCard]}>
     <View style={styles.cardTop}><View style={styles.studioIcon}>{s.imageUrls?.[0]?<Image source={{uri:s.imageUrls[0]}} style={styles.studioThumb} resizeMode="cover"/>:<MaterialCommunityIcons name="human-female-dance" size={23} color={COLORS.purple}/>}</View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
@@ -586,7 +606,7 @@ export default function Home() {
 {detailTab==="home"&&<ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}><View style={{marginTop:10}}>{studioCard(detailStudio,true)}</View>
           <Text style={styles.sectionTitle}>대표 이미지</Text>
           {representativeStudioImage?
-            <><Pressable onPress={()=>{if(representativeStudioImage.url)Linking.openURL(representativeStudioImage.url).catch(()=>Alert.alert("사진 출처","원문을 열 수 없습니다."));}}><Image source={{uri:representativeStudioImage.uri}} style={[styles.studioPhoto,{width:"100%",height:210}]} resizeMode="cover"/></Pressable>
+            <><Pressable onPress={()=>{if(representativeStudioImage.url)Linking.openURL(representativeStudioImage.url).catch(()=>Alert.alert("사진 출처","원문을 열 수 없습니다."));}}><Image source={{uri:representativeStudioImage.uri}} style={[styles.studioPhoto,{width:"100%",height:210,backgroundColor:"#F8F6FB"}]} resizeMode="contain"/></Pressable>
             <Text style={styles.photoCredit}>{representativeStudioImage.label==="공식 사진"?"학원 공식 홈페이지/등록 사진":"공식 블로그 게시글 사진"}</Text>
             <Pressable onPress={()=>setDetailTab("photos")}><Text style={styles.photoSourceLink}>사진 {detailPhotoItems.length}장 모두 보기 ›</Text></Pressable></>
             :<View style={styles.photoEmpty}><Text style={styles.filterHint}>확인된 대표 이미지가 아직 없습니다.</Text>{detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}</View>}
@@ -616,9 +636,9 @@ export default function Home() {
             <Pressable onPress={()=>Linking.openURL(post.post_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>네이버 블로그 원문 및 사진 출처 확인 ›</Text></Pressable>
           </View>):<Text style={styles.filterHint}>아직 관련성이 확인된 블로그 게시글이 없습니다. 자료가 수집되면 이곳에 표시됩니다.</Text>}
           {studioPublicPrices.length>0&&<Text style={styles.sectionTitle}>관리자 검증 가격</Text>}
-          {studioPublicPrices.length?studioPublicPrices.map(price=><View key={"public-price-"+price.id} style={styles.classBlock}><Text style={styles.classTitle}>₩{price.amount_krw.toLocaleString("ko-KR")} · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Text style={styles.photoCredit}>관리자 검증 · 원문 게시일 {price.source_post_date?new Date(price.source_post_date).toLocaleDateString("ko-KR"):"게시일 미확인"} · 공개 {new Date(price.published_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{price.evidence_text}</Text><Pressable onPress={()=>Linking.openURL(price.source_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>가격 근거 원문 확인 ›</Text></Pressable></View>) :null}
+          {studioPublicPrices.length?studioPublicPrices.map(price=><View key={"public-price-"+price.id} style={styles.classBlock}><Text style={styles.classTitle}>₩{price.amount_krw.toLocaleString("ko-KR")} · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Text style={styles.photoCredit}>관리자 검증 · 원문 게시일 {price.source_post_date?new Date(price.source_post_date).toLocaleDateString("ko-KR"):"게시일 미확인"} · 공개 {new Date(price.published_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{price.evidence_text}</Text>{evidencePhotoGallery("price-"+price.id,price.source_url)}<Pressable onPress={()=>Linking.openURL(price.source_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>가격 근거 원문 확인 ›</Text></Pressable></View>) :null}
           {studioPublicSchedules.length>0&&<Text style={styles.sectionTitle}>관리자 검증 시간표 자료</Text>}
-          {studioPublicSchedules.length?studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{item.schedule_text}</Text><Text style={styles.photoCredit}>관리자 검증 · {item.source_post_date?new Date(item.source_post_date).toLocaleDateString("ko-KR"):"게시일 미확인"} · 공개 {new Date(item.published_at).toLocaleDateString("ko-KR")} · 만료 {new Date(item.expires_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{item.evidence_text}</Text><Pressable onPress={()=>Linking.openURL(item.source_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>시간표 근거 원문 확인 ›</Text></Pressable></View>) :null}
+          {studioPublicSchedules.length?studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{item.schedule_text}</Text><Text style={styles.photoCredit}>관리자 검증 · {item.source_post_date?new Date(item.source_post_date).toLocaleDateString("ko-KR"):"게시일 미확인"} · 공개 {new Date(item.published_at).toLocaleDateString("ko-KR")} · 만료 {new Date(item.expires_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{item.evidence_text}</Text>{evidencePhotoGallery("schedule-"+item.id,item.source_url)}<Pressable onPress={()=>Linking.openURL(item.source_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>시간표 근거 원문 확인 ›</Text></Pressable></View>) :null}
           {studioPublicPrices.length===0&&studioPublicSchedules.length===0&&<Text style={styles.filterHint}>가격 및 시간표 공개 자료가 없습니다. 학원에 직접 문의해 주세요.</Text>}
           {studioCoupons.length>0&&<Text style={styles.sectionTitle}>사용 가능한 쿠폰 및 할인</Text>}
           {studioCoupons.length?studioCoupons.map(coupon=><View key={coupon.id} style={styles.classBlock}><Text style={styles.classTitle}>{coupon.title}</Text>{coupon.discount_text&&<Text style={styles.classMeta}>{coupon.discount_text}</Text>}{coupon.description&&<Text style={styles.sessionText}>{coupon.description}</Text>}<Text style={styles.photoCredit}>유효 기간: {coupon.starts_at?new Date(coupon.starts_at).toLocaleDateString("ko-KR"):"시작일 제한 없음"} ~ {coupon.ends_at?new Date(coupon.ends_at).toLocaleDateString("ko-KR"):"종료일 제한 없음"}</Text></View>) :null}
