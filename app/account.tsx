@@ -8,6 +8,8 @@ import { supabase } from "../lib/supabase";
 
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",green:"#18875B",yellow:"#FEE500"};
 const OAUTH_REDIRECT_URL="balletmate://auth/callback";
+// Kakao login only needs profile data; do not request account_email.
+const KAKAO_OAUTH_SCOPES="profile_nickname profile_image";
 
 export default function Account(){
  const router=useRouter();
@@ -49,7 +51,11 @@ export default function Account(){
   try{
    const {data,error}=await supabase.auth.signInWithOAuth({
     provider,
-    options:{redirectTo:OAUTH_REDIRECT_URL,skipBrowserRedirect:true}
+    options:{
+     redirectTo:OAUTH_REDIRECT_URL,
+     skipBrowserRedirect:true,
+     ...(provider==="kakao"?{scopes:KAKAO_OAUTH_SCOPES}:{})
+    }
    });
    if(error)throw error;
    if(!data.url)throw new Error("로그인 주소를 만들지 못했습니다. Supabase 제공자 설정을 확인하세요.");
@@ -65,7 +71,11 @@ export default function Account(){
   try{
    const {data,error}=await supabase.auth.linkIdentity({
     provider,
-    options:{redirectTo:OAUTH_REDIRECT_URL,skipBrowserRedirect:true}
+    options:{
+     redirectTo:OAUTH_REDIRECT_URL,
+     skipBrowserRedirect:true,
+     ...(provider==="kakao"?{scopes:KAKAO_OAUTH_SCOPES}:{})
+    }
    });
    if(error)throw error;
    if(!data.url)throw new Error("연결 주소를 만들지 못했습니다.");
