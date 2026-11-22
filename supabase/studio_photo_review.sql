@@ -33,7 +33,9 @@ WITH extracted AS (
     pc.checked_at
   FROM public.studio_blog_post_contents pc
   JOIN public.studios s ON s.id = pc.studio_id
-  CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(pc.image_urls, '[]'::jsonb)) AS photo(image_url)
+  CROSS JOIN LATERAL jsonb_array_elements_text(
+    CASE WHEN jsonb_typeof(pc.image_urls) = 'array' THEN pc.image_urls ELSE '[]'::jsonb END
+  ) AS photo(image_url)
   WHERE photo.image_url ~ '^https://'
     AND NOT (photo.image_url = ANY(COALESCE(s.image_urls, ARRAY[]::text[])))
   ORDER BY pc.studio_id, photo.image_url, pc.checked_at DESC
