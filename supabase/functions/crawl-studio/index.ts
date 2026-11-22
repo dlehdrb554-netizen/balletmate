@@ -165,34 +165,41 @@ Deno.serve(async (req) => {
   });
   const pages=branchPages.length?branchPages:[discoveredPages[0]];
 
-  const imageCandidates: string[] = [];
+  const imageCandidates: Array<{url:string;sourceUrl:string}> = [];
   const priceEvidence: string[] = [];
   const scheduleEvidence: string[] = [];
   const detailSources: string[] = [];
   for (const page of pages) {
     detailSources.push(page.url.toString());
+    const pageImageCandidates: string[] = [];
     for (const tag of page.html.match(/<meta\b[^>]*>/gi) ?? []) {
       const key = (attr(tag, "property") || attr(tag, "name") || "").toLowerCase();
       if (["og:image", "og:image:url", "twitter:image", "twitter:image:src"].includes(key)) {
-        const value = attr(tag, "content"); if (value) imageCandidates.push(value);
+        const value = attr(tag, "content"); if (value) pageImageCandidates.push(value);
       }
     }
     for (const script of page.html.match(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) ?? []) {
       const raw = script.replace(/^.*?>/s, "").replace(/<\/script>\s*$/i, "");
-      try { collectJsonImages(JSON.parse(raw), imageCandidates); } catch { /* Ignore invalid structured data. */ }
+      try { collectJsonImages(JSON.parse(raw), pageImageCandidates); } catch { /* Ignore invalid structured data. */ }
     }
     for (const tag of page.html.match(/<img\b[^>]*>/gi) ?? []) {
       const value = attr(tag, "src") || attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "data-original") || attr(tag, "data-lazyload");
       if (value) imageCandidates.push(value);
       const srcset = attr(tag, "srcset");
-      if (srcset) imageCandidates.push(srcset.split(",")[0].trim().split(/\s+/)[0]);
+      if (srcset) pageImageCandidates.push(srcset.split(",")[0].trim().split(/\s+/)[0]);
     }
+    for (const value of pageImageCandidates) imageCandidates.push({url:value,sourceUrl:page.url.toString()});
     const text = visibleText(page.html);
     priceEvidence.push(...snippetsFor(text, "price"));
     scheduleEvidence.push(...snippetsFor(text, "schedule"));
   }
 
-  const images = [...new Set(imageCandidates.map((value) => safeImageUrl(value, pageUrl.toString())).filter((value): value is string => !!value))].slice(0, 10);
+  const imageMap=new Map<string,{image_url:string;source_page_url:string}>();
+  for(const item of imageCandidates){
+    const safe=safeImageUrl(item.url,item.sourceUrl);
+    if(safe&&!imageMap.has(safe))imageMap.set(safe,{image_url:safe,source_page_url:item.sourceUrl});
+  }
+  const images=[...imageMap.values()].slice(0,10);
   const prices = [...new Set(priceEvidence)].slice(0, 30);
   const schedules = [...new Set(scheduleEvidence)].slice(0, 30);
   if (!images.length && !prices.length && !schedules.length) {
@@ -203,12 +210,12 @@ Deno.serve(async (req) => {
   // checks the source and approves each candidate. No OCR or text extraction.
   let photoCandidatesQueued = 0;
   if (images.length) {
-    const candidates = images.map((image_url) => ({
+    const candidates = images.map((image) => ({
       studio_id: studio.id,
       studio_name: studio.name,
-      image_url,
-      source_page_url: pageUrl.toString(),
-      source_host: pageUrl.hostname,
+      image_url: image.image_url,
+      source_page_url: image.source_page_url,
+      source_host: new URL(image.source_page_url).hostname,
       review_status: "pending",
     }));
     const { data: queued, error: photoQueueError } = await client
