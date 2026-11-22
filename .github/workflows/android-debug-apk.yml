@@ -11,7 +11,7 @@ on:
       - "components/**"
       - "lib/**"
       - "scripts/**"
-      - "app.json"
+      - "assets/**"\n      - "app.json"
       - "package.json"
       - "package-lock.json"
 
