@@ -41,6 +41,8 @@ export default function Home() {
   const [region,setRegion]=useState(INITIAL);
   const [mapMoved,setMapMoved]=useState(false);
   const [search,setSearch]=useState("");
+  const [classSearchIds,setClassSearchIds]=useState<string[]>([]);
+  const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
   const [listSort,setListSort]=useState<"distance"|"price">("distance");
@@ -88,9 +90,26 @@ export default function Home() {
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);
   const [areaLocked,setAreaLocked]=useState(false);
 
+  useEffect(()=>{
+    const client=supabase;
+    const query=search.trim();
+    if(!client||query.length<2){setClassSearchIds([]);setClassSearchLoading(false);return;}
+    let active=true;
+    const timer=setTimeout(async()=>{
+      setClassSearchLoading(true);
+      try{
+        const {data,error}=await client.from("classes").select("studio_id,title").eq("is_active",true).ilike("title","%"+query+"%").limit(100);
+        if(error)throw error;
+        if(active)setClassSearchIds([...new Set((data||[]).map((row:any)=>row.studio_id).filter(Boolean))]);
+      }catch{if(active)setClassSearchIds([]);}
+      finally{if(active)setClassSearchLoading(false);}
+    },350);
+    return()=>{active=false;clearTimeout(timer);};
+  },[search]);
+
   const results=useMemo(()=>studios.filter(s=>{
     const q=search.trim().toLowerCase();
-    if(q && !s.name.toLowerCase().includes(q) && !s.area.includes(q) && !s.tags.some(t=>t.includes(q))) return false;
+    if(q && !s.name.toLowerCase().includes(q) && !s.area.toLowerCase().includes(q) && !s.tags.some(t=>t.toLowerCase().includes(q)) && !classSearchIds.includes(s.id)) return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
     if(level&&!s.level.includes(level))return false;
@@ -105,7 +124,7 @@ export default function Home() {
       if(Math.abs(s.lat-searchedRegion.latitude)>latSpan||Math.abs(s.lng-searchedRegion.longitude)>lngSpan)return false;
     }
     return true;
-  }),[studios,search,adult,kids,coupon,level,dayFilter,timeFilter,maxPrice,durationFilter,maxDistance,areaLocked,searchedRegion]);
+  }),[studios,search,classSearchIds,adult,kids,coupon,level,dayFilter,timeFilter,maxPrice,durationFilter,maxDistance,areaLocked,searchedRegion]);
 
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:results;
@@ -223,7 +242,7 @@ export default function Home() {
       <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>setMenuOpen(true)} accessibilityLabel="메뉴 열기"><Text style={styles.menuButtonText}>☰</Text></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/account")} accessibilityLabel="마이페이지"><Text style={{fontSize:18}}>◉</Text></Pressable></View>
     </View>
     <View style={styles.searchRow}>
-      <View style={styles.searchBox}><Text style={{fontSize:17}}>⌕</Text><TextInput value={search} onChangeText={setSearch} placeholder="학원명, 지역, 수업 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} returnKeyType="search" onSubmitEditing={()=>Keyboard.dismiss()}/>{!!search&&<Pressable onPress={()=>setSearch("")}><Text style={styles.clear}>×</Text></Pressable>}</View>
+      <View style={styles.searchBox}><Text style={{fontSize:17}}>⌕</Text><TextInput value={search} onChangeText={setSearch} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} returnKeyType="search" onSubmitEditing={()=>Keyboard.dismiss()}/>{!!search&&<Pressable onPress={()=>setSearch("")}><Text style={styles.clear}>×</Text></Pressable>}</View>
       <Pressable style={styles.filterButton} onPress={()=>setFilterOpen(true)}><Text style={{fontSize:18}}>☷</Text>{activeFilters>0&&<View style={styles.filterCount}><Text style={styles.filterCountText}>{activeFilters}</Text></View>}</Pressable>
     </View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickFilters}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/><Chip label="쿠폰" active={coupon} onPress={()=>setCoupon(!coupon)}/><Chip label="초급" active={level==="초급"} onPress={()=>setLevel(level==="초급"?null:"초급")}/><Chip label="전체" onPress={resetFilters}/></ScrollView>
