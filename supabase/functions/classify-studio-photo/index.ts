@@ -43,7 +43,7 @@ if(imageUrl.protocol!=="https:"||imageUrl.username||imageUrl.password||privateHo
   };
   let ai:Response;
   try{
-    ai=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent,{
+    ai=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",{
       method:"POST",
       headers:{"Content-Type":"application/json","x-goog-api-key":key},
       signal:AbortSignal.timeout(20000),
