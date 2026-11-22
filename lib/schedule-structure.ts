@@ -48,7 +48,8 @@ function extractTimes(text: string): {start:string;end:string|null}[] {
   }
   const singles=/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)\s*(오전|오후)?/g;
   while((match=singles.exec(text))!==null){
-    if(rangeSpans.some(span=>match.index>=span.start&&match.index<span.end))continue;
+    const matchIndex=match.index;
+    if(rangeSpans.some(span=>matchIndex>=span.start&&matchIndex<span.end))continue;
     const t=toTime(match[2],match[3]||match[4],match[1]||match[5]);
     if(t&&!results.some(r=>r.start===t||r.end===t))results.push({start:t,end:null});
   }
