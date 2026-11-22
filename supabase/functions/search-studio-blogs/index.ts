@@ -77,8 +77,23 @@ Deno.serve(async (req) => {
         .eq("is_active", true);
       if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
       const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
-      for (const suffix of SEARCH_SUFFIXES) {
-        const query = suffix ? `${job.studio_name} ${suffix}` : String(job.studio_name);
+      const studioQuery = String(job.studio_name);
+      const searchQueries = new Set(SEARCH_SUFFIXES.map((suffix) => suffix ? `${studioQuery} ${suffix}` : studioQuery));
+      const normalizedStudio = normalize(studioQuery);
+      if (/(퀸스|퀸즈)/.test(studioQuery)) {
+        searchQueries.add(studioQuery.replace(/퀸스/g, "퀸즈").replace(/퀸즈/g, "퀸스"));
+        searchQueries.add("퀸즈발레");
+        searchQueries.add("퀸스발레");
+        searchQueries.add("Queens Ballet");
+        searchQueries.add("Queen's Ballet");
+      }
+      if (/더블유|\\bW\\b|wballet/i.test(studioQuery)) {
+        searchQueries.add("더블유발레");
+        searchQueries.add("W발레");
+        searchQueries.add("wballet");
+        searchQueries.add("W ballet");
+      }
+      for (const query of [...searchQueries].slice(0, 8)) {
         const endpoint = new URL("https://openapi.naver.com/v1/search/blog.json");
         endpoint.searchParams.set("query", query);
         endpoint.searchParams.set("display", "10");
