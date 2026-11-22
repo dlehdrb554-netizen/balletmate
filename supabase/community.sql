@@ -55,7 +55,7 @@ alter table public.community_posts enable row level security;
 alter table public.community_comments enable row level security;
 
 grant select on public.community_posts, public.community_comments to anon, authenticated;
-grant insert, update, delete on public.community_posts, public.community_comments to authenticated;
+grant insert, delete on public.community_posts, public.community_comments to authenticated;
 
 drop policy if exists "community posts are public" on public.community_posts;
 create policy "community posts are public" on public.community_posts
@@ -69,9 +69,6 @@ drop policy if exists "members create community posts" on public.community_posts
 create policy "members create community posts" on public.community_posts
 for insert to authenticated with check (author_id = auth.uid());
 
-drop policy if exists "authors update own community posts" on public.community_posts;
-create policy "authors update own community posts" on public.community_posts
-for update to authenticated using (author_id = auth.uid()) with check (author_id = auth.uid());
 
 drop policy if exists "authors delete own community posts" on public.community_posts;
 create policy "authors delete own community posts" on public.community_posts
