@@ -505,6 +505,10 @@ export default function Home() {
     const post=studioBlogPosts.find(item=>item.post_url===sourceUrl);
     return [...new Set([...(storedImages||[]),...(post?.image_urls||[])].filter(url=>/^https:\/\//i.test(url)))].slice(0,8);
   };
+  const cleanScheduleDisplay=(value:string)=>{
+    return String(value||"").replace(/\\s*(오픈\\s*예정|개강\\s*예정|모집\\s*예정|모집\\s*중|신설\\s*예정)\\s*$/g,"").trim();
+  };
+  const hasEvidencePhotos=(sourceUrl:string,storedImages:string[]|null|undefined)=>evidencePhotosForSource(sourceUrl,storedImages).length>0;
   const evidencePhotoGallery=(key:string,sourceUrl:string,storedImages:string[]|null|undefined)=>{
     const photos=evidencePhotosForSource(sourceUrl,storedImages);
     if(!photos.length)return null;
@@ -649,7 +653,7 @@ export default function Home() {
           {studioPublicPrices.length>0&&<Text style={styles.sectionTitle}>관리자 검증 가격</Text>}
           {studioPublicPrices.length?studioPublicPrices.map(price=><View key={"public-price-"+price.id} style={styles.classBlock}><Text style={styles.classTitle}>₩{price.amount_krw.toLocaleString("ko-KR")} · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Text style={styles.photoCredit}>관리자 검증 · 원문 게시일 {price.source_post_date?new Date(price.source_post_date).toLocaleDateString("ko-KR"):"게시일 미확인"} · 공개 {new Date(price.published_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{price.evidence_text}</Text>{evidencePhotoGallery("price-"+price.id,price.source_url,price.image_urls)}<Pressable onPress={()=>Linking.openURL(price.source_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>가격 근거 원문 확인 ›</Text></Pressable></View>) :null}
           {studioPublicSchedules.length>0&&<Text style={styles.sectionTitle}>관리자 검증 시간표 자료</Text>}
-          {studioPublicSchedules.length?studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{item.schedule_text}</Text><Text style={styles.photoCredit}>관리자 검증 · {item.source_post_date?new Date(item.source_post_date).toLocaleDateString("ko-KR"):"게시일 미확인"} · 공개 {new Date(item.published_at).toLocaleDateString("ko-KR")} · 만료 {new Date(item.expires_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{item.evidence_text}</Text>{evidencePhotoGallery("schedule-"+item.id,item.source_url,item.image_urls)}<Pressable onPress={()=>Linking.openURL(item.source_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>시간표 근거 원문 확인 ›</Text></Pressable></View>) :null}
+          {studioPublicSchedules.length?studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}>{hasEvidencePhotos(item.source_url,item.image_urls)?evidencePhotoGallery("schedule-"+item.id,item.source_url,item.image_urls):<Text style={styles.classTitle}>{cleanScheduleDisplay(item.schedule_text)}</Text>}</View>) :null}
           {studioPublicPrices.length===0&&studioPublicSchedules.length===0&&<Text style={styles.filterHint}>가격 및 시간표 공개 자료가 없습니다. 학원에 직접 문의해 주세요.</Text>}
           {studioCoupons.length>0&&<Text style={styles.sectionTitle}>사용 가능한 쿠폰 및 할인</Text>}
           {studioCoupons.length?studioCoupons.map(coupon=><View key={coupon.id} style={styles.classBlock}><Text style={styles.classTitle}>{coupon.title}</Text>{coupon.discount_text&&<Text style={styles.classMeta}>{coupon.discount_text}</Text>}{coupon.description&&<Text style={styles.sessionText}>{coupon.description}</Text>}<Text style={styles.photoCredit}>유효 기간: {coupon.starts_at?new Date(coupon.starts_at).toLocaleDateString("ko-KR"):"시작일 제한 없음"} ~ {coupon.ends_at?new Date(coupon.ends_at).toLocaleDateString("ko-KR"):"종료일 제한 없음"}</Text></View>) :null}
