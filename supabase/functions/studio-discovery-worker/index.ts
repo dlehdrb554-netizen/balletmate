@@ -51,7 +51,7 @@ Deno.serve(async(req)=>{
  let resultCount=0,insertedCount=0,duplicateCount=0,requestCount=0;
  const naverId=Deno.env.get("NAVER_CLIENT_ID"),naverSecret=Deno.env.get("NAVER_CLIENT_SECRET");let homepageSearches=0,homepagesFound=0;
  const errors:string[]=[];
- const addError=(message:string)=>{const normalized=message.trim();if(normalized&&!errors.includes(normalized))addError(normalized);};
+ const addError=(message:string)=>{const normalized=message.trim();if(normalized&&!errors.includes(normalized))errors.push(normalized);};
  let regionHasError=false;
  const seen=new Set<string>();
  // Prioritize legacy studios so homepage discovery is not starved by regional place searches.
