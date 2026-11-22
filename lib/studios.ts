@@ -32,7 +32,7 @@ export type StudioRecord = {
   schedule_evidence_text: string | null;
   details_source_urls: string[] | null;
   details_checked_at: string | null;
-  details_status: string | null;
+  details_status: string | null;\n  class_durations?: number[] | null;
 };
 
 const studioCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>();
@@ -60,39 +60,44 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
   };
 
   const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,details_checked_at,details_status";
-  let result = await applyBounds(supabase
-    .from("studios")
-    .select(selectColumns)
-    .eq("is_active", true)
+  const searchColumns = "search_days,search_time_slots,search_levels,search_class_durations,search_price,search_adult,search_kids";
+  const result = await applyBounds(supabase
+    .from("studio_map_search_app")
+    .select(selectColumns+","+searchColumns)
     .limit(300));
 
   let rows: StudioRecord[];
-  // Keep map discovery working on projects that have not run studio_media.sql yet.
-  if (result.error && /image_urls|image_source_name|image_checked_at|image_usage_note|price_evidence_text|schedule_evidence_text|details_source_urls|details_checked_at|details_status/i.test(result.error.message)) {
+  if (result.error) {
+    // The fallback keeps map discovery available before the optional search-view migration is applied.
     const fallback = await applyBounds(supabase
       .from("studios")
-      .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at")
+      .select(selectColumns)
       .eq("is_active", true)
       .limit(300));
-    if (fallback.error) throw fallback.error;
-    rows = (fallback.data ?? []).map((row: any) => ({
-      ...row,
-      image_urls: [],
-      image_source_name: null,
-      image_checked_at: null,
-      source_url: row.source_url ?? null,
-      source_name: row.source_name ?? null,
-      verified_at: row.verified_at ?? null,
-      image_usage_note: row.image_usage_note ?? null,
-      price_evidence_text: null,
-      schedule_evidence_text: null,
-      details_source_urls: [],
-      details_checked_at: null,
-      details_status: null,
-    })) as StudioRecord[];
+    if (fallback.error) {
+      const legacy = await applyBounds(supabase
+        .from("studios")
+        .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at")
+        .eq("is_active", true)
+        .limit(300));
+      if (legacy.error) throw legacy.error;
+      rows = (legacy.data ?? []).map((row: any) => ({
+        ...row,image_urls:[],image_source_name:null,image_checked_at:null,image_usage_note:null,
+        price_evidence_text:null,schedule_evidence_text:null,details_source_urls:[],
+        details_checked_at:null,details_status:null,class_durations:[],
+      })) as StudioRecord[];
+    } else rows=(fallback.data??[]).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
   } else {
-    if (result.error) throw result.error;
-    rows = (result.data ?? []) as StudioRecord[];
+    rows = (result.data ?? []).map((row:any)=>({
+      ...row,
+      days:[...new Set([...(row.days||[]),...(row.search_days||[])])],
+      time_slots:[...new Set([...(row.time_slots||[]),...(row.search_time_slots||[])])],
+      levels:[...new Set([...(row.levels||[]),...(row.search_levels||[])])],
+      price_per_class:row.price_per_class??row.search_price??null,
+      adult_classes:!!row.adult_classes||!!row.search_adult,
+      kids_classes:!!row.kids_classes||!!row.search_kids,
+      class_durations:row.search_class_durations||[],
+    })) as StudioRecord[];
   }
   studioCache.set(key, { savedAt: Date.now(), rows });
   return rows;
