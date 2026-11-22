@@ -123,9 +123,9 @@ export default function Community(){
 
  return <SafeAreaView style={s.safe}>
   <View style={s.header}>
-   <Pressable onPress={()=>{if(selected){commentRequestId.current++;setSelected(null);setComments([]);}else router.back();}}><Text style={s.back}>‹ {selected?"목록":"돌아가기"}</Text></Pressable>
+   <Pressable onPress={()=>{if(selected){commentRequestId.current++;setSelected(null);setComments([]);}else router.push("/");}}><Text style={s.back}>‹ {selected?"목록":"지도"}</Text></Pressable>
    <Text style={s.heading}>발레 커뮤니티</Text>
-   <Pressable style={s.writeBtn} onPress={()=>userId?setComposer(true):requireLogin()}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable>
+   <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={()=>userId?setComposer(true):requireLogin()}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>router.push("/")}><Text style={s.menuText}>☰</Text></Pressable></View>
   </View>
   {selected?
    <ScrollView contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled">
@@ -186,7 +186,7 @@ export default function Community(){
 
 const s=StyleSheet.create({
  safe:{flex:1,backgroundColor:C.bg},header:{height:56,paddingHorizontal:17,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderColor:C.line},
- back:{color:C.muted,fontWeight:"700",fontSize:13,width:76},heading:{fontSize:18,fontWeight:"900",color:C.ink},writeBtn:{backgroundColor:C.purple,borderRadius:11,paddingHorizontal:12,paddingVertical:9},writeText:{color:"#fff",fontSize:12,fontWeight:"800"},
+ back:{color:C.muted,fontWeight:"700",fontSize:13,width:76},heading:{fontSize:18,fontWeight:"900",color:C.ink},writeBtn:{backgroundColor:C.purple,borderRadius:11,paddingHorizontal:12,paddingVertical:9},writeText:{color:"#fff",fontSize:12,fontWeight:"800"},menuBtn:{borderWidth:1,borderColor:C.line,borderRadius:11,paddingHorizontal:11,paddingVertical:8,marginLeft:6},menuText:{color:C.ink,fontSize:17,fontWeight:"800"},
  intro:{color:C.muted,fontSize:12,paddingHorizontal:18,paddingTop:16},filters:{paddingHorizontal:16,paddingVertical:13,gap:7},filter:{paddingHorizontal:13,paddingVertical:8,borderRadius:18,borderWidth:1,borderColor:C.line,backgroundColor:"#fff"},filterActive:{backgroundColor:C.pale,borderColor:C.purple},filterText:{fontSize:12,color:C.muted,fontWeight:"700"},filterTextActive:{color:C.purple},
  list:{padding:14,paddingBottom:35},postCard:{backgroundColor:"#fff",padding:15,borderRadius:16,borderWidth:1,borderColor:C.line,marginBottom:10},postTop:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},categoryBadge:{backgroundColor:C.pale,borderRadius:8,paddingHorizontal:9,paddingVertical:5,alignSelf:"flex-start"},categoryText:{fontSize:10,color:C.purple,fontWeight:"800"},meta:{fontSize:10,color:C.muted},cardTitle:{fontSize:16,fontWeight:"900",color:C.ink,marginTop:11},preview:{fontSize:12,color:"#625E70",lineHeight:18,marginTop:6},cardFoot:{flexDirection:"row",justifyContent:"space-between",marginTop:13},author:{fontSize:11,color:C.muted,fontWeight:"700"},openLabel:{fontSize:11,color:C.purple,fontWeight:"800"},empty:{textAlign:"center",color:C.muted,padding:28,fontSize:13},
  detailContent:{padding:16,paddingBottom:35},postDetail:{backgroundColor:"#fff",borderRadius:17,borderWidth:1,borderColor:C.line,padding:16},postTitle:{fontSize:20,fontWeight:"900",color:C.ink,marginTop:12},postBody:{fontSize:14,color:"#4E4A5C",lineHeight:23,marginTop:20},section:{fontSize:15,fontWeight:"900",color:C.ink,marginTop:22,marginBottom:10},comment:{backgroundColor:"#fff",borderRadius:12,padding:13,marginBottom:8,borderWidth:1,borderColor:C.line},commentTop:{flexDirection:"row",justifyContent:"space-between"},commentAuthor:{fontSize:12,color:C.ink,fontWeight:"800"},commentBody:{fontSize:13,color:"#555164",lineHeight:20,marginTop:8},deleteText:{fontSize:10,color:C.red,fontWeight:"700",marginTop:10,alignSelf:"flex-end"},
