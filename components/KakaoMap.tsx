@@ -176,6 +176,13 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
         const queued = pendingMessages.current;
         pendingMessages.current = [];
         queued.forEach(serialized => webRef.current?.postMessage(serialized));
+        // Re-send the latest marker set after every WebView reload as well.
+        webRef.current?.postMessage(JSON.stringify({
+          type: "markers",
+          markers,
+          selectedId: selectedId ?? null,
+          currentLocation: currentLocation ?? null,
+        }));
       }
       if (message.type === "region" && message.region) onRegionChangeComplete?.(message.region);
       if (message.type === "marker" && typeof message.id === "string") onMarkerPress?.(message.id);
@@ -193,7 +200,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
         domStorageEnabled
         setSupportMultipleWindows={false}
         onMessage={handleMessage}
-        onLoadStart={() => { mapReady.current = false; }}
+        onLoadStart={() => { mapReady.current = false; pendingMessages.current = []; }}
         onLoadEnd={() => {
           // The page may have loaded while the Kakao SDK is still initializing.
           // The explicit {type:"ready"} message flushes all queued commands.
