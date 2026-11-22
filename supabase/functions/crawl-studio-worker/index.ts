@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   if (!supabaseUrl || !serviceRoleKey) return json({ error: "서버 환경설정이 누락되었습니다." }, 500);
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: jobs, error: claimError } = await adminClient.rpc("claim_studio_image_crawl_queue", { p_limit: 10 });
+  const { data: jobs, error: claimError } = await adminClient.rpc("claim_studio_image_crawl_queue", { p_limit: 5 });
   if (claimError) return json({ error: "대기 작업 확보 실패: " + claimError.message }, 500);
 
   let crawlSucceeded = 0;
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
   }
 
   const dailyRemaining = Math.max(0, 20 - (processedToday || 0));
-  const batchSize = Math.min(2, dailyRemaining);
+  const batchSize = Math.min(1, dailyRemaining);
   let visionProcessed = 0;
   let visionFailed = 0;
   const visionResults: Array<{ candidateId: number; ok: boolean; detail?: string }> = [];
