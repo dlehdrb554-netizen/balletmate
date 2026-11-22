@@ -21,6 +21,33 @@ CREATE UNIQUE INDEX IF NOT EXISTS studio_photo_candidates_unique_image
 CREATE INDEX IF NOT EXISTS studio_photo_candidates_review_idx
   ON public.studio_photo_candidates(review_status,created_at DESC);
 
+-- Backfill up to 10 recent, already-collected blog photos per studio so the
+-- new manual review queue is useful immediately after this migration.
+WITH extracted AS (
+  SELECT DISTINCT ON (pc.studio_id, photo.image_url)
+    pc.studio_id,
+    s.name AS studio_name,
+    photo.image_url,
+    pc.post_url AS source_page_url,
+    substring(pc.post_url from '^https?://([^/]+)') AS source_host,
+    pc.checked_at
+  FROM public.studio_blog_post_contents pc
+  JOIN public.studios s ON s.id = pc.studio_id
+  CROSS JOIN LATERAL unnest(COALESCE(pc.image_urls, ARRAY[]::text[])) AS photo(image_url)
+  WHERE photo.image_url ~ '^https://'
+    AND NOT (photo.image_url = ANY(COALESCE(s.image_urls, ARRAY[]::text[])))
+  ORDER BY pc.studio_id, photo.image_url, pc.checked_at DESC
+), ranked AS (
+  SELECT *, row_number() OVER (PARTITION BY studio_id ORDER BY checked_at DESC) AS studio_rank
+  FROM extracted
+)
+INSERT INTO public.studio_photo_candidates
+  (studio_id,studio_name,image_url,source_page_url,source_host,review_status)
+SELECT studio_id,studio_name,image_url,source_page_url,source_host,'pending'
+FROM ranked
+WHERE studio_rank <= 10
+ON CONFLICT (studio_id,image_url) DO NOTHING;
+
 ALTER TABLE public.studio_photo_candidates ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.studio_photo_candidates FROM anon;
 GRANT SELECT, UPDATE ON public.studio_photo_candidates TO authenticated;
