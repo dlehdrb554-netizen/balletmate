@@ -139,7 +139,7 @@ export default function Admin() {
         setRetryBusy(true);
         const {data,error}=await client.rpc("balletmate_admin_retry_failed_collection_jobs");
         if(error)Alert.alert("재처리 요청 실패",error.message);
-        else {Alert.alert("재처리 예약 완료", "블로그 검색 "+(data.blog_search_requeued||0)+"개 · 게시글 "+(data.blog_post_requeued||0)+"개");await loadDashboard();}
+        else {Alert.alert("재처리 예약 완료", "블로그 검색 "+(data.blog_search_requeued||0)+"개 · 게시글 "+(data.blog_post_requeued||0)+"개 · 사진 "+(data.image_requeued||0)+"개");await loadDashboard();}
         setRetryBusy(false);
       }}
     ]);
