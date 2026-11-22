@@ -8,7 +8,7 @@ import {
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
 import { fetchStudios } from "../lib/studios";
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
-import { searchStudiosByClassFilters } from "../lib/class-search";
+import { searchStudiosByClassFilters, searchStudioIdsByClassName } from "../lib/class-search";
 import { fetchCouponsForStudio, StudioCoupon } from "../lib/coupons";
 import { fetchStudioBlogPosts, StudioBlogPost, fetchStudioPublicPrices, StudioPublicPrice, fetchStudioPublicSchedules, StudioPublicSchedule } from "../lib/studio-blog-content";
 import { supabase, supabaseConfigured } from "../lib/supabase";
@@ -151,9 +151,8 @@ export default function Home() {
     const timer=setTimeout(async()=>{
       setClassSearchLoading(true);
       try{
-        const {data,error}=await client.from("classes").select("studio_id,title").eq("is_active",true).ilike("title","%"+query+"%").limit(100);
-        if(error)throw error;
-        if(active)setClassSearchIds([...new Set((data||[]).map((row:any)=>row.studio_id).filter(Boolean))]);
+        const ids=await searchStudioIdsByClassName(query);
+        if(active)setClassSearchIds(ids);
       }catch{if(active)setClassSearchIds([]);}
       finally{if(active)setClassSearchLoading(false);}
     },350);
