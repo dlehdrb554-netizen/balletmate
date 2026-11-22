@@ -6,7 +6,7 @@ import { SafeAreaView, View, Text, Pressable, StyleSheet } from "react-native";
  * Temporary minimal launch diagnostic.
  * This deliberately avoids Supabase, AsyncStorage, location, maps, image,
  * OCR, filesystem, and all application feature modules.
- * Restore the full home screen after identifying the native startup failure.
+ * Keep this route isolated until a standalone APK confirms stable launch on-device.
  */
 export default function Home() {
   const router = useRouter();
