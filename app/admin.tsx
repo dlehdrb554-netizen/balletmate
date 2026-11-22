@@ -147,7 +147,6 @@ export default function Admin() {
     if(!supabase){setChecking(false);return;}
     supabase.auth.getSession().then(({data})=>{setSession(data.session);checkAdmin(data.session);});
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,s)=>{setSession(s);checkAdmin(s);});
-  const evidenceGroups=Object.values(evidenceRows.reduce((groups:Record<string,EvidenceCandidate[]>,item)=>{const normalized=item.studio_name.toLowerCase().replace(/[\s·._()\-]/g,"");if(!groups[normalized])groups[normalized]=[];groups[normalized].push(item);return groups;},{}));
     return ()=>subscription.unsubscribe();
   },[checkAdmin]);
 
