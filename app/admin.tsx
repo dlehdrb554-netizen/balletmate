@@ -140,7 +140,8 @@ export default function Admin() {
   const [candidateSessions,setCandidateSessions]=useState<Record<number,string>>({});
   const [dashboard,setDashboard]=useState<any>(null);
   const [dashboardBusy,setDashboardBusy]=useState(false);
-  const [dashboardError,setDashboardError]=useState<string|null>(null);\n  const [discoveryErrorRows,setDiscoveryErrorRows]=useState<any[]>([]);
+  const [dashboardError,setDashboardError]=useState<string|null>(null);
+  const [discoveryErrorRows,setDiscoveryErrorRows]=useState<any[]>([]);
   const [retryBusy,setRetryBusy]=useState(false);
   const [reportRows,setReportRows]=useState<any[]>([]);
   const [reportsBusy,setReportsBusy]=useState(false);
