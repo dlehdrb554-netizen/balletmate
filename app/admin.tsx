@@ -732,7 +732,10 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       for(let i=0;i<picked.assets.length;i++){
         const asset=picked.assets[i];
         if((asset.fileSize||0)>15*1024*1024)throw new Error("원본 사진은 한 장당 15MB 이하여야 합니다.");
-        const resized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:Math.min(asset.width||2000,2000)}}],{compress:0.88,format:ImageManipulator.SaveFormat.JPEG});
+        const sourceWidth=asset.width||2000,sourceHeight=asset.height||2400;
+        const scale=Math.min(1,2000/sourceWidth,2400/sourceHeight);
+        const targetWidth=Math.max(1,Math.round(sourceWidth*scale)),targetHeight=Math.max(1,Math.round(sourceHeight*scale));
+        const resized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:targetWidth,height:targetHeight}}],{compress:0.88,format:ImageManipulator.SaveFormat.JPEG});
         try{
           let response=await fetch(resized.uri);
           if(!response.ok)throw new Error("최적화 사진을 읽지 못했습니다.");
@@ -1008,7 +1011,11 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
         if((asset.fileSize||0)>15*1024*1024)throw new Error("원본 사진은 한 장당 15MB 이하여야 합니다.");
         const maxWidth=2000;
         const sourceWidth=asset.width||maxWidth;
-        const resized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:Math.min(sourceWidth,maxWidth)}}],{compress:0.84,format:ImageManipulator.SaveFormat.JPEG});
+        const sourceHeight=asset.height||maxWidth;
+        const scale=Math.min(1,maxWidth/sourceWidth,1800/sourceHeight);
+        const targetWidth=Math.max(1,Math.round(sourceWidth*scale));
+        const targetHeight=Math.max(1,Math.round(sourceHeight*scale));
+        const resized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:targetWidth,height:targetHeight}}],{compress:0.84,format:ImageManipulator.SaveFormat.JPEG});
         try{
           let response=await fetch(resized.uri);
           if(!response.ok)throw new Error("최적화된 사진 파일을 읽지 못했습니다.");
