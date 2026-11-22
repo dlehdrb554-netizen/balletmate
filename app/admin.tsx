@@ -129,7 +129,6 @@ export default function Admin() {
   const [dashboardError,setDashboardError]=useState<string|null>(null);
   const [discoveryErrorRows,setDiscoveryErrorRows]=useState<any[]>([]);
   const [retryBusy,setRetryBusy]=useState(false);
-  const [duplicateStudioCount,setDuplicateStudioCount]=useState(0);
   const [duplicatePublicScheduleCount,setDuplicatePublicScheduleCount]=useState(0);
   const [reportRows,setReportRows]=useState<any[]>([]);
   const [reportsBusy,setReportsBusy]=useState(false);
@@ -296,7 +295,6 @@ export default function Admin() {
       const page=data||[];
       const deduped=dedupeStudioRows(page);
       setRows(deduped.rows as StudioRow[]);
-      setDuplicateStudioCount(deduped.duplicates);
       setStudioDbOffset(page.length);
       setStudioHasMore(page.length===500);
       setStudioVisibleLimit(100);
@@ -315,7 +313,6 @@ export default function Admin() {
       const page=data||[];
       const deduped=dedupeStudioRows([...rows,...page]);
       setRows(deduped.rows as StudioRow[]);
-      setDuplicateStudioCount(deduped.duplicates);
       setStudioDbOffset(start+page.length);
       setStudioHasMore(page.length===500);
     }catch(error:any){Alert.alert("추가 조회 실패",error?.message||"다음 학원 목록을 불러오지 못했습니다.");}
@@ -1096,7 +1093,7 @@ export default function Admin() {
   if(!authorized)return <SafeAreaView style={styles.safe}><View style={styles.login}><Text style={styles.brand}>관리자 권한 없음</Text><Text style={styles.hint}>이 계정은 Balletmate 관리자 목록에 등록되지 않았습니다.</Text><Pressable style={[styles.button,styles.loginButton]} onPress={logout}><Text style={styles.buttonText}>로그아웃</Text></Pressable></View></SafeAreaView>;
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length}개{duplicateStudioCount>0?" · 중복 "+duplicateStudioCount+"개 제외":""}</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
+    <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length.toLocaleString("ko-KR")}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
     <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"review",label:"자료 검토"},{key:"publish",label:"공개 관리"},{key:"studios",label:"학원 관리"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
         {adminTab==="overview"&&<>
 <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>자동 수집 운영 현황</Text><Pressable onPress={loadDashboard} disabled={dashboardBusy}><Text style={styles.refresh}>{dashboardBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{dashboardError?<Text style={styles.hint}>대시보드 SQL 적용 필요 또는 조회 오류: {dashboardError}</Text>:dashboard?<><View style={styles.statsGrid}>{[
