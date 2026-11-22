@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
   }
   const normalizeIdentity=(value:string)=>value.toLocaleLowerCase("ko-KR").replace(/[^0-9a-z가-힣]/g,"");
   const studioNameKey=normalizeIdentity(String(studio.name||""));
-  const addressTokens=String(studio.address||"").split(/[\\s,]+/)
+  const addressTokens=String(studio.address||"").split(/[\s,]+/)
     .map((value:string)=>normalizeIdentity(value))
     .filter((value:string)=>value.length>=2&&!/^(서울|인천|경기|대한민국|[0-9]+층|[0-9]+호)$/.test(value));
   const branchPages=discoveredPages.filter((page)=>{
