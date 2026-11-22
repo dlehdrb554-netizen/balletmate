@@ -9,7 +9,6 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "postinstall": "node scripts/patch-ocr-expo-lifecycle.js",
     "preview:designer": "expo start --dev-client --tunnel",
     "preview:lan": "expo start --dev-client --lan"
   },
@@ -26,7 +25,6 @@
     "@react-native-async-storage/async-storage": "^2.2.0",
     "expo-image-picker": "~17.0.8",
     "expo-image-manipulator": "~14.0.7",
-    "@zhanziyang/expo-text-extractor": "1.0.2",
     "expo-file-system": "~19.0.24",
     "expo-constants": "~18.0.14",
     "expo-linking": "~8.0.12",
