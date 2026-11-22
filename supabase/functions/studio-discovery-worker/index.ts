@@ -36,7 +36,8 @@ Deno.serve(async(req)=>{
  const {data:regions,error:regionError}=await db.rpc("next_studio_discovery_region");
  if(regionError||!regions?.length)return json({error:"지역 배정 실패: "+(regionError?.message||"empty")},500);
  const region=regions[0];
- let resultCount=0,insertedCount=0,duplicateCount=0,requestCount=0;\n const naverId=Deno.env.get("NAVER_CLIENT_ID"),naverSecret=Deno.env.get("NAVER_CLIENT_SECRET");let homepageSearches=0,homepagesFound=0;
+ let resultCount=0,insertedCount=0,duplicateCount=0,requestCount=0;
+ const naverId=Deno.env.get("NAVER_CLIENT_ID"),naverSecret=Deno.env.get("NAVER_CLIENT_SECRET");let homepageSearches=0,homepagesFound=0;
  const errors:string[]=[];
  const seen=new Set<string>();
  for(const term of SEARCH_TERMS){
