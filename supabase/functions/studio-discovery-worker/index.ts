@@ -6,7 +6,7 @@ function stripHtml(value:unknown):string{
  return String(value||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
 }
 async function findHomepageCandidate(name:string,address:string|null,clientId:string,clientSecret:string):Promise<{url:string|null;error:string|null}>{
- const queries=[name+" "+(address||"")+" 발레학원 홈페이지",'"'+name+'" 발레 공식 홈페이지',name+" ballet studio official website",(address||"")+" "+name+" ballet studio"];
+ const queries=[name+" "+(address||"")+" 발레학원 홈페이지",'"'+name+'" 발레 공식 홈페이지',...( /[a-z]/i.test(name)?[name+" ballet studio official website"]:[]),...(address? [address+" "+name+" ballet studio"]:[])];
  const target=normalize(name);
  const tokens=name.split(/[\s·()\-_/]+/).map(normalize).filter(x=>x.length>=2&&!["발레","학원","스튜디오","아카데미","무용","키즈","성인","핏","교습소"].includes(x));
  const excluded=["naver.com","kakao.com","instagram.com","facebook.com","youtube.com","tiktok.com","blogspot.com","tistory.com","linktr.ee","google.com","threads.net","x.com","prompie.com","classup.io","hakwonindex.com","learns.academy","hakwonsin.co.kr","oncbt.com"];
