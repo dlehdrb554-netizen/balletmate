@@ -1,13 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 
 import * as FileSystem from "expo-file-system/legacy";
-import { fetchStudioBlogPosts } from "../lib/studio-blog-content";
 import { parseScheduleEvidence } from "../lib/schedule-structure";
 
 type EvidenceCandidate = {id:number;studio_id:string;studio_name:string;source_id:number;source_title:string|null;source_url:string;source_post_date?:string|null;candidate_type:"price"|"schedule";candidate_value:string;normalized_value:string|null;price_period?:string|null;price_frequency_per_week?:number|null;evidence_text:string;confidence:number;review_status:"pending"|"verified"|"rejected";created_at:string};
@@ -21,43 +20,7 @@ type StudioRow = {
 
 const blank = {name:"",latitude:"",longitude:"",district:"",address:"",phone:"",website_url:"",source_url:"",source_name:"",verified_at:"",image_urls:"",image_source_name:"",image_usage_note:"",price_per_class:"",adult_classes:true,kids_classes:false,is_active:false};
 const c = {ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",white:"#FFFFFF",bg:"#FAF9FC"};
-const normalizeScheduleKey=(value:string)=>String(value||"").toLowerCase().replace(/^OCR#\d+\s*/i,"").replace(/[\s·,，、|/]+/g,"").trim();
-
-function parseOcrFields(text:string){
-  const compact=text.replace(/\s+/g," ");
-  let amount:number|null=null;
-  let m=compact.match(/₩\s*([\d,]+)/);
-  if(m)amount=Number(m[1].replace(/,/g,""));
-  if(!amount){m=compact.match(/(\d{1,2})\s*만\s*(\d{1,2})\s*천\s*원?/);if(m)amount=Number(m[1])*10000+Number(m[2])*1000;}
-  if(!amount){m=compact.match(/(\d{1,2})\s*만\s*원/);if(m)amount=Number(m[1])*10000;}
-  if(!amount){m=compact.match(/(\d{1,2})\s*천\s*원/);if(m)amount=Number(m[1])*1000;}
-  if(!amount){m=compact.match(/([\d,]+)\s*원/);if(m)amount=Number(m[1].replace(/,/g,""));}
-  const monthMatch=compact.match(/(\d+)\s*(?:개월|달)/);
-  const weekMatch=compact.match(/(\d+)\s*주(?:간)?/);
-  const ticketMatch=compact.match(/(\d+)\s*회\s*(?:권|수강권|이용권|패키지)/);
-  const countMatch=compact.match(/(\d+)\s*회\s*(?=(?:수업|레슨|이용|패키지|권|\d+\s*원|\d+\s*만))/);
-  const weeklyFrequency=compact.match(/주\s*(\d+)\s*회/);
-  const sessionCount=countMatch&&!(weeklyFrequency&&countMatch[1]===weeklyFrequency[1])?countMatch:null;
-  const price_period=monthMatch?monthMatch[1]+"개월":weekMatch?weekMatch[1]+"주":/(연간|1년|연\s*(?:수강료|회비|등록비|비용|가격))/.test(compact)?"연 단위":/(매월|월\s*(?:수강료|회비|등록비|비용|가격)|월간|한\s*달|월\s*\d+\s*회)/.test(compact)?"월 단위":ticketMatch?ticketMatch[1]+"회권":sessionCount?sessionCount[1]+"회":/(1회당|회당|원데이|일일\s*(?:수강|체험))/.test(compact)?"1회":"기간 미확인";
-  const freqMatch=compact.match(/주\s*(\d{1,2})\s*회/);
-  const frequencyCandidate=freqMatch?Number(freqMatch[1]):null;
-  const frequency_per_week=frequencyCandidate&&frequencyCandidate>=1&&frequencyCandidate<=14?frequencyCandidate:null;
-  const dayMap:[RegExp,string][]=[
-    [/(?:월요일|(?:^|[\s,·/])월(?=[\s,·/]|$)(?!\s*\d+\s*회))/,"월"],
-    [/(?:화요일|(?:^|[\s,·/])화(?=[\s,·/]|$)(?!\s*\d+\s*회))/,"화"],
-    [/(?:수요일|(?:^|[\s,·/])수(?=[\s,·/]|$)(?!\s*\d+\s*회))/,"수"],
-    [/(?:목요일|(?:^|[\s,·/])목(?=[\s,·/]|$)(?!\s*\d+\s*회))/,"목"],
-    [/(?:금요일|(?:^|[\s,·/])금(?=[\s,·/]|$)(?!\s*\d+\s*회))/,"금"],
-    [/(?:토요일|(?:^|[\s,·/])토(?=[\s,·/]|$)(?!\s*\d+\s*회))/,"토"],
-    [/(?:일요일|(?:^|[\s,·/])일(?=[\s,·/]|$)(?!\s*\d+\s*회))/,"일"]
-  ];
-  const compactDaySequence=compact.match(/[월화수목금토일]{2,7}/g)?.join("")||"";
-  const schedule_days=dayMap.filter(([re],index)=>re.test(compact)||compactDaySequence.includes(["월","화","수","목","금","토","일"][index])).map(([,day])=>day);
-  const times=compact.match(/(?:오전|오후)\s*\d{1,2}(?::\d{2})?|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?/g)||[];
-  const schedule_time=times.length?times.slice(0,8).join(", "):null;
-  const detected_kind=amount!==null?"price":schedule_days.length||schedule_time||/시간표|타임/.test(compact)?"schedule":"unknown";
-  return {amount_krw:amount,price_period:amount!==null?price_period:null,frequency_per_week, schedule_days,schedule_time,detected_kind};
-}
+const normalizeScheduleKey=(value:string)=>String(value||"").toLowerCase().replace(/[\s·,，、|/]+/g,"").trim();
 
 function parseCsv(text:string): string[][] {
   const rows:string[][]=[]; let row:string[]=[]; let cell=""; let quoted=false;
@@ -81,18 +44,6 @@ const datePlusDays=(date:string,days:number):string|null=>{
   return value.toISOString().slice(0,10);
 };
 
-const loadOcrModule=async()=>{
-  try{
-    const module=await import("@zhanziyang/expo-text-extractor");
-    if(!module.isSupported){Alert.alert("OCR 미지원","현재 Android 빌드에는 OCR 네이티브 모듈이 포함되어 있지 않습니다. 관리자 기능의 나머지 메뉴는 계속 이용할 수 있습니다.");return null;}
-    return module;
-  }catch(error:any){
-    Alert.alert("OCR 모듈을 사용할 수 없음","OCR 기능은 현재 빌드에서 비활성화되어 있습니다. 관리자 화면은 계속 이용할 수 있습니다.");
-    console.warn("Optional OCR module unavailable:",error);
-    return null;
-  }
-};
-
 export default function Admin() {
   const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios">("overview");
   const [studioActionId,setStudioActionId]=useState<string|null>(null);
@@ -104,6 +55,7 @@ export default function Admin() {
   const [busy,setBusy]=useState(false);
   const [rows,setRows]=useState<StudioRow[]>([]);
   const [studioSearch,setStudioSearch]=useState("");
+  const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
   const [studioListFilter,setStudioListFilter]=useState<"all"|"missing_photo"|"missing_website"|"website_candidate"|"active"|"inactive">("all");
   const [form,setForm]=useState({...blank});
   const [editing,setEditing]=useState<string|null>(null);
@@ -132,12 +84,6 @@ export default function Admin() {
   const [publishedCandidateIds,setPublishedCandidateIds]=useState<number[]>([]);
   const [activePublicPrices,setActivePublicPrices]=useState<any[]>([]);
   const [evidenceBusy,setEvidenceBusy]=useState(false);
-  const [ocrBusy,setOcrBusy]=useState(false);
-  const autoOcrTriggered=useRef(false);
-  const [ocrAvailability,setOcrAvailability]=useState<"unknown"|"available"|"unavailable">("unknown");
-  const [ocrRows,setOcrRows]=useState<any[]>([]);
-  const [selectedOcrIds,setSelectedOcrIds]=useState<number[]>([]);
-  const [batchOcrOffset,setBatchOcrOffset]=useState(0);
   const [scheduleClassCandidates,setScheduleClassCandidates]=useState<any[]>([]);
   const [candidateTitles,setCandidateTitles]=useState<Record<number,string>>({});
   const [candidateSessions,setCandidateSessions]=useState<Record<number,string>>({});
@@ -288,10 +234,11 @@ export default function Admin() {
       }
       const normalize=(value:any)=>String(value||"").toLocaleLowerCase("ko-KR").replace(/[^0-9a-z가-힣]/g,"");
       const unique:any[]=[];
+      const byName=new Map<string,any[]>();
       for(const row of all){
         const nameKey=normalize(row.name),addressKey=normalize(row.address);
-        const duplicate=unique.some(prior=>{
-          if(normalize(prior.name)!==nameKey)return false;
+        const sameName=byName.get(nameKey)||[];
+        const duplicate=sameName.some(prior=>{
           const priorAddress=normalize(prior.address);
           if(addressKey&&priorAddress)return addressKey===priorAddress;
           const lat1=Number(prior.latitude),lng1=Number(prior.longitude),lat2=Number(row.latitude),lng2=Number(row.longitude);
@@ -301,7 +248,7 @@ export default function Admin() {
           }
           return false;
         });
-        if(!duplicate)unique.push(row);
+        if(!duplicate){unique.push(row);sameName.push(row);byName.set(nameKey,sameName);}
       }
       setDuplicateStudioCount(Math.max(0,all.length-unique.length));
       setRows(unique as StudioRow[]);
@@ -448,252 +395,6 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
     const {error}=await supabase.from("studio_schedule_class_candidates").update({status:"rejected",reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString()}).eq("id",candidate.id);
     if(error)Alert.alert("제외 실패",error.message);else await loadScheduleClassCandidates();
   };
-
-  const checkOcrAvailability=async()=>{
-    setOcrBusy(true);
-    const module=await loadOcrModule();
-    setOcrAvailability(module&&module.isSupported?"available":"unavailable");
-    setOcrBusy(false);
-  };
-
-  const loadOcr=useCallback(async()=>{
-    if(!supabase||!authorized)return;
-    const {data,error}=await supabase.from("studio_image_ocr_results").select("id,studio_id,studio_name,source_id,image_url,source_url,source_post_date,image_label,extracted_text,detected_kind,amount_krw,price_period,frequency_per_week,schedule_days,schedule_time,review_status,created_at").eq("review_status","pending").order("created_at",{ascending:false}).limit(100);
-    if(error)Alert.alert("OCR 결과 조회 실패",error.message);else {setOcrRows(data||[]);setSelectedOcrIds(ids=>ids.filter(id=>(data||[]).some((row:any)=>row.id===id)));}
-  },[authorized]);
-
-  useEffect(()=>{if(adminTab==="review")loadOcr();},[adminTab,loadOcr]);
-  const runLocalOcr=async(id:string,name:string)=>{
-    if(!supabase)return;
-    const ocr=await loadOcrModule();if(!ocr)return;
-    const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if(!permission.granted){Alert.alert("사진 권한","사진 보관함 접근 권한을 허용해 주세요.");return;}
-    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:2,quality:0.8});
-    if(picked.canceled||!picked.assets?.length)return;
-    setOcrBusy(true);let saved=0;
-    try{
-      for(let i=0;i<picked.assets.length;i++){
-        const asset=picked.assets[i];
-        const resized=await ImageManipulator.manipulateAsync(asset.uri,[ {resize:{width:1500}} ],{compress:0.72,format:ImageManipulator.SaveFormat.JPEG});
-        let lines:any[]=[];
-        try{lines=await ocr.extractTextFromImage(resized.uri,Platform.OS==="android"?{script:ocr.TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});}finally{await FileSystem.deleteAsync(resized.uri,{idempotent:true}).catch(()=>{});}
-        const extracted=(lines||[]).join("\n").trim();if(!extracted)continue;
-        const priceHit=/(원|만원|천원|회권|수강료|월\s*\d+회|등록비|개월권)/i.test(extracted);
-        const scheduleHit=/(월|화|수|목|금|토|일)요일|\b(월|화|수|목|금|토|일)\b|오전|오후|\d{1,2}:\d{2}|시간표|타임/i.test(extracted);
-        const detected_kind=priceHit&&scheduleHit?"unknown":priceHit?"price":scheduleHit?"schedule":"unknown";
-        const {error}=await supabase.from("studio_image_ocr_results").insert({studio_id:id,studio_name:name,image_label:asset.fileName||("선택 이미지 "+(i+1)),extracted_text:extracted,detected_kind,created_by:session?.user?.id||null});
-        if(error)throw error;saved++;
-      }
-      await loadOcr();Alert.alert("기기 내 OCR 완료",name+" · "+saved+"개 이미지의 글자를 추출했습니다. 원본 이미지는 서버로 전송하지 않았습니다.");
-    }catch(error:any){Alert.alert("OCR 처리 실패",error?.message||"이미지 형식 또는 OCR 모듈 상태를 확인해 주세요.");}
-    finally{setOcrBusy(false);}
-  };
-
-  const runBlogImageOcr=async(id:string,name:string)=>{
-    if(!supabase)return;
-    const ocr=await loadOcrModule();if(!ocr)return;
-    if(!FileSystem.cacheDirectory){Alert.alert("임시 저장소 오류","기기 임시 저장소를 사용할 수 없습니다.");return;}
-    setOcrBusy(true);
-    let processed=0,skipped=0,failed=0;
-    try{
-      const posts=await fetchStudioBlogPosts(id);
-      const candidates=posts.flatMap(post=>(post.image_urls||[]).filter(url=>/^https:\/\//i.test(url)).map(url=>({source_id:post.source_id,source_url:post.post_url,post_date:post.post_date,title:post.title,image_url:url})));
-      if(!candidates.length){Alert.alert("블로그 이미지 없음",name+"에서 OCR 가능한 공개 블로그 이미지가 확인되지 않았습니다.");return;}
-      const {data:existing,error:existingError}=await supabase.from("studio_image_ocr_results").select("source_id,image_url").eq("studio_id",id).not("image_url","is",null).limit(1000);
-      if(existingError)throw existingError;
-      const seen=new Set((existing||[]).map((x:any)=>String(x.source_id)+"|"+x.image_url));
-      const todo=candidates.filter(x=>!seen.has(String(x.source_id)+"|"+x.image_url)).slice(0,2);
-      skipped=candidates.length-todo.length;
-      if(!todo.length){Alert.alert("추가 OCR 없음",name+"의 기존 블로그 이미지는 모두 OCR 처리됐습니다. 새 블로그 게시물이 수집되면 다시 실행해 주세요.");return;}
-      const dir=FileSystem.cacheDirectory+"balletmate-ocr/";
-      const dirInfo=await FileSystem.getInfoAsync(dir);
-      if(!dirInfo.exists)await FileSystem.makeDirectoryAsync(dir,{intermediates:true});
-      for(let i=0;i<todo.length;i++){
-        const item=todo[i];
-        let localUri:string|null=null;
-        try{
-          const ext=(item.image_url.split("?")[0].match(/\.(png|webp|jpeg|jpg)$/i)?.[1]||"jpg").toLowerCase();
-          localUri=dir+"studio-"+id+"-source-"+item.source_id+"-"+i+"."+ext;
-          const downloaded=await FileSystem.downloadAsync(item.image_url,localUri,{headers:{"User-Agent":"Mozilla/5.0 BalletmateImageOCR"}});
-          if(downloaded.status<200||downloaded.status>=300)throw new Error("이미지 다운로드 HTTP "+downloaded.status);
-          const resized=await ImageManipulator.manipulateAsync(downloaded.uri,[ {resize:{width:1500}} ],{compress:0.72,format:ImageManipulator.SaveFormat.JPEG});
-          let lines:any[]=[];
-          try{lines=await ocr.extractTextFromImage(resized.uri,Platform.OS==="android"?{script:ocr.TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});}finally{await FileSystem.deleteAsync(resized.uri,{idempotent:true}).catch(()=>{});}
-          const extracted=(lines||[]).join("\n").trim();
-          if(extracted.length<3){skipped++;continue;}
-          const parsed=parseOcrFields(extracted);
-          const {error}=await supabase.from("studio_image_ocr_results").upsert({
-            studio_id:id,studio_name:name,source_id:item.source_id,image_url:item.image_url,source_url:item.source_url,source_post_date:item.post_date||null,
-            image_label:item.title||("블로그 게시물 "+item.source_id),extracted_text:extracted,
-            detected_kind:parsed.detected_kind,amount_krw:parsed.amount_krw,price_period:parsed.price_period,
-            frequency_per_week:parsed.frequency_per_week,schedule_days:parsed.schedule_days,schedule_time:parsed.schedule_time,
-            created_by:session?.user?.id||null
-          },{onConflict:"source_id,image_url",ignoreDuplicates:true});
-          if(error)throw error;
-          processed++;
-        }catch(imageError){failed++;}
-        finally{if(localUri)await FileSystem.deleteAsync(localUri,{idempotent:true}).catch(()=>{});}
-      }
-      await loadOcr();
-      Alert.alert("블로그 이미지 OCR 완료",name+"\n새로 처리: "+processed+"장 · 글자 없음/중복: "+skipped+"장 · 실패: "+failed+"장\n이미지 파일은 기기 임시 저장소에서만 처리했습니다.");
-    }catch(error:any){Alert.alert("블로그 OCR 실패",error?.message||"블로그 이미지 조회 또는 OCR 처리에 실패했습니다.");}
-    finally{setOcrBusy(false);}
-  };
-
-
-  const runBatchBlogImageOcr=async()=>{
-    if(!supabase)return;
-    const ocr=await loadOcrModule();if(!ocr)return;
-    if(!FileSystem.cacheDirectory){Alert.alert("임시 저장소 오류","기기 임시 저장소를 사용할 수 없습니다.");return;}
-    if(!rows.length){Alert.alert("학원 데이터 없음","먼저 학원 목록을 새로고침해 주세요.");return;}
-    setOcrBusy(true);
-    let processed=0,skipped=0,failed=0,checkedStudios=0;
-    try{
-      const scanCount=Math.min(12,rows.length);
-      const selected=Array.from({length:scanCount},(_,i)=>rows[(batchOcrOffset+i)%rows.length]);
-      setBatchOcrOffset((batchOcrOffset+scanCount)%rows.length);
-      const buckets:Array<{studio:StudioRow;items:any[]}>= [];
-      for(const studio of selected){
-        try{
-          const posts=await fetchStudioBlogPosts(studio.id);
-          const items=posts.flatMap(post=>(post.image_urls||[])
-            .filter(url=>/^https:\/\//i.test(url))
-            .map(url=>({studio_id:studio.id,studio_name:studio.name,source_id:post.source_id,source_url:post.post_url,post_date:post.post_date,title:post.title,image_url:url})));
-          if(items.length)buckets.push({studio,items});
-        }catch(error){failed++;}
-        checkedStudios++;
-      }
-      if(!buckets.length){Alert.alert("OCR 대상 없음","이번 차례에 확인한 "+checkedStudios+"개 학원에서 블로그 이미지 자료를 찾지 못했습니다.");return;}
-      const studioIds=buckets.map(bucket=>bucket.studio.id);
-      const existing:any[]=[];
-      for(let offset=0;;offset+=1000){
-        const {data,error}=await supabase.from("studio_image_ocr_results")
-          .select("studio_id,source_id,image_url").in("studio_id",studioIds).not("image_url","is",null)
-          .order("source_id",{ascending:true}).range(offset,offset+999);
-        if(error)throw error;
-        existing.push(...(data||[]));
-        if(!data||data.length<1000)break;
-      }
-      const seen=new Set(existing.map((item:any)=>item.studio_id+"|"+item.source_id+"|"+item.image_url));
-      const candidateSeen=new Set<string>();
-      const todo:any[]=[];
-      let cursor=0;
-      while(todo.length<3&&buckets.some(bucket=>bucket.items.length)){
-        const bucket=buckets[cursor%buckets.length];
-        const item=bucket.items.shift();
-        cursor++;
-        if(!item)continue;
-        const key=item.studio_id+"|"+item.source_id+"|"+item.image_url;
-        if(seen.has(key)||candidateSeen.has(key)){skipped++;continue;}
-        candidateSeen.add(key);todo.push(item);
-      }
-      skipped+=buckets.reduce((sum,bucket)=>sum+bucket.items.length,0);
-      if(!todo.length){Alert.alert("추가 OCR 없음","이번에 확인한 "+checkedStudios+"개 학원의 블로그 이미지는 이미 처리됐습니다. 다음 실행에서는 다른 학원부터 확인합니다.");return;}
-      const dir=FileSystem.cacheDirectory+"balletmate-ocr/";
-      const dirInfo=await FileSystem.getInfoAsync(dir);
-      if(!dirInfo.exists)await FileSystem.makeDirectoryAsync(dir,{intermediates:true});
-      for(let i=0;i<todo.length;i++){
-        const item=todo[i];let localUri:string|null=null;
-        try{
-          const ext=(item.image_url.split("?")[0].match(/\.(png|webp|jpeg|jpg)$/i)?.[1]||"jpg").toLowerCase();
-          localUri=dir+"batch-"+item.source_id+"-"+i+"."+ext;
-          const downloaded=await FileSystem.downloadAsync(item.image_url,localUri,{headers:{"User-Agent":"Mozilla/5.0 BalletmateImageOCR"}});
-          if(downloaded.status<200||downloaded.status>=300)throw new Error("이미지 다운로드 HTTP "+downloaded.status);
-          const resized=await ImageManipulator.manipulateAsync(downloaded.uri,[ {resize:{width:1500}} ],{compress:0.72,format:ImageManipulator.SaveFormat.JPEG});
-          let lines:any[]=[];
-          try{lines=await ocr.extractTextFromImage(resized.uri,Platform.OS==="android"?{script:ocr.TextRecognitionScript.KOREAN}:{languages:["ko-KR","en-US"]});}finally{await FileSystem.deleteAsync(resized.uri,{idempotent:true}).catch(()=>{});}
-          const extracted=(lines||[]).join("\n").trim();
-          if(extracted.length<3){skipped++;continue;}
-          const parsed=parseOcrFields(extracted);
-          const {error}=await supabase.from("studio_image_ocr_results").upsert({
-            studio_id:item.studio_id,studio_name:item.studio_name,source_id:item.source_id,image_url:item.image_url,source_url:item.source_url,source_post_date:item.post_date||null,
-            image_label:item.title||("블로그 게시물 "+item.source_id),extracted_text:extracted,
-            detected_kind:parsed.detected_kind,amount_krw:parsed.amount_krw,price_period:parsed.price_period,
-            frequency_per_week:parsed.frequency_per_week,schedule_days:parsed.schedule_days,schedule_time:parsed.schedule_time,
-            created_by:session?.user?.id||null
-          },{onConflict:"source_id,image_url",ignoreDuplicates:true});
-          if(error)throw error;
-          processed++;
-        }catch(imageError){failed++;}
-        finally{if(localUri)await FileSystem.deleteAsync(localUri,{idempotent:true}).catch(()=>{});}
-      }
-      await loadOcr();
-      Alert.alert("일괄 블로그 OCR 완료","학원 확인: "+checkedStudios+"곳\n새로 처리: "+processed+"장 · 글자 없음/중복: "+skipped+"장 · 실패: "+failed+"장\n1회 최대 3장으로 제한해 처리했습니다.");
-    }catch(error:any){Alert.alert("일괄 OCR 실패",error?.message||"블로그 이미지 조회 또는 OCR 처리에 실패했습니다.");}
-    finally{setOcrBusy(false);}
-  };
-
-  useEffect(()=>{
-    if(adminTab!=="review"){
-      autoOcrTriggered.current=false;
-      return;
-    }
-    if(!authorized||!rows.length||autoOcrTriggered.current)return;
-    autoOcrTriggered.current=true;
-    // OCR runs on the administrator's device, not on a server cron.
-    // Each visit checks at most 12 studios and processes at most 3 new images.
-    void runBatchBlogImageOcr();
-  },[adminTab,authorized,rows.length]);
-
-  const forwardOcrToEvidence=async(item:any)=>{
-    if(!supabase)return;
-    if(!item.source_id||!item.source_url){Alert.alert("원문 정보 없음","블로그 게시물과 연결된 OCR 결과만 검토 대기열로 전달할 수 있습니다.");return;}
-    const amount=Number(item.amount_krw);
-    const isPrice=Number.isInteger(amount)&&amount>0;
-    const scheduleDays=Array.isArray(item.schedule_days)?item.schedule_days:[];
-    const isSchedule=scheduleDays.length>0||!!item.schedule_time;
-    const candidates:any[]=[];
-    if(isPrice){
-      const structured=amount.toLocaleString("en-US")+"원 · "+(item.price_period||"기간 미확인")+(item.frequency_per_week?" · 주 "+item.frequency_per_week+"회":"");
-      candidates.push({
-        studio_id:item.studio_id,studio_name:item.studio_name,source_id:item.source_id,
-        source_title:item.image_label,source_url:item.source_url,source_post_date:item.source_post_date||null,candidate_type:"price",
-        candidate_value:"OCR#"+item.id+" "+structured,normalized_value:String(amount),
-        price_period:item.price_period||"기간 미확인",
-        price_frequency_per_week:item.frequency_per_week||null,
-        evidence_text:item.extracted_text,confidence:0.55,review_status:"pending"
-      });
-    }
-    if(isSchedule){
-      const structured=(scheduleDays.length?scheduleDays.join("·"):"요일 미확인")+(item.schedule_time?" · "+item.schedule_time:"");
-      candidates.push({
-        studio_id:item.studio_id,studio_name:item.studio_name,source_id:item.source_id,
-        source_title:item.image_label,source_url:item.source_url,source_post_date:item.source_post_date||null,candidate_type:"schedule",
-        candidate_value:"OCR#"+item.id+" "+structured,normalized_value:structured,
-        price_period:"기간 미확인",price_frequency_per_week:null,
-        evidence_text:item.extracted_text,confidence:0.55,review_status:"pending"
-      });
-    }
-    if(!candidates.length){Alert.alert("후보 분류 불가","가격 금액이나 요일·시간을 확인하지 못해 검토 대기열로 전달할 수 없습니다.");return;}
-    setEvidenceBusy(true);
-    try{
-      const {error}=await supabase.from("studio_blog_evidence_candidates").upsert(candidates,{onConflict:"source_id,candidate_type,candidate_value",ignoreDuplicates:true});
-      if(error)throw error;
-      const {error:updateError}=await supabase.from("studio_image_ocr_results").update({
-        review_status:"verified",reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString()
-      }).eq("id",item.id);
-      if(updateError)throw updateError;
-      setOcrRows(current=>current.filter(row=>row.id!==item.id));
-      await loadEvidence();
-      Alert.alert("검토 대기열 전달 완료",candidates.length+"개 유형의 OCR 근거를 검토 목록으로 보냈습니다. 앱에 자동 공개되지는 않았습니다.");
-    }catch(error:any){Alert.alert("전달 실패",error?.message||"근거 후보 저장에 실패했습니다.");}
-    finally{setEvidenceBusy(false);}
-  };
-
-
-  const reviewOcrBatch=async(status:"verified"|"rejected")=>{
-    if(!supabase||!selectedOcrIds.length)return;
-    const {error}=await supabase.from("studio_image_ocr_results").update({review_status:status,reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString()}).in("id",selectedOcrIds);
-    if(error)Alert.alert("OCR 일괄 검토 실패",error.message);
-    else {setOcrRows(rows=>rows.filter(row=>!selectedOcrIds.includes(row.id)));setSelectedOcrIds([]);Alert.alert("OCR 검토 완료",selectedOcrIds.length+"개 결과를 "+(status==="verified"?"확인":"제외")+" 처리했습니다.");}
-  };
-
-  const reviewOcr=async(item:any,status:"verified"|"rejected")=>{
-    if(!supabase)return;
-    const {error}=await supabase.from("studio_image_ocr_results").update({review_status:status,reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString()}).eq("id",item.id);
-    if(error)Alert.alert("OCR 검토 저장 실패",error.message);else setOcrRows(current=>current.filter(row=>row.id!==item.id));
-  };
-
 
   const reviewEvidence=async(item:EvidenceCandidate,status:"verified"|"rejected")=>{
     if(!supabase)return;
@@ -964,7 +665,7 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
   const startEdit=(r:StudioRow)=>{
     setEditing(r.id);setForm({name:r.name,latitude:String(r.latitude),longitude:String(r.longitude),district:r.district||"",address:r.address||"",phone:r.phone||"",website_url:r.website_url||"",source_url:r.source_url||"",source_name:r.source_name||"",verified_at:r.verified_at?r.verified_at.slice(0,10):"",image_urls:(r.image_urls||[]).join("\n"),image_source_name:r.image_source_name||"",image_usage_note:r.image_usage_note||"",price_per_class:r.price_per_class==null?"":String(r.price_per_class),adult_classes:r.adult_classes,kids_classes:r.kids_classes,is_active:r.is_active});
   };
-  const visibleStudioRows=rows.filter(row=>{
+  const filteredStudioRows=useMemo(()=>rows.filter(row=>{
     const q=studioSearch.trim().toLowerCase();
     if(q&&!([row.name,row.district||"",row.address||"",row.phone||""].some(value=>value.toLowerCase().includes(q))))return false;
     if(studioListFilter==="missing_photo"&&(row.image_urls||[]).length>0)return false;
@@ -973,7 +674,8 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
     if(studioListFilter==="active"&&!row.is_active)return false;
     if(studioListFilter==="inactive"&&row.is_active)return false;
     return true;
-  });
+  }),[rows,studioSearch,studioListFilter]);
+  const visibleStudioRows=filteredStudioRows.slice(0,studioVisibleLimit);
   const reset=()=>{setEditing(null);setForm({...blank});};
   const save=async()=>{
     if(!supabase)return;
@@ -1209,8 +911,8 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
 <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 대기 가격 · {verifiedPriceRows.length}건</Text><Pressable onPress={()=>setSelectedPriceIds(verifiedPriceRows.filter(item=>!publishedCandidateIds.includes(item.id)).map(item=>item.id))}><Text style={styles.refresh}>전체 선택</Text></Pressable><Pressable onPress={()=>setSelectedPriceIds([])}><Text style={styles.refresh}>해제</Text></Pressable><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Pressable style={styles.button} disabled={evidenceBusy||!selectedPriceIds.length} onPress={publishPriceBatch}><Text style={styles.buttonText}>선택 {selectedPriceIds.length}개 공개</Text></Pressable><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 가격</Text><Text style={styles.compactAction}>선택</Text></View>{verifiedPriceRows.slice(0,100).map((item,index)=><View key={"verified-price-"+item.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><Pressable style={styles.compactMain} onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.compactPrimary} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{Number(item.normalized_value||0).toLocaleString("ko-KR")}원 · {item.price_period||"기간 미확인"}</Text></Pressable><Pressable onPress={()=>setSelectedPriceIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.compactAction}>{selectedPriceIds.includes(item.id)?"☑":"□"}</Text></Pressable></View>)}{!verifiedPriceRows.length&&!evidenceBusy&&<Text style={styles.hint}>공개 대기 가격이 없습니다.</Text>}</View>
         </>}
     {adminTab==="review"&&<View style={{gap:12}}>
-<View style={styles.panel}><View style={{gap:8}}><Text style={styles.heading}>자료 검토</Text><Text style={styles.hint}>최근 {evidenceRows.length}건 표시 · 전체 대기 {totalEvidencePending}건</Text><View style={styles.reviewToolbar}><Pressable style={styles.toolbarButton} onPress={()=>setSelectedEvidenceIds(evidenceRows.map(row=>row.id))}><Text style={styles.secondaryText}>전체 선택</Text></Pressable><Pressable style={styles.toolbarButton} onPress={()=>setSelectedEvidenceIds([])}><Text style={styles.secondaryText}>선택 해제</Text></Pressable><Pressable style={styles.toolbarButton} onPress={loadEvidence}><Text style={styles.secondaryText}>새로고침</Text></Pressable></View></View><View style={styles.ocrStatusRow}><Text style={styles.ocrStatus}>이미지 OCR 모듈: {ocrAvailability==="available"?"연결 가능":ocrAvailability==="unavailable"?"미지원":"확인 전"}</Text><Pressable onPress={checkOcrAvailability} disabled={ocrBusy}><Text style={styles.refresh}>{ocrBusy?"확인 중…":"상태 확인"}</Text></Pressable></View><View style={styles.buttons}><Pressable style={styles.secondary} disabled={evidenceBusy||!selectedEvidenceIds.length} onPress={()=>reviewEvidenceBatch("rejected")}><Text style={styles.secondaryText}>선택 {selectedEvidenceIds.length}개 제외</Text></Pressable><Pressable style={styles.button} disabled={evidenceBusy||!selectedEvidenceIds.length} onPress={()=>reviewEvidenceBatch("verified")}><Text style={styles.buttonText}>선택 {selectedEvidenceIds.length}개 근거 확인</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 유형 · 요약</Text><Text style={styles.compactAction}>선택</Text></View>{evidenceBusy&&<ActivityIndicator color={c.purple}/>}{evidenceRows.slice(0,100).map((item,index)=><View key={item.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{item.candidate_type==="price"?"가격":"시간표"} · {item.candidate_type==="price"&&item.normalized_value?Number(item.normalized_value).toLocaleString("ko-KR")+"원 · "+(item.price_period||"기간 미확인"):(item.normalized_value||item.candidate_value||item.evidence_text||"내용 없음")}</Text><Text style={styles.compactSecondary} numberOfLines={1}>게시일 {item.source_post_date||"미확인"} · 신뢰도 {Math.round(item.confidence*100)}%</Text></View><Pressable onPress={()=>setSelectedEvidenceIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.compactAction}>{selectedEvidenceIds.includes(item.id)?"☑":"□"}</Text></Pressable></View>)}{!evidenceRows.length&&!evidenceBusy&&<Text style={styles.hint}>검토 대기 자료가 없습니다.</Text>}</View>
-<View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>이미지 OCR 결과 · {ocrRows.length}건</Text><Pressable onPress={runBatchBlogImageOcr} disabled={ocrBusy}><Text style={styles.refresh}>{ocrBusy?"OCR 처리 중…":"블로그 사진 추가 수집"}</Text></Pressable><Pressable onPress={()=>setSelectedOcrIds(ocrRows.map(row=>row.id))}><Text style={styles.refresh}>전체 선택</Text></Pressable><Pressable onPress={()=>setSelectedOcrIds([])}><Text style={styles.refresh}>해제</Text></Pressable><Pressable onPress={loadOcr}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>검토 탭 진입 시 자동으로 12개 학원을 확인하고 새 이미지 최대 3장을 기기에서 OCR합니다. 추가 수집 버튼으로 다음 묶음을 처리할 수 있습니다.</Text><View style={styles.buttons}><Pressable style={styles.secondary} disabled={!selectedOcrIds.length||ocrBusy} onPress={()=>reviewOcrBatch("rejected")}><Text style={styles.secondaryText}>선택 {selectedOcrIds.length}개 제외</Text></Pressable><Pressable style={styles.button} disabled={!selectedOcrIds.length||ocrBusy} onPress={()=>reviewOcrBatch("verified")}><Text style={styles.buttonText}>선택 {selectedOcrIds.length}개 확인</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 유형 · 인식 내용</Text><Text style={styles.compactAction}>선택</Text></View>{ocrRows.slice(0,100).map((row,index)=><View key={"ocr-"+row.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{row.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{row.detected_kind==="price"?"가격":row.detected_kind==="schedule"?"시간표":"분류 미확인"} · {row.image_label||"이미지"}</Text><Text style={styles.compactSecondary} numberOfLines={2}>{row.extracted_text}</Text><View style={{flexDirection:"row",flexWrap:"wrap",gap:12,marginTop:6}}>{!!row.image_url&&<Pressable onPress={()=>Linking.openURL(row.image_url).catch(()=>Alert.alert("사진 확인","이미지 주소를 열 수 없습니다."))}><Text style={styles.action}>사진 보기</Text></Pressable>}{!!row.source_url&&<Pressable onPress={()=>Linking.openURL(row.source_url).catch(()=>Alert.alert("원문 확인","게시물 주소를 열 수 없습니다."))}><Text style={styles.action}>원문 보기</Text></Pressable>}<Pressable onPress={()=>forwardOcrToEvidence(row)} disabled={evidenceBusy}><Text style={styles.action}>가격·시간표 검토로 전달</Text></Pressable></View></View><Pressable onPress={()=>setSelectedOcrIds(ids=>ids.includes(row.id)?ids.filter(id=>id!==row.id):[...ids,row.id])}><Text style={styles.compactAction}>{selectedOcrIds.includes(row.id)?"☑":"□"}</Text></Pressable></View>)}{!ocrRows.length&&!ocrBusy&&<Text style={styles.hint}>대기 중인 OCR 결과가 없습니다. 학원 관리에서 기기 사진 OCR 또는 블로그 OCR을 실행하세요.</Text>}</View>
+<View style={styles.panel}><View style={{gap:8}}><Text style={styles.heading}>자료 검토</Text><Text style={styles.hint}>최근 {evidenceRows.length}건 표시 · 전체 대기 {totalEvidencePending}건</Text><View style={styles.reviewToolbar}><Pressable style={styles.toolbarButton} onPress={()=>setSelectedEvidenceIds(evidenceRows.map(row=>row.id))}><Text style={styles.secondaryText}>전체 선택</Text></Pressable><Pressable style={styles.toolbarButton} onPress={()=>setSelectedEvidenceIds([])}><Text style={styles.secondaryText}>선택 해제</Text></Pressable><Pressable style={styles.toolbarButton} onPress={loadEvidence}><Text style={styles.secondaryText}>새로고침</Text></Pressable></View></View><View style={styles.buttons}><Pressable style={styles.secondary} disabled={evidenceBusy||!selectedEvidenceIds.length} onPress={()=>reviewEvidenceBatch("rejected")}><Text style={styles.secondaryText}>선택 {selectedEvidenceIds.length}개 제외</Text></Pressable><Pressable style={styles.button} disabled={evidenceBusy||!selectedEvidenceIds.length} onPress={()=>reviewEvidenceBatch("verified")}><Text style={styles.buttonText}>선택 {selectedEvidenceIds.length}개 근거 확인</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 유형 · 요약</Text><Text style={styles.compactAction}>선택</Text></View>{evidenceBusy&&<ActivityIndicator color={c.purple}/>}{evidenceRows.slice(0,100).map((item,index)=><View key={item.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{item.candidate_type==="price"?"가격":"시간표"} · {item.candidate_type==="price"&&item.normalized_value?Number(item.normalized_value).toLocaleString("ko-KR")+"원 · "+(item.price_period||"기간 미확인"):(item.normalized_value||item.candidate_value||item.evidence_text||"내용 없음")}</Text><Text style={styles.compactSecondary} numberOfLines={1}>게시일 {item.source_post_date||"미확인"} · 신뢰도 {Math.round(item.confidence*100)}%</Text></View><Pressable onPress={()=>setSelectedEvidenceIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.compactAction}>{selectedEvidenceIds.includes(item.id)?"☑":"□"}</Text></Pressable></View>)}{!evidenceRows.length&&!evidenceBusy&&<Text style={styles.hint}>검토 대기 자료가 없습니다.</Text>}</View>
+
     </View>}
     {adminTab==="studios"&&<>
 <View style={styles.panel}><Text style={styles.heading}>{editing?"학원 정보 수정":"학원 등록"}</Text>{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}{field("사진 URL (최대 10개, 줄바꿈 구분)","image_urls")}{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
@@ -1252,9 +954,10 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
     </View>}
     <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active,image_urls,image_usage_note · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,25000,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원 · {visibleStudioRows.length}/{rows.length}</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>
-      <TextInput style={styles.input} value={studioSearch} onChangeText={setStudioSearch} placeholder="학원명·지역·주소·전화 검색" autoCapitalize="none"/>
-      <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"missing_photo",label:"사진 없음"},{key:"missing_website",label:"홈페이지 없음"},{key:"website_candidate",label:"홈페이지 후보"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>setStudioListFilter(option.key)}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
-      {visibleStudioRows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · 사진 {(r.image_urls||[]).length}장 · {r.is_active?"공개":"비공개"}{String(r.source_name||"").includes("홈페이지 검색 후보")?" · 홈페이지 후보(미검증)":""}</Text>{String(r.source_name||"").includes("홈페이지 검색 후보")&&!!r.website_url&&<Pressable onPress={()=>Linking.openURL(r.website_url!).catch(()=>Alert.alert("홈페이지 연결","주소를 열 수 없습니다."))}><Text style={styles.action}>후보 홈페이지 확인 ↗</Text></Pressable>}</View><Pressable style={styles.manageButton} onPress={()=>setStudioActionId(current=>current===r.id?null:r.id)}><Text style={styles.manageButtonText}>{studioActionId===r.id?"닫기":"관리"}</Text></Pressable>{studioActionId===r.id&&<View style={styles.studioActionMenu}><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);startEdit(r);}}><Text style={styles.manageButtonText}>정보 수정</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);setClassStudio(r);resetClass();}}><Text style={styles.manageButtonText}>수업 관리</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);openOfficialBlogManager(r);}}><Text style={styles.manageButtonText}>공식 블로그 등록</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);uploadPhotos(r.id,r.name);}}><Text style={styles.manageButtonText}>사진 업로드</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);runLocalOcr(r.id,r.name);}}><Text style={styles.manageButtonText}>기기 사진 OCR</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);runBlogImageOcr(r.id,r.name);}}><Text style={styles.manageButtonText}>블로그 OCR</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);requeueStudioBlogSearch(r);}}><Text style={styles.manageButtonText}>블로그 검색</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);if(r.website_url)crawlImages(r.id,r.name);else Alert.alert("홈페이지 필요","사진 자동 수집을 위해 홈페이지 주소를 먼저 등록해 주세요.");}}><Text style={styles.manageButtonText}>사진 수집</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);remove(r.id,r.name);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View>}</View>)}
+      <TextInput style={styles.input} value={studioSearch} onChangeText={value=>{setStudioSearch(value);setStudioVisibleLimit(100);}} placeholder="학원명·지역·주소·전화 검색" autoCapitalize="none"/>
+      <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"missing_photo",label:"사진 없음"},{key:"missing_website",label:"홈페이지 없음"},{key:"website_candidate",label:"홈페이지 후보"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>{setStudioListFilter(option.key);setStudioVisibleLimit(100);}}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
+      {visibleStudioRows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · 사진 {(r.image_urls||[]).length}장 · {r.is_active?"공개":"비공개"}{String(r.source_name||"").includes("홈페이지 검색 후보")?" · 홈페이지 후보(미검증)":""}</Text>{String(r.source_name||"").includes("홈페이지 검색 후보")&&!!r.website_url&&<Pressable onPress={()=>Linking.openURL(r.website_url!).catch(()=>Alert.alert("홈페이지 연결","주소를 열 수 없습니다."))}><Text style={styles.action}>후보 홈페이지 확인 ↗</Text></Pressable>}</View><Pressable style={styles.manageButton} onPress={()=>setStudioActionId(current=>current===r.id?null:r.id)}><Text style={styles.manageButtonText}>{studioActionId===r.id?"닫기":"관리"}</Text></Pressable>{studioActionId===r.id&&<View style={styles.studioActionMenu}><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);startEdit(r);}}><Text style={styles.manageButtonText}>정보 수정</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);setClassStudio(r);resetClass();}}><Text style={styles.manageButtonText}>수업 관리</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);openOfficialBlogManager(r);}}><Text style={styles.manageButtonText}>공식 블로그 등록</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);uploadPhotos(r.id,r.name);}}><Text style={styles.manageButtonText}>사진 업로드</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);requeueStudioBlogSearch(r);}}><Text style={styles.manageButtonText}>블로그 검색</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);if(r.website_url)crawlImages(r.id,r.name);else Alert.alert("홈페이지 필요","사진 자동 수집을 위해 홈페이지 주소를 먼저 등록해 주세요.");}}><Text style={styles.manageButtonText}>사진 수집</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);remove(r.id,r.name);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View>}</View>)}
+      {visibleStudioRows.length<filteredStudioRows.length&&<Pressable style={styles.secondary} onPress={()=>setStudioVisibleLimit(limit=>limit+100)}><Text style={styles.secondaryText}>학원 100개 더 보기 ({visibleStudioRows.length}/{filteredStudioRows.length})</Text></Pressable>}
       {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}{rows.length>0&&!visibleStudioRows.length&&<Text style={styles.hint}>검색/필터 조건에 맞는 학원이 없습니다.</Text>}
     </View>
     </>}
@@ -1264,4 +967,4 @@ export function ErrorBoundary({error,retry}:{error:any;retry:()=>void}){
   const detail=String(error?.stack||error?.message||error||"알 수 없는 오류");
   return <SafeAreaView style={styles.safe}><View style={styles.login}><Text style={styles.brand}>관리자 화면 오류</Text><Text style={styles.hint}>오류 위치를 확인할 수 있도록 상세 내용을 표시합니다.</Text><ScrollView style={{maxHeight:320}}><Text selectable style={styles.errorHint}>{detail}</Text></ScrollView><Pressable style={[styles.button,styles.loginButton]} onPress={retry}><Text style={styles.buttonText}>다시 시도</Text></Pressable></View></SafeAreaView>;
 }
-const styles=StyleSheet.create({safe:{flex:1,backgroundColor:c.bg},login:{flex:1,justifyContent:"center",paddingHorizontal:22,paddingVertical:20,gap:10,width:"100%",maxWidth:460,alignSelf:"center"},loginButton:{flex:0,alignSelf:"stretch",minHeight:46},content:{paddingHorizontal:14,paddingTop:12,paddingBottom:24,gap:12},adminTabs:{flexDirection:"row",gap:7,marginBottom:2},adminTab:{flex:1,paddingVertical:11,borderRadius:11,backgroundColor:"#F0EDF5",alignItems:"center"},adminTabActive:{backgroundColor:c.purple},adminTabText:{fontSize:12,fontWeight:"700",color:c.muted},adminTabTextActive:{color:"#fff"},manageButton:{paddingHorizontal:13,paddingVertical:8,borderRadius:9,backgroundColor:c.pale},manageButtonText:{fontSize:12,fontWeight:"800",color:c.purple},studioActionMenu:{width:"100%",flexDirection:"row",flexWrap:"wrap",gap:7,paddingTop:5},manageAction:{paddingHorizontal:10,paddingVertical:7,borderRadius:8,backgroundColor:c.bg,borderWidth:1,borderColor:c.line},reviewToolbar:{flexDirection:"row",flexWrap:"wrap",alignItems:"center",gap:7},toolbarButton:{minHeight:38,paddingHorizontal:12,paddingVertical:8,borderRadius:9,borderWidth:1,borderColor:c.line,backgroundColor:c.bg,alignItems:"center",justifyContent:"center"},compactTableHeader:{flexDirection:"row",alignItems:"center",paddingVertical:6,borderBottomWidth:1,borderBottomColor:c.line},compactTableRow:{flexDirection:"row",alignItems:"center",gap:8,minHeight:44,paddingVertical:6,borderBottomWidth:1,borderBottomColor:c.line},scheduleReviewCard:{padding:11,borderRadius:12,borderWidth:1,borderColor:c.line,backgroundColor:c.bg,gap:9},scheduleReviewHeader:{flexDirection:"row",alignItems:"flex-start",gap:9},scheduleReviewIndex:{width:26,fontSize:11,color:c.muted,fontWeight:"800",paddingTop:2},scheduleReviewActions:{flexDirection:"row",flexWrap:"wrap",gap:7,justifyContent:"flex-end"},scheduleReviewButton:{minHeight:34,paddingHorizontal:12,paddingVertical:7,borderRadius:8,borderWidth:1,borderColor:c.line,backgroundColor:"#fff",alignItems:"center",justifyContent:"center"},scheduleReviewButtonText:{fontSize:11,fontWeight:"800",color:c.purple},compactNumber:{width:24,fontSize:11,color:c.muted,textAlign:"center",fontVariant:["tabular-nums"]},compactMain:{flex:1,minWidth:0},compactPrimary:{fontSize:12,fontWeight:"800",color:c.ink},compactSecondary:{fontSize:10,color:c.muted,marginTop:2},compactAction:{width:40,textAlign:"center",fontSize:11,fontWeight:"800",color:c.purple},compactExpanded:{padding:10,backgroundColor:c.bg,borderRadius:10,gap:7},ocrStatusRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",backgroundColor:"#FFF7E8",padding:9,borderRadius:9},ocrStatus:{fontSize:11,color:"#9A6A2A",lineHeight:16},header:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},brand:{fontSize:21,fontWeight:"900",color:c.ink},hint:{fontSize:12,color:c.muted,marginTop:5},logout:{color:c.purple,fontWeight:"700"},panel:{backgroundColor:"#fff",padding:14,borderRadius:16,borderWidth:1,borderColor:c.line,gap:10},statsGrid:{flexDirection:"row",flexWrap:"wrap",gap:8},statCard:{width:"31%",flexGrow:1,minWidth:90,backgroundColor:c.bg,borderRadius:12,padding:10,borderWidth:1,borderColor:c.line},statLabel:{fontSize:11,color:c.muted,fontWeight:"700"},statValue:{fontSize:22,fontWeight:"900",color:c.ink,marginTop:4},statCaption:{fontSize:10,color:c.muted,marginTop:3},errorHint:{fontSize:11,color:"#B95764",marginTop:3},heading:{fontSize:16,fontWeight:"800",color:c.ink},field:{gap:5},label:{fontSize:12,color:c.muted},input:{minHeight:44,borderWidth:1,borderColor:c.line,borderRadius:10,paddingHorizontal:11,paddingVertical:9,color:c.ink,backgroundColor:"#fff",fontSize:13},toggles:{flexDirection:"row",flexWrap:"wrap",gap:8},toggle:{borderWidth:1,borderColor:c.line,borderRadius:10,padding:9},toggleText:{fontSize:12,color:c.muted},toggleOn:{color:c.purple,fontWeight:"800"},buttons:{flexDirection:"row",gap:8},button:{backgroundColor:c.purple,minHeight:44,paddingHorizontal:12,paddingVertical:11,borderRadius:11,alignItems:"center",flex:1},buttonText:{color:"#fff",fontWeight:"800"},secondary:{minHeight:44,paddingHorizontal:12,paddingVertical:11,borderWidth:1,borderColor:c.line,borderRadius:12,alignItems:"center"},secondaryText:{color:c.ink},listHead:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},refresh:{color:c.purple,fontWeight:"700"},row:{flexDirection:"row",flexWrap:"wrap",alignItems:"center",gap:10,paddingVertical:12,borderBottomWidth:1,borderBottomColor:c.line},rowName:{fontSize:13,fontWeight:"800",color:c.ink},rowMeta:{fontSize:11,color:c.muted,marginTop:3},action:{fontSize:12,color:c.purple,fontWeight:"700"},evidenceCard:{backgroundColor:c.bg,borderWidth:1,borderColor:c.line,borderRadius:13,padding:12,gap:7},evidenceStudio:{fontSize:13,fontWeight:"900",color:c.ink,flex:1},evidenceType:{fontSize:10,fontWeight:"800",color:c.purple,backgroundColor:c.pale,paddingHorizontal:8,paddingVertical:5,borderRadius:8},evidenceValue:{fontSize:13,lineHeight:20,color:c.ink},evidenceText:{fontSize:12,lineHeight:19,color:c.ink},rowActions:{flexDirection:"row",flexWrap:"wrap",gap:14,paddingTop:5},reject:{fontSize:12,color:"#B95764",fontWeight:"700"}});
+const styles=StyleSheet.create({safe:{flex:1,backgroundColor:c.bg},login:{flex:1,justifyContent:"center",paddingHorizontal:22,paddingVertical:20,gap:10,width:"100%",maxWidth:460,alignSelf:"center"},loginButton:{flex:0,alignSelf:"stretch",minHeight:46},content:{paddingHorizontal:14,paddingTop:12,paddingBottom:24,gap:12},adminTabs:{flexDirection:"row",gap:7,marginBottom:2},adminTab:{flex:1,paddingVertical:11,borderRadius:11,backgroundColor:"#F0EDF5",alignItems:"center"},adminTabActive:{backgroundColor:c.purple},adminTabText:{fontSize:12,fontWeight:"700",color:c.muted},adminTabTextActive:{color:"#fff"},manageButton:{paddingHorizontal:13,paddingVertical:8,borderRadius:9,backgroundColor:c.pale},manageButtonText:{fontSize:12,fontWeight:"800",color:c.purple},studioActionMenu:{width:"100%",flexDirection:"row",flexWrap:"wrap",gap:7,paddingTop:5},manageAction:{paddingHorizontal:10,paddingVertical:7,borderRadius:8,backgroundColor:c.bg,borderWidth:1,borderColor:c.line},reviewToolbar:{flexDirection:"row",flexWrap:"wrap",alignItems:"center",gap:7},toolbarButton:{minHeight:38,paddingHorizontal:12,paddingVertical:8,borderRadius:9,borderWidth:1,borderColor:c.line,backgroundColor:c.bg,alignItems:"center",justifyContent:"center"},compactTableHeader:{flexDirection:"row",alignItems:"center",paddingVertical:6,borderBottomWidth:1,borderBottomColor:c.line},compactTableRow:{flexDirection:"row",alignItems:"center",gap:8,minHeight:44,paddingVertical:6,borderBottomWidth:1,borderBottomColor:c.line},scheduleReviewCard:{padding:11,borderRadius:12,borderWidth:1,borderColor:c.line,backgroundColor:c.bg,gap:9},scheduleReviewHeader:{flexDirection:"row",alignItems:"flex-start",gap:9},scheduleReviewIndex:{width:26,fontSize:11,color:c.muted,fontWeight:"800",paddingTop:2},scheduleReviewActions:{flexDirection:"row",flexWrap:"wrap",gap:7,justifyContent:"flex-end"},scheduleReviewButton:{minHeight:34,paddingHorizontal:12,paddingVertical:7,borderRadius:8,borderWidth:1,borderColor:c.line,backgroundColor:"#fff",alignItems:"center",justifyContent:"center"},scheduleReviewButtonText:{fontSize:11,fontWeight:"800",color:c.purple},compactNumber:{width:24,fontSize:11,color:c.muted,textAlign:"center",fontVariant:["tabular-nums"]},compactMain:{flex:1,minWidth:0},compactPrimary:{fontSize:12,fontWeight:"800",color:c.ink},compactSecondary:{fontSize:10,color:c.muted,marginTop:2},compactAction:{width:40,textAlign:"center",fontSize:11,fontWeight:"800",color:c.purple},compactExpanded:{padding:10,backgroundColor:c.bg,borderRadius:10,gap:7},header:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},brand:{fontSize:21,fontWeight:"900",color:c.ink},hint:{fontSize:12,color:c.muted,marginTop:5},logout:{color:c.purple,fontWeight:"700"},panel:{backgroundColor:"#fff",padding:14,borderRadius:16,borderWidth:1,borderColor:c.line,gap:10},statsGrid:{flexDirection:"row",flexWrap:"wrap",gap:8},statCard:{width:"31%",flexGrow:1,minWidth:90,backgroundColor:c.bg,borderRadius:12,padding:10,borderWidth:1,borderColor:c.line},statLabel:{fontSize:11,color:c.muted,fontWeight:"700"},statValue:{fontSize:22,fontWeight:"900",color:c.ink,marginTop:4},statCaption:{fontSize:10,color:c.muted,marginTop:3},errorHint:{fontSize:11,color:"#B95764",marginTop:3},heading:{fontSize:16,fontWeight:"800",color:c.ink},field:{gap:5},label:{fontSize:12,color:c.muted},input:{minHeight:44,borderWidth:1,borderColor:c.line,borderRadius:10,paddingHorizontal:11,paddingVertical:9,color:c.ink,backgroundColor:"#fff",fontSize:13},toggles:{flexDirection:"row",flexWrap:"wrap",gap:8},toggle:{borderWidth:1,borderColor:c.line,borderRadius:10,padding:9},toggleText:{fontSize:12,color:c.muted},toggleOn:{color:c.purple,fontWeight:"800"},buttons:{flexDirection:"row",gap:8},button:{backgroundColor:c.purple,minHeight:44,paddingHorizontal:12,paddingVertical:11,borderRadius:11,alignItems:"center",flex:1},buttonText:{color:"#fff",fontWeight:"800"},secondary:{minHeight:44,paddingHorizontal:12,paddingVertical:11,borderWidth:1,borderColor:c.line,borderRadius:12,alignItems:"center"},secondaryText:{color:c.ink},listHead:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},refresh:{color:c.purple,fontWeight:"700"},row:{flexDirection:"row",flexWrap:"wrap",alignItems:"center",gap:10,paddingVertical:12,borderBottomWidth:1,borderBottomColor:c.line},rowName:{fontSize:13,fontWeight:"800",color:c.ink},rowMeta:{fontSize:11,color:c.muted,marginTop:3},action:{fontSize:12,color:c.purple,fontWeight:"700"},evidenceCard:{backgroundColor:c.bg,borderWidth:1,borderColor:c.line,borderRadius:13,padding:12,gap:7},evidenceStudio:{fontSize:13,fontWeight:"900",color:c.ink,flex:1},evidenceType:{fontSize:10,fontWeight:"800",color:c.purple,backgroundColor:c.pale,paddingHorizontal:8,paddingVertical:5,borderRadius:8},evidenceValue:{fontSize:13,lineHeight:20,color:c.ink},evidenceText:{fontSize:12,lineHeight:19,color:c.ink},rowActions:{flexDirection:"row",flexWrap:"wrap",gap:14,paddingTop:5},reject:{fontSize:12,color:"#B95764",fontWeight:"700"}});
