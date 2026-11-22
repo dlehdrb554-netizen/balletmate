@@ -69,4 +69,4 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-# Trigger a fresh APK build for the latest app changes.
+# Trigger a fresh APK build for social signup profile completion.
