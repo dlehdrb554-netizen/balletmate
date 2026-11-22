@@ -63,7 +63,7 @@ export function parseScheduleEvidence(text:string): StructuredSchedule | null {
   for(const sequence of daySequence)for(const char of sequence)if(char in weekdayMap)days.add(weekdayMap[char]);
   for(const [char,weekday] of Object.entries(weekdayMap)){
     const dayWord=new RegExp(char+"요일");
-    const standalone=new RegExp("(^|[\s,·/])"+char+"(?=([\s,·/]|$))");
+    const standalone=new RegExp("(^|[\\s,·/])"+char+"(?=([\\s,·/]|$))");
     if(dayWord.test(compact)||standalone.test(compact))days.add(weekday);
   }
   const dayRange=/([월화수목금토일])(?:요일)?\s*(?:~|-|부터)\s*([월화수목금토일])(?:요일)?/g;
