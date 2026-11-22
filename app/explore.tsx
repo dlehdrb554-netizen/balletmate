@@ -195,6 +195,30 @@ export default function Home() {
       return distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng);
     });
   },[view,favoriteStudios,results,listSort,searchedRegion]);
+  const submitSearch=async()=>{
+    Keyboard.dismiss();
+    const query=search.trim();
+    if(!query){setAreaLocked(false);setSelected(null);return;}
+    const q=query.toLowerCase();
+    const matching=studios.filter(studio=>studio.name.toLowerCase().includes(q)||studio.area.toLowerCase().includes(q)||studio.tags.some(tag=>tag.toLowerCase().includes(q)));
+    if(matching.length){
+      const target=matching.length===1?matching[0]:null;
+      const latitude=target?target.lat:matching.reduce((sum,studio)=>sum+studio.lat,0)/matching.length;
+      const longitude=target?target.lng:matching.reduce((sum,studio)=>sum+studio.lng,0)/matching.length;
+      const delta=matching.length===1?0.018:Math.min(0.12,Math.max(0.035,matching.length*0.012));
+      const next={latitude,longitude,latitudeDelta:delta,longitudeDelta:delta};
+      map.current?.animateToRegion(next,550);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(target);
+      return;
+    }
+    // If no studio name/tag matches, interpret the query as an address or region and geocode it.
+    try{
+      const geocoded=await Location.geocodeAsync(query);
+      if(geocoded.length){
+        const next={latitude:geocoded[0].latitude,longitude:geocoded[0].longitude,latitudeDelta:0.045,longitudeDelta:0.045};
+        map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(null);
+      }
+    }catch(error){console.warn("Search location geocoding failed:",error);}
+  };
   const locate=async()=>{
     setLocationLoading(true);
     try {
@@ -316,7 +340,7 @@ export default function Home() {
       <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>setMenuOpen(true)} accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/account")} accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
-      <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={()=>Keyboard.dismiss()}/>{!!search&&<Pressable onPress={()=>setSearch("")}><Text style={styles.clear}>×</Text></Pressable>}</View>
+      <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={submitSearch}/>{!!search&&<Pressable onPress={()=>setSearch("")}><Text style={styles.clear}>×</Text></Pressable>}</View>
       <Pressable style={styles.filterButton} onPress={()=>setFilterOpen(true)}><Ionicons name="options-outline" size={21} color={COLORS.ink} />{activeFilters>0&&<View style={styles.filterCount}><Text style={styles.filterCountText}>{activeFilters}</Text></View>}</Pressable>
     </View>
     {!!search.trim()&&search.trim().length>=2&&<Text style={styles.searchHint}>{classSearchLoading?"수업명 검색 중…":"학원명·지역·태그·등록 수업명 검색"}</Text>}
