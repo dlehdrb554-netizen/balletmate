@@ -527,6 +527,7 @@ export default function Home() {
           {!!detailStudio.sourceName&&<Text style={styles.photoCredit}>정보 출처: {detailStudio.sourceName}{detailStudio.verifiedAt?" · 확인 "+new Date(detailStudio.verifiedAt).toLocaleDateString("ko-KR"):""}</Text>}
           {!!detailStudio.sourceUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.sourceUrl!).catch(()=>Alert.alert("출처 연결","출처 페이지를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>정보 원문 확인 ›</Text></Pressable>}
           {!!detailStudio.description?.trim()&&<><Text style={styles.sectionTitle}>학원 소개</Text><Text style={styles.detailDescription}>{detailStudio.description}</Text></>}
+          {!!detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}
           {(!!detailStudio.detailsCheckedAt||!!detailStudio.priceEvidenceText||!!detailStudio.scheduleEvidenceText||(detailStudio.detailsSourceUrls||[]).length>0)&&<Text style={styles.sectionTitle}>공식 홈페이지에서 확인한 정보</Text>}
           {!!detailStudio.detailsCheckedAt&&<Text style={styles.photoCredit}>최근 확인: {new Date(detailStudio.detailsCheckedAt).toLocaleDateString("ko-KR")} · 원문 텍스트 자동 추출</Text>}
           {!!detailStudio.priceEvidenceText&&<View style={styles.classBlock}><Text style={styles.classTitle}>가격 관련 공개 문구</Text><Text style={styles.sessionText}>{detailStudio.priceEvidenceText}</Text></View>}
@@ -541,7 +542,7 @@ export default function Home() {
             {!!post.description&&<Text style={styles.sessionText}>{post.description}</Text>}
             {!!post.price_evidence?.length&&<><Text style={styles.classMeta}>가격 관련 문구 · 게시글 원문</Text>{post.price_evidence.slice(0,8).map((line,i)=><Text key={"p"+i} style={styles.sessionText}>• {line}</Text>)}</>}
             {!!post.schedule_evidence?.length&&<><Text style={styles.classMeta}>시간표 관련 문구 · 게시글 원문</Text>{post.schedule_evidence.slice(0,8).map((line,i)=><Text key={"s"+i} style={styles.sessionText}>• {line}</Text>)}</>}
-            {!!post.image_urls?.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,marginTop:8}}>{post.image_urls.slice(0,8).map((uri,i)=><Image key={uri+i} source={{uri}} style={styles.studioPhoto} resizeMode="cover"/>)}</ScrollView>}
+
             <Pressable onPress={()=>Linking.openURL(post.post_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>네이버 블로그 원문 및 사진 출처 확인 ›</Text></Pressable>
           </View>):<Text style={styles.filterHint}>아직 관련성이 확인된 블로그 게시글이 없습니다. 자료가 수집되면 이곳에 표시됩니다.</Text>}
           {studioPublicPrices.length>0&&<Text style={styles.sectionTitle}>관리자 검증 가격</Text>}
