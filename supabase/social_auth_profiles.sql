@@ -10,7 +10,7 @@ as $$
 declare
   uname text;
 begin
-  uname := pg_catalog.lower(pg_catalog.coalesce(new.raw_user_meta_data ->> 'username', ''));
+  uname := pg_catalog.lower(COALESCE(new.raw_user_meta_data ->> 'username', ''));
 
   if uname !~ '^[a-z0-9_]{3,24}$' then
     uname := 'social_' || pg_catalog.substr(pg_catalog.replace(new.id::text, '-', ''), 1, 12);
