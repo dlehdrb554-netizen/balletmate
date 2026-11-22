@@ -68,7 +68,7 @@ Deno.serve(async(req)=>{
      const {data,error}=await db.rpc("register_discovered_studio",{p_name:name,p_latitude:lat,p_longitude:lng,p_address:address,p_phone:item.phone||null,p_place_url:item.place_url||null,p_region:region.region_name});
      if(error)errors.push(error.message.slice(0,160));
      else {if(data?.[0]?.inserted)insertedCount++;else duplicateCount++;const studioId=data?.[0]?.studio_id;
-      if(studioId&&naverId&&naverSecret&&homepageSearches<5){homepageSearches++;const candidate=await findHomepageCandidate(name,address,naverId,naverSecret);if(candidate){const {error:websiteError}=await db.from("studios").update({website_url:candidate,source_name:"Kakao Local 발견 · Naver 홈페이지 검색 후보(미검증)",updated_at:new Date().toISOString()}).eq("id",studioId).is("website_url",null);if(!websiteError)homepagesFound++;else errors.push("홈페이지 후보 저장 실패: "+websiteError.message.slice(0,100));}}
+      if(studioId&&naverId&&naverSecret&&homepageSearches<2){const {data:siteRow}=await db.from("studios").select("website_url").eq("id",studioId).maybeSingle();if(!siteRow?.website_url){homepageSearches++;const candidate=await findHomepageCandidate(name,address,naverId,naverSecret);if(candidate){const {error:websiteError}=await db.from("studios").update({website_url:candidate,source_name:"Kakao Local 발견 · Naver 홈페이지 검색 후보(미검증)",updated_at:new Date().toISOString()}).eq("id",studioId).is("website_url",null);if(!websiteError)homepagesFound++;else errors.push("홈페이지 후보 저장 실패: "+websiteError.message.slice(0,100));}}}
      }
     }
     if(payload?.meta?.is_end||docs.length<PAGE_SIZE)break;
