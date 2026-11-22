@@ -109,6 +109,15 @@ export default function Admin() {
   const [publishedScheduleCandidateIds,setPublishedScheduleCandidateIds]=useState<number[]>([]);
   const [publishedCandidateIds,setPublishedCandidateIds]=useState<number[]>([]);
   const [activePublicPrices,setActivePublicPrices]=useState<any[]>([]);
+  const [verifiedPriceTotal,setVerifiedPriceTotal]=useState(0);
+  const [verifiedScheduleTotal,setVerifiedScheduleTotal]=useState(0);
+  const [publicPriceTotal,setPublicPriceTotal]=useState(0);
+  const [publicScheduleTotal,setPublicScheduleTotal]=useState(0);
+  const [verifiedPriceOffset,setVerifiedPriceOffset]=useState(0);
+  const [verifiedScheduleOffset,setVerifiedScheduleOffset]=useState(0);
+  const [publicPriceOffset,setPublicPriceOffset]=useState(0);
+  const [publicScheduleOffset,setPublicScheduleOffset]=useState(0);
+  const [photoCandidateOffset,setPhotoCandidateOffset]=useState(0);
   const [evidenceBusy,setEvidenceBusy]=useState(false);
   const [scheduleClassCandidates,setScheduleClassCandidates]=useState<any[]>([]);
   const [candidateTitles,setCandidateTitles]=useState<Record<number,string>>({});
@@ -189,6 +198,20 @@ export default function Admin() {
         if(error)Alert.alert("요청 실패",error.message);
         else Alert.alert("요청 등록","검색 대기열에 등록했습니다. 자동 작업이 순차적으로 처리합니다.");
         setBusy(false);await loadDashboard();
+      }}
+    ]);
+  };
+
+  const clearDiscoveryHistory=()=>{
+    if(!supabase)return;
+    Alert.alert("탐색 기록 초기화","최근 탐색 오류와 중복 통합 실행 기록만 삭제합니다. 실제 학원 정보와 중복 통합 결과는 변경하지 않습니다.",[
+      {text:"취소",style:"cancel"},
+      {text:"기록 초기화",style:"destructive",onPress:async()=>{
+        setDashboardBusy(true);
+        const {data,error}=await supabase!.rpc("admin_clear_discovery_runs");
+        if(error)Alert.alert("초기화 실패",error.message+"\nadmin_management_scaling.sql 적용 여부를 확인해 주세요.");
+        else {setDiscoveryErrorRows([]);Alert.alert("초기화 완료",Number(data||0).toLocaleString("ko-KR")+"건의 실행 기록을 삭제했습니다.");await loadDashboard();}
+        setDashboardBusy(false);
       }}
     ]);
   };
@@ -325,26 +348,64 @@ export default function Admin() {
     setPhotoReviewBusy(false);
   };
 
+  const deletePhotoCandidate=async(item:any)=>{
+    if(!supabase)return;
+    Alert.alert("사진 후보 삭제","이 사진 후보를 검토 대기열에서 영구 삭제할까요?",[
+      {text:"취소",style:"cancel"},
+      {text:"삭제",style:"destructive",onPress:async()=>{
+        setPhotoReviewBusy(true);
+        const {error}=await supabase!.rpc("admin_delete_studio_photo_candidate",{p_candidate_id:item.id});
+        if(error)Alert.alert("사진 삭제 실패",error.message);
+        else setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));
+        setPhotoReviewBusy(false);
+      }}
+    ]);
+  };
+  const removeStudioGalleryPhoto=async(studioId:string,imageUrl:string)=>{
+    if(!supabase)return;
+    Alert.alert("학원 사진 삭제","이 사진을 학원 상세 갤러리에서 영구 제거할까요?",[
+      {text:"취소",style:"cancel"},
+      {text:"사진 삭제",style:"destructive",onPress:async()=>{
+        setBusy(true);
+        const {error}=await supabase!.rpc("admin_remove_studio_gallery_photo",{p_studio_id:studioId,p_image_url:imageUrl});
+        if(error)Alert.alert("사진 삭제 실패",error.message);
+        else {
+          setRows(current=>current.map(row=>row.id===studioId?{...row,image_urls:(row.image_urls||[]).filter(url=>url!==imageUrl)}:row));
+          setForm(current=>({...current,image_urls:current.image_urls.split(/[\\n,]+/).map(value=>value.trim()).filter(value=>value&&value!==imageUrl).join("\\n")}));
+          Alert.alert("삭제 완료","학원 갤러리에서 사진을 제거했습니다.");
+        }
+        setBusy(false);
+      }}
+    ]);
+  };
+
   const loadEvidence=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setEvidenceBusy(true);
     const columns="id,studio_id,studio_name,source_id,source_title,source_url,source_post_date,candidate_type,candidate_value,normalized_value,price_period,price_frequency_per_week,evidence_text,confidence,review_status,created_at";
-    const today=seoulDate();
-    const [pending,verified,verifiedSchedules,published,publishedSchedules]=await Promise.all([
+    const priceColumns="id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active,image_urls";
+    const scheduleColumns="id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active,image_urls";
+    const [pending,verified,verifiedSchedules,published,publishedSchedules,publishedPriceIds,publishedScheduleIds]=await Promise.all([
       supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","pending").order("created_at",{ascending:false}).limit(100),
-      readAllRows(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false})),
-      readAllRows(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false})),
-      readAllRows(()=>supabase!.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active,image_urls").order("published_at",{ascending:false})),
-      readAllRows(()=>supabase!.from("studio_public_schedules").select("id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active,image_urls").order("published_at",{ascending:false})),
+      supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
+      supabase.from("studio_blog_evidence_candidates").select(columns,{count:"exact"}).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
+      supabase.from("studio_public_prices").select(priceColumns,{count:"exact"}).order("published_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
+      supabase.from("studio_public_schedules").select(scheduleColumns,{count:"exact"}).order("published_at",{ascending:false}).order("id",{ascending:false}).range(0,99),
+      readAllRows(()=>supabase!.from("studio_public_prices").select("candidate_id").not("candidate_id","is",null)),
+      readAllRows(()=>supabase!.from("studio_public_schedules").select("candidate_id").not("candidate_id","is",null)),
     ]);
     if(pending.error)Alert.alert("자동 수집 자료 조회 실패",pending.error.message);
     else {setEvidenceRows((pending.data||[]) as EvidenceCandidate[]);setTotalEvidencePending(pending.count??(pending.data||[]).length);setSelectedEvidenceIds(ids=>ids.filter(id=>(pending.data||[]).some((row:any)=>row.id===id)));}
     if(verified.error)Alert.alert("검증 가격 조회 실패",verified.error.message);
-else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelectedPriceIds(ids=>ids.filter(id=>(verified.data||[]).some((row:any)=>row.id===id)));}
+    else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setVerifiedPriceTotal(verified.count??(verified.data||[]).length);setVerifiedPriceOffset((verified.data||[]).length);setSelectedPriceIds(ids=>ids.filter(id=>(verified.data||[]).some((row:any)=>row.id===id)));}
     if(verifiedSchedules.error)Alert.alert("검증 시간표 조회 실패",verifiedSchedules.error.message);
-    else {setVerifiedScheduleRows((verifiedSchedules.data||[]) as EvidenceCandidate[]);setSelectedScheduleIds(ids=>ids.filter(id=>(verifiedSchedules.data||[]).some((row:any)=>row.id===id)));}
+    else {setVerifiedScheduleRows((verifiedSchedules.data||[]) as EvidenceCandidate[]);setVerifiedScheduleTotal(verifiedSchedules.count??(verifiedSchedules.data||[]).length);setVerifiedScheduleOffset((verifiedSchedules.data||[]).length);setSelectedScheduleIds(ids=>ids.filter(id=>(verifiedSchedules.data||[]).some((row:any)=>row.id===id)));}
     const publishedRows=published.data||[];
     const scheduleRows=publishedSchedules.data||[];
+    setPublicPriceTotal(published.count??publishedRows.length);
+    setPublicScheduleTotal(publishedSchedules.count??scheduleRows.length);
+    setPublicPriceOffset(publishedRows.length);
+    setPublicScheduleOffset(scheduleRows.length);
     const studioIds=[...new Set([...publishedRows,...scheduleRows].map((row:any)=>row.studio_id).filter(Boolean))];
     const studioNames=new Map<string,string>();
     if(studioIds.length){
@@ -352,20 +413,76 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       if(!namesError)for(const item of names||[])studioNames.set(item.id,item.name);
     }
     if(published.error)Alert.alert("공개 가격 조회 실패",published.error.message);
-    else {setPublishedCandidateIds(publishedRows.map((row:any)=>Number(row.candidate_id)));setActivePublicPrices(publishedRows.filter((row:any)=>row.is_active).map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));}
+    else {
+      setPublishedCandidateIds((publishedPriceIds.data||[]).map((row:any)=>Number(row.candidate_id)));
+      setActivePublicPrices(publishedRows.filter((row:any)=>row.is_active).map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));
+    }
     if(publishedSchedules.error)Alert.alert("공개 시간표 조회 실패",publishedSchedules.error.message);
     else {
-      setPublishedScheduleCandidateIds(scheduleRows.map((row:any)=>Number(row.candidate_id)));
-      const uniqueScheduleRows=scheduleRows.filter((row:any,index:number,all:any[])=>{
+      setPublishedScheduleCandidateIds((publishedScheduleIds.data||[]).map((row:any)=>Number(row.candidate_id)));
+      const seen=new Set<string>();const uniqueScheduleRows:any[]=[];let duplicates=0;
+      for(const row of scheduleRows){
         const key=normalizeScheduleKey(row.schedule_text||"");
-        if(!key)return true;
-        return all.findIndex((other:any)=>other.studio_id===row.studio_id&&normalizeScheduleKey(other.schedule_text||"")===key)===index;
-      });
-      setDuplicatePublicScheduleCount(scheduleRows.length-uniqueScheduleRows.length);
+        const identity=key?row.studio_id+"|"+key:"id|"+row.id;
+        if(seen.has(identity)){duplicates++;continue;}
+        seen.add(identity);uniqueScheduleRows.push(row);
+      }
+      setDuplicatePublicScheduleCount(duplicates);
       setActivePublicSchedules(uniqueScheduleRows.map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));
     }
     setEvidenceBusy(false);
   },[authorized]);
+  const loadMorePublicPage=async(kind:"price"|"schedule")=>{
+    if(!supabase||evidenceBusy)return;
+    setEvidenceBusy(true);
+    try{
+      const isPrice=kind==="price";
+      const offset=isPrice?publicPriceOffset:publicScheduleOffset;
+      const table=isPrice?"studio_public_prices":"studio_public_schedules";
+      const columns=isPrice
+        ?"id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active,image_urls"
+        :"id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active,image_urls";
+      const {data,error}=await supabase.from(table).select(columns).order("published_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+99);
+      if(error)throw error;
+      const page=data||[];
+      const ids=[...new Set(page.map((row:any)=>row.studio_id).filter(Boolean))];
+      const names=new Map<string,string>();
+      if(ids.length){const result=await supabase.from("studios").select("id,name").in("id",ids);for(const row of result.data||[])names.set(row.id,row.name);}
+      if(isPrice){
+        setActivePublicPrices(current=>[...current,...page.filter((row:any)=>row.is_active).map((row:any)=>({...row,studio_name:names.get(row.studio_id)||"학원명 미확인"}))]);
+        setPublicPriceOffset(offset+page.length);
+      }else{
+        setPublishedScheduleCandidateIds(current=>[...current,...page.map((row:any)=>Number(row.candidate_id))]);
+        setActivePublicSchedules(current=>{
+          const seen=new Set(current.map((row:any)=>{const key=normalizeScheduleKey(row.schedule_text||"");return key?row.studio_id+"|"+key:"id|"+row.id;}));
+          const next:any[]=[];let duplicates=0;
+          for(const row of page){const key=normalizeScheduleKey(row.schedule_text||"");const identity=key?row.studio_id+"|"+key:"id|"+row.id";if(seen.has(identity)){duplicates++;continue;}seen.add(identity);next.push({...row,studio_name:names.get(row.studio_id)||"학원명 미확인"});}
+          if(duplicates)setDuplicatePublicScheduleCount(value=>value+duplicates);
+          return [...current,...next];
+        });
+        setPublicScheduleOffset(offset+page.length);
+      }
+    }catch(error:any){Alert.alert("추가 조회 실패",error?.message||"공개 자료를 더 불러오지 못했습니다.");}
+    finally{setEvidenceBusy(false);}
+  };
+  const loadMoreVerifiedPage=async(kind:"price"|"schedule")=>{
+    if(!supabase||evidenceBusy)return;
+    setEvidenceBusy(true);
+    try{
+      const isPrice=kind==="price";
+      const offset=isPrice?verifiedPriceOffset:verifiedScheduleOffset;
+      const {data,error}=await supabase.from("studio_blog_evidence_candidates")
+        .select("id,studio_id,studio_name,source_id,source_title,source_url,source_post_date,candidate_type,candidate_value,normalized_value,price_period,price_frequency_per_week,evidence_text,confidence,review_status,created_at")
+        .eq("review_status","verified").eq("candidate_type",kind)
+        .order("reviewed_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+99);
+      if(error)throw error;
+      const page=(data||[]) as EvidenceCandidate[];
+      if(isPrice){setVerifiedPriceRows(current=>[...current,...page]);setVerifiedPriceOffset(offset+page.length);}
+      else {setVerifiedScheduleRows(current=>[...current,...page]);setVerifiedScheduleOffset(offset+page.length);}
+    }catch(error:any){Alert.alert("추가 조회 실패",error?.message||"검증 자료를 더 불러오지 못했습니다.");}
+    finally{setEvidenceBusy(false);}
+  };
+
   const loadScheduleClassCandidates=useCallback(async()=>{
     if(!supabase||!authorized)return;
     const {data,error}=await supabase.from("studio_schedule_class_candidates").select("*").eq("status","pending").order("created_at",{ascending:false}).limit(100);
@@ -580,6 +697,20 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       }}
     ]);
   };
+  const deletePriceCandidate=async(item:EvidenceCandidate)=>{
+    if(!supabase)return;
+    Alert.alert("공개 대기 가격 삭제","이 검증 가격 후보를 영구 삭제할까요? 공개된 가격 이력에는 영향을 주지 않습니다.",[
+      {text:"취소",style:"cancel"},
+      {text:"영구 삭제",style:"destructive",onPress:async()=>{
+        setEvidenceBusy(true);
+        const {error}=await supabase!.from("studio_blog_evidence_candidates").delete().eq("id",item.id).eq("review_status","verified").eq("candidate_type","price");
+        if(error)Alert.alert("가격 후보 삭제 실패",error.message);
+        else {setVerifiedPriceRows(current=>current.filter(row=>row.id!==item.id));setSelectedPriceIds(current=>current.filter(id=>id!==item.id));setVerifiedPriceTotal(value=>Math.max(0,value-1));Alert.alert("삭제 완료","공개 대기 가격 후보를 삭제했습니다.");}
+        setEvidenceBusy(false);
+      }}
+    ]);
+  };
+
   const deleteScheduleCandidate=async(item:EvidenceCandidate)=>{
     if(!supabase)return;
     Alert.alert("시간표 후보 삭제","검증된 시간표 후보를 영구 삭제할까요? 공개된 자료는 별도 공개 이력에서 삭제해야 합니다.",[
@@ -960,14 +1091,14 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       ["공개 시간표",dashboard.public_schedules?.active??0,"활성 자료"],
       ["지역 발견",dashboard.discovery?.last_inserted??0,"최근 실행 신규 발견"]
     ].map(([label,value,caption])=><View key={String(label)} style={styles.statCard}><Text style={styles.statLabel}>{label}</Text><Text style={styles.statValue}>{Number(value).toLocaleString("ko-KR")}</Text><Text style={styles.statCaption}>{caption}</Text></View>)}</View><Text style={styles.hint}>최근 지역 탐색: {dashboard.discovery?.last_region||"실행 기록 없음"} · {dashboard.discovery?.last_run_at?new Date(dashboard.discovery.last_run_at).toLocaleString("ko-KR"):"기록 없음"}</Text>{dashboard.discovery?.last_error&&<Text style={styles.errorHint}>최근 탐색 오류: {[...new Set(String(dashboard.discovery.last_error).split(" | ").map((x:string)=>x.trim()).filter(Boolean))].join(" · ")}</Text>}<Pressable style={styles.secondary} disabled={retryBusy} onPress={retryFailedQueues}><Text style={styles.secondaryText}>{retryBusy?"재처리 요청 중…":"실패한 수집 작업 재처리"}</Text></Pressable></>:<Text style={styles.hint}>통계를 불러오는 중입니다.</Text>}</View>
-    <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>최근 탐색 오류 · 중복 통합 {discoveryErrorRows.length}개</Text><Pressable onPress={loadDashboard}><Text style={styles.refresh}>새로고침</Text></Pressable></View>{discoveryErrorRows.map((item:any,index:number)=><View key={"discovery-error-"+index} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.region_name} · {new Date(item.queried_at).toLocaleString("ko-KR")} · 최근 40건 중 {item.count}회</Text><Text style={styles.errorHint}>{item.error}</Text></View>)}{!discoveryErrorRows.length&&!dashboardBusy&&<Text style={styles.hint}>최근 탐색 오류가 없습니다.</Text>}</View><View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>학원 정보 사용자 제보 ({reportRows.filter(r=>r.status==="pending"||r.status==="in_review").length})</Text><Pressable onPress={loadReports}><Text style={styles.refresh}>{reportsBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{reportsError?<View><Text style={styles.hint}>제보 조회 오류: {reportsError}</Text><Pressable onPress={loadReports}><Text style={styles.action}>다시 시도</Text></Pressable></View>:reportRows.length?reportRows.map(report=><View key={"report-"+report.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{report.studio_name||"학원"} · {report.category} · {new Date(report.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.evidenceText}>{report.description}</Text><Text style={styles.rowMeta}>상태: {report.status==="pending"?"대기":report.status==="in_review"?"검토 중":report.status==="resolved"?"처리 완료":"기각"}</Text>{(report.status==="pending"||report.status==="in_review")&&<View style={styles.rowActions}><Pressable onPress={()=>updateReportStatus(report.id,"in_review")}><Text style={styles.action}>검토 중</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"resolved")}><Text style={styles.action}>처리 완료</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"rejected")}><Text style={styles.reject}>기각</Text></Pressable></View>}</View>):<Text style={styles.hint}>접수된 제보가 없습니다.</Text>}</View>
+    <View style={styles.panel}><View style={styles.listHead}><View style={{flex:1,minWidth:0}}><Text style={styles.heading}>탐색 오류 기록</Text><Text style={styles.hint}>최근 오류 {discoveryErrorRows.length}종 · 중복 통합 실행 기록은 초기화할 수 있습니다.</Text></View><View style={{flexDirection:"row",gap:12}}><Pressable onPress={loadDashboard}><Text style={styles.refresh}>새로고침</Text></Pressable><Pressable onPress={clearDiscoveryHistory} disabled={dashboardBusy}><Text style={[styles.refresh,{color:"#B95764"}]}>기록 초기화</Text></Pressable></View></View>{discoveryErrorRows.map((item:any,index:number)=><View key={"discovery-error-"+index} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.region_name} · {new Date(item.queried_at).toLocaleString("ko-KR")} · 최근 40건 중 {item.count}회</Text><Text style={styles.errorHint}>{item.error}</Text></View>)}{!discoveryErrorRows.length&&!dashboardBusy&&<Text style={styles.hint}>최근 탐색 오류가 없습니다.</Text>}</View><View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>학원 정보 사용자 제보 ({reportRows.filter(r=>r.status==="pending"||r.status==="in_review").length})</Text><Pressable onPress={loadReports}><Text style={styles.refresh}>{reportsBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{reportsError?<View><Text style={styles.hint}>제보 조회 오류: {reportsError}</Text><Pressable onPress={loadReports}><Text style={styles.action}>다시 시도</Text></Pressable></View>:reportRows.length?reportRows.map(report=><View key={"report-"+report.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{report.studio_name||"학원"} · {report.category} · {new Date(report.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.evidenceText}>{report.description}</Text><Text style={styles.rowMeta}>상태: {report.status==="pending"?"대기":report.status==="in_review"?"검토 중":report.status==="resolved"?"처리 완료":"기각"}</Text>{(report.status==="pending"||report.status==="in_review")&&<View style={styles.rowActions}><Pressable onPress={()=>updateReportStatus(report.id,"in_review")}><Text style={styles.action}>검토 중</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"resolved")}><Text style={styles.action}>처리 완료</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"rejected")}><Text style={styles.reject}>기각</Text></Pressable></View>}</View>):<Text style={styles.hint}>접수된 제보가 없습니다.</Text>}</View>
         </>}
     {adminTab==="publish"&&<>
-<View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 중인 가격 · {activePublicPrices.length}건</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 가격</Text><Text style={styles.compactAction}>관리</Text></View>{activePublicPrices.slice(0,100).map((price,index)=><View key={"active-price-"+price.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{price.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{Number(price.amount_krw).toLocaleString("ko-KR")}원 · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Pressable onPress={()=>uploadMaterialPhotos("price",price)} disabled={evidenceBusy}><Text style={styles.compactAction}>사진 추가 · {Array.isArray(price.image_urls)?price.image_urls.length:0}/8장</Text></Pressable></View><Pressable onPress={()=>deactivatePublicPrice(price)} disabled={evidenceBusy}><Text style={styles.compactAction}>중단</Text></Pressable></View>)}{!activePublicPrices.length&&!evidenceBusy&&<Text style={styles.hint}>현재 공개 중인 가격이 없습니다.</Text>}</View>
-<View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 완료 시간표 이력 · {activePublicSchedules.length}건{duplicatePublicScheduleCount>0?" · 중복 "+duplicatePublicScheduleCount+"건 숨김":""}</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>공개 완료·중단·만료 자료는 이곳에서만 관리합니다. 공개 이력이 있는 후보는 대기 목록에서 제외됩니다.</Text><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원명 · 등록 시간표 수</Text><Text style={styles.compactAction}>상세</Text></View>{[...new Map(activePublicSchedules.map((item:any)=>[item.studio_id,{studio_id:item.studio_id,studio_name:item.studio_name}])).values()].map((studio:any,index)=><View key={"active-schedule-studio-"+studio.studio_id}><View style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary}>{studio.studio_name||"학원명 미확인"}</Text><Text style={styles.compactSecondary}>{activePublicSchedules.filter((x:any)=>x.studio_id===studio.studio_id).length}개 이력</Text></View><Pressable onPress={()=>setExpandedPublicScheduleStudioId(id=>id===studio.studio_id?null:studio.studio_id)}><Text style={styles.compactAction}>{expandedPublicScheduleStudioId===studio.studio_id?"접기":"상세 보기"}</Text></Pressable></View>{expandedPublicScheduleStudioId===studio.studio_id&&<View style={styles.compactExpanded}>{activePublicSchedules.filter((x:any)=>x.studio_id===studio.studio_id).map((item:any)=><View key={"public-schedule-detail-"+item.id} style={styles.compactTableRow}><View style={styles.compactMain}><Text style={styles.compactPrimary}>{String(item.schedule_text||"내용 없음")}</Text><Text style={styles.compactSecondary}>게시일 {item.source_post_date||"미확인"} · 사진 {Array.isArray(item.image_urls)?item.image_urls.length:0}/8 · {item.is_active&&(!item.expires_at||item.expires_at>=seoulDate())?"공개 중":item.is_active?"만료":"공개 중단"}</Text><Pressable onPress={()=>uploadMaterialPhotos("schedule",item)} disabled={evidenceBusy}><Text style={styles.compactAction}>사진 추가</Text></Pressable></View>{item.is_active&&(!item.expires_at||item.expires_at>=seoulDate())&&<Pressable onPress={()=>deactivatePublicSchedule(item)} disabled={evidenceBusy}><Text style={[styles.compactAction,{color:"#B95764"}]}>중단</Text></Pressable>}<Pressable onPress={()=>deletePublicSchedule(item)} disabled={evidenceBusy}><Text style={[styles.compactAction,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}</View>}</View>)}{!activePublicSchedules.length&&!evidenceBusy&&<Text style={styles.hint}>공개 이력이 없습니다.</Text>}</View>
-<View style={styles.panel}><View style={{gap:8}}><View style={styles.listHead}><Text style={styles.heading}>공개 대기 시간표</Text><Pressable onPress={loadEvidence} disabled={evidenceBusy}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>공개 이력이 없는 검증 후보만 표시합니다. 동일 학원·동일 시간표 내용은 한 건으로 묶어 중복 노출을 줄였습니다.</Text><View style={styles.reviewToolbar}><Pressable style={styles.toolbarButton} disabled={evidenceBusy||!verifiedScheduleRows.some(item=>!publishedScheduleCandidateIds.includes(item.id))} onPress={()=>setSelectedScheduleIds(verifiedScheduleRows.filter(item=>!publishedScheduleCandidateIds.includes(item.id)).filter((item,index,arr)=>arr.findIndex(other=>other.studio_id===item.studio_id&&normalizeScheduleKey(other.normalized_value||other.candidate_value)===normalizeScheduleKey(item.normalized_value||item.candidate_value))===index).map(item=>item.id))}><Text style={styles.secondaryText}>전체 선택</Text></Pressable><Pressable style={styles.toolbarButton} disabled={evidenceBusy||!selectedScheduleIds.length} onPress={()=>setSelectedScheduleIds([])}><Text style={styles.secondaryText}>선택 해제</Text></Pressable><Pressable style={[styles.toolbarButton,{backgroundColor:c.purple,borderColor:c.purple}]} disabled={evidenceBusy||!selectedScheduleIds.length} onPress={publishScheduleBatch}><Text style={{color:"#fff",fontWeight:"800"}}>선택 {selectedScheduleIds.length}개 공개</Text></Pressable></View><Text style={styles.hint}>공개 대기 {verifiedScheduleRows.filter(item=>!publishedScheduleCandidateIds.includes(item.id)).filter((item,index,arr)=>arr.findIndex(other=>other.studio_id===item.studio_id&&normalizeScheduleKey(other.normalized_value||other.candidate_value)===normalizeScheduleKey(item.normalized_value||item.candidate_value))===index).length}건 · 선택 {selectedScheduleIds.length}건</Text></View>{verifiedScheduleRows.filter(item=>!publishedScheduleCandidateIds.includes(item.id)).filter((item,index,arr)=>arr.findIndex(other=>other.studio_id===item.studio_id&&normalizeScheduleKey(other.normalized_value||other.candidate_value)===normalizeScheduleKey(item.normalized_value||item.candidate_value))===index).map((item,index)=><View key={"verified-schedule-"+item.id} style={styles.scheduleReviewCard}><View style={styles.scheduleReviewHeader}><Text style={styles.scheduleReviewIndex}>#{index+1}</Text><View style={{flex:1,minWidth:0}}><Text style={styles.compactPrimary} numberOfLines={2}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={3}>{String(item.normalized_value||item.candidate_value||item.evidence_text||"내용 없음").replace(/^OCR#\d+\s*/i,"")}</Text><Text style={styles.compactSecondary}>{item.source_post_date?"게시일 "+item.source_post_date:"게시일 미확인"}</Text></View></View><View style={styles.scheduleReviewActions}><Pressable style={styles.scheduleReviewButton} disabled={evidenceBusy} onPress={()=>setSelectedScheduleIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.scheduleReviewButtonText}>{selectedScheduleIds.includes(item.id)?"선택됨":"선택"}</Text></Pressable><Pressable style={styles.scheduleReviewButton} disabled={!item.source_url} onPress={()=>item.source_url&&Linking.openURL(item.source_url).catch(()=>Alert.alert("원문 확인","주소를 열 수 없습니다."))}><Text style={styles.scheduleReviewButtonText}>원문 확인</Text></Pressable><Pressable style={[styles.scheduleReviewButton,{borderColor:"#E8C9CE"}]} disabled={evidenceBusy} onPress={()=>deleteScheduleCandidate(item)}><Text style={[styles.scheduleReviewButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View></View>)}{!verifiedScheduleRows.filter(item=>!publishedScheduleCandidateIds.includes(item.id)).length&&!evidenceBusy&&<Text style={styles.hint}>공개 대기 시간표가 없습니다. 검토 완료된 후보를 확인하거나 최신 자료를 수집해 주세요.</Text>}</View>
+<View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 가격</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 가격</Text><Text style={styles.compactAction}>관리</Text></View>{activePublicPrices.slice(0,100).map((price,index)=><View key={"active-price-"+price.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{price.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{Number(price.amount_krw).toLocaleString("ko-KR")}원 · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Pressable onPress={()=>uploadMaterialPhotos("price",price)} disabled={evidenceBusy}><Text style={styles.compactAction}>사진 추가 · {Array.isArray(price.image_urls)?price.image_urls.length:0}/8장</Text></Pressable></View><Pressable onPress={()=>deactivatePublicPrice(price)} disabled={evidenceBusy}><Text style={styles.compactAction}>중단</Text></Pressable></View>)}{!activePublicPrices.length&&!evidenceBusy&&<Text style={styles.hint}>현재 공개 중인 가격이 없습니다.</Text>}{publicPriceOffset<publicPriceTotal&&<Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>loadMorePublicPage("price")}><Text style={styles.secondaryText}>가격 이력 100개 더 보기</Text></Pressable>}</View>
+<View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 시간표 이력</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>전체 이력 {publicScheduleTotal.toLocaleString("ko-KR")}건 · 현재 표시 {activePublicSchedules.length}건 · 중복 숨김 {duplicatePublicScheduleCount}건</Text><Text style={styles.hint}>공개 완료·중단·만료 자료를 관리합니다.</Text><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원명 · 등록 시간표 수</Text><Text style={styles.compactAction}>상세</Text></View>{[...new Map(activePublicSchedules.map((item:any)=>[item.studio_id,{studio_id:item.studio_id,studio_name:item.studio_name}])).values()].map((studio:any,index)=><View key={"active-schedule-studio-"+studio.studio_id}><View style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary}>{studio.studio_name||"학원명 미확인"}</Text><Text style={styles.compactSecondary}>{activePublicSchedules.filter((x:any)=>x.studio_id===studio.studio_id).length}개 이력</Text></View><Pressable onPress={()=>setExpandedPublicScheduleStudioId(id=>id===studio.studio_id?null:studio.studio_id)}><Text style={styles.compactAction}>{expandedPublicScheduleStudioId===studio.studio_id?"접기":"상세 보기"}</Text></Pressable></View>{expandedPublicScheduleStudioId===studio.studio_id&&<View style={styles.compactExpanded}>{activePublicSchedules.filter((x:any)=>x.studio_id===studio.studio_id).map((item:any)=><View key={"public-schedule-detail-"+item.id} style={styles.compactTableRow}><View style={styles.compactMain}><Text style={styles.compactPrimary}>{String(item.schedule_text||"내용 없음")}</Text><Text style={styles.compactSecondary}>게시일 {item.source_post_date||"미확인"} · 사진 {Array.isArray(item.image_urls)?item.image_urls.length:0}/8 · {item.is_active&&(!item.expires_at||item.expires_at>=seoulDate())?"공개 중":item.is_active?"만료":"공개 중단"}</Text><Pressable onPress={()=>uploadMaterialPhotos("schedule",item)} disabled={evidenceBusy}><Text style={styles.compactAction}>사진 추가</Text></Pressable></View>{item.is_active&&(!item.expires_at||item.expires_at>=seoulDate())&&<Pressable onPress={()=>deactivatePublicSchedule(item)} disabled={evidenceBusy}><Text style={[styles.compactAction,{color:"#B95764"}]}>중단</Text></Pressable>}<Pressable onPress={()=>deletePublicSchedule(item)} disabled={evidenceBusy}><Text style={[styles.compactAction,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}</View>}</View>)}{!activePublicSchedules.length&&!evidenceBusy&&<Text style={styles.hint}>공개 이력이 없습니다.</Text>}{publicScheduleOffset<publicScheduleTotal&&<Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>loadMorePublicPage("schedule")}><Text style={styles.secondaryText}>시간표 이력 100개 더 보기</Text></Pressable>}</View>
+<View style={styles.panel}><View style={{gap:8}}><View style={styles.listHead}><Text style={styles.heading}>공개 대기 시간표</Text><Pressable onPress={loadEvidence} disabled={evidenceBusy}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>공개 이력이 없는 검증 후보만 표시합니다. 동일 학원·동일 시간표 내용은 한 건으로 묶어 중복 노출을 줄였습니다.</Text><View style={styles.reviewToolbar}><Pressable style={styles.toolbarButton} disabled={evidenceBusy||!verifiedScheduleRows.some(item=>!publishedScheduleCandidateIds.includes(item.id))} onPress={()=>setSelectedScheduleIds(verifiedScheduleRows.filter(item=>!publishedScheduleCandidateIds.includes(item.id)).filter((item,index,arr)=>arr.findIndex(other=>other.studio_id===item.studio_id&&normalizeScheduleKey(other.normalized_value||other.candidate_value)===normalizeScheduleKey(item.normalized_value||item.candidate_value))===index).map(item=>item.id))}><Text style={styles.secondaryText}>전체 선택</Text></Pressable><Pressable style={styles.toolbarButton} disabled={evidenceBusy||!selectedScheduleIds.length} onPress={()=>setSelectedScheduleIds([])}><Text style={styles.secondaryText}>선택 해제</Text></Pressable><Pressable style={[styles.toolbarButton,{backgroundColor:c.purple,borderColor:c.purple}]} disabled={evidenceBusy||!selectedScheduleIds.length} onPress={publishScheduleBatch}><Text style={{color:"#fff",fontWeight:"800"}}>선택 {selectedScheduleIds.length}개 공개</Text></Pressable></View><Text style={styles.hint}>전체 {verifiedScheduleTotal.toLocaleString("ko-KR")}건 · 현재 {verifiedScheduleRows.length}건 · 선택 {selectedScheduleIds.length}건</Text></View>{verifiedScheduleRows.filter(item=>!publishedScheduleCandidateIds.includes(item.id)).filter((item,index,arr)=>arr.findIndex(other=>other.studio_id===item.studio_id&&normalizeScheduleKey(other.normalized_value||other.candidate_value)===normalizeScheduleKey(item.normalized_value||item.candidate_value))===index).map((item,index)=><View key={"verified-schedule-"+item.id} style={styles.scheduleReviewCard}><View style={styles.scheduleReviewHeader}><Text style={styles.scheduleReviewIndex}>#{index+1}</Text><View style={{flex:1,minWidth:0}}><Text style={styles.compactPrimary} numberOfLines={2}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={3}>{String(item.normalized_value||item.candidate_value||item.evidence_text||"내용 없음").replace(/^OCR#\d+\s*/i,"")}</Text><Text style={styles.compactSecondary}>{item.source_post_date?"게시일 "+item.source_post_date:"게시일 미확인"}</Text></View></View><View style={styles.scheduleReviewActions}><Pressable style={styles.scheduleReviewButton} disabled={evidenceBusy} onPress={()=>setSelectedScheduleIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.scheduleReviewButtonText}>{selectedScheduleIds.includes(item.id)?"선택됨":"선택"}</Text></Pressable><Pressable style={styles.scheduleReviewButton} disabled={!item.source_url} onPress={()=>item.source_url&&Linking.openURL(item.source_url).catch(()=>Alert.alert("원문 확인","주소를 열 수 없습니다."))}><Text style={styles.scheduleReviewButtonText}>원문 확인</Text></Pressable><Pressable style={[styles.scheduleReviewButton,{borderColor:"#E8C9CE"}]} disabled={evidenceBusy} onPress={()=>deleteScheduleCandidate(item)}><Text style={[styles.scheduleReviewButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View></View>)}{!verifiedScheduleRows.filter(item=>!publishedScheduleCandidateIds.includes(item.id)).length&&!evidenceBusy&&<Text style={styles.hint}>공개 대기 시간표가 없습니다.</Text>}{verifiedScheduleOffset<verifiedScheduleTotal&&<Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>loadMoreVerifiedPage("schedule")}><Text style={styles.secondaryText}>시간표 후보 100개 더 보기</Text></Pressable>}</View>
 <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>시간표 등록 후보 · {scheduleClassCandidates.length}건</Text><Pressable onPress={loadScheduleClassCandidates}><Text style={styles.refresh}>새로고침</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 수업</Text><Text style={styles.compactAction}>상세</Text></View>{scheduleClassCandidates.slice(0,100).map((candidate,index)=><View key={"class-candidate-"+candidate.id}><View style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{candidate.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{candidateTitles[candidate.id]||candidate.proposed_title} · {(candidate.sessions||[]).length}개 세션</Text></View><Pressable onPress={()=>setExpandedScheduleCandidateId(id=>id===candidate.id?null:candidate.id)}><Text style={styles.compactAction}>{expandedScheduleCandidateId===candidate.id?"접기":"상세"}</Text></Pressable></View>{expandedScheduleCandidateId===candidate.id&&<View style={styles.compactExpanded}><TextInput style={styles.input} value={candidateTitles[candidate.id]??candidate.proposed_title} onChangeText={value=>setCandidateTitles(current=>({...current,[candidate.id]:value}))} placeholder="수업명"/><TextInput style={[styles.input,{minHeight:84,textAlignVertical:"top"}]} multiline value={candidateSessions[candidate.id]??(candidate.sessions||[]).map((x:any)=>[x.weekday,x.start_time,x.end_time||"",x.note||""].join(",")).join("\n")} onChangeText={value=>setCandidateSessions(current=>({...current,[candidate.id]:value}))} placeholder="요일번호,시작,종료,메모"/><Pressable onPress={()=>Linking.openURL(candidate.source_url)}><Text style={styles.action}>원문 확인</Text></Pressable><View style={styles.buttons}><Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>rejectScheduleClassCandidate(candidate)}><Text style={styles.secondaryText}>제외</Text></Pressable><Pressable style={styles.button} disabled={evidenceBusy} onPress={()=>createClassFromScheduleCandidate(candidate)}><Text style={styles.buttonText}>확인 후 수업 등록</Text></Pressable></View></View>}</View>)}{!scheduleClassCandidates.length&&!evidenceBusy&&<Text style={styles.hint}>등록 후보가 없습니다.</Text>}</View>
-<View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 대기 가격 · {verifiedPriceRows.length}건</Text><Pressable onPress={()=>setSelectedPriceIds(verifiedPriceRows.filter(item=>!publishedCandidateIds.includes(item.id)).map(item=>item.id))}><Text style={styles.refresh}>전체 선택</Text></Pressable><Pressable onPress={()=>setSelectedPriceIds([])}><Text style={styles.refresh}>해제</Text></Pressable><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Pressable style={styles.button} disabled={evidenceBusy||!selectedPriceIds.length} onPress={publishPriceBatch}><Text style={styles.buttonText}>선택 {selectedPriceIds.length}개 공개</Text></Pressable><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 가격</Text><Text style={styles.compactAction}>선택</Text></View>{verifiedPriceRows.slice(0,100).map((item,index)=><View key={"verified-price-"+item.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><Pressable style={styles.compactMain} onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.compactPrimary} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{Number(item.normalized_value||0).toLocaleString("ko-KR")}원 · {item.price_period||"기간 미확인"}</Text></Pressable><Pressable onPress={()=>setSelectedPriceIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.compactAction}>{selectedPriceIds.includes(item.id)?"☑":"□"}</Text></Pressable></View>)}{!verifiedPriceRows.length&&!evidenceBusy&&<Text style={styles.hint}>공개 대기 가격이 없습니다.</Text>}</View>
+<View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 대기 가격</Text><Pressable onPress={()=>setSelectedPriceIds(verifiedPriceRows.filter(item=>!publishedCandidateIds.includes(item.id)).map(item=>item.id))}><Text style={styles.refresh}>전체 선택</Text></Pressable><Pressable onPress={()=>setSelectedPriceIds([])}><Text style={styles.refresh}>해제</Text></Pressable><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>전체 {verifiedPriceTotal.toLocaleString("ko-KR")}건 · 현재 {verifiedPriceRows.length}건 · 선택 {selectedPriceIds.length}건</Text><Pressable style={styles.button} disabled={evidenceBusy||!selectedPriceIds.length} onPress={publishPriceBatch}><Text style={styles.buttonText}>선택 {selectedPriceIds.length}개 공개</Text></Pressable><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 가격</Text><Text style={styles.compactAction}>선택</Text></View>{verifiedPriceRows.slice(0,100).map((item,index)=><View key={"verified-price-"+item.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><Pressable style={styles.compactMain} onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.compactPrimary} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{Number(item.normalized_value||0).toLocaleString("ko-KR")}원 · {item.price_period||"기간 미확인"}</Text></Pressable><View style={{gap:8,alignItems:"center"}}><Pressable onPress={()=>setSelectedPriceIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.compactAction}>{selectedPriceIds.includes(item.id)?"☑":"□"}</Text></Pressable><Pressable onPress={()=>deletePriceCandidate(item)} disabled={evidenceBusy}><Text style={[styles.compactAction,{color:"#B95764"}]}>삭제</Text></Pressable></View></View>)}{!verifiedPriceRows.length&&!evidenceBusy&&<Text style={styles.hint}>공개 대기 가격이 없습니다.</Text>}{verifiedPriceOffset<verifiedPriceTotal&&<Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>loadMoreVerifiedPage("price")}><Text style={styles.secondaryText}>가격 후보 100개 더 보기</Text></Pressable>}</View>
         </>}
     {adminTab==="review"&&<View style={{gap:12}}>
 <View style={styles.panel}><View style={{gap:8}}><Text style={styles.heading}>자료 검토</Text><Text style={styles.hint}>최근 {evidenceRows.length}건 표시 · 전체 대기 {totalEvidencePending}건</Text><View style={styles.reviewToolbar}><Pressable style={styles.toolbarButton} onPress={()=>setSelectedEvidenceIds(evidenceRows.map(row=>row.id))}><Text style={styles.secondaryText}>전체 선택</Text></Pressable><Pressable style={styles.toolbarButton} onPress={()=>setSelectedEvidenceIds([])}><Text style={styles.secondaryText}>선택 해제</Text></Pressable><Pressable style={styles.toolbarButton} onPress={loadEvidence}><Text style={styles.secondaryText}>새로고침</Text></Pressable></View></View><View style={styles.buttons}><Pressable style={styles.secondary} disabled={evidenceBusy||!selectedEvidenceIds.length} onPress={()=>reviewEvidenceBatch("rejected")}><Text style={styles.secondaryText}>선택 {selectedEvidenceIds.length}개 제외</Text></Pressable><Pressable style={styles.button} disabled={evidenceBusy||!selectedEvidenceIds.length} onPress={()=>reviewEvidenceBatch("verified")}><Text style={styles.buttonText}>선택 {selectedEvidenceIds.length}개 근거 확인</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 유형 · 요약</Text><Text style={styles.compactAction}>선택</Text></View>{evidenceBusy&&<ActivityIndicator color={c.purple}/>}{evidenceRows.slice(0,100).map((item,index)=><View key={item.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{item.candidate_type==="price"?"가격":"시간표"} · {item.candidate_type==="price"&&item.normalized_value?Number(item.normalized_value).toLocaleString("ko-KR")+"원 · "+(item.price_period||"기간 미확인"):(item.normalized_value||item.candidate_value||item.evidence_text||"내용 없음")}</Text><Text style={styles.compactSecondary} numberOfLines={1}>게시일 {item.source_post_date||"미확인"} · 신뢰도 {Math.round(item.confidence*100)}%</Text></View><Pressable onPress={()=>setSelectedEvidenceIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.compactAction}>{selectedEvidenceIds.includes(item.id)?"☑":"□"}</Text></Pressable></View>)}{!evidenceRows.length&&!evidenceBusy&&<Text style={styles.hint}>검토 대기 자료가 없습니다.</Text>}</View>
@@ -985,7 +1116,7 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       <Text style={styles.compactSecondary} numberOfLines={1}>{item.source_host||"출처 미확인"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text>
       <Pressable onPress={()=>Linking.openURL(item.source_page_url).catch(()=>Alert.alert("출처 확인","원본 페이지를 열 수 없습니다."))}><Text style={styles.action}>원본 홈페이지 확인 ↗</Text></Pressable>
       <View style={styles.buttons}>
-        <Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.secondaryText}>제외</Text></Pressable>
+        <Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.secondaryText}>제외</Text></Pressable><Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={()=>deletePhotoCandidate(item)}><Text style={styles.secondaryText}>영구 삭제</Text></Pressable>
         <Pressable style={styles.button} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.buttonText}>사진 승인</Text></Pressable>
       </View>
     </View>
@@ -995,7 +1126,7 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
 
     </View>}
     {adminTab==="studios"&&<>
-<View style={styles.panel}><Text style={styles.heading}>{editing?"학원 정보 수정":"학원 등록"}</Text>{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}{field("사진 URL (최대 10개, 줄바꿈 구분)","image_urls")}{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
+<View style={styles.panel}><Text style={styles.heading}>{editing?"학원 정보 수정":"학원 등록"}</Text>{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}{field("사진 URL (최대 10개, 줄바꿈 구분)","image_urls")}{editing&&form.image_urls.split(/[\\n,]+/).map(value=>value.trim()).filter(Boolean).map((url,index)=><View key={"edit-photo-"+index} style={styles.row}><Image source={{uri:url}} style={{width:62,height:52,borderRadius:8,backgroundColor:c.bg}} resizeMode="cover"/><Text style={[styles.compactSecondary,{flex:1}]} numberOfLines={1}>사진 {index+1}</Text><Pressable onPress={()=>removeStudioGalleryPhoto(editing,url)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
     </View>
