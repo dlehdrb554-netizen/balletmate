@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
     }
     for (const tag of page.html.match(/<img\b[^>]*>/gi) ?? []) {
       const value = attr(tag, "src") || attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "data-original") || attr(tag, "data-lazyload");
-      if (value) imageCandidates.push(value);
+      if (value) pageImageCandidates.push(value);
       const srcset = attr(tag, "srcset");
       if (srcset) pageImageCandidates.push(srcset.split(",")[0].trim().split(/\s+/)[0]);
     }
