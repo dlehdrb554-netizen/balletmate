@@ -130,15 +130,15 @@ Deno.serve(async(req)=>{
     const response=await fetch(api.toString(),{headers:{Authorization:"KakaoAK "+kakaoKey},signal:AbortSignal.timeout(8000)});
     if(!response.ok){regionHasError=true;addError(term+" HTTP "+response.status);break;}
     const payload=await response.json(),docs=payload?.documents??[];
-    resultCount+=docs.length;
     for(const item of docs){
      const name=String(item.place_name||"").trim(),category=String(item.category_name||"");
      if(!name||(!name.includes("발레")&&!category.includes("발레")))continue;
      const lat=Number(item.y),lng=Number(item.x);
      if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
      const identity=String(item.id||[name,lat.toFixed(5),lng.toFixed(5)].join("|"));
-     if(seen.has(identity))continue;
+     if(seen.has(identity)){duplicateCount++;continue;}
      seen.add(identity);
+     resultCount++;
      const address=item.road_address_name||item.address_name||null;
      const {data,error}=await db.rpc("register_discovered_studio",{p_name:name,p_latitude:lat,p_longitude:lng,p_address:address,p_phone:item.phone||null,p_place_url:item.place_url||null,p_region:region.region_name});
      if(error){regionHasError=true;addError(error.message.slice(0,160));}
