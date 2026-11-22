@@ -190,7 +190,8 @@ export default function Admin() {
   };
 
   const createClassFromScheduleCandidate=async(candidate:any)=>{
-    const client=supabase;\n    if(!client)return;
+    const client=supabase;
+    if(!client)return;
     const title=(candidateTitles[candidate.id]||candidate.proposed_title||"").trim();
     const sessions=Array.isArray(candidate.sessions)?candidate.sessions:[];
     if(!title||!sessions.length){Alert.alert("확인 필요","수업명과 시간표가 필요합니다.");return;}
