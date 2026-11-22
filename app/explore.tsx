@@ -266,14 +266,14 @@ export default function Home() {
     }
     try{
       let geocoded:Location.LocationGeocodedLocation[]=[];
-      const candidates=[query+" 대한민국",query+" 경기도 대한민국",query+" 서울 대한민국"];
+      const candidates=[query+" 대한민국",query+"역 대한민국",query+" 사거리 대한민국",query+" 경기도 대한민국",query+" 서울 대한민국",query+" 강북구 서울 대한민국"];
       for(const candidate of candidates){try{geocoded=await Location.geocodeAsync(candidate);if(geocoded.length)break;}catch{}}
       if(geocoded.length){
         const next={latitude:geocoded[0].latitude,longitude:geocoded[0].longitude,latitudeDelta:0.035,longitudeDelta:0.035};
         map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);
         return;
       }
-      Alert.alert("검색 결과 없음","학원명 또는 지역을 찾지 못했습니다. 학원명만 입력하거나 '학원명 + 지역'으로 검색해 주세요.");
+      Alert.alert("검색 결과 없음","입력한 학원명·역명·아파트명을 지도 위치 검색으로 찾지 못했습니다. 역명은 '미아사거리역'처럼, 아파트는 구·동을 함께 입력하면 정확도가 높아집니다.");
     }catch(error){console.warn("Search location geocoding failed:",error);Alert.alert("지역 검색","지역 위치를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");}
   };
   const locate=async()=>{
