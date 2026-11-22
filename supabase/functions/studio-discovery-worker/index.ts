@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
-const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레"];
+const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레","발레교습소","발레아카데미","무용학원"];
 const MAX_PAGES_PER_TERM=3;
 const PAGE_SIZE=15;
 
