@@ -34,7 +34,7 @@ const classifyPhotoCandidate=(item:any)=>{
   const reasons:string[]=[];
   if(suspectPatterns.some(pattern=>pattern.test(source)))reasons.push("아이콘·배너·홍보물 의심");
   if(/(face|people|person|student|kids|child|portrait|selfie|수강생|학생|아이들|인물|얼굴)/i.test(source))reasons.push("인물 사진 의심");
-  if(/\\b(ad|ads|promo|event|coupon|promotion)\\b|할인|이벤트/i.test(source))reasons.push("광고 이미지 의심");
+  if(/\b(ad|ads|promo|event|coupon|promotion)\b|할인|이벤트/i.test(source))reasons.push("광고 이미지 의심");
   return {suspect:reasons.length>0,reasons,priority:reasons.length===0};
 };
 
