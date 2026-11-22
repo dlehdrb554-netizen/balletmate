@@ -45,6 +45,9 @@ jobs:
       - name: Deploy studio discovery worker
         run: supabase functions deploy studio-discovery-worker --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
+      - name: Deploy Kakao studio search
+        run: supabase functions deploy search-studios-kakao --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+
       - name: Deploy studio image crawl worker
         run: supabase functions deploy crawl-studio-worker --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
