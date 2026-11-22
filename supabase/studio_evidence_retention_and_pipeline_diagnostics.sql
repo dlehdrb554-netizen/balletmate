@@ -78,7 +78,7 @@ BEGIN
 END $$;
 
 -- Increase the sequential post-body crawl batch modestly to 3 per 5 minutes.
-DO $
+DO $$
 DECLARE j record;
 BEGIN
   FOR j IN SELECT jobid FROM cron.job WHERE jobname='balletmate-naver-blog-post-crawl'
@@ -96,7 +96,7 @@ BEGIN
       );
     $job$
   );
-END $;
+END $$;
 
 -- Include pipeline counters in the admin dashboard response to identify where accumulation stops.
 CREATE OR REPLACE FUNCTION public.balletmate_admin_dashboard_stats()
