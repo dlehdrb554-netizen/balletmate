@@ -6,10 +6,10 @@ function stripHtml(value:unknown):string{
  return String(value||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
 }
 async function findHomepageCandidate(name:string,address:string|null,clientId:string,clientSecret:string):Promise<{url:string|null;error:string|null}>{
- const queries=[name+" "+(address||"")+" 발레학원 홈페이지",'"'+name+'" 발레 공식 사이트'];
+ const queries=[name+" "+(address||"")+" 발레학원 홈페이지",'"'+name+'" 발레 공식 홈페이지',name+" ballet studio official website",(address||"")+" "+name+" ballet studio"];
  const target=normalize(name);
  const tokens=name.split(/[\s·()\-_/]+/).map(normalize).filter(x=>x.length>=2&&!["발레","학원","스튜디오","아카데미","무용","키즈","성인","핏","교습소"].includes(x));
- const excluded=["naver.com","kakao.com","instagram.com","facebook.com","youtube.com","tiktok.com","blogspot.com","tistory.com","linktr.ee","google.com","threads.net","x.com"];
+ const excluded=["naver.com","kakao.com","instagram.com","facebook.com","youtube.com","tiktok.com","blogspot.com","tistory.com","linktr.ee","google.com","threads.net","x.com","prompie.com","classup.io","hakwonindex.com","learns.academy","hakwonsin.co.kr","oncbt.com"];
  for(const query of queries){
   try{
    const api=new URL("https://openapi.naver.com/v1/search/webkr.json");
@@ -27,8 +27,10 @@ async function findHomepageCandidate(name:string,address:string|null,clientId:st
     const titleNorm=normalize(title),descNorm=normalize(desc),combined=titleNorm+" "+descNorm;
     const exactName=target.length>=3&&(titleNorm.includes(target)||descNorm.includes(target));
     const allNameTokens=tokens.length>0&&tokens.every(token=>combined.includes(token));
-    const meaningfulOverlap=tokens.length>=2&&tokens.filter(token=>combined.includes(token)).length>=2&&combined.includes("발레");
-    if(exactName||allNameTokens||meaningfulOverlap)return {url:link,error:null};
+    const meaningfulOverlap=tokens.length>=2&&tokens.filter(token=>combined.includes(token)).length>=2&&/(발레|ballet)/i.test(title+" "+desc);
+    const addressTokens=String(address||"").split(/[\\s,]+/).map(normalize).filter(token=>token.length>=3&&!/^(서울|인천|경기|대한민국)$/.test(token));
+    const addressAndBallet=addressTokens.some(token=>combined.includes(token))&&/(발레|ballet|dance studio)/i.test(title+" "+desc);
+    if(exactName||allNameTokens||meaningfulOverlap||addressAndBallet)return {url:link,error:null};
    }
   }catch(e){return {url:null,error:e instanceof Error?e.message:"Naver request failed"};}
  }
@@ -132,7 +134,7 @@ Deno.serve(async(req)=>{
     const payload=await response.json(),docs=payload?.documents??[];
     for(const item of docs){
      const name=String(item.place_name||"").trim(),category=String(item.category_name||"");
-     if(!name||(!name.includes("발레")&&!category.includes("발레")))continue;
+     if(!name||(!/(발레|ballet)/i.test(name)&&!/(발레|ballet)/i.test(category)))continue;
      const lat=Number(item.y),lng=Number(item.x);
      if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
      const identity=String(item.id||[name,lat.toFixed(5),lng.toFixed(5)].join("|"));
