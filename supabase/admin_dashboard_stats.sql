@@ -31,12 +31,9 @@ begin
       'completed', (select count(*) from public.studio_blog_post_crawl_queue where status='completed'),
       'stalled', (select count(*) from public.studio_blog_post_crawl_queue where status='processing' and updated_at < now()-interval '20 minutes')
     ),
-    'image_crawl', jsonb_build_object(
-      'pending', (select count(*) from public.studio_image_crawl_queue where status='pending'),
-      'processing', (select count(*) from public.studio_image_crawl_queue where status='processing'),
-      'failed', (select count(*) from public.studio_image_crawl_queue where status='failed'),
-      'done', (select count(*) from public.studio_image_crawl_queue where status='done'),
-      'stalled', (select count(*) from public.studio_image_crawl_queue where status='processing' and updated_at < now()-interval '30 minutes')
+    'photos', jsonb_build_object(
+      'missing', (select count(*) from public.studios where coalesce(is_active,true) and coalesce(array_length(image_urls,1),0)=0),
+      'present', (select count(*) from public.studios where coalesce(is_active,true) and coalesce(array_length(image_urls,1),0)>0)
     ),
     'evidence', jsonb_build_object(
       'pending', (select count(*) from public.studio_blog_evidence_candidates where review_status='pending'),
