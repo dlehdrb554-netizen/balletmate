@@ -73,16 +73,10 @@ export async function fetchStudioPublicPrices(studioId:string):Promise<StudioPub
   if(inFlight)return inFlight;
   const request=(async()=>{
     const {data,error}=await supabase.from("studio_public_prices_app")
-      .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at,expires_at")
+      .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at")
       .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
     let rowsData:any=data;
-    if(error&&/expires_at|column/i.test(error.message)){
-      const fallback=await supabase.from("studio_public_prices_app")
-        .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at")
-        .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
-      if(fallback.error)throw fallback.error;
-      rowsData=fallback.data;
-    }else if(error)throw error;
+    if(error)throw error;
     const rows=(rowsData||[]) as StudioPublicPrice[];
     publicPriceCache.set(studioId,{savedAt:Date.now(),rows});
     return rows;
