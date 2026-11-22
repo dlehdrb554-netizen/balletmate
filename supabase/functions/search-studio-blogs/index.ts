@@ -81,7 +81,8 @@ Deno.serve(async (req) => {
       const searchQueries = new Set(SEARCH_SUFFIXES.map((suffix) => suffix ? `${studioQuery} ${suffix}` : studioQuery));
       const normalizedStudio = normalize(studioQuery);
       if (/(퀸스|퀸즈)/.test(studioQuery)) {
-        searchQueries.add(studioQuery.replace(/퀸스/g, "퀸즈").replace(/퀸즈/g, "퀸스"));
+        searchQueries.add(studioQuery.replace(/퀸스/g, "퀸즈"));
+        searchQueries.add(studioQuery.replace(/퀸즈/g, "퀸스"));
         searchQueries.add("퀸즈발레");
         searchQueries.add("퀸스발레");
         searchQueries.add("Queens Ballet");
