@@ -77,6 +77,27 @@ BEGIN
     'SELECT public.balletmate_expire_public_studio_evidence();');
 END $$;
 
+-- Increase the sequential post-body crawl batch modestly to 3 per 5 minutes.
+DO $
+DECLARE j record;
+BEGIN
+  FOR j IN SELECT jobid FROM cron.job WHERE jobname='balletmate-naver-blog-post-crawl'
+  LOOP PERFORM cron.unschedule(j.jobid); END LOOP;
+  PERFORM cron.schedule('balletmate-naver-blog-post-crawl','*/5 * * * *',
+    $job$
+      select net.http_post(
+        url := 'https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/crawl-studio-blogs',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'x-crawl-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'balletmate_crawl_worker_secret' limit 1)
+        ),
+        body := '{"batchSize":3}'::jsonb,
+        timeout_milliseconds := 20000
+      );
+    $job$
+  );
+END $;
+
 -- Include pipeline counters in the admin dashboard response to identify where accumulation stops.
 CREATE OR REPLACE FUNCTION public.balletmate_admin_dashboard_stats()
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
