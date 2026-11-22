@@ -41,14 +41,5 @@
   },
   "overrides": {
     "expo-modules-core": "3.0.30"
-  },
-  "expo": {
-    "autolinking": {
-      "android": {
-        "exclude": [
-          "@zhanziyang/expo-text-extractor"
-        ]
-      }
-    }
   }
 }
