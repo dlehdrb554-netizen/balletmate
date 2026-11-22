@@ -7,8 +7,10 @@
    - `studio_photo_auto_classification.sql` (AI 분류 필드)
    - `studio_photo_auto_publish.sql` (기존 갤러리·수집 사진을 후보로 등록)
    - `studio_photo_reprocess_existing.sql` (기존 사진과 후보의 AI 재분석을 위해 대기 상태로 초기화; **한 번만 실행**)
-2. Google AI Studio에서 Gemini API Key를 발급해 Supabase Edge Function secret `GOOGLE_GEMINI_API_KEY`에 등록합니다. 모델은 이미지 입력 무료 구간이 명시된 `gemini-2.5-flash-lite`만 사용합니다.
-3. **무료 사용만 허용:** Google AI Studio의 Gemini API Free Tier만 사용합니다. Google Cloud 계정에 로그인하거나 프로젝트가 생성되더라도 결제 계정을 연결할 필요가 없습니다. 이 앱은 `gemini-2.5-flash-lite` 모델 ID만 호출하며 유료 모델로 자동 전환하지 않습니다. 프로젝트에 결제 계정을 연결하지 않은 상태를 유지하고, 무료 쿼터 초과 시 분류는 실패/대기 상태로 남깁니다.
+2. Cloudflare 대시보드에서 Workers AI를 활성화하고 API Token을 생성합니다. 토큰은 Workers AI 권한만 부여하고, 결제/계정 관리 권한은 부여하지 않습니다.
+3. Supabase 프로젝트의 Edge Functions Secrets에 다음 두 값을 등록합니다: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`. 앱에는 토큰을 넣지 않습니다.
+4. **무료 사용만 허용:** `@cf/meta/llama-3.2-11b-vision-instruct` 모델만 호출합니다. Workers Free 플랜의 하루 10,000 Neurons 무료 할당량을 사용하며, 무료 한도 초과 시 API가 실패하면 후보는 대기 상태로 남깁니다. 유료 모델이나 유료 플랜으로 자동 전환하지 않습니다.
+5. 모델 최초 사용 전에 Meta 라이선스 동의가 필요합니다. Cloudflare 공식 모델 안내의 초기 `prompt: "agree"` 요청 절차를 1회 수행한 뒤 사용합니다.
 4. GitHub Actions `Deploy Balletmate Supabase Workers`가 Edge Function 배포를 수행합니다.
 
 ## 자동 운영 정책
@@ -21,6 +23,6 @@
 - 관리자 사진 메뉴의 **전체 사진 자동 분류·등록** 버튼으로 과거 사진과 대기 후보를 한 번에 순차 처리할 수 있습니다. 실패한 사진은 대기 상태로 남으므로 재시도할 수 있습니다.
 
 ## 무료 사용량/제한
-- Gemini 2.5 Flash-Lite Vision 무료 구간 API 호출은 사진 1장당 1회입니다. 무료 tier에는 요청/일일 제한이 있을 수 있습니다. 처리 속도는 순차로 제한합니다.
-- 무료 쿼터를 초과하거나 이미지 fetch/분류에 실패하면 그 사진은 대기 상태로 남고, 유료 API 사용이나 자동 결제 전환은 없습니다.
+- Cloudflare Workers AI 무료 할당량은 하루 10,000 Neurons이며 계정 내 다른 Workers AI 사용량과 공유됩니다. 모델별 Neurons 소모량은 이미지 크기와 출력 토큰 등에 따라 달라지므로 처리 가능한 사진 수를 고정값으로 보장하지 않습니다. 처리 속도는 순차로 제한합니다.
+- 무료 쿼터를 초과하거나 이미지 fetch/분류에 실패하면 그 사진은 대기 상태로 남고, 유료 API 사용이나 자동 결제 전환은 없습니다. Workers Free 플랜에서 무료 한도 초과 요청은 실패하도록 운영합니다.
 - 분류 결과가 틀릴 수 있으므로 관리자 화면에서 제외된 사진/분류 결과를 조회할 수 있습니다.
