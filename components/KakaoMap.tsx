@@ -36,7 +36,7 @@ function buildHtml(initialRegion: MapRegion) {
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background:#f4f1f8} .load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7661D8;font:14px sans-serif;background:#f4f1f8;z-index:2}</style>
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${JS_KEY}&autoload=false"></script></head>
+</head>
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
@@ -90,15 +90,34 @@ function buildHtml(initialRegion: MapRegion) {
   }
   window.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
   document.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
-  if(!window.kakao || !kakao.maps){document.getElementById('load').textContent='카카오 지도 SDK를 불러오지 못했습니다. 키와 웹 도메인 설정을 확인해주세요.';post({type:'error',message:'Kakao Maps SDK load failed'});return;}
-  kakao.maps.load(function(){
-    map=new kakao.maps.Map(document.getElementById('map'),{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level}});
-    kakao.maps.event.addListener(map,'dragend',emitRegion);
-    kakao.maps.event.addListener(map,'zoom_changed',emitRegion);
-    document.getElementById('load').style.display='none';
-    post({type:'ready'});
-    pending.forEach(apply);pending=[];
-  });
+  function fail(reason){
+    var el=document.getElementById('load');
+    el.textContent='카카오 지도 SDK 로딩 실패\\n'+reason;
+    el.style.whiteSpace='pre-line';
+    post({type:'error',message:reason});
+  }
+  window.onerror=function(message,source,line){
+    fail('스크립트 오류: '+String(message)+' (line '+line+')');
+    return true;
+  };
+  function initMap(){
+    try{
+      map=new kakao.maps.Map(document.getElementById('map'),{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level}});
+      kakao.maps.event.addListener(map,'dragend',emitRegion);
+      kakao.maps.event.addListener(map,'zoom_changed',emitRegion);
+      document.getElementById('load').style.display='none';
+      post({type:'ready'});
+      pending.forEach(apply);pending=[];
+    }catch(e){fail('지도 초기화 오류: '+(e&&e.message?e.message:String(e)));}
+  }
+  var sdk=document.createElement('script');
+  sdk.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey=${JS_KEY}&autoload=false';
+  sdk.onload=function(){
+    if(!window.kakao || !window.kakao.maps){fail('SDK 응답은 받았지만 kakao.maps 객체가 없습니다. JavaScript 키 종류와 카카오맵 사용 설정을 확인해주세요.');return;}
+    try{kakao.maps.load(initMap);}catch(e){fail('SDK 실행 오류: '+(e&&e.message?e.message:String(e)));}
+  };
+  sdk.onerror=function(){fail('카카오 SDK 서버 응답을 불러오지 못했습니다. 키·SDK 도메인(https://localhost)·네트워크 또는 API 사용량 제한을 확인해야 합니다.');};
+  document.head.appendChild(sdk);
 })();
 </script></body></html>`;
 }
