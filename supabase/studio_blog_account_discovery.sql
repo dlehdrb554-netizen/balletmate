@@ -188,7 +188,9 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $function$
-DECLARE candidate_row public.studio_blog_account_candidates%ROWTYPE;
+DECLARE
+  candidate_row public.studio_blog_account_candidates%ROWTYPE;
+  active_count integer;
 BEGIN
   IF NOT public.is_balletmate_admin() THEN
     RAISE EXCEPTION 'administrator required' USING ERRCODE = '42501';
@@ -211,6 +213,15 @@ BEGIN
   WHERE id = p_candidate_id;
 
   IF p_status = 'approved' THEN
+    SELECT count(*) INTO active_count
+    FROM public.studio_blog_official_accounts a
+    WHERE a.studio_id = candidate_row.studio_id
+      AND a.is_active = true
+      AND a.blogger_url <> candidate_row.blogger_url;
+    IF active_count >= 5 THEN
+      RAISE EXCEPTION '학원별 공식 블로그는 최대 5개까지 승인할 수 있습니다.';
+    END IF;
+
     INSERT INTO public.studio_blog_official_accounts
       (studio_id, studio_name, blogger_url, is_active, verified_at)
     VALUES
