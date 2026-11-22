@@ -83,8 +83,8 @@ function relevantLinks(html: string, base: URL): string[] {
 }
 function snippetsFor(text: string, kind: "price" | "schedule"): string[] {
   const pattern = kind === "price"
-    ? /(가격|수강료|회비|등록비|입회비|원\s*(?:\/|부터|$)|만원|금액|비용)/i
-    : /(시간표|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|평일|주말|수업|클래스|타임|시\s*\d{1,2}|\d{1,2}:\d{2})/i;
+    ? /(가격|수강료|회비|등록비|입회비|원\s*(?:\/|부터|$)|만원|금액|비용|price|tuition|fee|membership)/i
+    : /(시간표|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|평일|주말|수업|클래스|타임|시\s*\d{1,2}|\d{1,2}:\d{2}|schedule|timetable|class|lesson|program|weekday|hours|adult.?ballet|kids.?ballet)/i;
   return [...new Set(text.split("\n").map((line) => line.trim()).filter((line) => line.length >= 3 && line.length <= 500 && pattern.test(line)).map((line) => line.slice(0, 240)))].slice(0, 30);
 }
 async function fetchHtml(url: URL): Promise<string | null> {
