@@ -219,23 +219,12 @@ export default function Admin() {
     setEvidenceBusy(true);
     const columns="id,studio_id,studio_name,source_id,source_title,source_url,source_post_date,candidate_type,candidate_value,normalized_value,price_period,price_frequency_per_week,evidence_text,confidence,review_status,created_at";
     const today=seoulDate();
-    const fetchAll=async(makeQuery:()=>any)=>{
-      const all:any[]=[];let offset=0;
-      while(true){
-        const {data,error}=await makeQuery().range(offset,offset+499);
-        if(error)return {data:null,error};
-        const page=data||[];all.push(...page);
-        if(page.length<500)break;
-        offset+=500;
-      }
-      return {data:all,error:null};
-    };
     const [pending,verified,verifiedSchedules,published,publishedSchedules]=await Promise.all([
-      fetchAll(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","pending").order("created_at",{ascending:false})),
-      fetchAll(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false})),
-      fetchAll(()=>supabase!.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false})),
-      fetchAll(()=>supabase!.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false})),
-      fetchAll(()=>supabase!.from("studio_public_schedules").select("id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false})),
+      supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","pending").order("created_at",{ascending:false}).limit(100),
+      supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","price").order("reviewed_at",{ascending:false}).limit(100),
+      supabase.from("studio_blog_evidence_candidates").select(columns).eq("review_status","verified").eq("candidate_type","schedule").order("reviewed_at",{ascending:false}).limit(100),
+      supabase.from("studio_public_prices").select("id,candidate_id,studio_id,amount_krw,price_period,frequency_per_week,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false}).limit(100),
+      supabase.from("studio_public_schedules").select("id,candidate_id,studio_id,schedule_text,source_url,source_post_date,published_at,expires_at,is_active").order("published_at",{ascending:false}).limit(100),
     ]);
     if(pending.error)Alert.alert("자동 수집 자료 조회 실패",pending.error.message);
     else {setEvidenceRows((pending.data||[]) as EvidenceCandidate[]);setSelectedEvidenceIds(ids=>ids.filter(id=>(pending.data||[]).some((row:any)=>row.id===id)));}
@@ -243,13 +232,20 @@ export default function Admin() {
     else setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);
     if(verifiedSchedules.error)Alert.alert("검증 시간표 조회 실패",verifiedSchedules.error.message);
     else {setVerifiedScheduleRows((verifiedSchedules.data||[]) as EvidenceCandidate[]);setSelectedScheduleIds(ids=>ids.filter(id=>(verifiedSchedules.data||[]).some((row:any)=>row.id===id)));}
+    const publishedRows=published.data||[];
+    const scheduleRows=publishedSchedules.data||[];
+    const studioIds=[...new Set([...publishedRows,...scheduleRows].map((row:any)=>row.studio_id).filter(Boolean))];
+    const studioNames=new Map<string,string>();
+    if(studioIds.length){
+      const {data:names,error:namesError}=await supabase.from("studios").select("id,name").in("id",studioIds);
+      if(!namesError)for(const item of names||[])studioNames.set(item.id,item.name);
+    }
     if(published.error)Alert.alert("공개 가격 조회 실패",published.error.message);
-    else {const publicRows=published.data||[];setPublishedCandidateIds(publicRows.map((row:any)=>Number(row.candidate_id)));setActivePublicPrices(publicRows.filter((row:any)=>row.is_active&&(!row.expires_at||row.expires_at>=today)) as any[]);}
+    else {setPublishedCandidateIds(publishedRows.map((row:any)=>Number(row.candidate_id)));setActivePublicPrices(publishedRows.filter((row:any)=>row.is_active&&(!row.expires_at||row.expires_at>=today)).map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));}
     if(publishedSchedules.error)Alert.alert("공개 시간표 조회 실패",publishedSchedules.error.message);
-    else {const scheduleRows=publishedSchedules.data||[];setPublishedScheduleCandidateIds(scheduleRows.map((row:any)=>Number(row.candidate_id)));setActivePublicSchedules(scheduleRows.filter((row:any)=>row.is_active&&(!row.expires_at||row.expires_at>=today)) as any[]);}
+    else {setPublishedScheduleCandidateIds(scheduleRows.map((row:any)=>Number(row.candidate_id)));setActivePublicSchedules(scheduleRows.filter((row:any)=>row.is_active&&(!row.expires_at||row.expires_at>=today)).map((row:any)=>({...row,studio_name:studioNames.get(row.studio_id)||"학원명 미확인"})));}
     setEvidenceBusy(false);
   },[authorized]);
-
   const loadScheduleClassCandidates=useCallback(async()=>{
     if(!supabase||!authorized)return;
     const {data,error}=await supabase.from("studio_schedule_class_candidates").select("*").eq("status","pending").order("created_at",{ascending:false}).limit(100);
