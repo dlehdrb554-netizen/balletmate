@@ -102,9 +102,26 @@ function buildHtml(initialRegion: MapRegion) {
   };
   function initMap(){
     try{
-      map=new kakao.maps.Map(document.getElementById('map'),{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level}});
+      var mapEl=document.getElementById('map');
+      map=new kakao.maps.Map(mapEl,{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level}});
       kakao.maps.event.addListener(map,'dragend',emitRegion);
       kakao.maps.event.addListener(map,'zoom_changed',emitRegion);
+      // WebView can initially report a very small height on compact devices.
+      // Recalculate Kakao's viewport after the native layout settles or changes.
+      var resizeMap=function(){
+        if(!map)return;
+        var center=map.getCenter();
+        kakao.maps.event.trigger(map,'resize');
+        if(center)map.setCenter(center);
+      };
+      if(typeof ResizeObserver!=='undefined'){
+        var observer=new ResizeObserver(function(){resizeMap();});
+        observer.observe(mapEl);
+      }
+      window.addEventListener('resize',resizeMap);
+      setTimeout(resizeMap,120);
+      setTimeout(resizeMap,500);
+      setTimeout(resizeMap,1100);
       document.getElementById('load').style.display='none';
       post({type:'ready'});
       pending.forEach(apply);pending=[];
