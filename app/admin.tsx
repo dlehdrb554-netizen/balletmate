@@ -1128,7 +1128,7 @@ export default function Admin() {
     <Text style={styles.heading}>학원 사진 검토 · 대기 {photoCandidateRows.length}건</Text>
     <Pressable onPress={loadPhotoCandidates} disabled={photoReviewBusy}><Text style={styles.refresh}>{photoReviewBusy?"조회 중…":"새로고침"}</Text></Pressable>
   </View>
-  <Text style={styles.hint}>공식 홈페이지에서 수집한 사진 후보입니다. OCR은 사용하지 않으며, 사진과 원본을 확인하고, 학원 소유 또는 사용 허가가 확인된 경우에만 승인해 주세요. 승인된 사진만 학원 갤러리에 추가됩니다.</Text>
+  <Text style={styles.hint}>공식 홈페이지에서 수집한 사진 후보입니다. 사진과 원본을 확인하고, 학원 소유 또는 사용 허가가 확인된 경우에만 승인해 주세요. 승인된 사진만 학원 갤러리에 추가됩니다.</Text>
   {photoReviewBusy&&<ActivityIndicator color={c.purple}/>}
   {photoCandidateRows.map(item=><View key={"photo-candidate-"+item.id} style={[styles.evidenceCard,{flexDirection:"row",alignItems:"flex-start"}]}>
     <Image source={{uri:item.image_url}} style={{width:92,height:76,borderRadius:9,backgroundColor:c.bg}} resizeMode="cover"/>
