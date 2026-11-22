@@ -20,7 +20,7 @@ Deno.serve(async(req)=>{
  }
  let body:any;try{body=await req.json();}catch{return json({error:"Invalid JSON"},400);}
  if(!Number.isInteger(body.candidateId))return json({error:"candidateId required"},400);
- const {data:candidate,error:candidateError}=await db.from("studio_photo_candidates").select("id,studio_id,studio_name,image_url,source_page_url,review_status").eq("id",body.candidateId).eq("review_status","pending").single();
+ const {data:candidate,error:candidateError}=await db.from("studio_photo_candidates").select("id,studio_id,studio_name,image_url,source_page_url,source_host,review_status").eq("id",body.candidateId).eq("review_status","pending").single();
  if(candidateError||!candidate)return json({error:"Candidate not found"},404);
  let imageUrl:URL;try{imageUrl=new URL(candidate.image_url);const sourceHost=new URL(candidate.source_page_url).hostname;
  if(imageUrl.protocol!=="https:"||imageUrl.username||imageUrl.password||privateHost(imageUrl.hostname)||(!permittedHost(imageUrl.hostname)&&imageUrl.hostname!==sourceHost&&!imageUrl.hostname.endsWith("."+sourceHost)))throw new Error();}catch{return json({error:"Image host not permitted"},400);}
