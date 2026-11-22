@@ -59,7 +59,7 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://ykxvcqgdvifogahbbbwr.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_-wvNm1sapw3c1oSdMFLvTQ_BxOm2ADd
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon --stacktrace --info
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
