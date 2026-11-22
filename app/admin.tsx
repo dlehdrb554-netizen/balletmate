@@ -79,6 +79,7 @@ export default function Admin() {
   const [photoCandidateRows,setPhotoCandidateRows]=useState<any[]>([]);
   const [photoReviewBusy,setPhotoReviewBusy]=useState(false);
   const [photoCandidateTotal,setPhotoCandidateTotal]=useState(0);
+  const [photoCandidateOffset,setPhotoCandidateOffset]=useState(0);
   const [studioSearch,setStudioSearch]=useState("");
   const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
   const [studioDbOffset,setStudioDbOffset]=useState(0);
@@ -341,19 +342,19 @@ export default function Admin() {
     if(error){
       Alert.alert("사진 검토 자료 조회 실패",error.message+"\n사진 검토 SQL이 적용됐는지 확인해 주세요.");
       setPhotoCandidateRows([]);
-    }else {setPhotoCandidateRows(data||[]);setPhotoCandidateTotal(count??(data||[]).length);}
+    }else {setPhotoCandidateRows(data||[]);setPhotoCandidateTotal(count??(data||[]).length);setPhotoCandidateOffset((data||[]).length);}
     setPhotoReviewBusy(false);
   },[authorized]);
 
   const loadMorePhotoCandidates=async()=>{
-    if(!supabase||photoReviewBusy||photoCandidateRows.length>=photoCandidateTotal)return;
+    if(!supabase||photoReviewBusy||photoCandidateOffset>=photoCandidateTotal)return;
     setPhotoReviewBusy(true);
-    const start=photoCandidateRows.length;
+    const start=photoCandidateOffset;
     const {data,error}=await supabase.from("studio_photo_candidates")
       .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at")
       .eq("review_status","pending").order("created_at",{ascending:false}).order("id",{ascending:false}).range(start,start+39);
     if(error)Alert.alert("추가 사진 조회 실패",error.message);
-    else setPhotoCandidateRows(data||[]);
+    else {setPhotoCandidateRows(data||[]);setPhotoCandidateOffset(start+(data||[]).length);}
     setPhotoReviewBusy(false);
   };
   const reviewPhotoCandidate=async(item:any,status:"approved"|"rejected")=>{
@@ -364,7 +365,7 @@ export default function Admin() {
     });
     if(error)Alert.alert(status==="approved"?"사진 승인 실패":"사진 제외 실패",error.message);
     else {
-      setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));
+      setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));
       if(status==="approved"){
         setRows(current=>current.map(row=>row.id===item.studio_id
           ?{...row,image_urls:[...(row.image_urls||[]),item.image_url].slice(0,10),
@@ -1156,7 +1157,7 @@ export default function Admin() {
       </View>
     </View>
   </View>)}
-  {!photoCandidateRows.length&&!photoReviewBusy&&<Text style={styles.hint}>검토 대기 사진이 없습니다. 학원 관리에서 공식 홈페이지 사진 수집을 실행하면 후보가 여기에 표시됩니다.</Text>}{photoCandidateRows.length<photoCandidateTotal&&<Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={loadMorePhotoCandidates}><Text style={styles.secondaryText}>다음 사진 40장</Text></Pressable>}
+  {!photoCandidateRows.length&&!photoReviewBusy&&<Text style={styles.hint}>검토 대기 사진이 없습니다. 학원 관리에서 공식 홈페이지 사진 수집을 실행하면 후보가 여기에 표시됩니다.</Text>}{photoCandidateOffset<photoCandidateTotal&&<Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={loadMorePhotoCandidates}><Text style={styles.secondaryText}>다음 사진 40장</Text></Pressable>}
 </View>
 
     </View>}
