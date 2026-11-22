@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS public.studio_schedule_class_candidates (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(evidence_candidate_id)
 );
-ALTER TABLE public.studio_schedule_class_candidates DROP CONSTRAINT IF EXISTS studio_schedule_class_candidates_status_check;\nALTER TABLE public.studio_schedule_class_candidates ADD CONSTRAINT studio_schedule_class_candidates_status_check CHECK (status IN ('pending','creating','created','rejected'));\nCREATE INDEX IF NOT EXISTS studio_schedule_class_candidates_review_idx
+ALTER TABLE public.studio_schedule_class_candidates DROP CONSTRAINT IF EXISTS studio_schedule_class_candidates_status_check;
+ALTER TABLE public.studio_schedule_class_candidates ADD CONSTRAINT studio_schedule_class_candidates_status_check CHECK (status IN ('pending','creating','created','rejected'));
+CREATE INDEX IF NOT EXISTS studio_schedule_class_candidates_review_idx
   ON public.studio_schedule_class_candidates(status,created_at DESC);
 ALTER TABLE public.studio_schedule_class_candidates ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.studio_schedule_class_candidates FROM anon, authenticated;
