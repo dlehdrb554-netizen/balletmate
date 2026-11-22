@@ -71,6 +71,9 @@ export default function CompleteProfile(){
      <View style={s.icon}><Text style={{fontSize:27}}>🩰</Text></View>
      <Text style={s.title}>발레메이트 가입을 완료해 주세요</Text>
      <Text style={s.desc}>소셜 인증이 완료되었습니다. 서비스에서 사용할 내부 계정 아이디를 정하면 가입이 끝나요.</Text>
+     <View style={{backgroundColor:"#FFF7E8",borderRadius:12,padding:12,marginBottom:18}}>
+      <Text style={{fontSize:12,lineHeight:19,color:"#805B24"}}>이미 발레메이트 계정이 있거나 관리자 계정이라면 새 아이디를 만들지 마세요. 로그아웃 후 기존 아이디로 로그인한 다음 내 계정에서 Google 또는 카카오를 연결해야 기존 권한과 데이터가 유지됩니다. 현재 소셜 계정은 별도 계정일 수 있습니다.</Text>
+     </View>
      <Text style={s.label}>사용할 아이디</Text>
      <TextInput style={s.input} value={username} onChangeText={setUsername} placeholder="영문 소문자, 숫자, 밑줄" autoCapitalize="none" autoCorrect={false} maxLength={24}/>
      <Text style={s.hint}>3~24자 · 영문 소문자, 숫자, 밑줄(_) 사용 가능</Text>
