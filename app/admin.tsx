@@ -291,11 +291,11 @@ export default function Admin() {
         const duplicate=unique.some(prior=>{
           if(normalize(prior.name)!==nameKey)return false;
           const priorAddress=normalize(prior.address);
-          if(addressKey&&priorAddress&&addressKey===priorAddress)return true;
+          if(addressKey&&priorAddress)return addressKey===priorAddress;
           const lat1=Number(prior.latitude),lng1=Number(prior.longitude),lat2=Number(row.latitude),lng2=Number(row.longitude);
           if([lat1,lng1,lat2,lng2].every(Number.isFinite)){
             const dx=(lat1-lat2)*111,dy=(lng1-lng2)*111*Math.cos(lat1*Math.PI/180);
-            return Math.sqrt(dx*dx+dy*dy)<=0.12;
+            return Math.sqrt(dx*dx+dy*dy)<=0.035;
           }
           return false;
         });
