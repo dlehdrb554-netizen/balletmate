@@ -207,3 +207,49 @@ $$;
 
 revoke all on function public.balletmate_admin_dashboard_stats() from public, anon;
 grant execute on function public.balletmate_admin_dashboard_stats() to authenticated;
+
+
+-- Do not crawl automatically discovered website candidates until an admin
+-- explicitly verifies that the URL belongs to the studio.
+CREATE OR REPLACE FUNCTION public.claim_studio_image_crawl_queue(p_limit integer DEFAULT 2)
+RETURNS TABLE(id uuid, studio_id uuid, attempts smallint)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF COALESCE(auth.role(), '') <> 'service_role'
+     AND NOT public.is_balletmate_admin() THEN
+    RAISE EXCEPTION 'administrator or service role required' USING ERRCODE = '42501';
+  END IF;
+
+  UPDATE public.studio_image_crawl_queue
+  SET status = 'pending', updated_at = now()
+  WHERE status = 'processing' AND updated_at < now() - interval '30 minutes';
+
+  RETURN QUERY
+  WITH candidates AS (
+    SELECT q.id
+    FROM public.studio_image_crawl_queue q
+    JOIN public.studios s ON s.id = q.studio_id
+    WHERE q.status = 'pending'
+      AND q.next_attempt_at <= now()
+      AND q.attempts < 3
+      AND NOT (
+        COALESCE(s.source_name, '') ILIKE '%홈페이지 검색 후보%'
+        AND COALESCE(s.source_name, '') ILIKE '%미검증%'
+      )
+    ORDER BY q.created_at
+    FOR UPDATE OF q SKIP LOCKED
+    LIMIT LEAST(GREATEST(COALESCE(p_limit, 1), 1), 10)
+  )
+  UPDATE public.studio_image_crawl_queue q
+  SET status = 'processing', updated_at = now()
+  FROM candidates c
+  WHERE q.id = c.id
+  RETURNING q.id, q.studio_id, q.attempts;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.claim_studio_image_crawl_queue(integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_studio_image_crawl_queue(integer) TO authenticated, service_role;
+
