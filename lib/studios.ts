@@ -142,5 +142,20 @@ export async function fetchStudioById(studioId: string): Promise<StudioRecord | 
   const { data, error } = await supabase.from("studios").select(columns)
     .eq("id", studioId).eq("is_active", true).maybeSingle();
   if (error) throw error;
-  return data ? ({ ...data, class_durations: [] } as StudioRecord) : null;
+  if (!data) return null;
+
+  // Merge schedule and class-derived price fields from the map view, while
+  // keeping all descriptive/media fields from the canonical studios row.
+  const derived = await supabase.from("studio_map_search_app")
+    .select("search_days,search_time_slots,search_class_durations,search_price")
+    .eq("id", studioId).maybeSingle();
+  if (derived.error) console.warn("Studio derived map fields unavailable:", derived.error.message);
+  const extra = derived.data as any;
+  return {
+    ...data,
+    days: [...new Set([...(data.days || []), ...(extra?.search_days || [])])],
+    time_slots: [...new Set([...(data.time_slots || []), ...(extra?.search_time_slots || [])])],
+    price_per_class: data.price_per_class ?? extra?.search_price ?? null,
+    class_durations: extra?.search_class_durations || [],
+  } as StudioRecord;
 }
