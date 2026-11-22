@@ -44,6 +44,28 @@ const datePlusDays=(date:string,days:number):string|null=>{
   return value.toISOString().slice(0,10);
 };
 
+const dedupeStudioRows=(input:any[])=>{
+  const normalize=(value:any)=>String(value||"").toLocaleLowerCase("ko-KR").replace(/[^0-9a-z가-힣]/g,"");
+  const unique:any[]=[];
+  const byName=new Map<string,any[]>();
+  for(const row of input){
+    const nameKey=normalize(row.name),addressKey=normalize(row.address);
+    const sameName=byName.get(nameKey)||[];
+    const duplicate=sameName.some(prior=>{
+      const priorAddress=normalize(prior.address);
+      if(addressKey&&priorAddress)return addressKey===priorAddress;
+      const lat1=Number(prior.latitude),lng1=Number(prior.longitude),lat2=Number(row.latitude),lng2=Number(row.longitude);
+      if([lat1,lng1,lat2,lng2].every(Number.isFinite)){
+        const dx=(lat1-lat2)*111,dy=(lng1-lng2)*111*Math.cos(lat1*Math.PI/180);
+        return Math.sqrt(dx*dx+dy*dy)<=0.035;
+      }
+      return false;
+    });
+    if(!duplicate){unique.push(row);sameName.push(row);byName.set(nameKey,sameName);}
+  }
+  return {rows:unique,duplicates:input.length-unique.length};
+};
+
 export default function Admin() {
   const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios">("overview");
   const [studioActionId,setStudioActionId]=useState<string|null>(null);
@@ -58,6 +80,8 @@ export default function Admin() {
   const [photoReviewBusy,setPhotoReviewBusy]=useState(false);
   const [studioSearch,setStudioSearch]=useState("");
   const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
+  const [studioDbOffset,setStudioDbOffset]=useState(0);
+  const [studioHasMore,setStudioHasMore]=useState(false);
   const [studioListFilter,setStudioListFilter]=useState<"all"|"missing_photo"|"missing_website"|"website_candidate"|"active"|"inactive">("all");
   const [form,setForm]=useState({...blank});
   const [editing,setEditing]=useState<string|null>(null);
@@ -222,41 +246,42 @@ export default function Admin() {
     setDashboardBusy(false);
   },[authorized]);
 
+  const studioColumns="id,name,latitude,longitude,district,address,phone,website_url,source_url,source_name,verified_at,image_urls,image_source_name,image_usage_note,price_per_class,adult_classes,kids_classes,is_active,created_at";
   const load=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setBusy(true);
     try{
-      const columns="id,name,latitude,longitude,district,address,phone,website_url,source_url,source_name,verified_at,image_urls,image_source_name,image_usage_note,price_per_class,adult_classes,kids_classes,is_active,created_at";
-      const all:any[]=[];
-      for(let offset=0;offset<10000;offset+=500){
-        const {data,error}=await supabase.from("studios").select(columns).order("name").range(offset,offset+499);
-        if(error)throw error;
-        const page=data||[];all.push(...page);
-        if(page.length<500)break;
-      }
-      const normalize=(value:any)=>String(value||"").toLocaleLowerCase("ko-KR").replace(/[^0-9a-z가-힣]/g,"");
-      const unique:any[]=[];
-      const byName=new Map<string,any[]>();
-      for(const row of all){
-        const nameKey=normalize(row.name),addressKey=normalize(row.address);
-        const sameName=byName.get(nameKey)||[];
-        const duplicate=sameName.some(prior=>{
-          const priorAddress=normalize(prior.address);
-          if(addressKey&&priorAddress)return addressKey===priorAddress;
-          const lat1=Number(prior.latitude),lng1=Number(prior.longitude),lat2=Number(row.latitude),lng2=Number(row.longitude);
-          if([lat1,lng1,lat2,lng2].every(Number.isFinite)){
-            const dx=(lat1-lat2)*111,dy=(lng1-lng2)*111*Math.cos(lat1*Math.PI/180);
-            return Math.sqrt(dx*dx+dy*dy)<=0.035;
-          }
-          return false;
-        });
-        if(!duplicate){unique.push(row);sameName.push(row);byName.set(nameKey,sameName);}
-      }
-      setDuplicateStudioCount(Math.max(0,all.length-unique.length));
-      setRows(unique as StudioRow[]);
+      // Load one page only; do not block the UI with 10 sequential network requests.
+      const {data,error}=await supabase.from("studios").select(studioColumns).order("name").order("id").range(0,499);
+      if(error)throw error;
+      const page=data||[];
+      const deduped=dedupeStudioRows(page);
+      setRows(deduped.rows as StudioRow[]);
+      setDuplicateStudioCount(deduped.duplicates);
+      setStudioDbOffset(page.length);
+      setStudioHasMore(page.length===500);
+      setStudioVisibleLimit(100);
     }catch(error:any){Alert.alert("조회 실패",error?.message||"학원 목록을 불러오지 못했습니다.");}
     finally{setBusy(false);}
   },[authorized]);
+
+  const loadMoreStudios=async()=>{
+    if(!supabase||busy||!studioHasMore)return;
+    setBusy(true);
+    try{
+      const start=studioDbOffset;
+      const {data,error}=await supabase.from("studios").select(studioColumns)
+        .order("name").order("id").range(start,start+499);
+      if(error)throw error;
+      const page=data||[];
+      const deduped=dedupeStudioRows([...rows,...page]);
+      setRows(deduped.rows as StudioRow[]);
+      setDuplicateStudioCount(deduped.duplicates);
+      setStudioDbOffset(start+page.length);
+      setStudioHasMore(page.length===500);
+    }catch(error:any){Alert.alert("추가 조회 실패",error?.message||"다음 학원 목록을 불러오지 못했습니다.");}
+    finally{setBusy(false);}
+  };
 
   const readAllRows=async(makeQuery:()=>any)=>{
     const all:any[]=[];
@@ -1008,11 +1033,12 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       {!classRows.length&&!classBusy&&<Text style={styles.hint}>등록된 수업이 없습니다.</Text>}
     </View>}
     <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active,image_urls,image_usage_note · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,25000,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
-    <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원 · {visibleStudioRows.length}/{rows.length}</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>
+    <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원 · 화면 {visibleStudioRows.length}/{filteredStudioRows.length} · 조회 {rows.length}개</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>
       <TextInput style={styles.input} value={studioSearch} onChangeText={value=>{setStudioSearch(value);setStudioVisibleLimit(100);}} placeholder="학원명·지역·주소·전화 검색" autoCapitalize="none"/>
       <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"missing_photo",label:"사진 없음"},{key:"missing_website",label:"홈페이지 없음"},{key:"website_candidate",label:"홈페이지 후보"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>{setStudioListFilter(option.key);setStudioVisibleLimit(100);}}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
       {visibleStudioRows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1}}><Text style={styles.rowName}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · 사진 {(r.image_urls||[]).length}장 · {r.is_active?"공개":"비공개"}{String(r.source_name||"").includes("홈페이지 검색 후보")?" · 홈페이지 후보(미검증)":""}</Text>{String(r.source_name||"").includes("홈페이지 검색 후보")&&!!r.website_url&&<Pressable onPress={()=>Linking.openURL(r.website_url!).catch(()=>Alert.alert("홈페이지 연결","주소를 열 수 없습니다."))}><Text style={styles.action}>후보 홈페이지 확인 ↗</Text></Pressable>}</View><Pressable style={styles.manageButton} onPress={()=>setStudioActionId(current=>current===r.id?null:r.id)}><Text style={styles.manageButtonText}>{studioActionId===r.id?"닫기":"관리"}</Text></Pressable>{studioActionId===r.id&&<View style={styles.studioActionMenu}><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);startEdit(r);}}><Text style={styles.manageButtonText}>정보 수정</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);setClassStudio(r);resetClass();}}><Text style={styles.manageButtonText}>수업 관리</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);openOfficialBlogManager(r);}}><Text style={styles.manageButtonText}>공식 블로그 등록</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);uploadPhotos(r.id,r.name);}}><Text style={styles.manageButtonText}>사진 업로드</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);requeueStudioBlogSearch(r);}}><Text style={styles.manageButtonText}>블로그 검색</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);if(r.website_url)crawlImages(r.id,r.name);else Alert.alert("홈페이지 필요","사진 자동 수집을 위해 홈페이지 주소를 먼저 등록해 주세요.");}}><Text style={styles.manageButtonText}>사진 수집</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);remove(r.id,r.name);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View>}</View>)}
       {visibleStudioRows.length<filteredStudioRows.length&&<Pressable style={styles.secondary} onPress={()=>setStudioVisibleLimit(limit=>limit+100)}><Text style={styles.secondaryText}>학원 100개 더 보기 ({visibleStudioRows.length}/{filteredStudioRows.length})</Text></Pressable>}
+      {studioHasMore&&<Pressable style={styles.secondary} disabled={busy} onPress={loadMoreStudios}><Text style={styles.secondaryText}>{busy?"조회 중…":"다음 학원 500개 불러오기"}</Text></Pressable>}
       {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}{rows.length>0&&!visibleStudioRows.length&&<Text style={styles.hint}>검색/필터 조건에 맞는 학원이 없습니다.</Text>}
     </View>
     </>}
