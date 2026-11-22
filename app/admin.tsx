@@ -793,9 +793,10 @@ export default function Admin() {
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>자동 수집 운영 현황</Text><Pressable onPress={loadDashboard} disabled={dashboardBusy}><Text style={styles.refresh}>{dashboardBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{dashboardError?<Text style={styles.hint}>대시보드 SQL 적용 필요 또는 조회 오류: {dashboardError}</Text>:dashboard?<><View style={styles.statsGrid}>{[
       ["학원",dashboard.studios?.total??0,"공개 "+(dashboard.studios?.active??0)],
-      ["블로그 검색",dashboard.blog_search?.pending??0,"대기 · 실패 "+(dashboard.blog_search?.failed??0)],
-      ["게시글 수집",dashboard.blog_posts?.pending??0,"대기 · 실패 "+(dashboard.blog_posts?.failed??0)],
-      ["이미지 수집",dashboard.image_crawl?.pending??0,"대기 · 실패 "+(dashboard.image_crawl?.failed??0)],
+      ["블로그 검색",dashboard.blog_search?.pending??0,"대기 · 진행 "+(dashboard.blog_search?.processing??0)+" · 실패 "+(dashboard.blog_search?.failed??0)],
+      ["게시글 수집",dashboard.blog_posts?.pending??0,"대기 · 진행 "+(dashboard.blog_posts?.processing??0)+" · 실패 "+(dashboard.blog_posts?.failed??0)],
+      ["이미지 수집",dashboard.image_crawl?.pending??0,"대기 · 진행 "+(dashboard.image_crawl?.processing??0)+" · 실패 "+(dashboard.image_crawl?.failed??0)],
+      ["장기 정체",Number(dashboard.blog_search?.stalled||0)+Number(dashboard.blog_posts?.stalled||0)+Number(dashboard.image_crawl?.stalled||0),"검색·게시글 20분 / 이미지 30분"],
       ["근거 검수",dashboard.evidence?.pending??0,"가격·시간표 후보"],
       ["OCR 검수",dashboard.ocr?.pending??0,"대기 자료"],
       ["시간표 후보",dashboard.schedule_candidates?.pending??0,"등록 대기"],
