@@ -667,11 +667,11 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
     if(!supabase||!selectedScheduleIds.length)return;
     const selected=verifiedScheduleRows.filter(row=>selectedScheduleIds.includes(row.id)&&!publishedScheduleCandidateIds.includes(row.id));
     const today=seoulDate();
-    const old=selected.filter(row=>row.source_post_date&&datePlusDays(row.source_post_date,180)!==null&&datePlusDays(row.source_post_date,180)!<today);
-    const valid=selected.filter(row=>!row.source_post_date||(datePlusDays(row.source_post_date,180)!==null&&datePlusDays(row.source_post_date,180)!>=today));
-    if(!valid.length){Alert.alert("공개할 자료 없음",old.length+"개 자료가 180일 초과로 만료되었습니다.");return;}
+    const old=selected.filter(row=>row.source_post_date&&datePlusDays(row.source_post_date,45)!==null&&datePlusDays(row.source_post_date,45)!<today);
+    const valid=selected.filter(row=>!row.source_post_date||(datePlusDays(row.source_post_date,45)!==null&&datePlusDays(row.source_post_date,45)!>=today));
+    if(!valid.length){Alert.alert("공개할 자료 없음",old.length+"개 자료가 45일 초과로 만료되었습니다.");return;}
     const noDate=valid.filter(row=>!row.source_post_date).length;
-    Alert.alert("시간표 일괄 공개","선택 "+selected.length+"개 중 공개 대상 "+valid.length+"개"+(old.length?"\n180일 초과 제외 "+old.length+"개":"")+(noDate?"\n게시일 미확인 "+noDate+"개 (원문 직접 확인 전제, 30일 만료)":"")+"\n일괄 공개할까요?",[{text:"취소",style:"cancel"},{text:"공개",onPress:async()=>{
+    Alert.alert("시간표 일괄 공개","선택 "+selected.length+"개 중 공개 대상 "+valid.length+"개"+(old.length?"\n45일 초과 제외 "+old.length+"개":"")+(noDate?"\n게시일 미확인 "+noDate+"개 (원문 직접 확인 전제, 30일 만료)":"")+"\n일괄 공개할까요?",[{text:"취소",style:"cancel"},{text:"공개",onPress:async()=>{
       setEvidenceBusy(true);let ok=0,failed=0;
       for(const item of valid){
         const sourcePostDate=item.source_post_date||null;
@@ -714,7 +714,6 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
   const publishPriceBatch=async()=>{
     if(!supabase||!selectedPriceIds.length)return;
     const selected=verifiedPriceRows.filter(row=>selectedPriceIds.includes(row.id)&&!publishedCandidateIds.includes(row.id));
-    const today=seoulDate();
     const valid=selected.filter(item=>{
       const amount=Number(item.normalized_value);
       return item.candidate_type==="price"&&Number.isInteger(amount)&&amount>0&&!!item.price_period&&item.price_period!=="기간 미확인"&&!!item.source_post_date&&!!item.source_url&&!!item.evidence_text;
