@@ -471,12 +471,12 @@ export default function Admin() {
         setPublicPriceOffset(offset+page.length);
       }else{
         setPublishedScheduleCandidateIds(current=>[...current,...page.map((row:any)=>Number(row.candidate_id))]);
-        setActivePublicSchedules(current=>{
-          const seen=new Set(current.map((row:any)=>{const key=normalizeScheduleKey(row.schedule_text||"");return key?row.studio_id+"|"+key:"id|"+row.id;}));
+        setActivePublicSchedules(()=>{
+          const seen=new Set<string>();
           const next:any[]=[];let duplicates=0;
-          for(const row of page){const key=normalizeScheduleKey(row.schedule_text||"");const identity=key?row.studio_id+"|"+key:"id|"+row.id";if(seen.has(identity)){duplicates++;continue;}seen.add(identity);next.push({...row,studio_name:names.get(row.studio_id)||"학원명 미확인"});}
-          if(duplicates)setDuplicatePublicScheduleCount(value=>value+duplicates);
-          return [...current,...next];
+          for(const row of page){const key=normalizeScheduleKey(row.schedule_text||"");const identity=key?row.studio_id+"|"+key:"id|"+row.id;if(seen.has(identity)){duplicates++;continue;}seen.add(identity);next.push({...row,studio_name:names.get(row.studio_id)||"학원명 미확인"});}
+          setDuplicatePublicScheduleCount(duplicates);
+          return next;
         });
         setPublicScheduleOffset(offset+page.length);
       }
