@@ -161,7 +161,8 @@ export default function Admin() {
   const generateScheduleClassCandidate=async(item:EvidenceCandidate)=>{
     if(!supabase||item.review_status!=="verified"||item.candidate_type!=="schedule")return;
     const sourceDate=item.source_post_date;
-    if(!sourceDate||datePlusDays(sourceDate,180)!==null&&datePlusDays(sourceDate,180)!<seoulDate()){
+    const expiry=sourceDate?datePlusDays(sourceDate,180):null;
+    if(!sourceDate||!expiry||expiry<seoulDate()){
       Alert.alert("최신 자료 확인","원문 게시일이 없거나 180일이 지난 자료는 시간표 후보로 만들지 않습니다.");return;
     }
     const raw=(item.normalized_value||item.candidate_value||"")+" "+(item.evidence_text||"");
