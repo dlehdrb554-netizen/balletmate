@@ -136,7 +136,9 @@ Deno.serve(async(req)=>{
     const payload=await response.json(),docs=payload?.documents??[];
     for(const item of docs){
      const name=String(item.place_name||"").trim(),category=String(item.category_name||"");
-     if(!name||(!/(발레|ballet)/i.test(name)&&!/(발레|ballet)/i.test(category)))continue;
+     // Strict ballet-only discovery; block therapy and wellness businesses.
+     const excludedBusiness=/(테라피|therapy|마사지|massag|스파|spa|요가|yoga|필라테스|pilates|체형관리|교정|에스테틱|피부관리|힐링|wellness|뷰티|beauty)/i;
+     if(!name||excludedBusiness.test(name+" "+category)||!/(발레|ballet)/i.test(name))continue;
      const lat=Number(item.y),lng=Number(item.x);
      if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
      const identity=String(item.id||[name,lat.toFixed(5),lng.toFixed(5)].join("|"));
