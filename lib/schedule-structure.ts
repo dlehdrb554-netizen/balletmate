@@ -35,13 +35,17 @@ function extractTimes(text: string): {start:string;end:string|null}[] {
   };
   let match:RegExpExecArray|null;
   while((match=range.exec(text))!==null){
-    const start=parseOne(match[1]),end=parseOne(match[2]);
+    const startText=match[1],endText=match[2];
+    const endMeridiem=(endText.match(/오전|오후/)||[])[0];
+    const startMeridiem=(startText.match(/오전|오후/)||[])[0]||endMeridiem;
+    const start=parseOne(startMeridiem&&!/오전|오후/.test(startText)?startMeridiem+" "+startText:startText);
+    const end=parseOne(endText);
     if(start&&end&&start!==end)results.push({start,end});
   }
   const singles=/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)\s*(오전|오후)?/g;
   while((match=singles.exec(text))!==null){
     const t=toTime(match[2],match[3]||match[4],match[1]||match[5]);
-    if(t&&!results.some(r=>r.start===t))results.push({start:t,end:null});
+    if(t&&!results.some(r=>r.start===t||r.end===t))results.push({start:t,end:null});
   }
   return results.slice(0,12);
 }
