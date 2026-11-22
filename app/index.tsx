@@ -16,7 +16,7 @@ type Studio = {
   id: string; name: string; lat: number; lng: number; area: string;
   tags: string[]; price: number | null; coupon: boolean; adult: boolean; kids: boolean;
   level: string[]; days: string[]; time: string; duration: number; rating: number;
-  description: string; address?: string; phone?: string; imageUrls?: string[]; websiteUrl?: string; imageSourceName?: string; imageCheckedAt?: string; sourceUrl?: string; sourceName?: string; verifiedAt?: string; imageUsageNote?: string; priceEvidenceText?: string; scheduleEvidenceText?: string; detailsSourceUrls?: string[]; detailsCheckedAt?: string; detailsStatus?: string;
+  description: string; address?: string; phone?: string; imageUrls?: string[]; websiteUrl?: string; imageSourceName?: string; imageCheckedAt?: string; sourceUrl?: string; sourceName?: string; verifiedAt?: string; imageUsageNote?: string; priceEvidenceText?: string; scheduleEvidenceText?: string; detailsSourceUrls?: string[]; detailsCheckedAt?: string; detailsStatus?: string; classDurations?: number[];
 };
 const DATA: Studio[] = [
   {id:"s1",name:"발레온 스튜디오",lat:37.6584,lng:126.8321,area:"고양시 일산동구",tags:["성인","초급","기초"],price:25000,coupon:true,adult:true,kids:false,level:["초급","중급"],days:["평일","주말"],time:"오전 · 저녁",duration:60,rating:4.8,description:"성인 취미 발레 기초와 단계별 수업을 운영하는 스튜디오."},
