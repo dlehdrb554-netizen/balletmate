@@ -200,7 +200,9 @@ export default function Home() {
     const query=search.trim();
     if(!query){setAreaLocked(false);setSelected(null);return;}
     const q=query.toLowerCase();
-    const matching=studios.filter(studio=>studio.name.toLowerCase().includes(q)||studio.area.toLowerCase().includes(q)||studio.tags.some(tag=>tag.toLowerCase().includes(q)||q.includes(tag.toLowerCase()))||classSearchIds.includes(studio.id));
+    let matchingClassIds=classSearchIds;
+    if(supabase&&query.length>=2){try{matchingClassIds=await searchStudioIdsByClassName(query);setClassSearchIds(matchingClassIds);}catch{}}
+    const matching=studios.filter(studio=>studio.name.toLowerCase().includes(q)||studio.area.toLowerCase().includes(q)||studio.tags.some(tag=>tag.toLowerCase().includes(q)||q.includes(tag.toLowerCase()))||matchingClassIds.includes(studio.id));
     if(matching.length){
       const target=matching.length===1?matching[0]:null;
       const latitude=target?target.lat:matching.reduce((sum,studio)=>sum+studio.lat,0)/matching.length;
