@@ -9,12 +9,29 @@ CREATE TABLE IF NOT EXISTS public.studio_photo_candidates (
   image_url text NOT NULL,
   source_page_url text NOT NULL,
   source_host text,
+  material_type text CHECK (material_type IS NULL OR material_type IN ('price','schedule','other')),
   review_status text NOT NULL DEFAULT 'pending'
     CHECK (review_status IN ('pending','approved','rejected')),
   created_at timestamptz NOT NULL DEFAULT now(),
   reviewed_at timestamptz,
   reviewed_by uuid REFERENCES auth.users(id) ON DELETE SET NULL
 );
+
+-- Keep the admin review UI's material filter compatible with existing databases.
+ALTER TABLE public.studio_photo_candidates
+  ADD COLUMN IF NOT EXISTS material_type text;
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.studio_photo_candidates'::regclass
+      AND conname = 'studio_photo_candidates_material_type_check'
+  ) THEN
+    ALTER TABLE public.studio_photo_candidates
+      ADD CONSTRAINT studio_photo_candidates_material_type_check
+      CHECK (material_type IS NULL OR material_type IN ('price','schedule','other'));
+  END IF;
+END $;
 
 CREATE UNIQUE INDEX IF NOT EXISTS studio_photo_candidates_unique_image
   ON public.studio_photo_candidates(studio_id,image_url);
