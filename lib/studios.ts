@@ -41,7 +41,7 @@ const CACHE_MS = 90_000;
 const MAX_NETWORK_SEARCHES_PER_APP_SESSION = 40;
 let networkSearches = 0;
 
-export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
+async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord[]> {
   if (!supabase) return [];
   const key = bounds
     ? [bounds.latitude.toFixed(4), bounds.longitude.toFixed(4), bounds.latitudeDelta.toFixed(3), bounds.longitudeDelta.toFixed(3)].join(":")
@@ -102,4 +102,32 @@ export async function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[
   }
   studioCache.set(key, { savedAt: Date.now(), rows });
   return rows;
+}
+
+ 
+/**
+ * Coalesce simultaneous requests for the same map viewport.
+ * Map gestures and screen refreshes can otherwise issue duplicate Supabase reads
+ * before the 90-second cache is populated.
+ */
+const inFlightStudioSearches = new Map<string, Promise<StudioRecord[]>>();
+
+export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
+  const key = bounds
+    ? [bounds.latitude.toFixed(4), bounds.longitude.toFixed(4), bounds.latitudeDelta.toFixed(3), bounds.longitudeDelta.toFixed(3)].join(":")
+    : "all";
+  const existing = inFlightStudioSearches.get(key);
+  if (existing) return existing;
+
+  const request = fetchStudiosInternal(bounds).catch((error) => {
+    // Failed network attempts should not permanently consume this app-session budget.
+    networkSearches = Math.max(0, networkSearches - 1);
+    throw error;
+  }).finally(() => {
+    if (inFlightStudioSearches.get(key) === request) {
+      inFlightStudioSearches.delete(key);
+    }
+  });
+  inFlightStudioSearches.set(key, request);
+  return request;
 }
