@@ -127,24 +127,26 @@ function pricePeriod(line: string): { label: string; frequencyPerWeek: number | 
   const frequency = line.match(/주\s*(\d+)\s*회/);
   const frequencyPerWeek = frequency ? Math.min(14, Number(frequency[1])) : null;
 
-  const months = line.match(/(\d+)\s*개월/);
+  // Prefer explicit billing duration over the number of classes mentioned.
+  const months = line.match(/(\d+)\s*(?:개월|달)/);
   if (months) return { label: months[1] + "개월", frequencyPerWeek };
   const weeks = line.match(/(\d+)\s*주(?:간)?/);
   if (weeks) return { label: weeks[1] + "주", frequencyPerWeek };
-  const sessions = line.match(/(\d+)\s*회\s*(?:권|수강권|이용권)/);
-  if (sessions) return { label: sessions[1] + "회권", frequencyPerWeek };
-  if (/(1회당|회당|1회\s*(?:수강료|가격)|원데이|일일\s*(?:수강|체험))/.test(line)) {
-    return { label: "1회", frequencyPerWeek };
-  }
-  if (/(매월|월\s*(?:수강료|회비|등록비|비용|가격)|월간|한\s*달|1개월)/.test(line)) {
-    return { label: "월 단위", frequencyPerWeek };
-  }
   if (/(연간|1년|연\s*(?:수강료|회비|등록비|비용|가격))/.test(line)) {
     return { label: "연 단위", frequencyPerWeek };
   }
+  if (/(매월|월\s*(?:수강료|회비|등록비|비용|가격)|월간|한\s*달|월\s*\d+\s*회)/.test(line)) {
+    return { label: "월 단위", frequencyPerWeek };
+  }
+  const sessions = line.match(/(\d+)\s*회\s*(?:권|수강권|이용권|패키지)/);
+  if (sessions) return { label: sessions[1] + "회권", frequencyPerWeek };
+  const count = line.match(/(\d+)\s*회\s*(?=(?:수업|레슨|이용|패키지|권|\d+\s*원|\d+\s*만))/);
+  if (count) return { label: count[1] + "회", frequencyPerWeek };
+  if (/(1회당|회당|1회\s*(?:수강료|가격)|원데이|일일\s*(?:수강|체험))/.test(line)) {
+    return { label: "1회", frequencyPerWeek };
+  }
   return { label: "기간 미확인", frequencyPerWeek };
 }
-
 function candidateRows(
   lines: string[],
   kind: "price" | "schedule",
