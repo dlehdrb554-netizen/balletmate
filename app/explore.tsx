@@ -66,6 +66,7 @@ export default function Home() {
   const [globalSearchStudios,setGlobalSearchStudios]=useState<Studio[]>([]);
   const [searchMatches,setSearchMatches]=useState<Studio[]>([]);
   const [searchResultsOpen,setSearchResultsOpen]=useState(false);
+  const [searchSubmitting,setSearchSubmitting]=useState(false);
   const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
@@ -291,9 +292,11 @@ export default function Home() {
     "부산":{latitude:35.1796,longitude:129.0756},"울산":{latitude:35.5384,longitude:129.3114},"창원":{latitude:35.2281,longitude:128.6811},"제주":{latitude:33.4996,longitude:126.5312}
   };
   const submitSearch=async()=>{
+    if(searchSubmitting)return;
+    setSearchSubmitting(true);
     Keyboard.dismiss();
     const query=search.trim();
-    if(!query){setAreaLocked(false);setSelected(null);setGlobalSearchStudios([]);return;}
+    if(!query){setAreaLocked(false);setSelected(null);setGlobalSearchStudios([]);setSearchSubmitting(false);return;}
     const q=query.toLowerCase();
     const regionKey=Object.keys(REGIONAL_SEARCH).sort((a,b)=>b.length-a.length).find(key=>q.includes(key));
     let remoteRows:any[]=[];
@@ -315,25 +318,29 @@ export default function Home() {
     setGlobalSearchStudios(mapped);
     let matchingClassIds=classSearchIds;
     if(!mapped.length&&supabase&&query.length>=2){try{matchingClassIds=await searchStudioIdsByClassName(query);setClassSearchIds(matchingClassIds);}catch{}}
-    const mappedIds=new Set(mapped.map(studio=>studio.id));
     const matching=[...new Map([...mapped,...studios.filter(studio=>studio.name.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.area.toLowerCase().includes(q))].map(studio=>[studio.id,studio])).values()];
     if(matching.length){
       setAreaLocked(false);
-      if(matching.length>1){
-        setSearchMatches(matching.sort((a,b)=>a.name.localeCompare(b.name,"ko")||String(a.address||a.area).localeCompare(String(b.address||b.area),"ko")));
+      const ordered=matching.sort((a,b)=>a.name.localeCompare(b.name,"ko")||String(a.address||a.area).localeCompare(String(b.address||b.area),"ko"));
+      if(ordered.length>1){
+        setSearchMatches(ordered);
+        setGlobalSearchStudios(ordered);
         setSearchResultsOpen(true);
         setSelected(null);
+        setSearchSubmitting(false);
         return;
       }
-      const target=matching[0];
+      const target=ordered[0];
       const next={latitude:target.lat,longitude:target.lng,latitudeDelta:0.018,longitudeDelta:0.018};
       map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(target);
+      setSearchMatches([target]);
+      setSearchSubmitting(false);
       return;
     }
     if(regionKey){
       const point=REGIONAL_SEARCH[regionKey];
       const next={latitude:point.latitude,longitude:point.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-      map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);
+      map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);setSearchMatches([]);setSearchSubmitting(false);
       return;
     }
     try{
@@ -342,11 +349,12 @@ export default function Home() {
       for(const candidate of candidates){try{geocoded=await Location.geocodeAsync(candidate);if(geocoded.length)break;}catch{}}
       if(geocoded.length){
         const next={latitude:geocoded[0].latitude,longitude:geocoded[0].longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-        map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);
+        map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);setSearchMatches([]);setSearchSubmitting(false);
         return;
       }
       Alert.alert("검색 결과 없음","입력한 학원명·역명·아파트명을 지도 위치 검색으로 찾지 못했습니다. 역명은 '미아사거리역'처럼, 아파트는 구·동을 함께 입력하면 정확도가 높아집니다.");
     }catch(error){console.warn("Search location geocoding failed:",error);Alert.alert("지역 검색","지역 위치를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");}
+    finally{setSearchSubmitting(false);}
   };
   const locate=async()=>{
     setLocationLoading(true);
@@ -523,7 +531,7 @@ export default function Home() {
       <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>setMenuOpen(true)} accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/account")} accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
-      <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={value=>{setSearch(value);setGlobalSearchStudios([]);}} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={submitSearch}/>{!!search&&<Pressable onPress={()=>setSearch("")}><Text style={styles.clear}>×</Text></Pressable>}</View>
+      <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={value=>{setSearch(value);setGlobalSearchStudios([]);setSearchMatches([]);}} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={submitSearch}/>{!!search&&<Pressable onPress={()=>setSearch("")}><Text style={styles.clear}>×</Text></Pressable>}</View><Pressable style={[styles.searchSubmitButton,searchSubmitting&&{opacity:0.6}]} onPress={submitSearch} disabled={searchSubmitting}><Ionicons name={searchSubmitting?"hourglass-outline":"search"} size={19} color="#fff"/></Pressable>
       <Pressable style={styles.filterButton} onPress={()=>setFilterOpen(true)}><Ionicons name="options-outline" size={21} color={COLORS.ink} />{activeFilters>0&&<View style={styles.filterCount}><Text style={styles.filterCountText}>{activeFilters}</Text></View>}</Pressable>
     </View>
     {!!search.trim()&&search.trim().length>=2&&<Text style={styles.searchHint}>{classSearchLoading?"수업명 검색 중…":"학원명·지역·태그·등록 수업명 검색"}</Text>}
@@ -533,7 +541,7 @@ export default function Home() {
         <KakaoMap ref={map} initialRegion={region} markers={results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng}))} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={(next)=>{setRegion(next);setMapMoved(true);}} onMarkerPress={(id)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);}} />
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>이 지역에서 재검색</Text></View></Pressable>}
         <Pressable style={styles.locateButton} onPress={locate}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
-        <View style={styles.mapCount}><Text style={styles.mapCountText}>주변 학원 <Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}</Text>곳{backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></View>
+        <Pressable style={styles.mapCount} onPress={()=>{if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}</Text>곳{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
         {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={styles.detailBtn} onPress={()=>openDetail(selected)}><Text style={styles.detailBtnText}>상세 보기  ›</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
       </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Pressable onPress={()=>setListSort("distance")} style={[styles.listSortChip,listSort==="distance"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="distance"&&styles.listSortChipTextActive]}>거리순</Text></Pressable><Pressable onPress={()=>setListSort("price")} style={[styles.listSortChip,listSort==="price"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="price"&&styles.listSortChipTextActive]}>가격 낮은순</Text></Pressable></View><FlatList data={listRows} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} ListEmptyComponent={<Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"검색 조건에 맞는 학원이 없어요."}</Text>}/></>}
     </View>
@@ -694,7 +702,7 @@ export default function Home() {
 }
 const styles=StyleSheet.create({
  safe:{flex:1,backgroundColor:COLORS.bg},header:{paddingHorizontal:12,paddingTop:2,paddingBottom:3,flexDirection:"row",justifyContent:"space-between",alignItems:"center"},headerActions:{flexDirection:"row",alignItems:"center",gap:8},menuButton:{height:34,width:34,borderRadius:11,backgroundColor:"#fff",alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},menuButtonText:{fontSize:19,color:COLORS.ink,fontWeight:"700"},brand:{fontSize:20,fontWeight:"900",letterSpacing:-0.7,color:COLORS.ink},brandDot:{color:COLORS.purple,fontSize:19},subtitle:{fontSize:11,color:COLORS.muted,marginTop:3},profileButton:{height:34,width:34,borderRadius:11,backgroundColor:"#fff",alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},
- searchRow:{paddingHorizontal:10,paddingTop:0,flexDirection:"row",gap:6},searchHint:{fontSize:10,color:COLORS.muted,paddingHorizontal:20,paddingTop:4},searchBox:{flex:1,flexDirection:"row",alignItems:"center",backgroundColor:"#fff",borderRadius:12,paddingHorizontal:11,height:42,borderWidth:1,borderColor:COLORS.line,gap:8},searchInput:{flex:1,fontSize:14,color:COLORS.ink,height:42,paddingVertical:0,includeFontPadding:false},clear:{fontSize:21,color:COLORS.muted},filterButton:{width:42,height:42,backgroundColor:"#fff",borderRadius:12,alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},filterCount:{position:"absolute",top:4,right:4,backgroundColor:COLORS.purple,width:16,height:16,borderRadius:8,alignItems:"center",justifyContent:"center"},filterCountText:{fontSize:10,color:"#fff",fontWeight:"700"},
+ searchRow:{paddingHorizontal:10,paddingTop:0,flexDirection:"row",gap:6},searchSubmitButton:{width:42,height:42,borderRadius:12,backgroundColor:COLORS.purple,alignItems:"center",justifyContent:"center"},searchHint:{fontSize:10,color:COLORS.muted,paddingHorizontal:20,paddingTop:4},searchBox:{flex:1,flexDirection:"row",alignItems:"center",backgroundColor:"#fff",borderRadius:12,paddingHorizontal:11,height:42,borderWidth:1,borderColor:COLORS.line,gap:8},searchInput:{flex:1,fontSize:14,color:COLORS.ink,height:42,paddingVertical:0,includeFontPadding:false},clear:{fontSize:21,color:COLORS.muted},filterButton:{width:42,height:42,backgroundColor:"#fff",borderRadius:12,alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},filterCount:{position:"absolute",top:4,right:4,backgroundColor:COLORS.purple,width:16,height:16,borderRadius:8,alignItems:"center",justifyContent:"center"},filterCountText:{fontSize:10,color:"#fff",fontWeight:"700"},
  quickFilters:{flexDirection:"row",paddingHorizontal:10,paddingVertical:4,gap:8},chip:{height:32,borderRadius:16,borderWidth:1,borderColor:COLORS.line,backgroundColor:"#fff",paddingHorizontal:14,justifyContent:"center"},chipActive:{borderColor:COLORS.purple,backgroundColor:COLORS.pale},chipText:{fontSize:13,color:"#625E70"},chipTextActive:{color:COLORS.purple,fontWeight:"700"},
  content:{flex:1,marginTop:2},mapWrap:{flex:1,overflow:"hidden",borderTopLeftRadius:22,borderTopRightRadius:22},map:{flex:1},pin:{backgroundColor:"#fff",paddingHorizontal:10,paddingVertical:7,borderRadius:18,borderColor:"#DCD6F8",borderWidth:1.5,elevation:3,shadowColor:"#000",shadowOpacity:0.1,shadowRadius:4},pinSelected:{backgroundColor:COLORS.purple,borderColor:COLORS.purple},pinText:{fontSize:11,fontWeight:"800",color:COLORS.purple},pinTextSelected:{color:"#fff"},areaSearch:{position:"absolute",top:14,alignSelf:"center",backgroundColor:"#fff",paddingHorizontal:16,paddingVertical:11,borderRadius:24,elevation:4,shadowColor:"#000",shadowOpacity:0.12,shadowRadius:5},areaSearchText:{color:COLORS.ink,fontSize:13,fontWeight:"700"},locateButton:{position:"absolute",right:14,bottom:76,width:44,height:44,borderRadius:14,backgroundColor:"#fff",alignItems:"center",justifyContent:"center",elevation:3},mapCount:{position:"absolute",left:12,bottom:12,backgroundColor:"#fff",paddingHorizontal:13,paddingVertical:10,borderRadius:13,elevation:2},mapCountText:{fontSize:12,color:COLORS.ink,fontWeight:"700"},selectedCard:{position:"absolute",bottom:10,left:8,right:8,backgroundColor:"#fff",borderRadius:18,padding:10,elevation:7,shadowColor:"#000",shadowOpacity:0.15,shadowRadius:10},studioCard:{backgroundColor:"#fff",borderRadius:17,padding:14,marginBottom:10,borderWidth:1,borderColor:"#F0EDF5"},compactCard:{marginBottom:0,padding:8,borderWidth:0},cardTop:{flexDirection:"row",alignItems:"center",gap:10},studioIcon:{width:48,height:48,borderRadius:12,backgroundColor:COLORS.pink,alignItems:"center",justifyContent:"center",overflow:"hidden"},studioThumb:{width:48,height:48},studioName:{fontSize:15,fontWeight:"800",color:COLORS.ink},studioArea:{fontSize:11,color:COLORS.muted,marginTop:3},couponBadge:{backgroundColor:"#FFF1D9",borderRadius:8,paddingHorizontal:7,paddingVertical:4},couponText:{fontSize:10,color:"#B87922",fontWeight:"700"},tagsRow:{flexDirection:"row",gap:5,marginTop:11},tag:{backgroundColor:"#F6F4F9",borderRadius:6,paddingHorizontal:7,paddingVertical:4},tagText:{fontSize:10,color:"#777184"},cardBottom:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:11},priceText:{fontSize:14,fontWeight:"800",color:COLORS.ink},priceUnit:{fontSize:11,fontWeight:"400",color:COLORS.muted},metaText:{fontSize:11,color:COLORS.muted},cardActions:{flexDirection:"row",gap:7,marginTop:9},actionChip:{backgroundColor:"#F7F5FA",borderRadius:9,paddingHorizontal:10,paddingVertical:6},actionText:{fontSize:10,color:COLORS.purple,fontWeight:"700"},compareFloating:{position:"absolute",bottom:72,alignSelf:"center",backgroundColor:COLORS.purple,paddingHorizontal:18,paddingVertical:12,borderRadius:24,zIndex:5,elevation:6},compareFloatingText:{fontSize:12,fontWeight:"800",color:"#fff"},dragHeader:{paddingBottom:6},dragGestureZone:{height:42,alignItems:"center",justifyContent:"center"},dragHandle:{width:48,height:6,borderRadius:3,backgroundColor:"#D8D4E1",alignSelf:"center"},dragHint:{fontSize:10,color:COLORS.muted,marginTop:5,textAlign:"center"},expandText:{fontSize:12,color:COLORS.purple,fontWeight:"800"},studioPhoto:{width:250,height:158,borderRadius:13,backgroundColor:"#F3F0F5"},photoEmpty:{backgroundColor:"#F8F6FB",padding:14,borderRadius:12},photoSourceLink:{fontSize:12,color:COLORS.purple,fontWeight:"800",marginTop:7},photoCredit:{fontSize:10,color:COLORS.muted,marginTop:5},classBlock:{backgroundColor:"#F8F6FB",borderRadius:12,padding:12,marginBottom:8},classTitle:{fontSize:13,fontWeight:"800",color:COLORS.ink},classMeta:{fontSize:11,color:COLORS.muted,marginTop:4},sessionText:{fontSize:11,color:"#625E70",marginTop:5},compareRow:{borderBottomWidth:1,borderBottomColor:COLORS.line,paddingVertical:13},compareName:{fontSize:14,fontWeight:"800",color:COLORS.ink},compareInfo:{fontSize:11,color:COLORS.muted,marginTop:4},comparePrice:{fontSize:14,fontWeight:"900",color:COLORS.purple,marginTop:6},removeCompare:{fontSize:11,color:"#B66B77",marginTop:6},detailDescription:{fontSize:13,color:"#625E70",lineHeight:20},infoRow:{flexDirection:"row",justifyContent:"space-between",paddingVertical:9,borderBottomWidth:1,borderBottomColor:COLORS.line},infoLabel:{fontSize:12,color:COLORS.muted},infoValue:{fontSize:12,color:COLORS.ink,fontWeight:"700"},detailDisclaimer:{fontSize:10,color:"#A29EAC",marginTop:14},reportInput:{minHeight:110,borderWidth:1,borderColor:COLORS.line,borderRadius:13,padding:12,fontSize:13,color:COLORS.ink,marginBottom:15},detailBtn:{backgroundColor:COLORS.pale,alignItems:"center",padding:10,borderRadius:12,marginTop:7},detailBtnText:{fontSize:12,fontWeight:"700",color:COLORS.purple},dismiss:{position:"absolute",top:9,right:8,width:24,height:24,borderRadius:12,backgroundColor:"#F5F3F8",alignItems:"center",justifyContent:"center"},dismissText:{fontSize:20,color:COLORS.muted},listSortRow:{flexDirection:"row",alignItems:"center",gap:7,paddingHorizontal:12,paddingVertical:8,backgroundColor:COLORS.bg},listSortLabel:{flex:1,fontSize:12,color:COLORS.muted,fontWeight:"700"},listSortChip:{paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:COLORS.line,backgroundColor:"#fff"},listSortChipActive:{borderColor:COLORS.purple,backgroundColor:COLORS.pale},listSortChipText:{fontSize:11,color:COLORS.muted,fontWeight:"700"},listSortChipTextActive:{color:COLORS.purple},listContent:{padding:12,paddingBottom:20},empty:{textAlign:"center",padding:30,color:COLORS.muted},
  bottomNav:{height:61,backgroundColor:"#fff",borderTopWidth:1,borderTopColor:COLORS.line,flexDirection:"row",justifyContent:"space-around",alignItems:"center",paddingBottom:3},navItem:{alignItems:"center",justifyContent:"center",gap:2,flex:1},navIcon:{fontSize:20,color:"#9D98AA"},navLabel:{fontSize:10,color:"#9D98AA"},navActive:{color:COLORS.purple,fontWeight:"800"},
