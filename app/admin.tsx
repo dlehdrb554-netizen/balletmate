@@ -24,7 +24,7 @@ const STUDIO_PAGE_SIZE = 20;
 const c = {ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",white:"#FFFFFF",bg:"#FAF9FC"};
 const normalizeScheduleKey=(value:string)=>String(value||"").toLowerCase().replace(/[\s·,，、|/]+/g,"").trim();
 
-type PhotoAutoFilter="priority"|"suspect"|"all";
+type PhotoAutoFilter="priority"|"suspect"|"ballet"|"excluded"|"all";
 const classifyPhotoCandidate=(item:any)=>{
   const source=String(item?.image_url||"")+" "+String(item?.source_page_url||"")+" "+String(item?.source_host||"");
   const suspectPatterns=[
@@ -124,7 +124,7 @@ export default function Admin() {
   const [rows,setRows]=useState<StudioRow[]>([]);
   const [failedStudioThumbIds,setFailedStudioThumbIds]=useState<string[]>([]);
   const [photoCandidateRows,setPhotoCandidateRows]=useState<any[]>([]);
-  const [photoReviewBusy,setPhotoReviewBusy]=useState(false);
+  const [photoReviewBusy,setPhotoReviewBusy]=useState(false);\n  const [photoAutoScanBusy,setPhotoAutoScanBusy]=useState(false);
   const [photoCandidateTotal,setPhotoCandidateTotal]=useState(0);
   const [photoCandidateOffset,setPhotoCandidateOffset]=useState(0);
   const [failedPhotoCandidateIds,setFailedPhotoCandidateIds]=useState<number[]>([]);
@@ -132,7 +132,7 @@ export default function Admin() {
   const [photoAutoFilter,setPhotoAutoFilter]=useState<PhotoAutoFilter>("priority");
   const [photoMaterialFilter,setPhotoMaterialFilter]=useState<"all"|"unclassified"|"price"|"schedule"|"other">("unclassified");
   const [studioSearch,setStudioSearch]=useState("");
-  const photoFilteredCandidates=photoCandidateRows.filter(item=>{const classification=classifyPhotoCandidate(item);const face=photoFaceResults[Number(item.id)];const suspect=classification.suspect||face?.status==="faces";const autoOk=photoAutoFilter==="all"||(photoAutoFilter==="suspect"?suspect:!suspect);const materialOk=photoMaterialFilter==="all"||(photoMaterialFilter==="unclassified"?!item.material_type:item.material_type===photoMaterialFilter);return autoOk&&materialOk;});
+  const photoFilteredCandidates=photoCandidateRows.filter(item=>{const heuristics=classifyPhotoCandidate(item);const face=photoFaceResults[Number(item.id)];const suspect=heuristics.suspect||face?.status==="faces";const ai=item.auto_classification;const autoOk=photoAutoFilter==="all"||(photoAutoFilter==="suspect"?suspect||!!ai&&ai!=="ballet_class":photoAutoFilter==="ballet"?ai==="ballet_class":photoAutoFilter==="excluded"?!!ai&&ai!=="ballet_class":ai?ai==="ballet_class"||ai==="unknown":!suspect);const materialOk=photoMaterialFilter==="all"||(photoMaterialFilter==="unclassified"?!item.material_type:item.material_type===photoMaterialFilter);return autoOk&&materialOk;});
   const [studioAppliedSearch,setStudioAppliedSearch]=useState("");
   const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
   const [studioDbOffset,setStudioDbOffset]=useState(0);
@@ -417,7 +417,7 @@ export default function Admin() {
     if(!supabase||!authorized)return;
     setPhotoReviewBusy(true);
     const {data,error,count}=await supabase.from("studio_photo_candidates")
-      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type",{count:"exact"})
+      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type,auto_classification,auto_confidence,auto_reason,auto_classified_at",{count:"exact"})
       .eq("review_status","pending").order("created_at",{ascending:false}).order("id",{ascending:false}).range(0,11);
     if(error){
       Alert.alert("사진 검토 자료 조회 실패",error.message+"\n사진 검토 SQL이 적용됐는지 확인해 주세요.");
@@ -431,11 +431,32 @@ export default function Admin() {
     setPhotoReviewBusy(true);
     const start=photoCandidateOffset;
     const {data,error}=await supabase.from("studio_photo_candidates")
-      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type")
+      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type,auto_classification,auto_confidence,auto_reason,auto_classified_at")
       .eq("review_status","pending").order("created_at",{ascending:false}).order("id",{ascending:false}).range(start,start+11);
     if(error)Alert.alert("추가 사진 조회 실패",error.message);
     else {setPhotoCandidateRows(data||[]);setPhotoCandidateOffset(start+(data||[]).length);}
     setPhotoReviewBusy(false);
+  };
+  const classifyPhotoCandidateAI=async(item:any,quiet=false)=>{
+    if(!supabase)return false;
+    const {data,error}=await supabase.functions.invoke("classify-studio-photo",{body:{candidateId:item.id}});
+    if(error||data?.error){
+      if(!quiet)Alert.alert("이미지 자동 분류 실패",data?.error||error?.message||"분류에 실패했습니다.");
+      return false;
+    }
+    setPhotoCandidateRows(current=>current.map(row=>row.id===item.id?{...row,auto_classification:data.category,auto_confidence:data.confidence,auto_reason:data.reason,auto_classified_at:new Date().toISOString()}:row));
+    return true;
+  };
+  const runPhotoAutoScan=async()=>{
+    const targets=photoCandidateRows.filter(row=>!row.auto_classification);
+    if(!targets.length){Alert.alert("자동 분류","현재 불러온 사진은 모두 AI 분류가 완료됐습니다.");return;}
+    setPhotoAutoScanBusy(true);
+    let success=0,failed=0;
+    for(const item of targets){
+      if(await classifyPhotoCandidateAI(item,true))success++;else failed++;
+    }
+    setPhotoAutoScanBusy(false);
+    Alert.alert("이미지 자동 분류 완료",success+"장 분류 완료"+(failed?" · "+failed+"장 실패":"")+"\\n무료 사용량 절약을 위해 한 장씩 순차 분석했습니다.");
   };
   const classifyPhotoMaterial=async(item:any,type:"price"|"schedule"|"other")=>{
     if(!supabase)return;
@@ -1372,11 +1393,12 @@ export default function Admin() {
     <Pressable onPress={loadPhotoCandidates} disabled={photoReviewBusy}><Text style={styles.refresh}>{photoReviewBusy?"조회 중…":"새로고침"}</Text></Pressable>
   </View>
   <Text style={styles.hint}>대기 {photoCandidateTotal.toLocaleString("ko-KR")}건 · 불러온 {photoCandidateRows.length}건 · 현재 탭 {photoFilteredCandidates.length}건</Text>
-  <Text style={styles.hint}>사진에만 가격·시간표가 있는 경우 OCR 없이 관리자가 직접 분류합니다. 가격 자료 / 시간표 자료 / 기타 자료로 표시하고 원본을 확인하세요. 분류는 공개 정보 등록이 아니며, 사진 갤러리 승인과 별개입니다.</Text>
-  <View style={styles.photoFilterRow}>{([{key:"unclassified",label:"자료 미분류"},{key:"price",label:"가격"},{key:"schedule",label:"시간표"},{key:"other",label:"기타"},{key:"all",label:"전체"}] as {key:typeof photoMaterialFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoMaterialFilter(option.key)} style={[styles.photoFilterButton,photoMaterialFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoMaterialFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><View style={styles.photoFilterRow}>{([{key:"priority",label:"우선 검토"},{key:"suspect",label:"의심 사진"},{key:"all",label:"전체"}] as {key:PhotoAutoFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoAutoFilter(option.key)} style={[styles.photoFilterButton,photoAutoFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoAutoFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View>
-  {photoAutoFilter==="priority"&&<Text style={styles.hint}>의심 키워드가 감지된 사진은 이 탭에서 숨깁니다. 의심 탭에서 별도로 확인할 수 있습니다.</Text>}
-  {photoAutoFilter==="suspect"&&<Text style={styles.hint}>파일명·URL에 인물, 광고, 아이콘 등의 키워드가 있는 사진만 표시합니다. 실제 얼굴 검출은 아닙니다.</Text>}
-  {photoAutoFilter==="all"&&<Text style={styles.hint}>자동 분류 결과와 관계없이 불러온 후보를 모두 표시합니다.</Text>}
+  <Text style={styles.hint}>이미지 AI는 시각적 유형만 분류합니다. OCR·텍스트 추출 없이 발레 수업 사진, 시간표·가격표 형식, 포스터, 로고, 인물, 무관 이미지로 구분합니다. AI 결과는 자동 공개하지 않으며 관리자 승인 전에는 공개되지 않습니다.</Text>
+  <View style={styles.photoFilterRow}><Pressable style={styles.secondary} disabled={photoAutoScanBusy||photoReviewBusy} onPress={runPhotoAutoScan}><Text style={styles.secondaryText}>{photoAutoScanBusy?"AI 순차 분석 중…":"불러온 미분류 사진 AI 분석"}</Text></Pressable></View>
+  <View style={styles.photoFilterRow}>{([{key:"unclassified",label:"자료 미분류"},{key:"price",label:"가격"},{key:"schedule",label:"시간표"},{key:"other",label:"기타"},{key:"all",label:"전체"}] as {key:typeof photoMaterialFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoMaterialFilter(option.key)} style={[styles.photoFilterButton,photoMaterialFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoMaterialFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><View style={styles.photoFilterRow}>{([{key:"priority",label:"발레 우선"},{key:"ballet",label:"AI 발레 사진"},{key:"excluded",label:"AI 제외 후보"},{key:"suspect",label:"의심/보류"},{key:"all",label:"전체"}] as {key:PhotoAutoFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoAutoFilter(option.key)} style={[styles.photoFilterButton,photoAutoFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoAutoFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View>
+  {photoAutoFilter==="priority"&&<Text style={styles.hint}>AI가 발레 사진으로 판단한 사진을 우선 표시하고, 아직 분석되지 않은 사진은 기존 휴리스틱 기준으로 보여줍니다.</Text>}
+  {photoAutoFilter==="suspect"&&<Text style={styles.hint}>얼굴 감지 또는 AI가 발레 사진이 아닌 유형으로 판단한 사진을 검토합니다.</Text>}
+  {photoAutoFilter==="ballet"&&<Text style={styles.hint}>AI 분류가 발레 수업/학원 사진인 후보만 표시합니다.</Text>}{photoAutoFilter==="excluded"&&<Text style={styles.hint}>AI 분류가 발레 사진이 아닌 후보만 표시합니다. 자동 삭제는 하지 않습니다.</Text>}{photoAutoFilter==="all"&&<Text style={styles.hint}>AI 분류와 관계없이 불러온 후보 전체를 표시합니다.</Text>}
   {photoReviewBusy&&<ActivityIndicator color={c.purple}/>}
   {photoFilteredCandidates.map(item=><View key={"photo-candidate-"+item.id} style={styles.photoReviewCard}>
     <PhotoFaceScanner item={item} onResult={(id,status,count,error)=>setPhotoFaceResults(current=>({...current,[id]:{status,count,error}}))}/>
@@ -1386,7 +1408,7 @@ export default function Admin() {
     <View style={styles.photoReviewInfo}>
       <Text style={styles.evidenceStudio} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.photoSuspectLabel}>자료 분류: {item.material_type==="price"?"가격":item.material_type==="schedule"?"시간표":item.material_type==="other"?"기타":"미분류"}</Text>
       <Text style={styles.compactSecondary} numberOfLines={1}>{item.source_host||"출처 미확인"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text>
-      <Text style={styles.photoFaceStatus}>{photoFaceResults[Number(item.id)]?.status==="checking"?"얼굴 검사 중…":photoFaceResults[Number(item.id)]?.status==="faces"?"얼굴 감지 "+photoFaceResults[Number(item.id)].count+"개 · 자동 보류":photoFaceResults[Number(item.id)]?.status==="clear"?"얼굴 미감지":photoFaceResults[Number(item.id)]?.status==="error"?"얼굴 검사 실패 · 수동 확인":"얼굴 검사 대기"}</Text>
+      <Text style={styles.photoFaceStatus}>AI: {item.auto_classification?({ballet_class:"발레 사진",schedule:"시간표",price:"가격표",poster:"포스터",logo:"로고/아이콘",portrait:"인물 사진",unrelated:"무관 이미지",unknown:"판단 불가"} as any)[item.auto_classification]+" ("+Math.round(Number(item.auto_confidence||0)*100)+"%)":"미분류"} · {item.auto_reason||"AI 분석 전"} </Text><Text style={styles.photoFaceStatus}>{photoFaceResults[Number(item.id)]?.status==="checking"?"얼굴 검사 중…":photoFaceResults[Number(item.id)]?.status==="faces"?"얼굴 감지 "+photoFaceResults[Number(item.id)].count+"개 · 자동 보류":photoFaceResults[Number(item.id)]?.status==="clear"?"얼굴 미감지":photoFaceResults[Number(item.id)]?.status==="error"?"얼굴 검사 실패 · 수동 확인":"얼굴 검사 대기"}</Text>
       {classifyPhotoCandidate(item).suspect&&<Text style={styles.photoSuspectLabel}>{classifyPhotoCandidate(item).reasons.join(" · ")}</Text>}
       <View style={styles.photoReviewLinks}>
         <Pressable onPress={()=>Linking.openURL(item.image_url).catch(()=>Alert.alert("이미지 확인","원본 이미지를 열 수 없습니다."))}><Text style={styles.photoReviewLink}>이미지 원본 ↗</Text></Pressable>
@@ -1394,7 +1416,7 @@ export default function Admin() {
       </View>
     </View>
     <View style={styles.photoReviewActions}>
-      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>classifyPhotoMaterial(item,"price")}><Text style={styles.photoReviewRejectText}>가격 자료</Text></Pressable>
+      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoCandidateAI(item)}><Text style={styles.photoReviewRejectText}>AI 분석</Text></Pressable><Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoMaterial(item,"price")}><Text style={styles.photoReviewRejectText}>가격 자료</Text></Pressable>
       <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>classifyPhotoMaterial(item,"schedule")}><Text style={styles.photoReviewRejectText}>시간표 자료</Text></Pressable>
       <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>classifyPhotoMaterial(item,"other")}><Text style={styles.photoReviewRejectText}>기타 자료</Text></Pressable>
       <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.photoReviewRejectText}>제외</Text></Pressable>
