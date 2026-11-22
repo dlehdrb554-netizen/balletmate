@@ -182,9 +182,30 @@ Deno.serve(async (req) => {
   const images = [...new Set(imageCandidates.map((value) => safeImageUrl(value, pageUrl.toString())).filter((value): value is string => !!value))].slice(0, 10);
   const prices = [...new Set(priceEvidence)].slice(0, 30);
   const schedules = [...new Set(scheduleEvidence)].slice(0, 30);
-  const preserveManualImages = studio.image_source_name === "관리자 직접 등록";
   if (!images.length && !prices.length && !schedules.length) {
     return json({ error: "공식 사이트에서 사진·가격·시간표 관련 공개 정보를 찾지 못했습니다.", pagesChecked: pages.length }, 404);
+  }
+
+  // Keep crawled images out of the public studio gallery until an administrator
+  // checks the source and approves each candidate. No OCR or text extraction.
+  let photoCandidatesQueued = 0;
+  if (images.length) {
+    const candidates = images.map((image_url) => ({
+      studio_id: studio.id,
+      studio_name: studio.name,
+      image_url,
+      source_page_url: pageUrl.toString(),
+      source_host: pageUrl.hostname,
+      review_status: "pending",
+    }));
+    const { data: queued, error: photoQueueError } = await client
+      .from("studio_photo_candidates")
+      .upsert(candidates, { onConflict: "studio_id,image_url", ignoreDuplicates: true })
+      .select("id");
+    if (photoQueueError) {
+      return json({ error: "사진 검토 대기열 저장 실패: " + photoQueueError.message + " (studio_photo_review.sql 적용 여부 확인)" }, 500);
+    }
+    photoCandidatesQueued = queued?.length || 0;
   }
 
   const update: Record<string, unknown> = {
@@ -194,17 +215,12 @@ Deno.serve(async (req) => {
     details_checked_at: new Date().toISOString(),
     details_status: prices.length && schedules.length ? "text_found" : "partial",
   };
-  if (images.length && !preserveManualImages) {
-    update.image_urls = images;
-    update.image_source_name = pageUrl.hostname;
-    update.image_checked_at = new Date().toISOString();
-  }
   const { error: updateError } = await client.from("studios").update(update).eq("id", studio.id);
   if (updateError) return json({ error: "학원 상세정보 저장 실패: " + updateError.message }, 500);
 
   return json({
     studioId: studio.id, pagesChecked: pages.length,
-    imageCount: preserveManualImages ? (studio.image_urls || []).length : images.length,
+    imageCandidatesFound: images.length, photoCandidatesQueued,
     priceEvidenceCount: prices.length, scheduleEvidenceCount: schedules.length,
     detailsStatus: update.details_status,
   });
