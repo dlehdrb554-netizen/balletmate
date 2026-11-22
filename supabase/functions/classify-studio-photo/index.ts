@@ -19,6 +19,25 @@ Deno.serve(async(req)=>{
   userId=user.user.id;
  }
  let body:any;try{body=await req.json();}catch{return json({error:"Invalid JSON"},400);}
+ // Admin-only, read-only connectivity test. It never reads or changes photo candidates.
+ if(body?.action==="connection_test"){
+  const endpoint="https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(cfAccount)+"/ai/run/@cf/meta/llama-3.2-11b-vision-instruct";
+  const headers={"Content-Type":"application/json","Authorization":"Bearer "+cfToken};
+  let agreement:Response;
+  try{agreement=await fetch(endpoint,{method:"POST",headers,signal:AbortSignal.timeout(20000),body:JSON.stringify({prompt:"agree"})});}
+  catch{return json({ok:false,stage:"license",error:"Cloudflare 연결 요청 실패"},502);}
+  if(!agreement.ok){const detail=(await agreement.text()).slice(0,700);return json({ok:false,stage:"license",status:agreement.status,error:"Meta 라이선스 동의 요청 실패",detail},agreement.status===429?429:502);}
+  const agreementPayload=await agreement.json().catch(()=>({}));
+  const samplePng="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j9WQAAAAASUVORK5CYII=";
+  let inference:Response;
+  try{inference=await fetch(endpoint,{method:"POST",headers,signal:AbortSignal.timeout(30000),body:JSON.stringify({prompt:"이 이미지를 한 문장으로 설명하고, 반드시 한국어로 답하세요.",image:samplePng,max_tokens:80,temperature:0})});}
+  catch{return json({ok:false,stage:"inference",error:"모델 추론 요청 실패"},502);}
+  if(!inference.ok){const detail=(await inference.text()).slice(0,700);return json({ok:false,stage:"inference",status:inference.status,error:"Cloudflare 모델 추론 실패",detail},inference.status===429?429:502);}
+  const inferencePayload=await inference.json().catch(()=>({}));
+  const response=String(inferencePayload?.result?.response??inferencePayload?.result?.output??"").slice(0,500);
+  if(!response)return json({ok:false,stage:"inference",error:"모델 응답은 성공했지만 결과 텍스트가 비어 있습니다.",raw:JSON.stringify(inferencePayload).slice(0,700)},502);
+  return json({ok:true,model:"@cf/meta/llama-3.2-11b-vision-instruct",licenseAccepted:agreementPayload?.success!==false,inference:"success",response,readOnly:true});
+ }
  if(!Number.isInteger(body.candidateId))return json({error:"candidateId required"},400);
  const {data:candidate,error:candidateError}=await db.from("studio_photo_candidates").select("id,studio_id,studio_name,image_url,source_page_url,source_host,review_status").eq("id",body.candidateId).eq("review_status","pending").single();
  if(candidateError||!candidate)return json({error:"Candidate not found"},404);
