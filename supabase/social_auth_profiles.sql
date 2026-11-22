@@ -16,7 +16,7 @@ begin
     uname := 'social_' || pg_catalog.substr(pg_catalog.replace(new.id::text, '-', ''), 1, 12);
   end if;
 
-  insert into public.user_profiles (
+  insert into public.user_profiles as existing (
     user_id, username, phone_number, phone_verified_at, updated_at
   )
   values (
@@ -28,7 +28,7 @@ begin
   )
   on conflict (user_id) do update set
     username = case
-      when public.user_profiles.username ~ '^[a-z0-9_]{3,24}$'
+      when existing.username ~ '^[a-z0-9_]{3,24}$'
         and pg_catalog.left(public.user_profiles.username, 7) <> 'social_'
       then public.user_profiles.username
       else excluded.username
