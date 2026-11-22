@@ -125,7 +125,8 @@ function priceAmount(line: string): string | null {
 }
 function pricePeriod(line: string): { label: string; frequencyPerWeek: number | null } {
   const frequency = line.match(/주\s*(\d+)\s*회/);
-  const frequencyPerWeek = frequency ? Math.min(14, Number(frequency[1])) : null;
+  const frequencyValue = frequency ? Number(frequency[1]) : null;
+  const frequencyPerWeek = frequencyValue !== null && frequencyValue >= 1 && frequencyValue <= 14 ? frequencyValue : null;
 
   // Prefer explicit billing duration over the number of classes mentioned.
   const months = line.match(/(\d+)\s*(?:개월|달)/);
