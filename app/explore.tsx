@@ -517,10 +517,10 @@ export default function Home() {
 {detailTab==="home"&&<ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}><View style={{marginTop:10}}>{studioCard(detailStudio,true)}</View>
           <Text style={styles.sectionTitle}>학원 실제 사진</Text>
           {(detailStudio.imageUrls||[]).length>0?
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:9,paddingBottom:4}}>
+            <><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:9,paddingBottom:4}}>
              {(detailStudio.imageUrls||[]).slice(0,1).map((uri,index)=><Image key={uri+index} source={{uri}} style={styles.studioPhoto} resizeMode="cover"/>)}
             </ScrollView>
-            <Pressable onPress={()=>setDetailTab("photos")}><Text style={styles.photoSourceLink}>사진 {(detailStudio.imageUrls||[]).length}장 모두 보기 ›</Text></Pressable>
+            <Pressable onPress={()=>setDetailTab("photos")}><Text style={styles.photoSourceLink}>사진 {(detailStudio.imageUrls||[]).length}장 모두 보기 ›</Text></Pressable></>
             :<View style={styles.photoEmpty}><Text style={styles.filterHint}>공식 홈페이지에서 확인한 사진이 아직 없습니다.</Text>{detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}</View>}
           {!!detailStudio.imageSourceName&&<Text style={styles.photoCredit}>이미지 출처: {detailStudio.imageSourceName}{detailStudio.imageCheckedAt?" · 확인 "+new Date(detailStudio.imageCheckedAt).toLocaleDateString("ko-KR"):""}</Text>}
           {!!detailStudio.imageUsageNote&&<Text style={styles.photoCredit}>사진 이용 메모: {detailStudio.imageUsageNote}</Text>}
