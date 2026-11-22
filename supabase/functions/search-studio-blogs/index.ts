@@ -20,7 +20,7 @@ const isRelevantBlog = (studioName: string, title: string, description: string, 
   const alias = academyAlias(studioName);
   const text = normalize(title + " " + description);
   const hasAcademy = alias.length >= 3 && text.includes(alias);
-  const hasBalletIntent = /(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + " " + description);
+  const hasBalletIntent = /(발레|바레|시간표|스케줄|월간|월별|수강료|가격|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + " " + description);
   const nameMatch = hasAcademy && hasBalletIntent;
   const accountKey = blogAccountKey(bloggerUrl);
   const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
