@@ -253,3 +253,30 @@ $$;
 REVOKE ALL ON FUNCTION public.claim_studio_image_crawl_queue(integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.claim_studio_image_crawl_queue(integer) TO authenticated, service_role;
 
+
+
+-- Re-run homepage discovery once for active studios previously checked only
+-- with Korean queries. The migration flag makes this safe to re-run.
+CREATE TABLE IF NOT EXISTS public.balletmate_system_migration_flags (
+  migration_key text PRIMARY KEY,
+  applied_at timestamptz NOT NULL DEFAULT now()
+);
+REVOKE ALL ON public.balletmate_system_migration_flags FROM PUBLIC, anon, authenticated;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.balletmate_system_migration_flags
+    WHERE migration_key = 'english-homepage-search-v1'
+  ) THEN
+    UPDATE public.studios
+    SET homepage_search_checked_at = NULL
+    WHERE is_active = true
+      AND website_url IS NULL
+      AND homepage_search_checked_at IS NOT NULL;
+    INSERT INTO public.balletmate_system_migration_flags(migration_key)
+    VALUES ('english-homepage-search-v1')
+    ON CONFLICT (migration_key) DO NOTHING;
+  END IF;
+END;
+$$;
