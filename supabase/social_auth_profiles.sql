@@ -29,7 +29,7 @@ begin
   on conflict (user_id) do update set
     username = case
       when public.user_profiles.username ~ '^[a-z0-9_]{3,24}$'
-        and public.user_profiles.username not like 'social\_%' escape '\'
+        and pg_catalog.left(public.user_profiles.username, 7) <> 'social_'
       then public.user_profiles.username
       else excluded.username
     end,
