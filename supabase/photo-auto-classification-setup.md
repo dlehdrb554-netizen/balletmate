@@ -11,7 +11,7 @@
 3. Supabase 프로젝트의 Edge Functions Secrets에 다음 두 값을 등록합니다: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`. 앱에는 토큰을 넣지 않습니다.
 4. **무료 사용만 허용:** `@cf/meta/llama-3.2-11b-vision-instruct` 모델만 호출합니다. Workers Free 플랜의 하루 10,000 Neurons 무료 할당량을 사용하며, 무료 한도 초과 시 API가 실패하면 후보는 대기 상태로 남깁니다. 유료 모델이나 유료 플랜으로 자동 전환하지 않습니다.
 5. 모델 최초 사용 전에 Meta 라이선스 동의가 필요합니다. Cloudflare 공식 모델 안내의 초기 `prompt: "agree"` 요청 절차를 1회 수행한 뒤 사용합니다.
-4. GitHub Actions `Deploy Balletmate Supabase Workers`가 Edge Function 배포를 수행합니다.
+6. GitHub Actions `Deploy Balletmate Supabase Workers`가 Edge Function 배포를 수행합니다.
 
 ## 자동 운영 정책
 - AI가 시각적 유형만 판별합니다. OCR이나 사진 속 문자를 읽지 않습니다.
