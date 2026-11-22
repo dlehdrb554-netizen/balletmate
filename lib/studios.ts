@@ -133,3 +133,14 @@ export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
   inFlightStudioSearches.set(key, request);
   return request;
 }
+
+
+/** Fetch the canonical academy row by primary key before opening its detail panel. */
+export async function fetchStudioById(studioId: string): Promise<StudioRecord | null> {
+  if (!supabase) return null;
+  const columns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,details_checked_at,details_status";
+  const { data, error } = await supabase.from("studios").select(columns)
+    .eq("id", studioId).eq("is_active", true).maybeSingle();
+  if (error) throw error;
+  return data ? ({ ...data, class_durations: [] } as StudioRecord) : null;
+}
