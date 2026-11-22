@@ -44,7 +44,7 @@ function extractTimes(text: string): {start:string;end:string|null}[] {
     const endMeridiem=explicitEndMeridiem||explicitStartMeridiem;
     const start=parseOne(startMeridiem&&!/오전|오후/.test(startText)?startMeridiem+" "+startText:startText);
     const end=parseOne(endMeridiem&&!/오전|오후/.test(endText)?endMeridiem+" "+endText:endText);
-    if(start&&end&&start!==end)results.push({start,end});
+    if(start&&end&&start!==end&&!results.some(r=>r.start===start&&r.end===end))results.push({start,end});
   }
   const singles=/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)\s*(오전|오후)?/g;
   while((match=singles.exec(text))!==null){
@@ -65,6 +65,13 @@ export function parseScheduleEvidence(text:string): StructuredSchedule | null {
     const dayWord=new RegExp(char+"요일");
     const standalone=new RegExp("(^|[\\s,·/])"+char+"(?=([\\s,·/]|$))");
     if(dayWord.test(compact)||standalone.test(compact))days.add(weekday);
+  }
+  const dayRange=/([월화수목금토일])(?:요일)?\\s*(?:~|-|부터)\\s*([월화수목금토일])(?:요일)?/g;
+  let dayRangeMatch:RegExpExecArray|null;
+  while((dayRangeMatch=dayRange.exec(compact))!==null){
+    const start=weekdayMap[dayRangeMatch[1]],end=weekdayMap[dayRangeMatch[2]];
+    if(start<=end)for(let d=start;d<=end;d++)days.add(d);
+    else for(let d=start;d<=6;d++)days.add(d),d=6;
   }
   if(/평일/.test(compact))for(const d of [1,2,3,4,5])days.add(d);
   if(/주말/.test(compact))for(const d of [0,6])days.add(d);
