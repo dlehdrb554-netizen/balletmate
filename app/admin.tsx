@@ -126,6 +126,7 @@ export default function Admin() {
   const [photoCandidateRows,setPhotoCandidateRows]=useState<any[]>([]);
   const [photoReviewBusy,setPhotoReviewBusy]=useState(false);
   const [photoAutoScanBusy,setPhotoAutoScanBusy]=useState(false);
+  const [photoAiTestBusy,setPhotoAiTestBusy]=useState(false);
   const [photoCandidateTotal,setPhotoCandidateTotal]=useState(0);
   const [photoCandidateOffset,setPhotoCandidateOffset]=useState(0);
   const [failedPhotoCandidateIds,setFailedPhotoCandidateIds]=useState<number[]>([]);
@@ -452,6 +453,21 @@ export default function Admin() {
     if(!quiet)setPhotoAutoScanBusy(false);
     return true;
   };
+  const testPhotoAIConnection=async()=>{
+    if(!supabase||photoAiTestBusy)return;
+    setPhotoAiTestBusy(true);
+    try{
+      const {data,error}=await supabase.functions.invoke("classify-studio-photo",{body:{action:"connection_test"}});
+      if(error||data?.ok!==true){
+        const detail=[data?.error||error?.message||"연결 테스트 실패",data?.stage?"단계: "+data.stage:"",data?.status?"HTTP "+data.status:"",data?.detail||""].filter(Boolean).join("\n");
+        Alert.alert("Cloudflare AI 연결 실패",detail);
+      }else{
+        Alert.alert("Cloudflare AI 연결 성공","모델: "+data.model+"\nMeta 라이선스 요청: "+(data.licenseAccepted?"성공":"응답 확인 필요")+"\n이미지 추론: "+data.inference+"\n\n모델 응답:\n"+data.response+"\n\n테스트는 샘플 이미지로 진행했으며 기존 사진 후보와 학원 데이터는 변경하지 않았습니다.");
+      }
+    }catch(error:any){Alert.alert("연결 테스트 오류",String(error?.message||error));}
+    finally{setPhotoAiTestBusy(false);}
+  };
+
   const runPhotoAutoScan=async()=>{
     if(!supabase)return;
     setPhotoAutoScanBusy(true);
@@ -1412,7 +1428,7 @@ export default function Admin() {
   </View>
   <Text style={styles.hint}>대기 {photoCandidateTotal.toLocaleString("ko-KR")}건 · 불러온 {photoCandidateRows.length}건 · 현재 탭 {photoFilteredCandidates.length}건</Text>
   <Text style={styles.hint}>AI가 사진 내용을 분류해 발레 관련 사진·시간표·가격표·포스터·로고는 검수 없이 자동 연계합니다. 얼굴이 보이는 인물 사진·무관 이미지·판단 불가 또는 신뢰도 60% 미만은 자동 제외합니다. OCR은 하지 않습니다.</Text>
-  <View style={styles.photoFilterRow}><Pressable style={styles.secondary} disabled={photoAutoScanBusy||photoReviewBusy} onPress={runPhotoAutoScan}><Text style={styles.secondaryText}>{photoAutoScanBusy?"전체 사진 처리 중…":"전체 사진 자동 분류·등록"}</Text></Pressable></View>
+  <View style={styles.photoFilterRow}><Pressable style={styles.secondary} disabled={photoAiTestBusy||photoAutoScanBusy||photoReviewBusy} onPress={testPhotoAIConnection}><Text style={styles.secondaryText}>{photoAiTestBusy?"AI 연결 확인 중…":"Cloudflare AI 연결 테스트"}</Text></Pressable><Pressable style={styles.secondary} disabled={photoAutoScanBusy||photoReviewBusy||photoAiTestBusy} onPress={runPhotoAutoScan}><Text style={styles.secondaryText}>{photoAutoScanBusy?"전체 사진 처리 중…":"전체 사진 자동 분류·등록"}</Text></Pressable></View>
   <View style={styles.photoFilterRow}>{([{key:"unclassified",label:"자료 미분류"},{key:"price",label:"가격"},{key:"schedule",label:"시간표"},{key:"other",label:"기타"},{key:"all",label:"전체"}] as {key:typeof photoMaterialFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoMaterialFilter(option.key)} style={[styles.photoFilterButton,photoMaterialFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoMaterialFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><View style={styles.photoFilterRow}>{([{key:"priority",label:"발레 우선"},{key:"ballet",label:"AI 공개 대상"},{key:"excluded",label:"AI 자동 제외"},{key:"suspect",label:"의심/보류"},{key:"all",label:"전체"}] as {key:PhotoAutoFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoAutoFilter(option.key)} style={[styles.photoFilterButton,photoAutoFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoAutoFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View>
   {photoAutoFilter==="priority"&&<Text style={styles.hint}>AI 자동 분류 결과를 우선 표시합니다. 자동 처리 실패 사진은 재시도 대상입니다.</Text>}
   {photoAutoFilter==="suspect"&&<Text style={styles.hint}>AI가 인물·무관·판단 불가로 분류한 제외 사진입니다.</Text>}
