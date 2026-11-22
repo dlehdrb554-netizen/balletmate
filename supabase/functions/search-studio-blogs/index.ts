@@ -131,13 +131,16 @@ Deno.serve(async (req) => {
           const title = cleanText(item.title);
           const description = cleanText(item.description);
           if (!isNaverBlogUrl(bloggerUrl) || !title || alias.length < 3) continue;
-          if (!normalize(title + " " + description).includes(alias)) continue;
+          const bloggerName = cleanText(item.bloggername);
+          const matchedByName = normalize(bloggerName).includes(alias);
+          const matchedByPost = normalize(title + " " + description).includes(alias);
+          if (!matchedByName && !matchedByPost) continue;
           const key = blogAccountKey(bloggerUrl);
           if (!key || officialAccounts.some((account) => blogAccountKey(account) === key)) continue;
           if (!accountCandidates.has(key)) {
             accountCandidates.set(key, {
               blogger_url: `https://blog.naver.com/${key}`,
-              blogger_name: cleanText(item.bloggername) || null,
+              blogger_name: bloggerName || null,
               title,
               post_url: cleanText(item.link),
             });
@@ -151,6 +154,11 @@ Deno.serve(async (req) => {
             .maybeSingle();
           if (priorError) throw new Error("공식 블로그 후보 조회 실패: " + priorError.message);
           const samples = Array.isArray(prior?.sample_posts) ? prior.sample_posts : [];
+          const { count: matchedCount, error: countError } = await db.from("studio_blog_sources")
+            .select("id", { count: "exact", head: true })
+            .eq("studio_id", job.studio_id)
+            .eq("blogger_url", candidate.blogger_url);
+          if (countError) throw new Error("후보 게시물 수 확인 실패: " + countError.message);
           const nextSamples = [
             ...samples,
             { title: candidate.title, post_url: candidate.post_url },
@@ -161,9 +169,9 @@ Deno.serve(async (req) => {
               studio_name: String(job.studio_name),
               blogger_url: candidate.blogger_url,
               blogger_name: candidate.blogger_name,
-              matched_post_count: Number(prior?.matched_post_count ?? 0) + 1,
+              matched_post_count: Math.max(1, Number(matchedCount ?? 0)),
               sample_posts: nextSamples,
-              match_score: 85,
+              match_score: normalize(candidate.blogger_name ?? "").includes(alias) ? 95 : 85,
               last_seen_at: new Date().toISOString(),
             }, { onConflict: "studio_id,blogger_url" });
           if (candidateError) throw new Error("공식 블로그 후보 저장 실패: " + candidateError.message);
