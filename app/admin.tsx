@@ -112,6 +112,7 @@ export default function Admin() {
   const [officialBlogStudio,setOfficialBlogStudio]=useState<StudioRow|null>(null);
   const [officialBlogUrls,setOfficialBlogUrls]=useState("");
   const [officialBlogBusy,setOfficialBlogBusy]=useState(false);
+  const [officialBlogCandidates,setOfficialBlogCandidates]=useState<any[]>([]);
   const [classRows,setClassRows]=useState<any[]>([]);
   const [classEditing,setClassEditing]=useState<string|null>(null);
   const [classBusy,setClassBusy]=useState(false);
@@ -168,6 +169,25 @@ export default function Admin() {
     const {data,error}=await supabase.rpc("admin_get_studio_official_blog_accounts",{p_studio_id:studio.id});
     if(error)Alert.alert("공식 블로그 조회 실패",error.message);
     else setOfficialBlogUrls((Array.isArray(data)?data:[]).map((row:any)=>row.blogger_url).filter(Boolean).join("\n"));
+    const candidates=await supabase.rpc("admin_list_studio_blog_account_candidates",{p_studio_id:studio.id});
+    if(candidates.error)Alert.alert("후보 계정 조회 실패",candidates.error.message);
+    else setOfficialBlogCandidates(Array.isArray(candidates.data)?candidates.data:[]);
+    setOfficialBlogBusy(false);
+  };
+  const reviewOfficialBlogCandidate=async(candidateId:number,status:"approved"|"rejected")=>{
+    if(!supabase||!officialBlogStudio)return;
+    setOfficialBlogBusy(true);
+    const {error}=await supabase.rpc("admin_review_studio_blog_account_candidate",{p_candidate_id:candidateId,p_status:status});
+    if(error)Alert.alert("후보 처리 실패",error.message);
+    else {
+      const refreshed=await supabase.rpc("admin_list_studio_blog_account_candidates",{p_studio_id:officialBlogStudio.id});
+      if(!refreshed.error)setOfficialBlogCandidates(Array.isArray(refreshed.data)?refreshed.data:[]);
+      if(status==="approved"){
+        const active=await supabase.rpc("admin_get_studio_official_blog_accounts",{p_studio_id:officialBlogStudio.id});
+        if(!active.error)setOfficialBlogUrls((Array.isArray(active.data)?active.data:[]).map((row:any)=>row.blogger_url).filter(Boolean).join("\n"));
+        Alert.alert("공식 계정 승인","승인한 블로그를 공식 계정으로 등록했습니다. 이후 수집된 게시물부터 공개 소식에 반영됩니다.");
+      }
+    }
     setOfficialBlogBusy(false);
   };
   const saveOfficialBlogAccounts=async()=>{
@@ -1013,7 +1033,17 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
       <View style={styles.listHead}><Text style={styles.heading}>{officialBlogStudio.name} · 공식 블로그</Text><Pressable onPress={()=>{setOfficialBlogStudio(null);setOfficialBlogUrls("");}}><Text style={styles.refresh}>닫기</Text></Pressable></View>
       <Text style={styles.hint}>학원에서 직접 운영하는 네이버 블로그 프로필 주소만 등록하세요. 게시글 URL이 아니라 블로그 홈 주소를 입력합니다. 등록된 계정의 게시물만 앱의 공개 소식에 표시됩니다. 최대 5개, 한 줄에 하나씩 입력하세요.</Text>
       <TextInput style={[styles.input,{minHeight:100,textAlignVertical:"top"}]} multiline autoCapitalize="none" autoCorrect={false} value={officialBlogUrls} onChangeText={setOfficialBlogUrls} placeholder={"https://blog.naver.com/blogid\nhttps://blog.naver.com/anotherid"}/>
-      <View style={styles.buttons}><Pressable style={styles.secondary} onPress={()=>{setOfficialBlogStudio(null);setOfficialBlogUrls("");}}><Text style={styles.secondaryText}>취소</Text></Pressable><Pressable style={styles.button} disabled={officialBlogBusy} onPress={saveOfficialBlogAccounts}><Text style={styles.buttonText}>{officialBlogBusy?"처리 중…":"공식 계정 저장"}</Text></Pressable></View>
+      <View style={styles.buttons}><Pressable style={styles.secondary} onPress={()=>{setOfficialBlogStudio(null);setOfficialBlogUrls("");setOfficialBlogCandidates([]);}}><Text style={styles.secondaryText}>취소</Text></Pressable><Pressable style={styles.button} disabled={officialBlogBusy} onPress={saveOfficialBlogAccounts}><Text style={styles.buttonText}>{officialBlogBusy?"처리 중…":"공식 계정 저장"}</Text></Pressable></View>
+      <View style={styles.listHead}><Text style={styles.heading}>자동 발견된 계정 후보 ({officialBlogCandidates.filter((x:any)=>x.review_status==="pending").length})</Text><Pressable onPress={async()=>{setOfficialBlogBusy(true);const result=await supabase!.rpc("admin_list_studio_blog_account_candidates",{p_studio_id:officialBlogStudio.id});if(result.error)Alert.alert("후보 조회 실패",result.error.message);else setOfficialBlogCandidates(Array.isArray(result.data)?result.data:[]);setOfficialBlogBusy(false);}}><Text style={styles.refresh}>새로고침</Text></Pressable></View>
+      <Text style={styles.hint}>네이버 검색 결과에서 학원명이 게시물 제목·요약에 직접 포함된 작성자만 후보로 모았습니다. 공식 여부를 확인한 뒤 승인하세요. 승인 전에는 공개되지 않습니다.</Text>
+      {officialBlogCandidates.map((candidate:any)=><View key={String(candidate.id)} style={styles.evidenceCard}>
+        <View style={styles.listHead}><Text style={styles.rowName}>{candidate.blogger_name||"블로그 이름 미확인"}</Text><Text style={styles.evidenceType}>{candidate.review_status==="pending"?"승인 대기":candidate.review_status==="approved"?"승인됨":"거절됨"}</Text></View>
+        <Text selectable style={styles.rowMeta}>{candidate.blogger_url}</Text>
+        <Text style={styles.rowMeta}>학원명 일치 게시물 {candidate.matched_post_count}건 · 일치도 {candidate.match_score}/100</Text>
+        {(Array.isArray(candidate.sample_posts)?candidate.sample_posts:[]).slice(0,3).map((post:any,index:number)=><Pressable key={String(post.post_url||index)} onPress={()=>post.post_url&&Linking.openURL(post.post_url).catch(()=>Alert.alert("게시물 연결","주소를 열 수 없습니다."))}><Text style={styles.action} numberOfLines={2}>· {post.title||"검색 게시물 확인"} ↗</Text></Pressable>)}
+        {candidate.review_status==="pending"&&<View style={styles.buttons}><Pressable style={styles.button} disabled={officialBlogBusy} onPress={()=>reviewOfficialBlogCandidate(Number(candidate.id),"approved")}><Text style={styles.buttonText}>공식 계정 승인</Text></Pressable><Pressable style={styles.secondary} disabled={officialBlogBusy} onPress={()=>reviewOfficialBlogCandidate(Number(candidate.id),"rejected")}><Text style={styles.secondaryText}>공식 아님</Text></Pressable></View>}
+      </View>)}
+      {!officialBlogCandidates.length&&!officialBlogBusy&&<Text style={styles.hint}>아직 후보가 없습니다. 해당 학원의 블로그 검색 작업이 완료되면 후보가 자동으로 쌓입니다.</Text>}
     </View>}
     {classStudio&&<View style={styles.panel}>
       <View style={styles.listHead}><Text style={styles.heading}>{classStudio.name} · 수업 관리</Text><Pressable onPress={()=>{setClassStudio(null);resetClass();}}><Text style={styles.refresh}>닫기</Text></Pressable></View>
