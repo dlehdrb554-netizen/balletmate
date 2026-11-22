@@ -54,6 +54,8 @@ export default function Admin() {
   const [checking,setChecking]=useState(true);
   const [busy,setBusy]=useState(false);
   const [rows,setRows]=useState<StudioRow[]>([]);
+  const [photoCandidateRows,setPhotoCandidateRows]=useState<any[]>([]);
+  const [photoReviewBusy,setPhotoReviewBusy]=useState(false);
   const [studioSearch,setStudioSearch]=useState("");
   const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
   const [studioListFilter,setStudioListFilter]=useState<"all"|"missing_photo"|"missing_website"|"website_candidate"|"active"|"inactive">("all");
@@ -266,6 +268,38 @@ export default function Admin() {
     return {data:all,error:null};
   };
 
+  const loadPhotoCandidates=useCallback(async()=>{
+    if(!supabase||!authorized)return;
+    setPhotoReviewBusy(true);
+    const {data,error}=await supabase.from("studio_photo_candidates")
+      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at")
+      .eq("review_status","pending").order("created_at",{ascending:false}).limit(40);
+    if(error){
+      Alert.alert("사진 검토 자료 조회 실패",error.message+"\n사진 검토 SQL이 적용됐는지 확인해 주세요.");
+      setPhotoCandidateRows([]);
+    }else setPhotoCandidateRows(data||[]);
+    setPhotoReviewBusy(false);
+  },[authorized]);
+
+  const reviewPhotoCandidate=async(item:any,status:"approved"|"rejected")=>{
+    if(!supabase)return;
+    setPhotoReviewBusy(true);
+    const {error}=await supabase.rpc("admin_review_studio_photo_candidate",{
+      p_candidate_id:item.id,p_status:status
+    });
+    if(error)Alert.alert(status==="approved"?"사진 승인 실패":"사진 제외 실패",error.message);
+    else {
+      setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));
+      if(status==="approved"){
+        setRows(current=>current.map(row=>row.id===item.studio_id
+          ?{...row,image_urls:[...(row.image_urls||[]),item.image_url].slice(0,10),
+            image_source_name:row.image_source_name||item.source_host}
+          :row));
+      }
+    }
+    setPhotoReviewBusy(false);
+  };
+
   const loadEvidence=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setEvidenceBusy(true);
@@ -316,9 +350,9 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
 
   useEffect(()=>{
     if(adminTab==="overview"){loadDashboard();loadReports();}
-    else if(adminTab==="review"||adminTab==="publish"){loadEvidence();if(adminTab==="publish")loadScheduleClassCandidates();}
+    else if(adminTab==="review"||adminTab==="publish"){loadEvidence();if(adminTab==="review")loadPhotoCandidates();if(adminTab==="publish")loadScheduleClassCandidates();}
     else if(adminTab==="studios")load();
-  },[adminTab,loadDashboard,loadReports,loadEvidence,loadScheduleClassCandidates,load]);
+  },[adminTab,loadDashboard,loadReports,loadEvidence,loadPhotoCandidates,loadScheduleClassCandidates,load]);
 
   const generateScheduleClassCandidate=async(item:EvidenceCandidate)=>{
     if(!supabase||item.review_status!=="verified"||item.candidate_type!=="schedule")return;
@@ -912,6 +946,27 @@ else {setVerifiedPriceRows((verified.data||[]) as EvidenceCandidate[]);setSelect
         </>}
     {adminTab==="review"&&<View style={{gap:12}}>
 <View style={styles.panel}><View style={{gap:8}}><Text style={styles.heading}>자료 검토</Text><Text style={styles.hint}>최근 {evidenceRows.length}건 표시 · 전체 대기 {totalEvidencePending}건</Text><View style={styles.reviewToolbar}><Pressable style={styles.toolbarButton} onPress={()=>setSelectedEvidenceIds(evidenceRows.map(row=>row.id))}><Text style={styles.secondaryText}>전체 선택</Text></Pressable><Pressable style={styles.toolbarButton} onPress={()=>setSelectedEvidenceIds([])}><Text style={styles.secondaryText}>선택 해제</Text></Pressable><Pressable style={styles.toolbarButton} onPress={loadEvidence}><Text style={styles.secondaryText}>새로고침</Text></Pressable></View></View><View style={styles.buttons}><Pressable style={styles.secondary} disabled={evidenceBusy||!selectedEvidenceIds.length} onPress={()=>reviewEvidenceBatch("rejected")}><Text style={styles.secondaryText}>선택 {selectedEvidenceIds.length}개 제외</Text></Pressable><Pressable style={styles.button} disabled={evidenceBusy||!selectedEvidenceIds.length} onPress={()=>reviewEvidenceBatch("verified")}><Text style={styles.buttonText}>선택 {selectedEvidenceIds.length}개 근거 확인</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 유형 · 요약</Text><Text style={styles.compactAction}>선택</Text></View>{evidenceBusy&&<ActivityIndicator color={c.purple}/>}{evidenceRows.slice(0,100).map((item,index)=><View key={item.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{item.candidate_type==="price"?"가격":"시간표"} · {item.candidate_type==="price"&&item.normalized_value?Number(item.normalized_value).toLocaleString("ko-KR")+"원 · "+(item.price_period||"기간 미확인"):(item.normalized_value||item.candidate_value||item.evidence_text||"내용 없음")}</Text><Text style={styles.compactSecondary} numberOfLines={1}>게시일 {item.source_post_date||"미확인"} · 신뢰도 {Math.round(item.confidence*100)}%</Text></View><Pressable onPress={()=>setSelectedEvidenceIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.compactAction}>{selectedEvidenceIds.includes(item.id)?"☑":"□"}</Text></Pressable></View>)}{!evidenceRows.length&&!evidenceBusy&&<Text style={styles.hint}>검토 대기 자료가 없습니다.</Text>}</View>
+<View style={styles.panel}>
+  <View style={styles.listHead}>
+    <Text style={styles.heading}>학원 사진 검토 · 대기 {photoCandidateRows.length}건</Text>
+    <Pressable onPress={loadPhotoCandidates} disabled={photoReviewBusy}><Text style={styles.refresh}>{photoReviewBusy?"조회 중…":"새로고침"}</Text></Pressable>
+  </View>
+  <Text style={styles.hint}>공식 홈페이지에서 수집한 사진 후보입니다. OCR은 사용하지 않으며, 사진과 출처를 확인한 뒤 승인해야 학원 갤러리에 추가됩니다.</Text>
+  {photoReviewBusy&&<ActivityIndicator color={c.purple}/>}
+  {photoCandidateRows.map(item=><View key={"photo-candidate-"+item.id} style={[styles.evidenceCard,{flexDirection:"row",alignItems:"flex-start"}]}>
+    <Image source={{uri:item.image_url}} style={{width:92,height:76,borderRadius:9,backgroundColor:c.bg}} resizeMode="cover"/>
+    <View style={{flex:1,minWidth:0,gap:5}}>
+      <Text style={styles.evidenceStudio}>{item.studio_name}</Text>
+      <Text style={styles.compactSecondary} numberOfLines={1}>{item.source_host||"출처 미확인"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text>
+      <Pressable onPress={()=>Linking.openURL(item.source_page_url).catch(()=>Alert.alert("출처 확인","원본 페이지를 열 수 없습니다."))}><Text style={styles.action}>원본 홈페이지 확인 ↗</Text></Pressable>
+      <View style={styles.buttons}>
+        <Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.secondaryText}>제외</Text></Pressable>
+        <Pressable style={styles.button} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.buttonText}>사진 승인</Text></Pressable>
+      </View>
+    </View>
+  </View>)}
+  {!photoCandidateRows.length&&!photoReviewBusy&&<Text style={styles.hint}>검토 대기 사진이 없습니다. 학원 관리에서 공식 홈페이지 사진 수집을 실행하면 후보가 여기에 표시됩니다.</Text>}
+</View>
 
     </View>}
     {adminTab==="studios"&&<>
