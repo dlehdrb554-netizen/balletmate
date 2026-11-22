@@ -64,11 +64,62 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Enforce a conservative daily request ceiling for the Cloudflare free tier.
-  // The existing pg_cron job calls this worker every two minutes; at most two
-  // images are sent per run and no more than twenty are classified per UTC day.
+  // Free-tier guard: cap this app at 400 completed photos/day and pause when
+  // account-wide Workers AI Neurons approach a conservative 6,000-Neuron budget.
+  // Cloudflare Analytics is sampled/delayed; fail closed if its token/query is unavailable.
   const now = new Date();
   const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+  const visionDailyLimit = 400;
+  const neuronPauseThreshold = 6000;
+  const analyticsToken = Deno.env.get("CLOUDFLARE_ANALYTICS_API_TOKEN");
+  const cloudflareAccountId = Deno.env.get("CLOUDFLARE_ACCOUNT_ID");
+  let accountNeuronsToday: number | null = null;
+  let visionPauseReason: string | null = null;
+
+  if (!analyticsToken || !cloudflareAccountId) {
+    visionPauseReason = "Cloudflare 사용량 감시용 비밀키가 설정되지 않았습니다.";
+  } else {
+    const graphqlQuery = `query {
+      viewer {
+        accounts(filter: { accountTag: "${cloudflareAccountId}" }) {
+          aiInferenceAdaptiveGroups(
+            limit: 1
+            filter: {
+              datetime_geq: "${dayStart}"
+              datetime_leq: "${now.toISOString()}"
+            }
+          ) {
+            sum { totalNeurons }
+          }
+        }
+      }
+    }`;
+    try {
+      const usageResponse = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + analyticsToken,
+        },
+        body: JSON.stringify({ query: graphqlQuery }),
+        signal: AbortSignal.timeout(12000),
+      });
+      const usagePayload = await usageResponse.json().catch(() => ({}));
+      const usageGroups = usagePayload?.data?.viewer?.accounts?.[0]?.aiInferenceAdaptiveGroups;
+      const neurons = usageGroups?.[0]?.sum?.totalNeurons;
+      if (!usageResponse.ok || usagePayload?.errors?.length || !Array.isArray(usageGroups) || !Number.isFinite(Number(neurons))) {
+        visionPauseReason = "Cloudflare Neurons 사용량을 확인할 수 없어 안전을 위해 자동 분류를 일시 중지했습니다.";
+      } else {
+        accountNeuronsToday = Number(neurons);
+        if (accountNeuronsToday >= neuronPauseThreshold) {
+          visionPauseReason = "Cloudflare 계정의 오늘 AI 사용량이 안전 기준(" + neuronPauseThreshold + " Neurons)에 도달했습니다.";
+        }
+      }
+    } catch (error) {
+      visionPauseReason = "Cloudflare 사용량 조회 실패로 자동 분류를 일시 중지했습니다.";
+    }
+  }
+
   const { count: processedToday, error: countError } = await adminClient
     .from("studio_photo_candidates")
     .select("id", { count: "exact", head: true })
@@ -79,12 +130,11 @@ Deno.serve(async (req) => {
       visionProcessed: 0, visionFailed: 0, visionError: "일일 처리량 조회 실패: " + countError.message }, 500);
   }
 
-  const dailyRemaining = Math.max(0, 250 - (processedToday || 0));
-  const batchSize = Math.min(1, dailyRemaining);
+  const dailyRemaining = Math.max(0, visionDailyLimit - (processedToday || 0));
+  const batchSize = visionPauseReason ? 0 : Math.min(1, dailyRemaining);
   let visionProcessed = 0;
   let visionFailed = 0;
   const visionResults: Array<{ candidateId: number; ok: boolean; detail?: string }> = [];
-
   if (batchSize > 0) {
     const retryBefore = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { data: candidates, error: candidateError } = await adminClient
@@ -145,8 +195,12 @@ Deno.serve(async (req) => {
     crawlResults,
     visionProcessed,
     visionFailed,
-    visionDailyLimit: 250,
+    visionDailyLimit,
     visionProcessedToday: processedToday || 0,
+    cloudflareNeuronsToday: accountNeuronsToday,
+    cloudflareNeuronPauseThreshold: neuronPauseThreshold,
+    visionPaused: Boolean(visionPauseReason),
+    visionPauseReason,
     visionResults,
   });
 });
