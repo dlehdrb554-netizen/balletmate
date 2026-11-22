@@ -38,8 +38,9 @@ function extractTimes(text: string): {start:string;end:string|null}[] {
     const startText=match[1],endText=match[2];
     const endMeridiem=(endText.match(/오전|오후/)||[])[0];
     const startMeridiem=(startText.match(/오전|오후/)||[])[0]||endMeridiem;
+    const endMeridiem=(endText.match(/오전|오후/)||[])[0]||startMeridiem;
     const start=parseOne(startMeridiem&&!/오전|오후/.test(startText)?startMeridiem+" "+startText:startText);
-    const end=parseOne(endText);
+    const end=parseOne(endMeridiem&&!/오전|오후/.test(endText)?endMeridiem+" "+endText:endText);
     if(start&&end&&start!==end)results.push({start,end});
   }
   const singles=/(오전|오후)?\s*(\d{1,2})(?::(\d{2})|\s*시(?:\s*(\d{1,2})\s*분)?)\s*(오전|오후)?/g;
