@@ -59,7 +59,7 @@ export async function fetchStudioPublicPrices(studioId:string):Promise<StudioPub
   const {data,error}=await supabase.from("studio_public_prices_app")
     .select("id,studio_id,amount_krw,price_period,frequency_per_week,evidence_text,source_title,source_url,source_post_date,published_at,expires_at")
     .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
-  let rowsData=data;
+  let rowsData:any=data;
   if(error&&/expires_at|column/i.test(error.message)){
     // Older installations may not have run the freshness migration yet.
     const fallback=await supabase.from("studio_public_prices_app")
