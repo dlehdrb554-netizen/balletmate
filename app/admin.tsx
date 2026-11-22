@@ -207,8 +207,10 @@ export default function Admin() {
   const load=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setBusy(true);
-    const {data,error}=await supabase.from("studios").select("id,name,latitude,longitude,district,address,phone,website_url,source_url,source_name,verified_at,image_urls,image_source_name,image_usage_note,price_per_class,adult_classes,kids_classes,is_active").order("name").limit(500);
-    if(error)Alert.alert("조회 실패",error.message);else setRows(data||[]);
+    const columns="id,name,latitude,longitude,district,address,phone,website_url,source_url,source_name,verified_at,image_urls,image_source_name,image_usage_note,price_per_class,adult_classes,kids_classes,is_active";
+    let collected:StudioRow[]=[];let offset=0;let failed:any=null;
+    while(true){const {data,error}=await supabase.from("studios").select(columns).order("name").range(offset,offset+499);if(error){failed=error;break;}const page=(data||[]) as StudioRow[];collected=collected.concat(page);if(page.length<500)break;offset+=500;}
+    if(failed)Alert.alert("조회 실패",failed.message);else setRows(collected);
     setBusy(false);
   },[authorized]);
   useEffect(()=>{load();},[load]);
