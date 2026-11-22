@@ -124,7 +124,8 @@ export default function Admin() {
   const [rows,setRows]=useState<StudioRow[]>([]);
   const [failedStudioThumbIds,setFailedStudioThumbIds]=useState<string[]>([]);
   const [photoCandidateRows,setPhotoCandidateRows]=useState<any[]>([]);
-  const [photoReviewBusy,setPhotoReviewBusy]=useState(false);\n  const [photoAutoScanBusy,setPhotoAutoScanBusy]=useState(false);
+  const [photoReviewBusy,setPhotoReviewBusy]=useState(false);
+  const [photoAutoScanBusy,setPhotoAutoScanBusy]=useState(false);
   const [photoCandidateTotal,setPhotoCandidateTotal]=useState(0);
   const [photoCandidateOffset,setPhotoCandidateOffset]=useState(0);
   const [failedPhotoCandidateIds,setFailedPhotoCandidateIds]=useState<number[]>([]);
