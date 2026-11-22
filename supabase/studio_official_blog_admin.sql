@@ -100,8 +100,8 @@ BEGIN
 
   UPDATE public.studio_blog_official_accounts
   SET is_active = false
-  WHERE studio_id = p_studio_id
-    AND is_active = true;
+  WHERE is_active = true
+    AND (studio_id = p_studio_id OR (studio_id IS NULL AND studio_name = studio_name_value));
 
   INSERT INTO public.studio_blog_official_accounts(studio_id, studio_name, blogger_url, is_active, verified_at)
   SELECT p_studio_id, studio_name_value, value, true, now()
