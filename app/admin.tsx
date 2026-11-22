@@ -1044,7 +1044,7 @@ export default function Admin() {
     Alert.alert("사진 일괄 삭제 확인",targets.length+"개 학원의 사진 "+photoCount+"장을 영구 삭제합니다. 학원 정보는 유지됩니다.",[
       {text:"취소",style:"cancel"},
       {text:"사진 모두 삭제",style:"destructive",onPress:async()=>{
-        if(!supabase)return;setBusy(true);let removed=0,failed=0,storageFailed=0;
+        if(!supabase)return;setBusy(true);let removed=0,failed=0,storageFailed=0;const removedUrls=new Map<string,string[]>();
         for(const row of targets){
           for(const url of row.image_urls||[]){
             const {error}=await supabase.rpc("admin_remove_studio_gallery_photo",{p_studio_id:row.id,p_image_url:url});
@@ -1054,7 +1054,7 @@ export default function Admin() {
             if(idx>=0){const objectPath=decodeURIComponent(url.slice(idx+marker.length).split("?")[0]);if(objectPath){const result=await supabase.storage.from("studio-photos").remove([objectPath]);if(result.error)storageFailed++;}}
           }
         }
-        setRows(current=>current.map(row=>selectedPhotoStudioIds.includes(row.id)?{...row,image_urls:failed?row.image_urls||[]:[]}:row));
+        setRows(current=>current.map(row=>removedUrls.has(row.id)?{...row,image_urls:(row.image_urls||[]).filter(url=>!removedUrls.get(row.id)!.includes(url))}:row));
         setSelectedPhotoStudioIds([]);setBusy(false);
         Alert.alert("일괄 삭제 결과","삭제 처리 "+removed+"장"+(failed?"\nDB 삭제 실패 "+failed+"장":"")+(storageFailed?"\n저장소 파일 삭제 실패 "+storageFailed+"장":""));
       }}
