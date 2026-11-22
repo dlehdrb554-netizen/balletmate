@@ -34,7 +34,7 @@ const classifyPhotoCandidate=(item:any)=>{
   const reasons:string[]=[];
   if(suspectPatterns.some(pattern=>pattern.test(source)))reasons.push("아이콘·배너·홍보물 의심");
   if(/(face|people|person|student|kids|child|portrait|selfie|수강생|학생|아이들|인물|얼굴)/i.test(source))reasons.push("인물 사진 의심");
-  if(/(ad|ads|promo|event|coupon|promotion|할인|이벤트)/i.test(source))reasons.push("광고 이미지 의심");
+  if(/\\b(ad|ads|promo|event|coupon|promotion)\\b|할인|이벤트/i.test(source))reasons.push("광고 이미지 의심");
   return {suspect:reasons.length>0,reasons,priority:reasons.length===0};
 };
 
@@ -1317,6 +1317,7 @@ export default function Admin() {
     <View style={styles.photoReviewInfo}>
       <Text style={styles.evidenceStudio} numberOfLines={1}>{item.studio_name}</Text>
       <Text style={styles.compactSecondary} numberOfLines={1}>{item.source_host||"출처 미확인"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text>
+      {classifyPhotoCandidate(item).suspect&&<Text style={styles.photoSuspectLabel}>{classifyPhotoCandidate(item).reasons.join(" · ")}</Text>}
       <View style={styles.photoReviewLinks}>
         <Pressable onPress={()=>Linking.openURL(item.image_url).catch(()=>Alert.alert("이미지 확인","원본 이미지를 열 수 없습니다."))}><Text style={styles.photoReviewLink}>이미지 원본 ↗</Text></Pressable>
         <Pressable onPress={()=>Linking.openURL(item.source_page_url).catch(()=>Alert.alert("출처 확인","원본 페이지를 열 수 없습니다."))}><Text style={styles.photoReviewLink}>출처 페이지 ↗</Text></Pressable>
