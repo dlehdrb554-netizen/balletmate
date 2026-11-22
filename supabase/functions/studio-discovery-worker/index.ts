@@ -47,7 +47,7 @@ function findKakaoPlaceChannel(value:unknown,depth=0):string|null{
  if(depth>10||value==null)return null;
  if(typeof value==="string"){
   const decoded=value.replace(/\\\//g,"/").replace(/\\u0026/gi,"&").replace(/&amp;/g,"&");
-  const match=decoded.match(/https?:\\/\\/(?:pf\\.)?kakao\\.com\\/_[A-Za-z0-9]+/i);
+  const match=decoded.match(/https?:\/\/(?:pf\.)?kakao\.com\/_[A-Za-z0-9]+/i);
   return match?match[0].replace(/[),.;]+$/,""):null;
  }
  if(Array.isArray(value)){for(const item of value){const found=findKakaoPlaceChannel(item,depth+1);if(found)return found;}return null;}
