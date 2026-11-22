@@ -2,26 +2,39 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
 const normalize=(value:string)=>value.toLowerCase().replace(/[^a-z0-9가-힣]/g,"");
+function stripHtml(value:unknown):string{
+ return String(value||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\\s+/g," ").trim();
+}
 async function findHomepageCandidate(name:string,address:string|null,clientId:string,clientSecret:string):Promise<{url:string|null;error:string|null}>{
- try{
-  const api=new URL("https://openapi.naver.com/v1/search/webkr.json");
-  api.searchParams.set("query",name+" "+(address||"")+" 공식 홈페이지");api.searchParams.set("display","5");
-  const response=await fetch(api.toString(),{headers:{"X-Naver-Client-Id":clientId,"X-Naver-Client-Secret":clientSecret},signal:AbortSignal.timeout(7000)});
-  if(!response.ok)return {url:null,error:"Naver API HTTP "+response.status};
-  const payload=await response.json();const target=normalize(name);
-  const excluded=["naver.com","kakao.com","instagram.com","facebook.com","youtube.com","tiktok.com","blogspot.com","tistory.com","linktr.ee","google.com"];
-  for(const item of payload.items||[]){
-   const link=String(item.link||"");if(!link.startsWith("https://"))continue;
-   let host="";try{host=new URL(link).hostname.toLowerCase();}catch{continue;}
-   if(excluded.some(domain=>host===domain||host.endsWith("."+domain)))continue;
-   const title=String(item.title||"").replace(/<[^>]*>/g,""),desc=String(item.description||"").replace(/<[^>]*>/g,"");
-   const titleNorm=normalize(title),descNorm=normalize(desc);
-   if(target.length>=4&&(titleNorm.includes(target)||descNorm.includes(target)))return {url:link,error:null};
-   const parts=name.split(/[\s·()\-]+/).filter(x=>x.length>=2).map(normalize);
-   if(parts.length>=2&&parts.every(part=>titleNorm.includes(part)))return {url:link,error:null};
-  }
-  return {url:null,error:null};
- }catch(e){return {url:null,error:e instanceof Error?e.message:"Naver request failed"};}
+ const queries=[name+" "+(address||"")+" 발레학원 홈페이지",'"'+name+'" 발레 공식 사이트'];
+ const target=normalize(name);
+ const tokens=name.split(/[\\s·()\\-_/]+/).map(normalize).filter(x=>x.length>=2&&!["발레","학원","스튜디오","아카데미","무용","키즈","성인","핏","교습소"].includes(x));
+ const excluded=["naver.com","kakao.com","instagram.com","facebook.com","youtube.com","tiktok.com","blogspot.com","tistory.com","linktr.ee","google.com","threads.net","x.com"];
+ let lastError:string|null=null;
+ for(const query of queries){
+  try{
+   const api=new URL("https://openapi.naver.com/v1/search/webkr.json");
+   api.searchParams.set("query",query);api.searchParams.set("display","10");
+   const response=await fetch(api.toString(),{headers:{"X-Naver-Client-Id":clientId,"X-Naver-Client-Secret":clientSecret},signal:AbortSignal.timeout(6000)});
+   if(!response.ok)return {url:null,error:"Naver API HTTP "+response.status};
+   const payload=await response.json();
+   for(const item of payload.items||[]){
+    const link=String(item.link||"").trim();
+    if(!/^https?:\\/\\//i.test(link))continue;
+    let parsed:URL;try{parsed=new URL(link);}catch{continue;}
+    const host=parsed.hostname.toLowerCase().replace(/^www\\./,"");
+    if(excluded.some(domain=>host===domain||host.endsWith("."+domain)))continue;
+    const title=stripHtml(item.title),desc=stripHtml(item.description);
+    const titleNorm=normalize(title),descNorm=normalize(desc),combined=titleNorm+" "+descNorm;
+    let score=0;
+    if(target.length>=3&&(titleNorm.includes(target)||descNorm.includes(target)))score=5;
+    else if(tokens.length&&tokens.every(token=>combined.includes(token)))score=4;
+    else if(tokens.length>=2&&tokens.filter(token=>combined.includes(token)).length>=2&&combined.includes("발레"))score=2;
+    if(score>=4)return {url:link,error:null};
+   }
+  }catch(e){lastError=e instanceof Error?e.message:"Naver request failed";return {url:null,error:lastError};}
+ }
+ return {url:null,error:null};
 }
 const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레","발레교습소","발레아카데미","무용학원"];
 const MAX_PAGES_PER_TERM=3;
