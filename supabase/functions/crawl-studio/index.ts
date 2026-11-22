@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
     const addressMatches=addressTokens.filter((token:string)=>pageText.includes(token)).length;
     return nameMatch||addressMatches>=Math.min(2,addressTokens.length||2);
   });
-  const pages=branchPages.length?[discoveredPages[0],...branchPages]:[discoveredPages[0]];
+  const pages=branchPages.length?branchPages:[discoveredPages[0]];
 
   const imageCandidates: string[] = [];
   const priceEvidence: string[] = [];
