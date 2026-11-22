@@ -47,11 +47,6 @@ begin
       'verified', (select count(*) from public.studio_blog_evidence_candidates where review_status='verified'),
       'rejected', (select count(*) from public.studio_blog_evidence_candidates where review_status='rejected')
     ),
-    'ocr', jsonb_build_object(
-      'pending', (select count(*) from public.studio_image_ocr_results where review_status='pending'),
-      'verified', (select count(*) from public.studio_image_ocr_results where review_status='verified'),
-      'rejected', (select count(*) from public.studio_image_ocr_results where review_status='rejected')
-    ),
     'reports', jsonb_build_object(
       'pending', (select count(*) from public.studio_user_reports where status='pending'),
       'in_review', (select count(*) from public.studio_user_reports where status='in_review'),
