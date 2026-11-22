@@ -3,7 +3,8 @@
 
 -- Rebuild the map search view so columns added to studios after its first
 -- creation (images and homepage evidence) are present in the view definition.
-CREATE OR REPLACE VIEW public.studio_map_search_app
+DROP VIEW IF EXISTS public.studio_map_search_app;
+CREATE VIEW public.studio_map_search_app
 WITH (security_invoker = true) AS
 SELECT
   s.*,
