@@ -1,5 +1,5 @@
 -- Create a private profile row for OAuth users who do not have a legacy username.
--- Run after supabase/optional_accounts.sql.
+-- Run after supabase/optional_accounts.sql and supabase/social_display_names.sql.
 -- Existing usernames and account IDs are preserved.
 create or replace function public.sync_username_profile()
 returns trigger
