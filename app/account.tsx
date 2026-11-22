@@ -19,6 +19,7 @@ export default function Account(){
  const [loading,setLoading]=useState(false);
  const [session,setSession]=useState<any>(null);
  const [display,setDisplay]=useState("");
+ const [adminRole,setAdminRole]=useState<boolean|null>(null);
 
  useEffect(()=>{
   if(!supabase)return;
@@ -30,9 +31,11 @@ export default function Account(){
  useEffect(()=>{
   let active=true;
   if(session?.user&&supabase){
-   supabase.from("user_profiles").select("username").eq("user_id",session.user.id).maybeSingle()
-    .then(({data})=>{if(active)setDisplay(data?.username||session.user.user_metadata?.username||"회원");});
-  }else setDisplay("");
+   Promise.all([
+    supabase.from("user_profiles").select("username").eq("user_id",session.user.id).maybeSingle(),
+    supabase.rpc("is_balletmate_admin")
+   ]).then(([profile,role])=>{if(active){setDisplay(profile.data?.username||session.user.user_metadata?.username||"회원");setAdminRole(!role.error&&role.data===true);}});
+  }else {setDisplay("");setAdminRole(null);}
   return()=>{active=false;};
  },[session]);
 
@@ -106,7 +109,7 @@ export default function Account(){
      <View style={s.card}>
       <View style={s.avatar}><MaterialCommunityIcons name="human-female-dance" size={30} color={C.purple} /></View>
       <Text style={s.name}>{display||"회원"}</Text>
-      <Text style={s.sub}>로그인 중</Text>
+      <Text style={s.sub}>{adminRole===true?"관리자 계정 · 관리자 권한 확인됨":adminRole===false?"일반 회원 계정":"계정 권한 확인 중"}</Text>
       <Pressable style={s.primary} onPress={logout}><Text style={s.primaryText}>로그아웃</Text></Pressable>
      </View>
      :
