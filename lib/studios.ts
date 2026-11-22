@@ -119,11 +119,7 @@ export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
   const existing = inFlightStudioSearches.get(key);
   if (existing) return existing;
 
-  const request = fetchStudiosInternal(bounds).catch((error) => {
-    // Failed network attempts should not permanently consume this app-session budget.
-    networkSearches = Math.max(0, networkSearches - 1);
-    throw error;
-  }).finally(() => {
+  const request = fetchStudiosInternal(bounds).finally(() => {
     if (inFlightStudioSearches.get(key) === request) {
       inFlightStudioSearches.delete(key);
     }
