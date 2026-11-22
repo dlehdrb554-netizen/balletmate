@@ -469,28 +469,22 @@ export default function Admin() {
   };
 
   const runPhotoAutoScan=async()=>{
-    if(!supabase)return;
+    if(!supabase||photoAutoScanBusy)return;
     setPhotoAutoScanBusy(true);
-    let targets:any[]=[],offset=0;
-    while(true){
-      const {data,error}=await supabase.from("studio_photo_candidates")
-        .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type,auto_classification,auto_confidence,auto_reason,auto_classified_at")
-        .eq("review_status","pending").order("created_at",{ascending:false}).order("id",{ascending:false}).range(offset,offset+499);
-      if(error){Alert.alert("자동 처리 대상 조회 실패",error.message);setPhotoAutoScanBusy(false);return;}
-      const page=data||[];targets.push(...page);if(page.length<500)break;offset+=page.length;
-    }
-    if(!targets.length){setPhotoAutoScanBusy(false);Alert.alert("사진 자동 처리","대기 사진이 없습니다.");return;}
-    let success=0,failed=0,published=0,excluded=0;
-    for(const item of targets){
-      const {data,error}=await supabase.functions.invoke("classify-studio-photo",{body:{candidateId:item.id}});
-      if(error||data?.error){failed++;continue;}
-      success++;if(data.decision==="published")published++;else excluded++;
-      setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));
-      setPhotoCandidateTotal(value=>Math.max(0,value-1));
-    }
-    setPhotoAutoScanBusy(false);
-    await loadPhotoCandidates();
-    Alert.alert("사진 자동 처리 완료",`전체 ${targets.length}장 · 분석 ${success}장 · 공개 연계 ${published}장 · 제외 ${excluded}장 · 실패 ${failed}장\\nAI가 발레 관련 사진은 갤러리에 자동 연계하고, 인물·무관·판단 불가 및 신뢰도 낮은 사진은 제외했습니다.`);
+    try{
+      const {data,error}=await supabase.functions.invoke("crawl-studio-worker",{body:{action:"vision_tick"}});
+      if(error||data?.error){
+        Alert.alert("자동 분류 실행 실패",data?.error||error?.message||"워커 호출에 실패했습니다.");
+        return;
+      }
+      await loadPhotoCandidates();
+      const neurons=data?.cloudflareNeuronsToday;
+      const message=data?.visionPauseReason
+        ? "자동 분류가 안전 기준에 따라 중지됐습니다.\\n"+data.visionPauseReason
+        : "워커 1회 실행 완료\\n처리 성공: "+(data?.visionProcessed??0)+"장\\n실패: "+(data?.visionFailed??0)+"장\\n대기 사진: "+(data?.visionPendingCandidates??"확인 불가")+"장\\n오늘 처리: "+(data?.visionProcessedToday??0)+"/"+(data?.visionDailyLimit??400)+"장\\nCloudflare Neurons: "+(neurons==null?"조회 불가":Math.round(neurons).toLocaleString("ko-KR"))+" / "+(data?.cloudflareNeuronPauseThreshold??6000);
+      Alert.alert("사진 자동 분류 상태",message);
+    }catch(error:any){Alert.alert("자동 분류 실행 오류",String(error?.message||error));}
+    finally{setPhotoAutoScanBusy(false);}
   };
   const classifyPhotoMaterial=async(item:any,type:"price"|"schedule"|"other")=>{
     if(!supabase)return;
@@ -1428,7 +1422,7 @@ export default function Admin() {
   </View>
   <Text style={styles.hint}>대기 {photoCandidateTotal.toLocaleString("ko-KR")}건 · 불러온 {photoCandidateRows.length}건 · 현재 탭 {photoFilteredCandidates.length}건</Text>
   <Text style={styles.hint}>AI가 사진 내용을 분류해 발레 관련 사진·시간표·가격표·포스터·로고는 검수 없이 자동 연계합니다. 얼굴이 보이는 인물 사진·무관 이미지·판단 불가 또는 신뢰도 60% 미만은 자동 제외합니다. OCR은 하지 않습니다.</Text>
-  <View style={styles.photoFilterRow}><Pressable style={styles.secondary} disabled={photoAiTestBusy||photoAutoScanBusy||photoReviewBusy} onPress={testPhotoAIConnection}><Text style={styles.secondaryText}>{photoAiTestBusy?"AI 연결 확인 중…":"Cloudflare AI 연결 테스트"}</Text></Pressable><Pressable style={styles.secondary} disabled={photoAutoScanBusy||photoReviewBusy||photoAiTestBusy} onPress={runPhotoAutoScan}><Text style={styles.secondaryText}>{photoAutoScanBusy?"전체 사진 처리 중…":"전체 사진 자동 분류·등록"}</Text></Pressable></View>
+  <View style={styles.photoFilterRow}><Pressable style={styles.secondary} disabled={photoAiTestBusy||photoAutoScanBusy||photoReviewBusy} onPress={testPhotoAIConnection}><Text style={styles.secondaryText}>{photoAiTestBusy?"AI 연결 확인 중…":"Cloudflare AI 연결 테스트"}</Text></Pressable><Pressable style={styles.secondary} disabled={photoAutoScanBusy||photoReviewBusy||photoAiTestBusy} onPress={runPhotoAutoScan}><Text style={styles.secondaryText}>{photoAutoScanBusy?"워커 실행 중…":"자동 분류 워커 1회 실행"}</Text></Pressable></View>
   <View style={styles.photoFilterRow}>{([{key:"unclassified",label:"자료 미분류"},{key:"price",label:"가격"},{key:"schedule",label:"시간표"},{key:"other",label:"기타"},{key:"all",label:"전체"}] as {key:typeof photoMaterialFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoMaterialFilter(option.key)} style={[styles.photoFilterButton,photoMaterialFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoMaterialFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><View style={styles.photoFilterRow}>{([{key:"priority",label:"발레 우선"},{key:"ballet",label:"AI 공개 대상"},{key:"excluded",label:"AI 자동 제외"},{key:"suspect",label:"의심/보류"},{key:"all",label:"전체"}] as {key:PhotoAutoFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoAutoFilter(option.key)} style={[styles.photoFilterButton,photoAutoFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoAutoFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View>
   {photoAutoFilter==="priority"&&<Text style={styles.hint}>AI 자동 분류 결과를 우선 표시합니다. 자동 처리 실패 사진은 재시도 대상입니다.</Text>}
   {photoAutoFilter==="suspect"&&<Text style={styles.hint}>AI가 인물·무관·판단 불가로 분류한 제외 사진입니다.</Text>}
