@@ -424,9 +424,19 @@ export default function Admin() {
         const {error}=await supabase!.rpc("admin_remove_studio_gallery_photo",{p_studio_id:studioId,p_image_url:imageUrl});
         if(error)Alert.alert("사진 삭제 실패",error.message);
         else {
+          let storageDeleteWarning="";
+          const marker="/storage/v1/object/public/studio-photos/";
+          const markerIndex=imageUrl.indexOf(marker);
+          if(markerIndex>=0){
+            const objectPath=decodeURIComponent(imageUrl.slice(markerIndex+marker.length).split("?")[0]);
+            if(objectPath){
+              const {error:storageError}=await supabase!.storage.from("studio-photos").remove([objectPath]);
+              if(storageError)storageDeleteWarning=" 갤러리에서는 제거했지만 저장소 파일 삭제는 실패했습니다: "+storageError.message;
+            }
+          }
           setRows(current=>current.map(row=>row.id===studioId?{...row,image_urls:(row.image_urls||[]).filter(url=>url!==imageUrl)}:row));
           setForm(current=>({...current,image_urls:current.image_urls.split(/[\\n,]+/).map(value=>value.trim()).filter(value=>value&&value!==imageUrl).join("\\n")}));
-          Alert.alert("삭제 완료","학원 갤러리에서 사진을 제거했습니다.");
+          Alert.alert("삭제 완료","학원 갤러리에서 사진을 제거했습니다."+storageDeleteWarning);
         }
         setBusy(false);
       }}
