@@ -85,14 +85,14 @@ function isRelevantBlog(studioName: string, title: string, context = "", blogger
   const nameMatch = alias.length >= 3 && (titleText.includes(alias) || contextText.includes(alias));
   const accountKey = blogAccountKey(bloggerUrl);
   const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
-  const balletIntent = /(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + "\\n" + context);
+  const balletIntent = /(발레|바레|시간표|스케줄|월간|월별|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + "\\n" + context);
   // A verified account is accepted only for ballet/class-related posts, avoiding unrelated posts on the same blog.
   return nameMatch || (officialMatch && balletIntent);
 }
 function evidence(text: string, kind: "price" | "schedule"): string[] {
   const re = kind === "price"
     ? /(수강료|가격|회비|등록비|입회비|만원|\d[\d,]*\s*원|\d+(?:\.\d+)?\s*만(?:\s*\d+\s*천)?\s*원?|\d[\d,]*\s*천\s*원|₩|비용|월\s*\d)/i
-    : /(시간표|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|\d{1,2}:\d{2}|평일|주말|수업시간|\d{1,2}시)/i;
+    : /(시간표|스케줄|월간|월별|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|오전|오후|\d{1,2}:\d{2}|평일|주말|수업시간|\d{1,2}시)/i;
   return [...new Set(text.split("\n").map(x => x.trim()).filter(x => x.length >= 3 && x.length <= 500 && re.test(x)))].slice(0, 40);
 }
 
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
       const snippetText = normalize(sourceTitle + " " + sourceDescription);
       const accountKey = blogAccountKey(String(source?.blogger_url ?? ""));
       const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
-      const hasBalletIntent = /(발레|바레|시간표|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(sourceTitle + " " + sourceDescription);
+      const hasBalletIntent = /(발레|바레|시간표|스케줄|월간|월별|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(sourceTitle + " " + sourceDescription);
       const hasAcademyName = alias.length >= 3 && snippetText.includes(alias);
       if (!source || (!hasAcademyName && !officialMatch && !hasBalletIntent)) {
         const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
