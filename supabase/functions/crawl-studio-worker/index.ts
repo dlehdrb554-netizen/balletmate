@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
         if(candidateError)detail+=" · AI 후보 조회 실패: "+candidateError.message;
         else if(candidates?.length){
           let classified=0,visionFailed=0;
-          const classifierEndpoint=supabaseUrl.replace(/\\/$/,"")+"/functions/v1/classify-studio-photo";
+          const classifierEndpoint=(supabaseUrl.endsWith("/")?supabaseUrl.slice(0,-1):supabaseUrl)+"/functions/v1/classify-studio-photo";
           for(const candidate of candidates){
             try{
               const vision=await fetch(classifierEndpoint,{method:"POST",headers:{"Content-Type":"application/json","x-photo-auto-secret":serviceRoleKey},body:JSON.stringify({candidateId:candidate.id}),signal:AbortSignal.timeout(25000)});
