@@ -40,6 +40,36 @@ insert into public.studio_blog_search_queue (studio_id)
 select id from public.studios where coalesce(is_active, true)
 on conflict (studio_id) do nothing;
 
+-- Automatically enqueue new discoveries and studios that are activated later.
+-- Existing queue rows are preserved; inactive studios are not added.
+create or replace function public.enqueue_studio_blog_search_for_active_studio()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  if coalesce(new.is_active, true)
+     and (tg_op = 'INSERT' or old.is_active is distinct from new.is_active) then
+    insert into public.studio_blog_search_queue(studio_id,status,attempts,last_error,updated_at)
+    values(new.id,'pending',0,null,now())
+    on conflict(studio_id) do update
+      set status='pending',attempts=0,last_error=null,updated_at=now();
+  end if;
+  return new;
+end;
+$;
+
+drop trigger if exists studios_enqueue_blog_search on public.studios;
+create trigger studios_enqueue_blog_search
+  after insert or update of is_active on public.studios
+  for each row execute function public.enqueue_studio_blog_search_for_active_studio();
+
+-- Backfill any active studios that were added after the first queue migration.
+insert into public.studio_blog_search_queue(studio_id)
+select id from public.studios where coalesce(is_active,true)
+on conflict(studio_id) do nothing;
+
 create or replace function public.claim_studio_blog_search_jobs(p_limit integer default 3)
 returns table(studio_id uuid, studio_name text, attempts integer)
 language sql
