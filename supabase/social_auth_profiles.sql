@@ -9,6 +9,7 @@ set search_path = ''
 as $$
 declare
   uname text;
+  generated_display_name text;
 begin
   uname := pg_catalog.lower(COALESCE(new.raw_user_meta_data ->> 'username', ''));
 
@@ -16,12 +17,19 @@ begin
     uname := 'social_' || pg_catalog.substr(pg_catalog.replace(new.id::text, '-', ''), 1, 12);
   end if;
 
+  if pg_catalog.left(uname, 7) = 'social_' then
+    generated_display_name := public.generate_member_display_name();
+  else
+    generated_display_name := null;
+  end if;
+
   insert into public.user_profiles as existing (
-    user_id, username, phone_number, phone_verified_at, updated_at
+    user_id, username, display_name, phone_number, phone_verified_at, updated_at
   )
   values (
     new.id,
     uname,
+    generated_display_name,
     case when new.phone_confirmed_at is not null then new.phone else null end,
     new.phone_confirmed_at,
     now()
@@ -33,6 +41,7 @@ begin
       then existing.username
       else excluded.username
     end,
+    display_name = COALESCE(NULLIF(existing.display_name, ''), excluded.display_name),
     phone_number = excluded.phone_number,
     phone_verified_at = excluded.phone_verified_at,
     updated_at = now();
@@ -53,4 +62,4 @@ create trigger sync_username_profile_auth_update
   for each row execute function public.sync_username_profile();
 
 comment on function public.sync_username_profile() is
-  'Keeps legacy username accounts and creates a generated private username for Google/Kakao OAuth accounts.';
+  'Keeps legacy username accounts and creates a generated private username and display name for Google/Kakao OAuth accounts.';
