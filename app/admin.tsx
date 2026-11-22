@@ -4,7 +4,8 @@ import { supabase } from "../lib/supabase";
 import * as ImagePicker from "expo-image-picker";
 import { extractTextFromImage, isSupported, TextRecognitionScript } from "@zhanziyang/expo-text-extractor";
 import * as FileSystem from "expo-file-system/legacy";
-import { fetchStudioBlogPosts } from "../lib/studio-blog-content";\nimport { parseScheduleEvidence } from "../lib/schedule-structure";
+import { fetchStudioBlogPosts } from "../lib/studio-blog-content";
+import { parseScheduleEvidence } from "../lib/schedule-structure";
 
 type EvidenceCandidate = {id:number;studio_id:string;studio_name:string;source_id:number;source_title:string|null;source_url:string;source_post_date?:string|null;candidate_type:"price"|"schedule";candidate_value:string;normalized_value:string|null;price_period?:string|null;price_frequency_per_week?:number|null;evidence_text:string;confidence:number;review_status:"pending"|"verified"|"rejected";created_at:string};
 
@@ -98,7 +99,8 @@ export default function Admin() {
   const [evidenceBusy,setEvidenceBusy]=useState(false);
   const [ocrBusy,setOcrBusy]=useState(false);
   const [ocrRows,setOcrRows]=useState<any[]>([]);
-  const [batchOcrOffset,setBatchOcrOffset]=useState(0);\n  const [scheduleClassCandidates,setScheduleClassCandidates]=useState<any[]>([]);\n  const [candidateTitles,setCandidateTitles]=useState<Record<number,string>>({});
+  const [batchOcrOffset,setBatchOcrOffset]=useState(0);
+  const [scheduleClassCandidates,setScheduleClassCandidates]=useState<any[]>([]);\n  const [candidateTitles,setCandidateTitles]=useState<Record<number,string>>({});
 
   const checkAdmin=useCallback(async(s:any)=>{
     if(!s){setAuthorized(false);setChecking(false);return;}
@@ -191,7 +193,7 @@ export default function Admin() {
     const title=(candidateTitles[candidate.id]||candidate.proposed_title||"").trim();
     const sessions=Array.isArray(candidate.sessions)?candidate.sessions:[];
     if(!title||!sessions.length){Alert.alert("확인 필요","수업명과 시간표가 필요합니다.");return;}
-    Alert.alert("실제 수업 등록 확인",candidate.studio_name+" · "+title+"\\n"+sessions.map((x:any)=>["일","월","화","수","목","금","토"][x.weekday]+" "+x.start_time+(x.end_time?"~"+x.end_time:"")].join("")).join("\\n")+"\\n원문과 비교하여 현재 운영 시간표가 맞는지 확인했습니까?",[
+    Alert.alert("실제 수업 등록 확인",candidate.studio_name+" · "+title+"\\n"+sessions.map((x:any)=>["일","월","화","수","목","금","토"][x.weekday]+" "+x.start_time+(x.end_time?"~"+x.end_time:"")).join("\\n")+"\\n원문과 비교하여 현재 운영 시간표가 맞는지 확인했습니까?",[
       {text:"취소",style:"cancel"},
       {text:"확인 후 등록",onPress:async()=>{
         setEvidenceBusy(true);
