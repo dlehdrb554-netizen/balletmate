@@ -32,7 +32,8 @@ export type StudioRecord = {
   schedule_evidence_text: string | null;
   details_source_urls: string[] | null;
   details_checked_at: string | null;
-  details_status: string | null;\n  class_durations?: number[] | null;
+  details_status: string | null;
+  class_durations?: number[] | null;
 };
 
 const studioCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>();
