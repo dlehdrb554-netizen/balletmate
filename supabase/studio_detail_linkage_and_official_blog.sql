@@ -97,7 +97,7 @@ AS $function$
       SELECT 1
       FROM public.studio_blog_official_accounts oa
       WHERE oa.is_active = true
-        AND oa.studio_name = st.name
+        AND (oa.studio_id = st.id OR (oa.studio_id IS NULL AND oa.studio_name = st.name))
         AND lower(split_part(regexp_replace(trim(oa.blogger_url), '^https?://(m[.])?blog[.]naver[.]com/', '', 'i'), '/', 1))
           = lower(split_part(regexp_replace(trim(COALESCE(s.blogger_url, '')), '^https?://(m[.])?blog[.]naver[.]com/', '', 'i'), '/', 1))
     )
@@ -123,7 +123,7 @@ WITH diagnostic AS (
       WHERE cl.studio_id = st.id AND cl.is_active = true AND cs.is_active = true) AS active_session_count,
     (SELECT count(*) FROM public.studio_public_prices pp WHERE pp.studio_id = st.id AND pp.is_active = true) AS approved_price_count,
     (SELECT count(*) FROM public.studio_public_schedules ps WHERE ps.studio_id = st.id AND ps.is_active = true AND ps.expires_at >= CURRENT_DATE) AS approved_schedule_count,
-    (SELECT count(*) FROM public.studio_blog_official_accounts oa WHERE oa.studio_name = st.name AND oa.is_active = true) AS verified_official_blog_count,
+    (SELECT count(*) FROM public.studio_blog_official_accounts oa WHERE (oa.studio_id = st.id OR (oa.studio_id IS NULL AND oa.studio_name = st.name)) AND oa.is_active = true) AS verified_official_blog_count,
     (SELECT count(*) FROM public.studio_blog_sources bs WHERE bs.studio_id = st.id) AS collected_blog_post_count,
     (SELECT count(*) FROM public.studio_blog_post_contents bc WHERE bc.studio_id = st.id AND bc.crawl_status = 'success') AS completed_blog_crawl_count,
     (SELECT count(*) FROM public.studio_blog_evidence_candidates ec WHERE ec.studio_id = st.id AND ec.review_status = 'pending') AS pending_evidence_count
