@@ -144,23 +144,39 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   ref
 ) {
   const webRef = useRef<WebView>(null);
+  const mapReady = useRef(false);
+  const pendingMessages = useRef<string[]>([]);
   const html = useRef(buildHtml(initialRegion)).current;
+  const sendToMap = (message: unknown) => {
+    const serialized = JSON.stringify(message);
+    if (!mapReady.current) {
+      pendingMessages.current.push(serialized);
+      return;
+    }
+    webRef.current?.postMessage(serialized);
+  };
   useImperativeHandle(ref, () => ({
     animateToRegion: (region, duration = 400) => {
-      webRef.current?.postMessage(JSON.stringify({ type: "animate", region, duration }));
+      sendToMap({ type: "animate", region, duration });
     },
   }), []);
   useEffect(() => {
-    webRef.current?.postMessage(JSON.stringify({
+    sendToMap({
       type: "markers",
       markers,
       selectedId: selectedId ?? null,
       currentLocation: currentLocation ?? null,
-    }));
+    });
   }, [markers, selectedId, currentLocation]);
   const handleMessage = (event: WebViewMessageEvent) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
+      if (message.type === "ready") {
+        mapReady.current = true;
+        const queued = pendingMessages.current;
+        pendingMessages.current = [];
+        queued.forEach(serialized => webRef.current?.postMessage(serialized));
+      }
       if (message.type === "region" && message.region) onRegionChangeComplete?.(message.region);
       if (message.type === "marker" && typeof message.id === "string") onMarkerPress?.(message.id);
     } catch {
@@ -177,9 +193,11 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
         domStorageEnabled
         setSupportMultipleWindows={false}
         onMessage={handleMessage}
-        onLoadEnd={() => webRef.current?.postMessage(JSON.stringify({
-          type: "markers", markers, selectedId: selectedId ?? null, currentLocation: currentLocation ?? null,
-        }))}
+        onLoadStart={() => { mapReady.current = false; }}
+        onLoadEnd={() => {
+          // The page may have loaded while the Kakao SDK is still initializing.
+          // The explicit {type:"ready"} message flushes all queued commands.
+        }}
         style={styles.webview}
       />
     </View>
