@@ -343,7 +343,6 @@ export default function Admin() {
     const {data,error}=await supabase.from("studio_image_ocr_results").select("id,studio_id,studio_name,source_id,image_url,source_url,source_post_date,image_label,extracted_text,detected_kind,amount_krw,price_period,frequency_per_week,schedule_days,schedule_time,review_status,created_at").eq("review_status","pending").order("created_at",{ascending:false}).limit(100);
     if(error)Alert.alert("OCR 결과 조회 실패",error.message);else setOcrRows(data||[]);
   },[authorized]);
-  useEffect(()=>{loadOcr();},[loadOcr]);
   const runLocalOcr=async(id:string,name:string)=>{
     if(!supabase)return;
     const ocr=await loadOcrModule();if(!ocr)return;
