@@ -47,7 +47,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 begin
   if coalesce(new.is_active, true)
      and (tg_op = 'INSERT' or old.is_active is distinct from new.is_active) then
@@ -58,7 +58,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists studios_enqueue_blog_search on public.studios;
 create trigger studios_enqueue_blog_search
@@ -75,7 +75,7 @@ returns table(studio_id uuid, studio_name text, attempts integer)
 language sql
 security definer
 set search_path = public
-as $$
+as $$$
   with picked as (
     select q.studio_id
     from public.studio_blog_search_queue q
@@ -100,7 +100,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 begin
   if not public.is_balletmate_admin() then
     raise exception 'administrator access required' using errcode='42501';
@@ -111,7 +111,7 @@ begin
     set status='pending',attempts=0,last_error=null,updated_at=now();
   return true;
 end;
-$;
+$$;
 revoke all on function public.admin_requeue_studio_blog_search(uuid) from public, anon;
 grant execute on function public.admin_requeue_studio_blog_search(uuid) to authenticated;
 
