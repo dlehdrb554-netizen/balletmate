@@ -171,7 +171,7 @@ export default function Home() {
 
   const results=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(s=>[s.id,s])).values()].filter(s=>{
     const q=search.trim().toLowerCase();
-    if(q && !s.name.toLowerCase().includes(q) && !s.area.toLowerCase().includes(q) && !s.tags.some(t=>t.toLowerCase().includes(q)) && !classSearchIds.includes(s.id)) return false;
+    if(q && !globalSearchStudios.some(item=>item.id===s.id) && !s.name.toLowerCase().includes(q) && !s.area.toLowerCase().includes(q) && !s.tags.some(t=>t.toLowerCase().includes(q)) && !classSearchIds.includes(s.id)) return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
     if(hasClassLevelFilters&&!classFilterIds.includes(s.id))return false;
@@ -233,7 +233,7 @@ export default function Home() {
       try{
         remoteRows=await searchStudiosByName(query);
         if(!remoteRows.length&&regionKey){
-          const nameQuery=query.replace(new RegExp(regionKey,"ig"),"").replace(/\\s+/g," ").trim();
+          const nameQuery=query.replace(new RegExp(regionKey,"ig"),"").replace(/\s+/g," ").trim();
           if(nameQuery.length>=2)remoteRows=await searchStudiosByName(nameQuery);
         }
       }catch(error){console.warn("Nationwide studio name search failed:",error);}
@@ -243,7 +243,8 @@ export default function Home() {
     let matchingClassIds=classSearchIds;
     if(!mapped.length&&supabase&&query.length>=2){try{matchingClassIds=await searchStudioIdsByClassName(query);setClassSearchIds(matchingClassIds);}catch{}}
     const allStudios=[...new Map([...studios,...globalSearchStudios,...mapped].map(studio=>[studio.id,studio])).values()];
-    const matching=allStudios.filter(studio=>studio.name.toLowerCase().includes(q)||studio.area.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.tags.some(tag=>tag.toLowerCase().includes(q)||q.includes(tag.toLowerCase()))||matchingClassIds.includes(studio.id));
+    const mappedIds=new Set(mapped.map(studio=>studio.id));
+    const matching=allStudios.filter(studio=>mappedIds.has(studio.id)||studio.name.toLowerCase().includes(q)||studio.area.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.tags.some(tag=>tag.toLowerCase().includes(q)||q.includes(tag.toLowerCase()))||matchingClassIds.includes(studio.id));
     if(matching.length){
       const target=matching.length===1?matching[0]:null;
       const latitude=target?target.lat:matching.reduce((sum,studio)=>sum+studio.lat,0)/matching.length;
