@@ -36,3 +36,63 @@ CREATE POLICY "admins review studio photo candidates"
   ON public.studio_photo_candidates FOR UPDATE TO authenticated
   USING (public.is_balletmate_admin())
   WITH CHECK (public.is_balletmate_admin());
+
+CREATE OR REPLACE FUNCTION public.admin_review_studio_photo_candidate(
+  p_candidate_id bigint,
+  p_status text
+)
+RETURNS TABLE(candidate_id bigint, review_status text, gallery_photo_count integer)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  candidate public.studio_photo_candidates%ROWTYPE;
+  current_images text[];
+BEGIN
+  IF NOT public.is_balletmate_admin() THEN
+    RAISE EXCEPTION 'admin access required' USING ERRCODE = '42501';
+  END IF;
+  IF p_status NOT IN ('approved','rejected') THEN
+    RAISE EXCEPTION 'invalid review status';
+  END IF;
+
+  SELECT * INTO candidate
+  FROM public.studio_photo_candidates
+  WHERE id = p_candidate_id AND review_status = 'pending'
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'photo candidate not found or already reviewed';
+  END IF;
+
+  IF p_status = 'approved' THEN
+    SELECT COALESCE(image_urls, ARRAY[]::text[]) INTO current_images
+    FROM public.studios WHERE id = candidate.studio_id FOR UPDATE;
+    IF current_images IS NULL THEN current_images := ARRAY[]::text[]; END IF;
+    IF NOT candidate.image_url = ANY(current_images) THEN
+      IF cardinality(current_images) >= 10 THEN
+        RAISE EXCEPTION 'studio gallery already contains 10 photos';
+      END IF;
+      current_images := array_append(current_images, candidate.image_url);
+      UPDATE public.studios
+      SET image_urls = current_images,
+          image_source_name = COALESCE(NULLIF(image_source_name,''), candidate.source_host, '공식 홈페이지 관리자 검수'),
+          image_usage_note = COALESCE(NULLIF(image_usage_note,''), '공식 홈페이지 사진 후보를 관리자 검수 후 추가함. 출처: ' || candidate.source_page_url),
+          updated_at = now()
+      WHERE id = candidate.studio_id;
+    END IF;
+  END IF;
+
+  UPDATE public.studio_photo_candidates
+  SET review_status = p_status, reviewed_at = now(), reviewed_by = auth.uid()
+  WHERE id = candidate.id;
+
+  RETURN QUERY
+  SELECT candidate.id, p_status,
+    (SELECT cardinality(COALESCE(s.image_urls, ARRAY[]::text[]))::integer
+     FROM public.studios s WHERE s.id = candidate.studio_id);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_review_studio_photo_candidate(bigint,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.admin_review_studio_photo_candidate(bigint,text) TO authenticated;
