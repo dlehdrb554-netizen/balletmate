@@ -45,6 +45,11 @@ begin
       'verified', (select count(*) from public.studio_image_ocr_results where review_status='verified'),
       'rejected', (select count(*) from public.studio_image_ocr_results where review_status='rejected')
     ),
+    'reports', jsonb_build_object(
+      'pending', (select count(*) from public.studio_user_reports where status='pending'),
+      'in_review', (select count(*) from public.studio_user_reports where status='in_review'),
+      'resolved', (select count(*) from public.studio_user_reports where status='resolved')
+    ),
     'schedule_candidates', jsonb_build_object(
       'pending', (select count(*) from public.studio_schedule_class_candidates where status='pending'),
       'creating', (select count(*) from public.studio_schedule_class_candidates where status='creating'),
