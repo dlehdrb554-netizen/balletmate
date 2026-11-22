@@ -98,8 +98,8 @@ AS $function$
       FROM public.studio_blog_official_accounts oa
       WHERE oa.is_active = true
         AND oa.studio_name = st.name
-        AND lower(split_part(regexp_replace(trim(oa.blogger_url), '^https?://(m\\.)?blog\\.naver\\.com/', '', 'i'), '/', 1))
-          = lower(split_part(regexp_replace(trim(COALESCE(s.blogger_url, '')), '^https?://(m\\.)?blog\\.naver\\.com/', '', 'i'), '/', 1))
+        AND lower(split_part(regexp_replace(trim(oa.blogger_url), '^https?://(m[.])?blog[.]naver[.]com/', '', 'i'), '/', 1))
+          = lower(split_part(regexp_replace(trim(COALESCE(s.blogger_url, '')), '^https?://(m[.])?blog[.]naver[.]com/', '', 'i'), '/', 1))
     )
   ORDER BY s.post_date DESC NULLS LAST, s.collected_at DESC, c.checked_at DESC
   LIMIT 3;
