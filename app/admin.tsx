@@ -129,12 +129,13 @@ export default function Admin() {
   },[checkAdmin]);
 
   const retryFailedQueues=async()=>{
-    if(!supabase)return;
+    const client=supabase;
+    if(!client)return;
     Alert.alert("실패 작업 재처리","실패한 블로그 검색·게시글·이미지 수집 작업을 대기열로 돌리고 재시도 횟수를 초기화할까요?",[
       {text:"취소",style:"cancel"},
       {text:"재처리",onPress:async()=>{
         setRetryBusy(true);
-        const {data,error}=await supabase.rpc("balletmate_admin_retry_failed_collection_jobs");
+        const {data,error}=await client.rpc("balletmate_admin_retry_failed_collection_jobs");
         if(error)Alert.alert("재처리 요청 실패",error.message);
         else {Alert.alert("재처리 예약 완료", "블로그 검색 "+(data.blog_search_requeued||0)+"개 · 게시글 "+(data.blog_post_requeued||0)+"개 · 이미지 "+(data.image_requeued||0)+"개");await loadDashboard();}
         setRetryBusy(false);
