@@ -484,10 +484,14 @@ export default function Home() {
   };
 
   const openDetail=async(s:Studio)=>{const requestId=++detailRequestId.current;setDetailTab("home");setDetailExpanded(false);detailDragY.setValue(0);setDetailStudio(s);setStudioClasses([]);setStudioBlogPosts([]);setStudioPublicPrices([]);setStudioPublicSchedules([]);setStudioCoupons([]);if(supabaseConfigured){setClassesLoading(true);setBlogLoading(true);fetchStudioById(s.id).then(row=>{if(requestId===detailRequestId.current&&row)setDetailStudio(mapStudioRecord(row));}).catch(error=>console.warn("Canonical studio detail lookup failed:",error));fetchClassesForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioClasses(rows);}).catch(error=>{console.warn("Studio classes unavailable:",error);if(requestId===detailRequestId.current)setStudioClasses([]);}).finally(()=>{if(requestId===detailRequestId.current)setClassesLoading(false);});fetchStudioBlogPosts(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioBlogPosts(rows);}).catch(error=>{console.warn("Studio blog content unavailable:",error);if(requestId===detailRequestId.current)setStudioBlogPosts([]);}).finally(()=>{if(requestId===detailRequestId.current)setBlogLoading(false);});fetchStudioPublicPrices(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicPrices(rows);}).catch(error=>{console.warn("Approved studio prices unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicPrices([]);});fetchStudioPublicSchedules(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicSchedules(rows);}).catch(error=>{console.warn("Approved studio schedules unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicSchedules([]);});fetchCouponsForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioCoupons(rows);}).catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});}else{setBlogLoading(false);}};
-  const detailPhotoItems = detailStudio ? [
-    ...(detailStudio.imageUrls||[]).map((uri,index)=>({uri,key:"official-"+index,url:detailStudio.websiteUrl||detailStudio.sourceUrl||null,label:"공식 사진"})),
-    ...studioBlogPosts.flatMap(post=>(post.image_urls||[]).map((uri,index)=>({uri,key:"blog-"+post.source_id+"-"+index,url:post.post_url,label:post.title}))),
-  ] : [];
+  const detailPhotoItems = detailStudio ? (() => {
+    const items=[
+      ...(detailStudio.imageUrls||[]).slice(0,10).map((uri,index)=>({uri,key:"official-"+index,url:detailStudio.websiteUrl||detailStudio.sourceUrl||null,label:"공식 사진"})),
+      ...studioBlogPosts.flatMap(post=>[...new Set((post.image_urls||[]).filter(uri=>/^https:\/\//i.test(uri)))].slice(0,3).map((uri,index)=>({uri,key:"blog-"+post.source_id+"-"+index,url:post.post_url,label:post.title}))),
+    ];
+    const seen=new Set<string>();
+    return items.filter(item=>{if(seen.has(item.uri))return false;seen.add(item.uri);return true;}).slice(0,18);
+  })() : [];
   const representativeStudioImage = detailPhotoItems[0] || null;
   const evidencePhotosForSource=(sourceUrl:string)=>{
     const post=studioBlogPosts.find(item=>item.post_url===sourceUrl);
