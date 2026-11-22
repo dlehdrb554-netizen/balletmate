@@ -117,7 +117,6 @@ export default function Home() {
   const [currentLocation,setCurrentLocation]=useState<{latitude:number;longitude:number}|null>(null);
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);
   const [areaLocked,setAreaLocked]=useState(false);
-  const [regionalSearchLabel,setRegionalSearchLabel]=useState<string|null>(null);
 
   useEffect(()=>{
     if(!supabase)return;
@@ -217,7 +216,7 @@ export default function Home() {
     if(regionKey){
       const point=REGIONAL_SEARCH[regionKey];
       const next={latitude:point.latitude,longitude:point.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-      map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setRegionalSearchLabel(query);setSearch("");setClassSearchIds([]);
+      map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setSearch("");setClassSearchIds([]);
       return;
     }
     let matchingClassIds=classSearchIds;
@@ -237,7 +236,7 @@ export default function Home() {
       const geocoded=await Location.geocodeAsync(query+" 대한민국");
       if(geocoded.length){
         const next={latitude:geocoded[0].latitude,longitude:geocoded[0].longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-        map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setRegionalSearchLabel(query);setSearch("");setClassSearchIds([]);
+        map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setSearch("");setClassSearchIds([]);
         return;
       }
       Alert.alert("지역 검색","해당 지역을 찾지 못했습니다. 동네명이나 역 이름으로 다시 검색해주세요.");
