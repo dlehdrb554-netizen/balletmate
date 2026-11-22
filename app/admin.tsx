@@ -329,7 +329,7 @@ export default function Admin() {
 
   const searchStudiosServer=async()=>{
     if(!supabase||busy)return;
-    const term=studioSearch.trim().replace(/[%,_(),]/g," ").replace(/\\s+/g," ").trim();
+    const term=studioSearch.trim().replace(/[%,_(),]/g," ").replace(/\s+/g," ").trim();
     setStudioAppliedSearch(term);setStudioSearch(term);
     setBusy(true);
     try{
