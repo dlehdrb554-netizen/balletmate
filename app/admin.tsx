@@ -130,8 +130,9 @@ export default function Admin() {
   const [failedPhotoCandidateIds,setFailedPhotoCandidateIds]=useState<number[]>([]);
   const [photoFaceResults,setPhotoFaceResults]=useState<Record<number,{status:FaceScanState;count:number;error?:string}>>({});
   const [photoAutoFilter,setPhotoAutoFilter]=useState<PhotoAutoFilter>("priority");
+  const [photoMaterialFilter,setPhotoMaterialFilter]=useState<"all"|"unclassified"|"price"|"schedule"|"other">("unclassified");
   const [studioSearch,setStudioSearch]=useState("");
-  const photoFilteredCandidates=photoCandidateRows.filter(item=>{const classification=classifyPhotoCandidate(item);const face=photoFaceResults[Number(item.id)];const suspect=classification.suspect||face?.status==="faces";return photoAutoFilter==="all"||(photoAutoFilter==="suspect"?suspect:!suspect);});
+  const photoFilteredCandidates=photoCandidateRows.filter(item=>{const classification=classifyPhotoCandidate(item);const face=photoFaceResults[Number(item.id)];const suspect=classification.suspect||face?.status==="faces";const autoOk=photoAutoFilter==="all"||(photoAutoFilter==="suspect"?suspect:!suspect);const materialOk=photoMaterialFilter==="all"||(photoMaterialFilter==="unclassified"?!item.material_type:item.material_type===photoMaterialFilter);return autoOk&&materialOk;});
   const [studioAppliedSearch,setStudioAppliedSearch]=useState("");
   const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
   const [studioDbOffset,setStudioDbOffset]=useState(0);
@@ -416,7 +417,7 @@ export default function Admin() {
     if(!supabase||!authorized)return;
     setPhotoReviewBusy(true);
     const {data,error,count}=await supabase.from("studio_photo_candidates")
-      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at",{count:"exact"})
+      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type",{count:"exact"})
       .eq("review_status","pending").order("created_at",{ascending:false}).order("id",{ascending:false}).range(0,11);
     if(error){
       Alert.alert("사진 검토 자료 조회 실패",error.message+"\n사진 검토 SQL이 적용됐는지 확인해 주세요.");
@@ -430,12 +431,21 @@ export default function Admin() {
     setPhotoReviewBusy(true);
     const start=photoCandidateOffset;
     const {data,error}=await supabase.from("studio_photo_candidates")
-      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at")
+      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type")
       .eq("review_status","pending").order("created_at",{ascending:false}).order("id",{ascending:false}).range(start,start+11);
     if(error)Alert.alert("추가 사진 조회 실패",error.message);
     else {setPhotoCandidateRows(data||[]);setPhotoCandidateOffset(start+(data||[]).length);}
     setPhotoReviewBusy(false);
   };
+  const classifyPhotoMaterial=async(item:any,type:"price"|"schedule"|"other")=>{
+    if(!supabase)return;
+    setPhotoReviewBusy(true);
+    const {error}=await supabase.from("studio_photo_candidates").update({material_type:type}).eq("id",item.id);
+    if(error)Alert.alert("자료 분류 실패",error.message+"\\nSQL migration이 적용되었는지 확인해 주세요.");
+    else setPhotoCandidateRows(current=>current.map(row=>row.id===item.id?{...row,material_type:type}:row));
+    setPhotoReviewBusy(false);
+  };
+
   const reviewPhotoCandidate=async(item:any,status:"approved"|"rejected")=>{
     if(!supabase)return;
     setPhotoReviewBusy(true);
@@ -1363,7 +1373,7 @@ export default function Admin() {
   </View>
   <Text style={styles.hint}>대기 {photoCandidateTotal.toLocaleString("ko-KR")}건 · 불러온 {photoCandidateRows.length}건 · 현재 탭 {photoFilteredCandidates.length}건</Text>
   <Text style={styles.hint}>URL·파일명 기반 무료 1차 선별입니다. 얼굴을 실제로 인식하는 AI는 아직 연결되지 않았으므로, 인물 사진은 원본 확인이 필요합니다. 사용 권한 확인 후 승인해 주세요.</Text>
-  <View style={styles.photoFilterRow}>{([{key:"priority",label:"우선 검토"},{key:"suspect",label:"의심 사진"},{key:"all",label:"전체"}] as {key:PhotoAutoFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoAutoFilter(option.key)} style={[styles.photoFilterButton,photoAutoFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoAutoFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View>
+  <View style={styles.photoFilterRow}>{([{key:"unclassified",label:"자료 미분류"},{key:"price",label:"가격"},{key:"schedule",label:"시간표"},{key:"other",label:"기타"},{key:"all",label:"전체"}] as {key:typeof photoMaterialFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoMaterialFilter(option.key)} style={[styles.photoFilterButton,photoMaterialFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoMaterialFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><View style={styles.photoFilterRow}>{([{key:"priority",label:"우선 검토"},{key:"suspect",label:"의심 사진"},{key:"all",label:"전체"}] as {key:PhotoAutoFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoAutoFilter(option.key)} style={[styles.photoFilterButton,photoAutoFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoAutoFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View>
   {photoAutoFilter==="priority"&&<Text style={styles.hint}>의심 키워드가 감지된 사진은 이 탭에서 숨깁니다. 의심 탭에서 별도로 확인할 수 있습니다.</Text>}
   {photoAutoFilter==="suspect"&&<Text style={styles.hint}>파일명·URL에 인물, 광고, 아이콘 등의 키워드가 있는 사진만 표시합니다. 실제 얼굴 검출은 아닙니다.</Text>}
   {photoAutoFilter==="all"&&<Text style={styles.hint}>자동 분류 결과와 관계없이 불러온 후보를 모두 표시합니다.</Text>}
@@ -1384,6 +1394,9 @@ export default function Admin() {
       </View>
     </View>
     <View style={styles.photoReviewActions}>
+      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>classifyPhotoMaterial(item,"price")}><Text style={styles.photoReviewRejectText}>가격 자료</Text></Pressable>
+      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>classifyPhotoMaterial(item,"schedule")}><Text style={styles.photoReviewRejectText}>시간표 자료</Text></Pressable>
+      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>classifyPhotoMaterial(item,"other")}><Text style={styles.photoReviewRejectText}>기타 자료</Text></Pressable>
       <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.photoReviewRejectText}>제외</Text></Pressable>
       <Pressable style={styles.photoReviewDelete} disabled={photoReviewBusy} onPress={()=>deletePhotoCandidate(item)}><Text style={styles.photoReviewDeleteText}>영구 삭제</Text></Pressable>
       <Pressable style={styles.photoReviewApprove} disabled={photoReviewBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.photoReviewApproveText}>승인</Text></Pressable>
