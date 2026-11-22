@@ -75,7 +75,7 @@ $$;
 revoke all on function public.balletmate_admin_dashboard_stats() from public, anon;
 grant execute on function public.balletmate_admin_dashboard_stats() to authenticated;
 
-
+-- Admin-only retry action for exhausted automated collection queues.
 -- Admin-only retry action for exhausted automated collection queues.
 create or replace function public.balletmate_admin_retry_failed_collection_jobs()
 returns jsonb
@@ -83,7 +83,7 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare search_count integer; post_count integer;
+declare search_count integer; post_count integer; image_count integer;
 begin
   if not public.is_balletmate_admin() then
     raise exception 'administrator access required' using errcode='42501';
@@ -107,7 +107,8 @@ begin
   return jsonb_build_object(
     'blog_search_requeued', search_count,
     'blog_post_requeued', post_count,
-    'total', search_count+post_count
+    'image_requeued', image_count,
+    'total', search_count+post_count+image_count
   );
 end;
 $$;
