@@ -33,7 +33,19 @@ Deno.serve(async(req)=>{
  const imageData="data:"+mime+";base64,"+btoa(binary);
  const requestBody={prompt,image:imageData,max_tokens:180,temperature:0};
  let ai:Response;try{ai=await fetch("https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(cfAccount)+"/ai/run/@cf/meta/llama-3.2-11b-vision-instruct",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+cfToken},signal:AbortSignal.timeout(25000),body:JSON.stringify(requestBody)});}catch{return json({error:"Cloudflare Workers AI request failed"},502);}
- if(!ai.ok){const detail=(await ai.text()).slice(0,400);return json({error:"Cloudflare Workers AI error",status:ai.status,detail},ai.status===429?429:502);}
+ if(!ai.ok){
+  const detail=(await ai.text()).slice(0,1000);
+  // Accept Meta's license only when Cloudflare explicitly reports that it is required.
+  if(/license|agree|acceptable use/i.test(detail)){
+   let accepted:Response;
+   try{accepted=await fetch("https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(cfAccount)+"/ai/run/@cf/meta/llama-3.2-11b-vision-instruct",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+cfToken},signal:AbortSignal.timeout(15000),body:JSON.stringify({prompt:"agree"})});}
+   catch{return json({error:"Meta model license acceptance request failed"},502);}
+   if(!accepted.ok){const acceptanceDetail=(await accepted.text()).slice(0,500);return json({error:"Meta model license acceptance failed",status:accepted.status,detail:acceptanceDetail},502);}
+   try{ai=await fetch("https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(cfAccount)+"/ai/run/@cf/meta/llama-3.2-11b-vision-instruct",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+cfToken},signal:AbortSignal.timeout(25000),body:JSON.stringify(requestBody)});}
+   catch{return json({error:"Cloudflare Workers AI retry failed after license acceptance"},502);}
+   if(!ai.ok){const retryDetail=(await ai.text()).slice(0,500);return json({error:"Cloudflare Workers AI retry failed",status:ai.status,detail:retryDetail},ai.status===429?429:502);}
+  }else{return json({error:"Cloudflare Workers AI error",status:ai.status,detail},ai.status===429?429:502);}
+ }
  const payload=await ai.json();let raw=String(payload?.result?.response??payload?.result?.output??"");raw=raw.trim().replace(/^\`\`\`(?:json)?\s*/i,"").replace(/\s*\`\`\`$/,"");
  let result:any;try{result=JSON.parse(raw);}catch{const match=raw.match(/\{[\s\S]*\}/);try{result=match?JSON.parse(match[0]):{};}catch{result={};}}
  const valid=["ballet_class","schedule","price","poster","logo","portrait","unrelated","unknown"];if(!valid.includes(result.category))result.category="unknown";
