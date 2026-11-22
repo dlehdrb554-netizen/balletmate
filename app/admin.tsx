@@ -1063,7 +1063,8 @@ export default function Admin() {
   const filteredStudioRows=useMemo(()=>rows.filter(row=>{
     const q=studioSearch.trim().toLowerCase();
     if(q&&!([row.name,row.district||"",row.address||"",row.phone||""].some(value=>value.toLowerCase().includes(q))))return false;
-    if(studioListFilter==="has_photo"&&(row.image_urls||[]).length===0)return false;\n    if(studioListFilter==="missing_photo"&&(row.image_urls||[]).length>0)return false;
+    if(studioListFilter==="has_photo"&&(row.image_urls||[]).length===0)return false;
+    if(studioListFilter==="missing_photo"&&(row.image_urls||[]).length>0)return false;
     if(studioListFilter==="missing_website"&&!!row.website_url)return false;
     if(studioListFilter==="website_candidate"&&!String(row.source_name||"").includes("홈페이지 검색 후보"))return false;
     if(studioListFilter==="active"&&!row.is_active)return false;
