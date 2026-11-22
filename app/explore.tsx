@@ -204,7 +204,17 @@ export default function Home() {
     "송파":{latitude:37.5145,longitude:127.1059},"잠실":{latitude:37.5133,longitude:127.1000},"강남":{latitude:37.4979,longitude:127.0276},
     "홍대":{latitude:37.5563,longitude:126.9236},"합정":{latitude:37.5495,longitude:126.9137},"신촌":{latitude:37.5551,longitude:126.9368},
     "은평구":{latitude:37.6027,longitude:126.9291},"종로":{latitude:37.5729,longitude:126.9794},"광화문":{latitude:37.5720,longitude:126.9769},
-    "성수":{latitude:37.5446,longitude:127.0557},"건대":{latitude:37.5404,longitude:127.0692},"왕십리":{latitude:37.5614,longitude:127.0370}
+    "성수":{latitude:37.5446,longitude:127.0557},"건대":{latitude:37.5404,longitude:127.0692},"왕십리":{latitude:37.5614,longitude:127.0370},
+    "백석":{latitude:37.6584,longitude:126.7932},"백석동":{latitude:37.6584,longitude:126.7932},"백석역":{latitude:37.6584,longitude:126.7932},
+    "월롱":{latitude:37.7964,longitude:126.7928},"월롱면":{latitude:37.7964,longitude:126.7928},"월롱역":{latitude:37.7964,longitude:126.7928},
+    "파주":{latitude:37.7599,longitude:126.7800},"운정":{latitude:37.7250,longitude:126.7550},"금촌":{latitude:37.7667,longitude:126.7745},
+    "일산":{latitude:37.6584,longitude:126.7900},"정발산":{latitude:37.6740,longitude:126.7730},"주엽":{latitude:37.6700,longitude:126.7610},"대화":{latitude:37.6760,longitude:126.7470},
+    "분당":{latitude:37.3780,longitude:127.1130},"판교":{latitude:37.3948,longitude:127.1112},"수원":{latitude:37.2636,longitude:127.0286},"용인":{latitude:37.2411,longitude:127.1776},
+    "평택":{latitude:36.9920,longitude:127.1128},"안성":{latitude:37.0080,longitude:127.2798},"오산":{latitude:37.1499,longitude:127.0775},"화성":{latitude:37.1995,longitude:126.8310},
+    "인천":{latitude:37.4563,longitude:126.7052},"부천":{latitude:37.5034,longitude:126.7660},"김포":{latitude:37.6153,longitude:126.7156},"구리":{latitude:37.5943,longitude:127.1295},"남양주":{latitude:37.6360,longitude:127.2165},
+    "춘천":{latitude:37.8813,longitude:127.7298},"강릉":{latitude:37.7519,longitude:128.8761},"대전":{latitude:36.3504,longitude:127.3845},"세종":{latitude:36.4800,longitude:127.2890},"청주":{latitude:36.6424,longitude:127.4890},
+    "천안":{latitude:36.8151,longitude:127.1139},"아산":{latitude:36.7898,longitude:127.0017},"전주":{latitude:35.8242,longitude:127.1480},"광주":{latitude:35.1595,longitude:126.8526},"대구":{latitude:35.8714,longitude:128.6014},
+    "부산":{latitude:35.1796,longitude:129.0756},"울산":{latitude:35.5384,longitude:129.3114},"창원":{latitude:35.2281,longitude:128.6811},"제주":{latitude:33.4996,longitude:126.5312}
   };
   const submitSearch=async()=>{
 
@@ -212,7 +222,7 @@ export default function Home() {
     const query=search.trim();
     if(!query){setAreaLocked(false);setSelected(null);return;}
     const q=query.toLowerCase();
-    const regionKey=Object.keys(REGIONAL_SEARCH).find(key=>q.includes(key));
+    const regionKey=Object.keys(REGIONAL_SEARCH).sort((a,b)=>b.length-a.length).find(key=>q.includes(key));
     if(regionKey){
       const point=REGIONAL_SEARCH[regionKey];
       const next={latitude:point.latitude,longitude:point.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
@@ -233,7 +243,9 @@ export default function Home() {
     }
     // If no studio name/tag matches, interpret the query as an address or region and geocode it.
     try{
-      const geocoded=await Location.geocodeAsync(query+" 대한민국");
+      let geocoded:Location.LocationGeocodedLocation[]=[];
+      const candidates=[query+" 대한민국",query+" 경기도 대한민국",query+" 파주시 대한민국",query+" 서울 대한민국"];
+      for(const candidate of candidates){try{geocoded=await Location.geocodeAsync(candidate);if(geocoded.length)break;}catch{}}
       if(geocoded.length){
         const next={latitude:geocoded[0].latitude,longitude:geocoded[0].longitude,latitudeDelta:0.035,longitudeDelta:0.035};
         map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setSearch("");setClassSearchIds([]);
