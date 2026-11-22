@@ -18,7 +18,7 @@ function queryVariants(raw: string): string[] {
     values.add("퀸스 발레");
     values.add("Queens Ballet");
   }
-  if (/더블유|\\bW\\b|wballet/i.test(raw)) {
+  if (/더블유|\bW\b|wballet/i.test(raw)) {
     values.add("더블유 발레");
     values.add("W 발레");
     values.add("W Ballet");
