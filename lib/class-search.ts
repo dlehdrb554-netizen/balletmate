@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 
 export type ClassSearchFilters = {
-  audience?: "adult" | "kids";
+  audiences?: Array<"adult" | "kids">;
   level?: string | null;
   classType?: string | null;
   weekdayGroup?: "평일" | "주말" | null;
@@ -17,7 +17,7 @@ const inFlight = new Map<string, Promise<string[]>>();
 let requestCount = 0;
 
 const hasClassFilter = (f: ClassSearchFilters) =>
-  !!(f.audience || f.level || f.classType || f.weekdayGroup || f.timeOfDay || f.durationMinutes || f.maxPrice !== null && f.maxPrice !== undefined);
+  !!(f.audiences?.length || f.level || f.classType || f.weekdayGroup || f.timeOfDay || f.durationMinutes || f.maxPrice !== null && f.maxPrice !== undefined);
 
 function matchesTime(value: string, period: "오전" | "오후" | "저녁") {
   const hour = Number(value.slice(0, 2));
@@ -34,7 +34,7 @@ function matchesTime(value: string, period: "오전" | "오후" | "저녁") {
 export async function searchStudiosByClassFilters(filters: ClassSearchFilters): Promise<string[]> {
   if (!supabase || !hasClassFilter(filters)) return [];
   const key = JSON.stringify({
-    audience: filters.audience || null,
+    audiences: filters.audiences || [],
     level: filters.level || null,
     classType: filters.classType || null,
     weekdayGroup: filters.weekdayGroup || null,
@@ -62,8 +62,8 @@ export async function searchStudiosByClassFilters(filters: ClassSearchFilters): 
     const ids = new Set<string>();
     for (const row of (data || []) as any[]) {
       if (!row.studio_id) continue;
-      if (filters.audience && row.audience !== filters.audience && row.audience !== "all") continue;
-      if (filters.level && String(row.level || "").trim() !== filters.level) continue;
+      if (filters.audiences?.length && row.audience !== "all" && !filters.audiences.includes(row.audience)) continue;
+      if (filters.level && !String(row.level || "").trim().includes(filters.level)) continue;
       if (filters.classType && String(row.class_type || "").trim() !== filters.classType) continue;
       if (filters.durationMinutes && Number(row.duration_minutes) !== filters.durationMinutes) continue;
       if (filters.maxPrice !== null && filters.maxPrice !== undefined &&
