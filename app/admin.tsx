@@ -364,7 +364,7 @@ export default function Admin() {
     });
     if(error)Alert.alert(status==="approved"?"사진 승인 실패":"사진 제외 실패",error.message);
     else {
-      setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));
+      setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));setPhotoCandidateOffset(value=>Math.max(0,value-1));
       if(status==="approved"){
         setRows(current=>current.map(row=>row.id===item.studio_id
           ?{...row,image_urls:[...(row.image_urls||[]),item.image_url].slice(0,10),
