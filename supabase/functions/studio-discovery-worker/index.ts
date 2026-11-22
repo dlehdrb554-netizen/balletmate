@@ -34,6 +34,20 @@ async function findHomepageCandidate(name:string,address:string|null,clientId:st
  }
  return {url:null,error:null};
 }
+function canonicalKakaoNaverBlog(raw:string):string|null{
+ try{const u=new URL(raw);const host=u.hostname.toLowerCase().replace(/^www\./,"");if(!["blog.naver.com","m.blog.naver.com"].includes(host))return null;const account=u.pathname.split("/").filter(Boolean)[0]||u.searchParams.get("blogId")||u.searchParams.get("blogid");return account&&!/^(postview|postlist)$/i.test(account)?"https://blog.naver.com/"+account:null;}catch{return null;}
+}
+function collectNaverBlogUrls(value:unknown,found:Set<string>,depth=0):void{
+ if(depth>9||value==null)return;
+ if(typeof value==="string"){const decoded=value.replace(/\\\//g,"/").replace(/\\u0026/gi,"&").replace(/&amp;/g,"&");const matches=decoded.match(/https?:\/\/(?:m\.)?blog\.naver\.com\/[A-Za-z0-9._-]+(?:\?[^\s"\x27<>]*)?/gi)||[];for(const match of matches){const url=canonicalKakaoNaverBlog(match);if(url)found.add(url);}const direct=canonicalKakaoNaverBlog(decoded.trim());if(direct)found.add(direct);return;}
+ if(Array.isArray(value)){for(const item of value)collectNaverBlogUrls(item,found,depth+1);return;}
+ if(typeof value==="object"){for(const [key,item] of Object.entries(value as Record<string,unknown>)){if(/homepage|home.?page|blog|url|site|link|sns/i.test(key)||depth<3)collectNaverBlogUrls(item,found,depth+1);}}
+}
+async function findKakaoPlaceBlog(placeId:string):Promise<string|null>{
+ const found=new Set<string>();const headers={"User-Agent":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36","Referer":"https://place.map.kakao.com/"+placeId};
+ for(const endpoint of ["https://place.map.kakao.com/main/v/"+encodeURIComponent(placeId),"https://place.map.kakao.com/"+encodeURIComponent(placeId)]){try{const response=await fetch(endpoint,{headers,signal:AbortSignal.timeout(6000)});if(!response.ok)continue;const body=await response.text();try{collectNaverBlogUrls(JSON.parse(body),found);}catch{collectNaverBlogUrls(body,found);}if(found.size)return [...found][0];}catch{/* best effort */}}
+ return null;
+}
 const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레","발레교습소","발레아카데미","무용학원"];
 const MAX_PAGES_PER_TERM=3;
 const PAGE_SIZE=15;
@@ -48,7 +62,7 @@ Deno.serve(async(req)=>{
  const {data:regions,error:regionError}=await db.rpc("next_studio_discovery_region");
  if(regionError||!regions?.length)return json({error:"지역 배정 실패: "+(regionError?.message||"empty")},500);
  const region=regions[0];
- let resultCount=0,insertedCount=0,duplicateCount=0,requestCount=0;
+ let resultCount=0,insertedCount=0,duplicateCount=0,requestCount=0,kakaoDetailChecks=0,kakaoBlogCandidates=0;
  const naverId=Deno.env.get("NAVER_CLIENT_ID"),naverSecret=Deno.env.get("NAVER_CLIENT_SECRET");let homepageSearches=0,homepagesFound=0;
  const errors:string[]=[];
  const addError=(message:string)=>{const normalized=message.trim();if(normalized&&!errors.includes(normalized))errors.push(normalized);};
@@ -103,6 +117,18 @@ Deno.serve(async(req)=>{
      const {data,error}=await db.rpc("register_discovered_studio",{p_name:name,p_latitude:lat,p_longitude:lng,p_address:address,p_phone:item.phone||null,p_place_url:item.place_url||null,p_region:region.region_name});
      if(error){regionHasError=true;addError(error.message.slice(0,160));}
      else {if(data?.[0]?.inserted)insertedCount++;else duplicateCount++;const studioId=data?.[0]?.studio_id;
+      if(studioId&&item.id&&kakaoDetailChecks<35){
+       kakaoDetailChecks++;
+       const kakaoBlog=await findKakaoPlaceBlog(String(item.id));
+       if(kakaoBlog){
+        const {error:seedError}=await db.from("studio_blog_account_candidates").upsert({
+         studio_id:studioId,studio_name:name,blogger_url:kakaoBlog,blogger_name:"카카오 장소 등록 블로그",
+         matched_post_count:1,sample_posts:[],match_score:98,last_seen_at:new Date().toISOString()
+        },{onConflict:"studio_id,blogger_url"});
+        if(seedError)addError("카카오 등록 블로그 후보 저장 실패: "+seedError.message.slice(0,120));
+        else kakaoBlogCandidates++;
+       }
+      }
       if(studioId&&naverId&&naverSecret&&homepageSearches<12){const {data:siteRow}=await db.from("studios").select("website_url,homepage_search_checked_at").eq("id",studioId).maybeSingle();if(!siteRow?.website_url&&!siteRow?.homepage_search_checked_at){homepageSearches++;const found=await findHomepageCandidate(name,address,naverId,naverSecret);if(found.error)addError("신규 학원 네이버 검색 실패: "+found.error.slice(0,100));else{const checkedAt=new Date().toISOString();const update:Record<string,unknown>={homepage_search_checked_at:checkedAt,updated_at:checkedAt};if(found.url){update.website_url=found.url;update.source_name="Kakao Local 발견 · Naver 홈페이지 검색 후보(미검증)";}const {error:websiteError}=await db.from("studios").update(update).eq("id",studioId).is("website_url",null);if(websiteError)addError("홈페이지 후보 저장 실패: "+websiteError.message.slice(0,100));else if(found.url)homepagesFound++;}}}
      }
     }
@@ -119,5 +145,5 @@ Deno.serve(async(req)=>{
   duplicate_count:duplicateCount,homepage_search_count:homepageSearches,
   homepage_found_count:homepagesFound,error:errors.join(" | ").slice(0,1000)||null
  });
- return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,homepageSearches,homepagesFound,errors,logSaved:!logError,logError:logError?.message});
+ return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,kakaoDetailChecks,kakaoBlogCandidates,homepageSearches,homepagesFound,errors,logSaved:!logError,logError:logError?.message});
 });
