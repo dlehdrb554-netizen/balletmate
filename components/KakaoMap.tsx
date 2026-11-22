@@ -68,7 +68,7 @@ function buildHtml(initialRegion: MapRegion) {
     Object.keys(markers).forEach(function(id){if(!keep[id]){markers[id].setMap(null);delete markers[id];}});
     if(location && location.latitude!=null && location.longitude!=null){
       var here=new kakao.maps.LatLng(location.latitude,location.longitude);
-      if(!currentMarker){currentMarker=new kakao.maps.Marker({position:here,image:new kakao.maps.MarkerImage('https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png',new kakao.maps.Size(24,35))});currentMarker.setMap(map);}
+      if(!currentMarker){var locationSvg='<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="#ffffff" stroke="#3478F6" stroke-width="3"/><circle cx="18" cy="18" r="7" fill="#3478F6"/><circle cx="18" cy="18" r="3" fill="#ffffff"/></svg>';currentMarker=new kakao.maps.Marker({position:here,image:new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(locationSvg),new kakao.maps.Size(36,36),{offset:new kakao.maps.Point(18,18)}),zIndex:1000});currentMarker.setMap(map);}
       else currentMarker.setPosition(here);
     }else if(currentMarker){currentMarker.setMap(null);currentMarker=null;}
   }
