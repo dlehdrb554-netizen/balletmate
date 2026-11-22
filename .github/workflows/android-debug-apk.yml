@@ -7,17 +7,10 @@ on:
       - main
     paths:
       - ".github/workflows/android-debug-apk.yml"
-      - "package.json"
-      - "app.json"
-      - "app/**"
-      - "scripts/**"
-      - "lib/**"
-      - "supabase/studio_public_schedules.sql"
-      - "supabase/SETUP.md"
 
 concurrency:
   group: android-debug-apk-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
