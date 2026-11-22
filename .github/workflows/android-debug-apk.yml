@@ -8,6 +8,7 @@ on:
     paths:
       - ".github/workflows/android-debug-apk.yml"
       - "app/**"
+      - "components/**"
       - "lib/**"
       - "scripts/**"
       - "app.json"
