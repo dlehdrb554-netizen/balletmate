@@ -10,7 +10,7 @@ WITH (security_invoker = true) AS
 SELECT
   p.id, p.studio_id, p.amount_krw, p.price_period,
   p.frequency_per_week, p.evidence_text, p.source_title,
-  p.source_url, p.source_post_date, p.published_at, p.image_urls
+  p.source_url, p.source_post_date, p.published_at, p.expires_at, p.image_urls
 FROM public.studio_public_prices p
 WHERE p.is_active = true;
 
