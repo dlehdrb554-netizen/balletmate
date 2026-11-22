@@ -43,6 +43,32 @@ function collectNaverBlogUrls(value:unknown,found:Set<string>,depth=0):void{
  if(Array.isArray(value)){for(const item of value)collectNaverBlogUrls(item,found,depth+1);return;}
  if(typeof value==="object"){for(const [key,item] of Object.entries(value as Record<string,unknown>)){if(/homepage|home.?page|blog|url|site|link|sns/i.test(key)||depth<3)collectNaverBlogUrls(item,found,depth+1);}}
 }
+function findKakaoPlaceChannel(value:unknown,depth=0):string|null{
+ if(depth>10||value==null)return null;
+ if(typeof value==="string"){
+  const decoded=value.replace(/\\\//g,"/").replace(/\\u0026/gi,"&").replace(/&amp;/g,"&");
+  const match=decoded.match(/https?:\\/\\/(?:pf\\.)?kakao\\.com\\/_[A-Za-z0-9]+/i);
+  return match?match[0].replace(/[),.;]+$/,""):null;
+ }
+ if(Array.isArray(value)){for(const item of value){const found=findKakaoPlaceChannel(item,depth+1);if(found)return found;}return null;}
+ if(typeof value==="object"){for(const [key,item] of Object.entries(value as Record<string,unknown>)){if(/channel|kakao|plus.?friend|sns|url|link|homepage|site/i.test(key)||depth<3){const found=findKakaoPlaceChannel(item,depth+1);if(found)return found;}}}
+ return null;
+}
+async function findKakaoPlaceOfficialLinks(placeId:string):Promise<{blog:string|null;channel:string|null}>{
+ const headers={"User-Agent":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36","Referer":"https://place.map.kakao.com/"+placeId};
+ let blog:string|null=null,channel:string|null=null;
+ for(const endpoint of ["https://place.map.kakao.com/main/v/"+encodeURIComponent(placeId),"https://place.map.kakao.com/"+encodeURIComponent(placeId)]){
+  try{
+   const response=await fetch(endpoint,{headers,signal:AbortSignal.timeout(6000)});if(!response.ok)continue;
+   const body=await response.text();let payload:unknown=body;
+   try{payload=JSON.parse(body);}catch{}
+   if(!blog){const found=new Set<string>();collectNaverBlogUrls(payload,found);blog=[...found][0]||null;}
+   if(!channel)channel=findKakaoPlaceChannel(payload);
+   if(blog&&channel)break;
+  }catch{/* best effort */}
+ }
+ return {blog,channel};
+}
 async function findKakaoPlaceBlog(placeId:string):Promise<string|null>{
  const found=new Set<string>();const headers={"User-Agent":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36","Referer":"https://place.map.kakao.com/"+placeId};
  for(const endpoint of ["https://place.map.kakao.com/main/v/"+encodeURIComponent(placeId),"https://place.map.kakao.com/"+encodeURIComponent(placeId)]){try{const response=await fetch(endpoint,{headers,signal:AbortSignal.timeout(6000)});if(!response.ok)continue;const body=await response.text();try{collectNaverBlogUrls(JSON.parse(body),found);}catch{collectNaverBlogUrls(body,found);}if(found.size)return [...found][0];}catch{/* best effort */}}
@@ -119,14 +145,18 @@ Deno.serve(async(req)=>{
      else {if(data?.[0]?.inserted)insertedCount++;else duplicateCount++;const studioId=data?.[0]?.studio_id;
       if(studioId&&item.id&&kakaoDetailChecks<35){
        kakaoDetailChecks++;
-       const kakaoBlog=await findKakaoPlaceBlog(String(item.id));
-       if(kakaoBlog){
+       const officialLinks=await findKakaoPlaceOfficialLinks(String(item.id));
+       if(officialLinks.blog){
         const {error:seedError}=await db.from("studio_blog_account_candidates").upsert({
-         studio_id:studioId,studio_name:name,blogger_url:kakaoBlog,blogger_name:"카카오 장소 등록 블로그",
+         studio_id:studioId,studio_name:name,blogger_url:officialLinks.blog,blogger_name:"카카오 장소 등록 블로그",
          matched_post_count:1,sample_posts:[],match_score:98,last_seen_at:new Date().toISOString()
         },{onConflict:"studio_id,blogger_url"});
         if(seedError)addError("카카오 등록 블로그 후보 저장 실패: "+seedError.message.slice(0,120));
         else kakaoBlogCandidates++;
+       }
+       if(officialLinks.channel){
+        const {error:channelError}=await db.from("studios").update({kakao_channel_url:officialLinks.channel,updated_at:new Date().toISOString()}).eq("id",studioId);
+        if(channelError)addError("카카오톡 채널 후보 저장 실패("+name+"): "+channelError.message.slice(0,100));
        }
       }
       if(studioId&&naverId&&naverSecret&&homepageSearches<12){const {data:siteRow}=await db.from("studios").select("website_url,homepage_search_checked_at").eq("id",studioId).maybeSingle();if(!siteRow?.website_url&&!siteRow?.homepage_search_checked_at){homepageSearches++;const found=await findHomepageCandidate(name,address,naverId,naverSecret);if(found.error)addError("신규 학원 네이버 검색 실패: "+found.error.slice(0,100));else{const checkedAt=new Date().toISOString();const update:Record<string,unknown>={homepage_search_checked_at:checkedAt,updated_at:checkedAt};if(found.url){update.website_url=found.url;update.source_name="Kakao Local 발견 · Naver 홈페이지 검색 후보(미검증)";}const {error:websiteError}=await db.from("studios").update(update).eq("id",studioId).is("website_url",null);if(websiteError)addError("홈페이지 후보 저장 실패: "+websiteError.message.slice(0,100));else if(found.url)homepagesFound++;}}}
