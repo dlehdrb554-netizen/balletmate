@@ -78,7 +78,6 @@ export default function Account(){
     options:{
      redirectTo:OAUTH_REDIRECT_URL,
      skipBrowserRedirect:true,
-     ...(provider==="kakao"?{scopes:KAKAO_OAUTH_SCOPES}:{})
     }
    });
    if(error)throw error;
