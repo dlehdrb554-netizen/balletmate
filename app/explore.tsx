@@ -125,13 +125,14 @@ export default function Home() {
     return()=>{active=false;};
   },[]);
 
-  const hasClassLevelFilters=!!(classTypeFilter||level||dayFilter||timeFilter||durationFilter!==null||maxPrice!==null);
+  const hasClassLevelFilters=!!(adult||kids||classTypeFilter||level||dayFilter||timeFilter||durationFilter!==null||maxPrice!==null);
   useEffect(()=>{
     if(!supabase||!hasClassLevelFilters){setClassFilterIds([]);setClassFilterLoading(false);return;}
     let active=true;
     const timer=setTimeout(()=>{
       setClassFilterLoading(true);
       searchStudiosByClassFilters({
+        audiences:[adult?"adult":null,kids?"kids":null].filter((value):value is "adult"|"kids"=>value!==null),
         classType:classTypeFilter,level,weekdayGroup:dayFilter as "평일"|"주말"|null,
         timeOfDay:timeFilter as "오전"|"오후"|"저녁"|null,
         durationMinutes:durationFilter,maxPrice,
@@ -140,7 +141,7 @@ export default function Home() {
         .finally(()=>{if(active)setClassFilterLoading(false);});
     },250);
     return()=>{active=false;clearTimeout(timer);};
-  },[classTypeFilter,level,dayFilter,timeFilter,durationFilter,maxPrice,hasClassLevelFilters]);
+  },[adult,kids,classTypeFilter,level,dayFilter,timeFilter,durationFilter,maxPrice,hasClassLevelFilters]);
 
   useEffect(()=>{
     const client=supabase;
