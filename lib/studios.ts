@@ -118,6 +118,9 @@ export async function searchStudiosByKakao(query: string): Promise<StudioRecord[
   });
   if (error) throw error;
   const rows = Array.isArray(data?.studios) ? data.studios : [];
+  if (!rows.length && Array.isArray(data?.errors) && data.errors.length) {
+    throw new Error(data.errors.join(" · ").slice(0, 240));
+  }
   return rows as StudioRecord[];
 }
 
