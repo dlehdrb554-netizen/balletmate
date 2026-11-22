@@ -1372,7 +1372,7 @@ export default function Admin() {
     <Pressable onPress={loadPhotoCandidates} disabled={photoReviewBusy}><Text style={styles.refresh}>{photoReviewBusy?"조회 중…":"새로고침"}</Text></Pressable>
   </View>
   <Text style={styles.hint}>대기 {photoCandidateTotal.toLocaleString("ko-KR")}건 · 불러온 {photoCandidateRows.length}건 · 현재 탭 {photoFilteredCandidates.length}건</Text>
-  <Text style={styles.hint}>URL·파일명 기반 무료 1차 선별입니다. 얼굴을 실제로 인식하는 AI는 아직 연결되지 않았으므로, 인물 사진은 원본 확인이 필요합니다. 사용 권한 확인 후 승인해 주세요.</Text>
+  <Text style={styles.hint}>사진에만 가격·시간표가 있는 경우 OCR 없이 관리자가 직접 분류합니다. 가격 자료 / 시간표 자료 / 기타 자료로 표시하고 원본을 확인하세요. 분류는 공개 정보 등록이 아니며, 사진 갤러리 승인과 별개입니다.</Text>
   <View style={styles.photoFilterRow}>{([{key:"unclassified",label:"자료 미분류"},{key:"price",label:"가격"},{key:"schedule",label:"시간표"},{key:"other",label:"기타"},{key:"all",label:"전체"}] as {key:typeof photoMaterialFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoMaterialFilter(option.key)} style={[styles.photoFilterButton,photoMaterialFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoMaterialFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><View style={styles.photoFilterRow}>{([{key:"priority",label:"우선 검토"},{key:"suspect",label:"의심 사진"},{key:"all",label:"전체"}] as {key:PhotoAutoFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoAutoFilter(option.key)} style={[styles.photoFilterButton,photoAutoFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoAutoFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View>
   {photoAutoFilter==="priority"&&<Text style={styles.hint}>의심 키워드가 감지된 사진은 이 탭에서 숨깁니다. 의심 탭에서 별도로 확인할 수 있습니다.</Text>}
   {photoAutoFilter==="suspect"&&<Text style={styles.hint}>파일명·URL에 인물, 광고, 아이콘 등의 키워드가 있는 사진만 표시합니다. 실제 얼굴 검출은 아닙니다.</Text>}
@@ -1384,7 +1384,7 @@ export default function Admin() {
       ? <View style={styles.photoReviewImageFallback}><Ionicons name="image-outline" size={20} color={c.muted}/><Text style={styles.compactSecondary}>미리보기 차단</Text></View>
       : <Image source={{uri:item.image_url,headers:{"Referer":item.source_page_url||"https://blog.naver.com/"}}} style={styles.photoReviewImage} resizeMode="cover" onError={()=>setFailedPhotoCandidateIds(ids=>ids.includes(Number(item.id))?ids:[...ids,Number(item.id)])}/>}
     <View style={styles.photoReviewInfo}>
-      <Text style={styles.evidenceStudio} numberOfLines={1}>{item.studio_name}</Text>
+      <Text style={styles.evidenceStudio} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.photoSuspectLabel}>자료 분류: {item.material_type==="price"?"가격":item.material_type==="schedule"?"시간표":item.material_type==="other"?"기타":"미분류"}</Text>
       <Text style={styles.compactSecondary} numberOfLines={1}>{item.source_host||"출처 미확인"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text>
       <Text style={styles.photoFaceStatus}>{photoFaceResults[Number(item.id)]?.status==="checking"?"얼굴 검사 중…":photoFaceResults[Number(item.id)]?.status==="faces"?"얼굴 감지 "+photoFaceResults[Number(item.id)].count+"개 · 자동 보류":photoFaceResults[Number(item.id)]?.status==="clear"?"얼굴 미감지":photoFaceResults[Number(item.id)]?.status==="error"?"얼굴 검사 실패 · 수동 확인":"얼굴 검사 대기"}</Text>
       {classifyPhotoCandidate(item).suspect&&<Text style={styles.photoSuspectLabel}>{classifyPhotoCandidate(item).reasons.join(" · ")}</Text>}
