@@ -195,23 +195,32 @@ export default function Admin() {
       {text:"취소",style:"cancel"},
       {text:"확인 후 등록",onPress:async()=>{
         setEvidenceBusy(true);
+        let createdClassId:string|null=null;
         try{
+          const {data:claim,error:claimError}=await supabase.from("studio_schedule_class_candidates").update({status:"creating"}).eq("id",candidate.id).eq("status","pending").select("id").maybeSingle();
+          if(claimError)throw claimError;
+          if(!claim){Alert.alert("이미 처리 중","다른 요청에서 이 후보를 처리했거나 상태가 변경되었습니다.");return;}
           const {data:classData,error:classError}=await supabase.from("classes").insert({
             studio_id:candidate.studio_id,title,audience:candidate.audience||"all",
             level:candidate.proposed_level||null,class_type:candidate.proposed_class_type||null,
             duration_minutes:null,price:null,is_active:true
           }).select("id").single();
           if(classError)throw classError;
-          const classId=classData.id;
-          const sessionPayload=sessions.map((session:any)=>({class_id:classId,weekday:session.weekday,start_time:session.start_time,end_time:session.end_time||null,note:session.note||null,is_active:true}));
+          createdClassId=classData.id;
+          const sessionPayload=sessions.map((session:any)=>({class_id:createdClassId,weekday:session.weekday,start_time:session.start_time,end_time:session.end_time||null,note:session.note||null,is_active:true}));
           const {error:sessionError}=await supabase.from("class_sessions").insert(sessionPayload);
-          if(sessionError){await supabase.from("classes").delete().eq("id",classId);throw sessionError;}
-          const {error:updateError}=await supabase.from("studio_schedule_class_candidates").update({status:"created",created_class_id:classId,reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString()}).eq("id",candidate.id).eq("status","pending");
-          if(updateError){await supabase.from("classes").delete().eq("id",classId);throw updateError;}
+          if(sessionError)throw sessionError;
+          const {data:marked,error:updateError}=await supabase.from("studio_schedule_class_candidates").update({status:"created",created_class_id:createdClassId,reviewed_by:session?.user?.id||null,reviewed_at:new Date().toISOString()}).eq("id",candidate.id).eq("status","creating").select("id").maybeSingle();
+          if(updateError)throw updateError;
+          if(!marked)throw new Error("후보 상태 변경에 실패했습니다. 수업 등록을 되돌립니다.");
           Alert.alert("등록 완료","확인한 시간표를 실제 수업 및 요일별 세션으로 등록했습니다.");
           await loadScheduleClassCandidates();
           if(classStudio?.id===candidate.studio_id)await loadClasses(candidate.studio_id);
-        }catch(error:any){Alert.alert("수업 등록 실패",error.message||"등록 중 오류가 발생했습니다.");}
+        }catch(error:any){
+          if(createdClassId)await supabase.from("classes").delete().eq("id",createdClassId);
+          await supabase.from("studio_schedule_class_candidates").update({status:"pending"}).eq("id",candidate.id).eq("status","creating");
+          Alert.alert("수업 등록 실패",error.message||"등록 중 오류가 발생했습니다.");
+        }
         finally{setEvidenceBusy(false);}
       }}
     ]);
