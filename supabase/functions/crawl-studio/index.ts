@@ -75,7 +75,7 @@ function relevantLinks(html: string, base: URL): string[] {
       if (url.pathname === base.pathname && !url.search) continue;
       if (/login|logout|member|privacy|terms|sns|share|javascript:/i.test(url.href)) continue;
       const clue = (url.pathname + " " + label).toLowerCase();
-      const priority = /(시간표|수업|강좌|클래스|가격|수강료|등록|요금|program|class|schedule|timetable|price|fee|course)/i.test(clue) ? 0 : 1;
+      const priority = /(시간표|수업|강좌|클래스|가격|수강료|등록|요금|지점|신논현|마곡나루|구로|문정|광화문|삼성|program|class|schedule|timetable|price|fee|tuition|course|branch|location|adult.?ballet|kids.?ballet)/i.test(clue) ? 0 : 1;
       candidates.push({ url: url.toString(), priority });
     } catch { /* Ignore invalid links. */ }
   }
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
   if (!body.studioId || typeof body.studioId !== "string") return json({ error: "학원 ID가 필요합니다." }, 400);
 
   const { data: studio, error: studioError } = await client.from("studios")
-    .select("id,name,website_url,image_urls,image_source_name,source_url")
+    .select("id,name,district,address,website_url,image_urls,image_source_name,source_url")
     .eq("id", body.studioId).single();
   if (studioError || !studio) return json({ error: "학원 정보를 찾을 수 없습니다." }, 404);
   if (!studio.website_url) return json({ error: "공식 홈페이지 주소가 아직 확인되지 않았습니다. 카카오 장소 상세 링크는 별도로 제공하며, 해당 페이지를 무단 수집하지 않습니다." }, 400);
@@ -144,13 +144,26 @@ Deno.serve(async (req) => {
   const homeHtml = await fetchHtml(pageUrl);
   if (!homeHtml) return json({ error: "공식 홈페이지에 접속할 수 없거나 HTML 페이지를 제공하지 않습니다." }, 502);
 
-  const pages: Array<{ url: URL; html: string }> = [{ url: pageUrl, html: homeHtml }];
+  const discoveredPages: Array<{ url: URL; html: string }> = [{ url: pageUrl, html: homeHtml }];
   for (const link of relevantLinks(homeHtml, pageUrl)) {
-    if (pages.length >= 8) break;
+    if (discoveredPages.length >= 8) break;
     const url = new URL(link);
     const html = await fetchHtml(url);
-    if (html) pages.push({ url, html });
+    if (html) discoveredPages.push({ url, html });
   }
+  const normalizeIdentity=(value:string)=>value.toLocaleLowerCase("ko-KR").replace(/[^0-9a-z가-힣]/g,"");
+  const studioNameKey=normalizeIdentity(String(studio.name||""));
+  const addressTokens=String(studio.address||"").split(/[\\s,]+/)
+    .map((value:string)=>normalizeIdentity(value))
+    .filter((value:string)=>value.length>=2&&!/^(서울|인천|경기|대한민국|[0-9]+층|[0-9]+호)$/.test(value));
+  const branchPages=discoveredPages.filter((page)=>{
+    if(page.url.toString()===pageUrl.toString())return false;
+    const pageText=normalizeIdentity(visibleText(page.html));
+    const nameMatch=studioNameKey.length>=4&&pageText.includes(studioNameKey);
+    const addressMatches=addressTokens.filter((token:string)=>pageText.includes(token)).length;
+    return nameMatch||addressMatches>=Math.min(2,addressTokens.length||2);
+  });
+  const pages=branchPages.length?[discoveredPages[0],...branchPages]:[discoveredPages[0]];
 
   const imageCandidates: string[] = [];
   const priceEvidence: string[] = [];
@@ -169,7 +182,7 @@ Deno.serve(async (req) => {
       try { collectJsonImages(JSON.parse(raw), imageCandidates); } catch { /* Ignore invalid structured data. */ }
     }
     for (const tag of page.html.match(/<img\b[^>]*>/gi) ?? []) {
-      const value = attr(tag, "src") || attr(tag, "data-src") || attr(tag, "data-lazy-src");
+      const value = attr(tag, "src") || attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "data-original") || attr(tag, "data-lazyload");
       if (value) imageCandidates.push(value);
       const srcset = attr(tag, "srcset");
       if (srcset) imageCandidates.push(srcset.split(",")[0].trim().split(/\s+/)[0]);
@@ -219,7 +232,7 @@ Deno.serve(async (req) => {
   if (updateError) return json({ error: "학원 상세정보 저장 실패: " + updateError.message }, 500);
 
   return json({
-    studioId: studio.id, pagesChecked: pages.length,
+    studioId: studio.id, pagesChecked: pages.length, branchSpecificPagesMatched: Math.max(0,pages.length-1),
     imageCandidatesFound: images.length, photoCandidatesQueued,
     priceEvidenceCount: prices.length, scheduleEvidenceCount: schedules.length,
     detailsStatus: update.details_status,
