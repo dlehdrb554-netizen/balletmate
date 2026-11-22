@@ -139,8 +139,9 @@ Deno.serve(async (req) => {
     const retryBefore = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { data: candidates, error: candidateError } = await adminClient
       .from("studio_photo_candidates")
-      .select("id")
+      .select("id,auto_retry_count")
       .eq("review_status", "pending")
+      .lt("auto_retry_count", 3)
       .or("auto_classified_at.is.null,auto_classified_at.lt." + retryBefore)
       .order("created_at", { ascending: true })
       .limit(batchSize);
@@ -170,18 +171,28 @@ Deno.serve(async (req) => {
         } else {
           visionFailed++;
           const reason = String(payload?.error || payload?.detail || "HTTP " + response.status).slice(0, 220);
+          const retryCount = Number(candidate.auto_retry_count || 0) + 1;
           await adminClient.from("studio_photo_candidates").update({
+            auto_retry_count: retryCount,
+            auto_retry_exhausted_at: retryCount >= 3 ? new Date().toISOString() : null,
             auto_classified_at: new Date().toISOString(),
-            auto_reason: "자동 판별 재시도 대기: " + reason,
+            auto_reason: retryCount >= 3
+              ? "자동 판별 3회 실패로 재시도 중단: " + reason
+              : "자동 판별 " + retryCount + "/3회 실패, 1시간 후 재시도: " + reason,
           }).eq("id", candidate.id).eq("review_status", "pending");
           visionResults.push({ candidateId: candidate.id, ok: false, detail: reason });
         }
       } catch (error) {
         visionFailed++;
         const reason = error instanceof Error ? error.message : "Vision 요청 실패";
+        const retryCount = Number(candidate.auto_retry_count || 0) + 1;
         await adminClient.from("studio_photo_candidates").update({
+          auto_retry_count: retryCount,
+          auto_retry_exhausted_at: retryCount >= 3 ? new Date().toISOString() : null,
           auto_classified_at: new Date().toISOString(),
-          auto_reason: "자동 판별 재시도 대기: " + reason.slice(0, 180),
+          auto_reason: retryCount >= 3
+            ? "자동 판별 3회 실패로 재시도 중단: " + reason.slice(0, 150)
+            : "자동 판별 " + retryCount + "/3회 실패, 1시간 후 재시도: " + reason.slice(0, 150),
         }).eq("id", candidate.id).eq("review_status", "pending");
         visionResults.push({ candidateId: candidate.id, ok: false, detail: reason.slice(0, 220) });
       }
