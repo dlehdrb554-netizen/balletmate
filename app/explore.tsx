@@ -67,6 +67,7 @@ export default function Home() {
   const [searchMatches,setSearchMatches]=useState<Studio[]>([]);
   const [searchResultsOpen,setSearchResultsOpen]=useState(false);
   const [searchSubmitting,setSearchSubmitting]=useState(false);
+  const [pendingMapTarget,setPendingMapTarget]=useState<Region|null>(null);
   const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
@@ -332,7 +333,7 @@ export default function Home() {
       }
       const target=ordered[0];
       const next={latitude:target.lat,longitude:target.lng,latitudeDelta:0.018,longitudeDelta:0.018};
-      map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(target);
+      setPendingMapTarget(next);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(target);
       setSearchMatches([target]);
       setSearchSubmitting(false);
       return;
@@ -340,7 +341,7 @@ export default function Home() {
     if(regionKey){
       const point=REGIONAL_SEARCH[regionKey];
       const next={latitude:point.latitude,longitude:point.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-      map.current?.animateToRegion(next,650);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);setSearchMatches([]);setSearchSubmitting(false);
+      setPendingMapTarget(next);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);setSearchMatches([]);setSearchSubmitting(false);
       return;
     }
     try{
@@ -433,7 +434,33 @@ export default function Home() {
   },[favoritesReady]);
 
   useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,sourceName:r.source_name||undefined,verifiedAt:r.verified_at||undefined,imageUsageNote:r.image_usage_note||undefined,priceEvidenceText:r.price_evidence_text||undefined,scheduleEvidenceText:r.schedule_evidence_text||undefined,detailsSourceUrls:r.details_source_urls||[],kakaoChannelUrl:r.kakao_channel_url||undefined,detailsCheckedAt:r.details_checked_at||undefined,detailsStatus:r.details_status||undefined,classDurations:r.class_durations||[]}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted){setStudios([]);setBackendState("error");}});return()=>{mounted=false;};},[searchedRegion]);
-  const searchArea=()=>{setSearchedRegion(region);setAreaLocked(true);setMapMoved(false);setSelected(null);};
+  const searchArea=async()=>{
+    const target=region;
+    setSearchedRegion(target);setAreaLocked(true);setMapMoved(false);setSelected(null);
+    setSearchSubmitting(true);
+    try{
+      // A viewport search must query Kakao Local around the map center as well as
+      // the studios already stored in Supabase; a DB-only bounds read misses new places.
+      const term=search.trim().length>=2?search.trim():"발레";
+      const rows=await searchStudiosByKakao(term,target);
+      const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:Number(r.latitude),lng:Number(r.longitude),area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,sourceName:r.source_name||undefined,verifiedAt:r.verified_at||undefined,imageUsageNote:r.image_usage_note||undefined,priceEvidenceText:r.price_evidence_text||undefined,scheduleEvidenceText:r.schedule_evidence_text||undefined,detailsSourceUrls:r.details_source_urls||[],kakaoChannelUrl:r.kakao_channel_url||undefined,detailsCheckedAt:r.details_checked_at||undefined,detailsStatus:r.details_status||undefined,classDurations:r.class_durations||[]}));
+      setGlobalSearchStudios(mapped);
+      if(mapped.length)setBackendState("connected");
+      else if(!studios.length)setBackendState("empty");
+      if(!mapped.length)Alert.alert("검색 결과 없음","현재 지도 범위에서 검색어와 일치하는 발레 학원을 찾지 못했습니다. 지도를 조금 이동하거나 검색어를 바꿔 주세요.");
+    }catch(error:any){
+      console.warn("Viewport Kakao search failed:",error);
+      Alert.alert("지도 검색 실패",error?.message||"현재 지역의 학원 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    }finally{setSearchSubmitting(false);}
+  };
+  useEffect(()=>{
+    if(view!=="map"||!pendingMapTarget)return;
+    const timer=setTimeout(()=>{
+      map.current?.animateToRegion(pendingMapTarget,650);
+      setPendingMapTarget(null);
+    },120);
+    return()=>clearTimeout(timer);
+  },[view,pendingMapTarget]);
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0)+(durationFilter!==null?1:0)+(classTypeFilter?1:0)+(maxDistance!==null?1:0);
   const toggleCompare=(studio:Studio)=>{
@@ -544,7 +571,7 @@ export default function Home() {
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
         <KakaoMap ref={map} initialRegion={region} markers={results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng}))} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={(next)=>{setRegion(next);setMapMoved(true);}} onMarkerPress={(id)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);}} />
-        {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>이 지역에서 재검색</Text></View></Pressable>}
+        {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":"이 지역에서 재검색"}</Text></View></Pressable>}
         <Pressable style={styles.locateButton} onPress={locate}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
         <Pressable style={styles.mapCount} onPress={()=>{if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}</Text>곳{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
         {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={styles.detailBtn} onPress={()=>openDetail(selected)}><Text style={styles.detailBtnText}>상세 보기  ›</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
@@ -565,7 +592,7 @@ export default function Home() {
           <FlatList data={searchMatches} keyExtractor={item=>item.id} style={{marginTop:12}} contentContainerStyle={{paddingBottom:8}} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
             renderItem={({item,index})=><Pressable style={styles.searchResultRow} onPress={()=>{
               const next={latitude:item.lat,longitude:item.lng,latitudeDelta:0.018,longitudeDelta:0.018};
-              setGlobalSearchStudios(searchMatches);setSearchResultsOpen(false);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(item);setView("map");map.current?.animateToRegion(next,650);
+              setGlobalSearchStudios(searchMatches);setSearchResultsOpen(false);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(item);setPendingMapTarget(next);setView("map");
             }}>
               <View style={styles.searchResultNumber}><Text style={styles.searchResultNumberText}>{index+1}</Text></View>
               <View style={{flex:1,minWidth:0}}>
