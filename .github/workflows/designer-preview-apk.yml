@@ -1,0 +1,69 @@
+name: Designer live preview APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/designer-preview-apk.yml"
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "scripts/**"
+      - "assets/**"
+      - "app.json"
+      - "package.json"
+
+concurrency:
+  group: balletmate-designer-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-designer-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Expo dependencies
+        run: npx expo install --check
+
+      - name: Generate Android development client
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://ykxvcqgdvifogahbbbwr.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_-wvNm1sapw3c1oSdMFLvTQ_BxOm2ADd
+        run: npx expo prebuild --platform android --non-interactive
+
+      - name: Build installable development APK
+        working-directory: android
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://ykxvcqgdvifogahbbbwr.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_-wvNm1sapw3c1oSdMFLvTQ_BxOm2ADd
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload designer preview APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: balletmate-designer-preview
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
