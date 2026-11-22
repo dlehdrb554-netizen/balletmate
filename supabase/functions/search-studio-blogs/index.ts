@@ -77,8 +77,15 @@ Deno.serve(async (req) => {
         .eq("is_active", true);
       if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
       const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
+      const {data:kakaoCandidates,error:kakaoCandidateError}=await db.from("studio_blog_account_candidates")
+        .select("blogger_url").eq("studio_id",job.studio_id).eq("review_status","pending").gte("match_score",95).limit(5);
+      if(kakaoCandidateError)throw new Error("카카오 블로그 후보 조회 실패: "+kakaoCandidateError.message);
+      const kakaoSeedAccounts=(kakaoCandidates??[]).map((row:{blogger_url:string})=>row.blogger_url);
+      const knownAccounts=[...officialAccounts,...kakaoSeedAccounts];
       const studioQuery = String(job.studio_name);
-      const searchQueries = new Set(SEARCH_SUFFIXES.map((suffix) => suffix ? `${studioQuery} ${suffix}` : studioQuery));
+      const searchQueries = new Set<string>();
+      for(const accountUrl of kakaoSeedAccounts){const accountId=blogAccountKey(accountUrl);if(accountId)searchQueries.add(accountId);}
+      for(const query of SEARCH_SUFFIXES.map((suffix) => suffix ? studioQuery+" "+suffix : studioQuery))searchQueries.add(query);
       if (/(퀸스|퀸즈)/.test(studioQuery)) {
         searchQueries.add(studioQuery.replace(/퀸스/g, "퀸즈"));
         searchQueries.add(studioQuery.replace(/퀸즈/g, "퀸스"));
@@ -120,7 +127,7 @@ Deno.serve(async (req) => {
           const title = cleanText(item.title);
           if (!isNaverBlogUrl(postUrl) || !title) return [];
           const description = cleanText(item.description);
-          if (!isRelevantBlog(String(job.studio_name), title, description, cleanText(item.bloggerlink), officialAccounts)) return [];
+          if (!isRelevantBlog(String(job.studio_name), title, description, cleanText(item.bloggerlink), knownAccounts)) return [];
           const dateText = String(item.postdate ?? "");
           const postDate = /^\d{8}$/.test(dateText)
             ? `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6, 8)}`
@@ -176,7 +183,7 @@ Deno.serve(async (req) => {
             profileBallet && (queryNameSearch || balletIntent) ? 68 :
             tokenHits === 1 && balletIntent ? 55 : 0;
           if (score < 45) continue;
-          if (officialAccounts.some((account) => blogAccountKey(account) === accountKey)) continue;
+          if (knownAccounts.some((account) => blogAccountKey(account) === accountKey)) continue;
           const existing = accountCandidates.get(accountKey) || {
             blogger_url: canonicalUrl, blogger_name: bloggerName || null, samples: [], score: 0, matchCount: 0,
           };
