@@ -29,8 +29,8 @@ begin
   on conflict (user_id) do update set
     username = case
       when existing.username ~ '^[a-z0-9_]{3,24}$'
-        and pg_catalog.left(public.user_profiles.username, 7) <> 'social_'
-      then public.user_profiles.username
+        and pg_catalog.left(existing.username, 7) <> 'social_'
+      then existing.username
       else excluded.username
     end,
     phone_number = excluded.phone_number,
