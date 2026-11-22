@@ -128,6 +128,7 @@ export default function Admin() {
   const [dashboardBusy,setDashboardBusy]=useState(false);
   const [dashboardError,setDashboardError]=useState<string|null>(null);
   const [discoveryErrorRows,setDiscoveryErrorRows]=useState<any[]>([]);
+  const [discoveryDuplicateTotal,setDiscoveryDuplicateTotal]=useState(0);
   const [retryBusy,setRetryBusy]=useState(false);
   const [duplicatePublicScheduleCount,setDuplicatePublicScheduleCount]=useState(0);
   const [reportRows,setReportRows]=useState<any[]>([]);
@@ -225,7 +226,7 @@ export default function Admin() {
         setDashboardBusy(true);
         const {data,error}=await supabase!.rpc("admin_clear_discovery_runs");
         if(error)Alert.alert("초기화 실패",error.message+"\nadmin_management_scaling.sql 적용 여부를 확인해 주세요.");
-        else {setDiscoveryErrorRows([]);Alert.alert("초기화 완료",Number(data||0).toLocaleString("ko-KR")+"건의 실행 기록을 삭제했습니다.");await loadDashboard();}
+        else {setDiscoveryErrorRows([]);setDiscoveryDuplicateTotal(0);Alert.alert("초기화 완료",Number(data||0).toLocaleString("ko-KR")+"건의 실행 기록을 삭제했습니다.");await loadDashboard();}
         setDashboardBusy(false);
       }}
     ]);
@@ -266,11 +267,12 @@ export default function Admin() {
     const [stats,logs]=await Promise.all([
       supabase.rpc("balletmate_admin_dashboard_stats"),
       supabase.from("studio_discovery_runs").select("id,region_name,queried_at,result_count,inserted_count,duplicate_count,error")
-        .not("error","is",null).order("queried_at",{ascending:false}).limit(40)
+        .order("queried_at",{ascending:false}).limit(40)
     ]);
     if(stats.error){setDashboardError(stats.error.message);setDashboard(null);}
     else setDashboard(stats.data);
     if(!logs.error){
+      setDiscoveryDuplicateTotal((logs.data||[]).reduce((sum:any,row:any)=>sum+Number(row.duplicate_count||0),0));
       const grouped=new Map<string,any>();
       for(const row of logs.data||[]){
         const key=String(row.error||"").trim();
@@ -280,7 +282,7 @@ export default function Admin() {
         grouped.set(key,{...row,count:1});
       }
       setDiscoveryErrorRows([...grouped.values()].slice(0,8));
-    }else setDiscoveryErrorRows([]);
+    }else {setDiscoveryErrorRows([]);setDiscoveryDuplicateTotal(0);}
     setDashboardBusy(false);
   },[authorized]);
 
@@ -1112,7 +1114,7 @@ export default function Admin() {
       ["공개 시간표",dashboard.public_schedules?.active??0,"활성 자료"],
       ["지역 발견",dashboard.discovery?.last_inserted??0,"최근 실행 신규 발견"]
     ].map(([label,value,caption])=><View key={String(label)} style={styles.statCard}><Text style={styles.statLabel}>{label}</Text><Text style={styles.statValue}>{Number(value).toLocaleString("ko-KR")}</Text><Text style={styles.statCaption}>{caption}</Text></View>)}</View><Text style={styles.hint}>최근 지역 탐색: {dashboard.discovery?.last_region||"실행 기록 없음"} · {dashboard.discovery?.last_run_at?new Date(dashboard.discovery.last_run_at).toLocaleString("ko-KR"):"기록 없음"}</Text>{dashboard.discovery?.last_error&&<Text style={styles.errorHint}>최근 탐색 오류: {[...new Set(String(dashboard.discovery.last_error).split(" | ").map((x:string)=>x.trim()).filter(Boolean))].join(" · ")}</Text>}<Pressable style={styles.secondary} disabled={retryBusy} onPress={retryFailedQueues}><Text style={styles.secondaryText}>{retryBusy?"재처리 요청 중…":"실패한 수집 작업 재처리"}</Text></Pressable></>:<Text style={styles.hint}>통계를 불러오는 중입니다.</Text>}</View>
-    <View style={styles.panel}><View style={styles.listHead}><View style={{flex:1,minWidth:0}}><Text style={styles.heading}>탐색 오류 기록</Text><Text style={styles.hint}>최근 오류 {discoveryErrorRows.length}종 · 중복 통합 실행 기록은 초기화할 수 있습니다.</Text></View><View style={{flexDirection:"row",gap:12}}><Pressable onPress={loadDashboard}><Text style={styles.refresh}>새로고침</Text></Pressable><Pressable onPress={clearDiscoveryHistory} disabled={dashboardBusy}><Text style={[styles.refresh,{color:"#B95764"}]}>기록 초기화</Text></Pressable></View></View>{discoveryErrorRows.map((item:any,index:number)=><View key={"discovery-error-"+index} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.region_name} · {new Date(item.queried_at).toLocaleString("ko-KR")} · 최근 40건 중 {item.count}회</Text><Text style={styles.errorHint}>{item.error}</Text></View>)}{!discoveryErrorRows.length&&!dashboardBusy&&<Text style={styles.hint}>최근 탐색 오류가 없습니다.</Text>}</View><View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>학원 정보 사용자 제보 ({reportRows.filter(r=>r.status==="pending"||r.status==="in_review").length})</Text><Pressable onPress={loadReports}><Text style={styles.refresh}>{reportsBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{reportsError?<View><Text style={styles.hint}>제보 조회 오류: {reportsError}</Text><Pressable onPress={loadReports}><Text style={styles.action}>다시 시도</Text></Pressable></View>:reportRows.length?reportRows.map(report=><View key={"report-"+report.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{report.studio_name||"학원"} · {report.category} · {new Date(report.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.evidenceText}>{report.description}</Text><Text style={styles.rowMeta}>상태: {report.status==="pending"?"대기":report.status==="in_review"?"검토 중":report.status==="resolved"?"처리 완료":"기각"}</Text>{(report.status==="pending"||report.status==="in_review")&&<View style={styles.rowActions}><Pressable onPress={()=>updateReportStatus(report.id,"in_review")}><Text style={styles.action}>검토 중</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"resolved")}><Text style={styles.action}>처리 완료</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"rejected")}><Text style={styles.reject}>기각</Text></Pressable></View>}</View>):<Text style={styles.hint}>접수된 제보가 없습니다.</Text>}</View>
+    <View style={styles.panel}><View style={styles.listHead}><View style={{flex:1,minWidth:0}}><Text style={styles.heading}>탐색 오류 기록</Text><Text style={styles.hint}>최근 40회 중복 제외 {discoveryDuplicateTotal.toLocaleString("ko-KR")}건 · 오류 {discoveryErrorRows.length}종</Text></View><View style={{flexDirection:"row",gap:12}}><Pressable onPress={loadDashboard}><Text style={styles.refresh}>새로고침</Text></Pressable><Pressable onPress={clearDiscoveryHistory} disabled={dashboardBusy}><Text style={[styles.refresh,{color:"#B95764"}]}>기록 초기화</Text></Pressable></View></View>{discoveryErrorRows.map((item:any,index:number)=><View key={"discovery-error-"+index} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.region_name} · {new Date(item.queried_at).toLocaleString("ko-KR")} · 최근 40건 중 {item.count}회</Text><Text style={styles.errorHint}>{item.error}</Text></View>)}{!discoveryErrorRows.length&&!dashboardBusy&&<Text style={styles.hint}>최근 탐색 오류가 없습니다.</Text>}</View><View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>학원 정보 사용자 제보 ({reportRows.filter(r=>r.status==="pending"||r.status==="in_review").length})</Text><Pressable onPress={loadReports}><Text style={styles.refresh}>{reportsBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{reportsError?<View><Text style={styles.hint}>제보 조회 오류: {reportsError}</Text><Pressable onPress={loadReports}><Text style={styles.action}>다시 시도</Text></Pressable></View>:reportRows.length?reportRows.map(report=><View key={"report-"+report.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{report.studio_name||"학원"} · {report.category} · {new Date(report.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.evidenceText}>{report.description}</Text><Text style={styles.rowMeta}>상태: {report.status==="pending"?"대기":report.status==="in_review"?"검토 중":report.status==="resolved"?"처리 완료":"기각"}</Text>{(report.status==="pending"||report.status==="in_review")&&<View style={styles.rowActions}><Pressable onPress={()=>updateReportStatus(report.id,"in_review")}><Text style={styles.action}>검토 중</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"resolved")}><Text style={styles.action}>처리 완료</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"rejected")}><Text style={styles.reject}>기각</Text></Pressable></View>}</View>):<Text style={styles.hint}>접수된 제보가 없습니다.</Text>}</View>
         </>}
     {adminTab==="publish"&&<>
 <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 가격</Text><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 가격</Text><Text style={styles.compactAction}>관리</Text></View>{activePublicPrices.map((price,index)=><View key={"active-price-"+price.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><View style={styles.compactMain}><Text style={styles.compactPrimary} numberOfLines={1}>{price.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{Number(price.amount_krw).toLocaleString("ko-KR")}원 · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Pressable onPress={()=>uploadMaterialPhotos("price",price)} disabled={evidenceBusy}><Text style={styles.compactAction}>사진 추가 · {Array.isArray(price.image_urls)?price.image_urls.length:0}/8장</Text></Pressable></View><Pressable onPress={()=>deactivatePublicPrice(price)} disabled={evidenceBusy}><Text style={styles.compactAction}>중단</Text></Pressable></View>)}{!activePublicPrices.length&&!evidenceBusy&&<Text style={styles.hint}>현재 공개 중인 가격이 없습니다.</Text>}{publicPriceOffset<publicPriceTotal&&<Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>loadMorePublicPage("price")}><Text style={styles.secondaryText}>다음 가격 이력 100개</Text></Pressable>}</View>
