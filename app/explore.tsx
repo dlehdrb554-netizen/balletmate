@@ -506,8 +506,9 @@ export default function Home() {
           <Text style={styles.sectionTitle}>학원 실제 사진</Text>
           {(detailStudio.imageUrls||[]).length>0?
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:9,paddingBottom:4}}>
-             {(detailStudio.imageUrls||[]).map((uri,index)=><Image key={uri+index} source={{uri}} style={styles.studioPhoto} resizeMode="cover"/>)}
+             {(detailStudio.imageUrls||[]).slice(0,1).map((uri,index)=><Image key={uri+index} source={{uri}} style={styles.studioPhoto} resizeMode="cover"/>)}
             </ScrollView>
+            <Pressable onPress={()=>setDetailTab("photos")}><Text style={styles.photoSourceLink}>사진 {(detailStudio.imageUrls||[]).length}장 모두 보기 ›</Text></Pressable>
             :<View style={styles.photoEmpty}><Text style={styles.filterHint}>공식 홈페이지에서 확인한 사진이 아직 없습니다.</Text>{detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}</View>}
           {!!detailStudio.imageSourceName&&<Text style={styles.photoCredit}>이미지 출처: {detailStudio.imageSourceName}{detailStudio.imageCheckedAt?" · 확인 "+new Date(detailStudio.imageCheckedAt).toLocaleDateString("ko-KR"):""}</Text>}
           {!!detailStudio.imageUsageNote&&<Text style={styles.photoCredit}>사진 이용 메모: {detailStudio.imageUsageNote}</Text>}
@@ -521,6 +522,7 @@ export default function Home() {
           {(detailStudio.detailsSourceUrls||[]).map((url,index)=><Pressable key={url+index} onPress={()=>Linking.openURL(url).catch(()=>Alert.alert("원문 연결","페이지를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>수집 원문 {index+1} 확인 ›</Text></Pressable>)}
           <Text style={styles.sectionTitle}>네이버 블로그 공개 자료</Text>
           <Text style={styles.photoCredit}>학원과 관련성이 확인된 공개 게시글에서 수집한 참고 자료입니다. 가격·시간표는 학원 공식 확정 정보가 아닙니다.</Text>
+          <Pressable onPress={()=>setDetailTab("news")}><Text style={styles.photoSourceLink}>소식 {studioBlogPosts.length}개 모두 보기 ›</Text></Pressable>
           {blogLoading?<ActivityIndicator color={COLORS.purple} style={{marginVertical:12}}/>:studioBlogPosts.length?studioBlogPosts.slice(0,1).map(post=><View key={String(post.source_id)} style={styles.classBlock}>
             <Text style={styles.classTitle}>{post.title}</Text>
             <Text style={styles.photoCredit}>{post.blogger_name||"작성자 미상"}{post.post_date?" · "+new Date(post.post_date).toLocaleDateString("ko-KR"):""}{post.checked_at?" · 수집 "+new Date(post.checked_at).toLocaleDateString("ko-KR"):""}</Text>
