@@ -21,19 +21,22 @@ begin
       'pending', (select count(*) from public.studio_blog_search_queue where status='pending'),
       'processing', (select count(*) from public.studio_blog_search_queue where status='processing'),
       'failed', (select count(*) from public.studio_blog_search_queue where status='failed'),
+      'stalled', (select count(*) from public.studio_blog_search_queue where status='processing' and updated_at < now()-interval '20 minutes'),
       'completed', (select count(*) from public.studio_blog_search_queue where status='completed')
     ),
     'blog_posts', jsonb_build_object(
       'pending', (select count(*) from public.studio_blog_post_crawl_queue where status='pending'),
       'processing', (select count(*) from public.studio_blog_post_crawl_queue where status='processing'),
       'failed', (select count(*) from public.studio_blog_post_crawl_queue where status='failed'),
-      'completed', (select count(*) from public.studio_blog_post_crawl_queue where status='completed')
+      'completed', (select count(*) from public.studio_blog_post_crawl_queue where status='completed'),
+      'stalled', (select count(*) from public.studio_blog_post_crawl_queue where status='processing' and updated_at < now()-interval '20 minutes')
     ),
     'image_crawl', jsonb_build_object(
       'pending', (select count(*) from public.studio_image_crawl_queue where status='pending'),
       'processing', (select count(*) from public.studio_image_crawl_queue where status='processing'),
       'failed', (select count(*) from public.studio_image_crawl_queue where status='failed'),
-      'done', (select count(*) from public.studio_image_crawl_queue where status='done')
+      'done', (select count(*) from public.studio_image_crawl_queue where status='done'),
+      'stalled', (select count(*) from public.studio_image_crawl_queue where status='processing' and updated_at < now()-interval '30 minutes')
     ),
     'evidence', jsonb_build_object(
       'pending', (select count(*) from public.studio_blog_evidence_candidates where review_status='pending'),
