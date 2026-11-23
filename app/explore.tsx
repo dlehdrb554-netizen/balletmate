@@ -3,7 +3,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, Animated, FlatList, Image, Keyboard, Linking, Modal, PanResponder, Pressable, ScrollView,
+  ActivityIndicator, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View, Alert
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -81,6 +81,10 @@ export default function Home() {
   const [selected,setSelected]=useState<Studio|null>(null);
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
   const [listSort,setListSort]=useState<"distance"|"price">("distance");
+  const [selectedListRegion,setSelectedListRegion]=useState("전체");
+  const [dailySearchRank,setDailySearchRank]=useState<any[]>([]);
+  const [reviewRank,setReviewRank]=useState<any[]>([]);
+  const [rankLoading,setRankLoading]=useState(false);
   const [menuOpen,setMenuOpen]=useState(false);
   const [filterOpen,setFilterOpen]=useState(false);
   const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
@@ -286,7 +290,7 @@ export default function Home() {
   }),[studios,globalSearchStudios,search,classSearchIds,adult,kids,coupon,level,dayFilter,timeFilter,maxPrice,durationFilter,classTypeFilter,hasClassLevelFilters,classFilterIds,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
 
   const listRows=useMemo(()=>{
-    const rows=view==="favorites"?favoriteStudios:results;
+    const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion==="전체"||studio.area===selectedListRegion);
     return [...rows].sort((a,b)=>{
       if(listSort==="price"){
         if(a.price===null&&b.price===null)return a.name.localeCompare(b.name,"ko");
@@ -296,7 +300,20 @@ export default function Home() {
       }
       return distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng);
     });
-  },[view,favoriteStudios,results,listSort,searchedRegion]);
+  },[view,favoriteStudios,results,listSort,searchedRegion,selectedListRegion]);
+  useEffect(()=>{
+    if(view!=="list"||!supabase)return;
+    let active=true;setRankLoading(true);
+    Promise.all([
+      supabase.rpc("get_studio_search_rank",{p_region:selectedListRegion}),
+      supabase.rpc("get_studio_review_rank",{p_region:selectedListRegion})
+    ]).then(([searchRes,reviewRes])=>{
+      if(!active)return;
+      setDailySearchRank(searchRes.error?[]:(searchRes.data||[]));
+      setReviewRank(reviewRes.error?[]:(reviewRes.data||[]));
+    }).finally(()=>{if(active)setRankLoading(false);});
+    return()=>{active=false;};
+  },[view,selectedListRegion]);
   const REGIONAL_SEARCH:Record<string,{latitude:number;longitude:number}> = {
     "화곡":{latitude:37.5416,longitude:126.8466},"화곡동":{latitude:37.5416,longitude:126.8466},"화곡역":{latitude:37.5423,longitude:126.8403},
     "까치산":{latitude:37.5317,longitude:126.8489},"까치산역":{latitude:37.5317,longitude:126.8489},
@@ -326,6 +343,7 @@ export default function Home() {
     Keyboard.dismiss();
     const query=search.trim();
     if(!query){setAreaLocked(false);setSelected(null);setGlobalSearchStudios([]);setSearchSubmitting(false);return;}
+    if(supabase){const region=selectedListRegion!=="전체"?selectedListRegion:(Object.keys(REGIONAL_SEARCH).sort((a,b)=>b.length-a.length).find(key=>query.includes(key))||"전체");supabase.rpc("record_studio_search",{p_region:region,p_query:query}).then(({error})=>{if(error)console.warn("Search trend logging unavailable:",error.message);});}
     const q=query.toLowerCase();
     const regionKey=Object.keys(REGIONAL_SEARCH).sort((a,b)=>b.length-a.length).find(key=>q.includes(key));
     let remoteRows:any[]=[];
@@ -596,7 +614,7 @@ export default function Home() {
     <View style={styles.cardBottom}><Text style={styles.priceText}>{s.price!==null?"₩"+s.price.toLocaleString():"가격 문의"}<Text style={styles.priceUnit}> / 회</Text></Text><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();openDetail(s);}} style={styles.actionChip}><Text style={styles.actionText}>상세정보</Text></Pressable></View>
   </Pressable>;
 
-  return <SafeAreaView style={styles.safe}>
+  return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}>
     <View style={styles.header}>
       <Text style={styles.brand}>balletmate <Text style={styles.brandDot}>✦</Text></Text>
       <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>setMenuOpen(true)} accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/account")} accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={COLORS.ink} /></Pressable></View>
@@ -614,7 +632,7 @@ export default function Home() {
         <Pressable style={styles.locateButton} onPress={locate}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
         <Pressable style={styles.mapCount} onPress={()=>{if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}</Text>곳{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
         {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={styles.detailBtn} onPress={()=>openDetail(selected)}><Text style={styles.detailBtnText}>상세 보기  ›</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
-      </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Pressable onPress={()=>setListSort("distance")} style={[styles.listSortChip,listSort==="distance"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="distance"&&styles.listSortChipTextActive]}>거리순</Text></Pressable><Pressable onPress={()=>setListSort("price")} style={[styles.listSortChip,listSort==="price"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="price"&&styles.listSortChipTextActive]}>가격 낮은순</Text></Pressable></View><FlatList data={listRows} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} ListEmptyComponent={<Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"검색 조건에 맞는 학원이 없어요."}</Text>}/></>}
+      </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Pressable onPress={()=>setListSort("distance")} style={[styles.listSortChip,listSort==="distance"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="distance"&&styles.listSortChipTextActive]}>거리순</Text></Pressable><Pressable onPress={()=>setListSort("price")} style={[styles.listSortChip,listSort==="price"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="price"&&styles.listSortChipTextActive]}>가격 낮은순</Text></Pressable></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}><Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted,marginBottom:6}}>지역 선택</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled"><View style={{flexDirection:"row",gap:6}}>{["전체",...([...new Set(studios.map(s=>s.area).filter(a=>a&&a!=="지역 정보 없음"))].sort((a,b)=>a.localeCompare(b,"ko")))].map(region=><Pressable key={region} onPress={()=>setSelectedListRegion(region)} style={{paddingHorizontal:11,paddingVertical:7,borderRadius:20,backgroundColor:selectedListRegion===region?COLORS.purple:"#F2F0F6"}}><Text style={{fontSize:11,fontWeight:"800",color:selectedListRegion===region?"#fff":COLORS.ink}}>{region}</Text></Pressable>)}</View></ScrollView><View style={{flexDirection:"row",gap:8,marginTop:10}}><View style={{flex:1,backgroundColor:"#F7F4FF",borderRadius:11,padding:10}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>오늘 검색어 순위</Text>{rankLoading?<Text style={styles.photoCredit}>불러오는 중</Text>:dailySearchRank.length?dailySearchRank.slice(0,5).map((r:any,i)=><Text key={r.query} style={{fontSize:11,color:COLORS.ink,marginTop:4}}>{i+1}. {r.query} ({r.search_count})</Text>):<Text style={styles.photoCredit}>검색 데이터가 쌓이면 표시됩니다.</Text>}</View><View style={{flex:1,backgroundColor:"#F8F7FA",borderRadius:11,padding:10}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.ink}}>리뷰 많은 학원</Text>{rankLoading?<Text style={styles.photoCredit}>불러오는 중</Text>:reviewRank.length?reviewRank.slice(0,5).map((r:any,i)=><Pressable key={r.studio_id} onPress={()=>{const item=studios.find(s=>s.id===r.studio_id);if(item)openDetail(item);}}><Text style={{fontSize:11,color:COLORS.ink,marginTop:4}}>{i+1}. {r.studio_name} ({r.review_count})</Text></Pressable>):<Text style={styles.photoCredit}>등록된 사용자 리뷰가 없습니다.</Text>}</View></View></View>}<FlatList data={listRows} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" ListEmptyComponent={<Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"검색 조건에 맞는 학원이 없어요."}</Text>}/></>}
     </View>
     {compareIds.length>=2&&<Pressable style={styles.compareFloating} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>학원 비교하기 · {compareIds.length}</Text></Pressable>}
     <Modal visible={searchResultsOpen} transparent animationType="fade" onRequestClose={()=>setSearchResultsOpen(false)}>
@@ -776,7 +794,7 @@ export default function Home() {
         </ScrollView><View style={styles.modalActions}><Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>초기화</Text></Pressable><Pressable style={styles.applyButton} onPress={()=>setFilterOpen(false)}><Text style={styles.applyText}>결과 {results.length}곳 보기</Text></Pressable></View>
       </View></View>
     </Modal>
-  </SafeAreaView>;
+  </KeyboardAvoidingView></SafeAreaView>;
 }
 const styles=StyleSheet.create({
  safe:{flex:1,backgroundColor:COLORS.bg},header:{paddingHorizontal:12,paddingTop:2,paddingBottom:3,flexDirection:"row",justifyContent:"space-between",alignItems:"center"},headerActions:{flexDirection:"row",alignItems:"center",gap:8},menuButton:{height:34,width:34,borderRadius:11,backgroundColor:"#fff",alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},menuButtonText:{fontSize:19,color:COLORS.ink,fontWeight:"700"},brand:{fontSize:20,fontWeight:"900",letterSpacing:-0.7,color:COLORS.ink},brandDot:{color:COLORS.purple,fontSize:19},subtitle:{fontSize:11,color:COLORS.muted,marginTop:3},profileButton:{height:34,width:34,borderRadius:11,backgroundColor:"#fff",alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},
