@@ -10,8 +10,8 @@ async function fetchNaverSearch(endpoint:URL,clientId:string,clientSecret:string
  const legacyResponse=await fetch(endpoint.toString(),{headers:{"X-Naver-Client-Id":clientId,"X-Naver-Client-Secret":clientSecret},signal:AbortSignal.timeout(timeoutMs)});
  if(legacyResponse.ok||legacyResponse.status!==401)return legacyResponse;
  const legacyDetail=await legacyResponse.text();
- if(!/NID AUTH Result Invalid|errorCode["']?\\s*:\\s*["']?024/i.test(legacyDetail))throw new Error("Naver API HTTP 401: "+legacyDetail.slice(0,240));
- const apiType=endpoint.pathname.match(/\\/v1\\/search\\/([a-z0-9]+)\\.json$/i)?.[1];
+ if(!/NID AUTH Result Invalid|errorCode["']?\s*:\s*["']?024/i.test(legacyDetail))throw new Error("Naver API HTTP 401: "+legacyDetail.slice(0,240));
+ const apiType=endpoint.pathname.match(/\/v1\/search\\/([a-z0-9]+)\.json$/i)?.[1];
  if(!apiType)throw new Error("NAVER API HUB 전환 실패: 검색 API 종류 확인 불가");
  const hubEndpoint=new URL("https://naverapihub.apigw.ntruss.com/search/v1/"+apiType);
  endpoint.searchParams.forEach((value,key)=>hubEndpoint.searchParams.set(key,value));
