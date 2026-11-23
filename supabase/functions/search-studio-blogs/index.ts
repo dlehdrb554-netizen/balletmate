@@ -169,6 +169,8 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const clientId = Deno.env.get("NAVER_CLIENT_ID") || "";
+  const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET") || "";
   if (!supabaseUrl || !serviceRoleKey) return json({ error: "Supabase 서버 설정이 누락되었습니다." }, 500);
 
   const db = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
