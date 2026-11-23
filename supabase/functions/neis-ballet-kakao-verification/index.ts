@@ -36,8 +36,8 @@ Deno.serve(async(req)=>{
  if(!key||!url||!service)return json({error:"Missing Kakao/Supabase environment"},500);
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data:candidates,error}=await db.from("neis_ballet_academy_candidates")
-  .select("id,academy_name,district_name,address,academy_phone")
-  .eq("eligible",true).eq("is_open",true).eq("review_status","pending").eq("kakao_status","pending")
+  .select("id,academy_name,district_name,address,academy_phone,matched_studio_id")
+  .eq("eligible",true).eq("is_open",true).eq("kakao_status","pending")
   .order("last_seen_at",{ascending:false}).limit(5);
  if(error)return json({error:error.message},500);
  const results=[];
@@ -67,7 +67,18 @@ Deno.serve(async(req)=>{
   let linkedStudioId:string|null=null;
   if(status==="matched"&&chosen){
    const placeUrl=String(chosen.place_url||"");
-   if(placeUrl){
+   // Reuse an existing exact NEIS-to-studio link. Do not overwrite a conflicting Kakao place URL.
+   if(c.matched_studio_id){
+    const {data:linked}=await db.from("studios").select("id,source_url").eq("id",c.matched_studio_id).maybeSingle();
+    if(linked?.id){
+     if(linked.source_url && placeUrl && linked.source_url!==placeUrl){
+      status="manual_review";
+      reason="기존 연결 학원의 카카오 장소 URL과 검색 결과가 달라 수동 확인 필요";
+      chosen=null;
+     } else linkedStudioId=linked.id;
+    }
+   }
+   if(status==="matched"&&placeUrl&&!linkedStudioId){
     const {data:byPlace}=await db.from("studios").select("id").eq("source_url",placeUrl).limit(1).maybeSingle();
     linkedStudioId=byPlace?.id||null;
    }
@@ -83,7 +94,7 @@ Deno.serve(async(req)=>{
     await db.from("studios").update({source_status:"both",source_url:chosen.place_url||null,source_name:"Kakao Local + NEIS 등록 확인",neis_candidate_id:c.id,updated_at:new Date().toISOString()}).eq("id",linkedStudioId);
     await db.from("neis_ballet_academy_candidates").update({matched_studio_id:linkedStudioId,review_status:"matched"}).eq("id",c.id);
    }
-  } else if(status==="no_match"&&c.address){
+  } else if(status==="no_match"&&c.address&&!c.matched_studio_id){
    try{
     const geocode=new URL("https://dapi.kakao.com/v2/local/search/address.json");
     geocode.searchParams.set("query",String(c.address));
