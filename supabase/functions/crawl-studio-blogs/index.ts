@@ -86,7 +86,21 @@ function academyAlias(studioName: string): string {
 }
 function nameMatches(studioName: string, text: string): boolean {
   const normalizedText = normalize(text);
-  return academyAliases(studioName).some(alias => alias.length >= 3 && normalizedText.includes(alias));
+  return academyAliases(studioName).some(alias => {
+    if (alias.length < 3 || !normalizedText.includes(alias)) return false;
+    // Short academy names are prone to accidental matches inside ordinary Korean words.
+    // In particular, "발레보" must not match the phrase "발레보다".
+    if (alias.length <= 3 && alias.endsWith("보")) {
+      let index = normalizedText.indexOf(alias);
+      while (index !== -1) {
+        const suffix = normalizedText.slice(index + alias.length);
+        if (!suffix.startsWith("다")) return true;
+        index = normalizedText.indexOf(alias, index + 1);
+      }
+      return false;
+    }
+    return true;
+  });
 }
 function blogAccountKey(raw: string | null | undefined): string {
   try {
