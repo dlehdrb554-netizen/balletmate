@@ -9,6 +9,16 @@ const relevant = (row: Record<string, unknown>) => BALLET_RE.test([
   row.ACA_NM, row.REALM_SC_NM, row.LE_ORD_NM, row.LE_CRSE_LIST_NM, row.LE_CRSE_NM
 ].map(clean).join(" "));
 const isOpen = (row: Record<string, unknown>) => /개원|운영|등록/i.test(clean(row.REG_STTUS_NM)) && !/폐원|휴원|취소/i.test(clean(row.REG_STTUS_NM));
+const eligibility = (row: Record<string, unknown>, open: boolean) => {
+  const academyName = clean(row.ACA_NM);
+  const fieldName = clean(row.REALM_SC_NM);
+  const courseText = [row.LE_ORD_NM, row.LE_CRSE_LIST_NM, row.LE_CRSE_NM].map(clean).join(" ");
+  if (!open) return { eligible: false, reason: "closed_or_paused" };
+  // Academy name is a fallback because NEIS frequently omits course/field columns.
+  if (/발레|ballet/i.test(academyName)) return { eligible: true, reason: "ballet_name_fallback" };
+  if (/^예능$/.test(fieldName) && /발레|ballet/i.test(courseText)) return { eligible: true, reason: "arts_ballet_course" };
+  return { eligible: false, reason: "not_confirmed_ballet_target" };
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-crawl-secret" } });
@@ -63,6 +73,7 @@ Deno.serve(async (req) => {
         const academyName = clean(row.ACA_NM);
         if (!academyNo || !academyName) continue;
         const rowOpen = isOpen(row);
+        const eligibilityResult = eligibility(row, rowOpen);
         const address = [clean(row.FA_RDNMA), clean(row.FA_RDNDA)].filter(Boolean).join(" ");
         const { error: saveError } = await db.from("neis_ballet_academy_candidates").upsert({
           office_code: office,
@@ -88,6 +99,8 @@ Deno.serve(async (req) => {
           raw_data: row,
           source_updated_at: clean(row.LOAD_DTM) || null,
           is_open: rowOpen,
+          eligible: eligibilityResult.eligible,
+          eligibility_reason: eligibilityResult.reason,
           last_seen_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }, { onConflict: "office_code,academy_number" });
