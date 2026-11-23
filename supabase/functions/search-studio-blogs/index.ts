@@ -5,6 +5,44 @@ const json = (body: unknown, status = 200) =>
 
 const SEARCH_SUFFIXES = ["", "발레", "시간표", "수강료", "성인발레", "키즈발레", "모집"];
 const RSS_MAX_ITEMS = 30;
+
+// Supports both legacy NAVER Developers credentials and NAVER API HUB credentials.
+// New API HUB keys are not accepted by openapi.naver.com, so retry only the
+// legacy authentication-mismatch response against the official API HUB endpoint.
+async function fetchNaverSearch(endpoint: URL, clientId: string, clientSecret: string, timeoutMs: number): Promise<Response> {
+  const legacyResponse = await fetch(endpoint.toString(), {
+    method: "GET",
+    headers: {
+      "X-Naver-Client-Id": clientId,
+      "X-Naver-Client-Secret": clientSecret,
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (legacyResponse.ok || legacyResponse.status !== 401) return legacyResponse;
+
+  const legacyDetail = await legacyResponse.text();
+  if (!/NID AUTH Result Invalid|errorCode["']?\\s*:\\s*["']?024/i.test(legacyDetail)) {
+    throw new Error(`NAVER Search API HTTP 401: ${legacyDetail.slice(0, 240)}`);
+  }
+
+  const apiType = endpoint.pathname.match(/\\/v1\\/search\\/([a-z0-9]+)\\.json$/i)?.[1];
+  if (!apiType) throw new Error("NAVER API HUB 전환 실패: 검색 API 종류를 확인할 수 없습니다.");
+  const hubEndpoint = new URL(`https://naverapihub.apigw.ntruss.com/search/v1/${apiType}`);
+  endpoint.searchParams.forEach((value, key) => hubEndpoint.searchParams.set(key, value));
+  hubEndpoint.searchParams.set("format", "json");
+
+  const hubResponse = await fetch(hubEndpoint.toString(), {
+    method: "GET",
+    headers: {
+      "X-NCP-APIGW-API-KEY-ID": clientId,
+      "X-NCP-APIGW-API-KEY": clientSecret,
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (hubResponse.ok) return hubResponse;
+  const hubDetail = (await hubResponse.text()).slice(0, 240);
+  throw new Error(`NAVER 인증 실패: 기존 API 401(024), NAVER API HUB HTTP ${hubResponse.status}: ${hubDetail}`);
+}
 const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
 const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, "");
@@ -138,14 +176,7 @@ Deno.serve(async (req) => {
         endpoint.searchParams.set("format", "json");
 
         requestCount++;
-        const response = await fetch(endpoint.toString(), {
-          method: "GET",
-          headers: {
-            "X-Naver-Client-Id": clientId,
-            "X-Naver-Client-Secret": clientSecret,
-          },
-          signal: AbortSignal.timeout(10000),
-        });
+        const response = await fetchNaverSearch(endpoint, clientId, clientSecret, 10000);
         if (!response.ok) {
           const detail = (await response.text()).slice(0, 300);
           throw new Error(`NAVER Search API HTTP ${response.status}: ${detail}`);
