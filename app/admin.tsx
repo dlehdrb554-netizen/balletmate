@@ -259,7 +259,15 @@ export default function Admin() {
     setOfficialBlogBusy(true);
     const {data,error}=await supabase.rpc("admin_set_studio_official_blog_accounts",{p_studio_id:officialBlogStudio.id,p_blogger_urls:urls});
     if(error)Alert.alert("공식 블로그 저장 실패",error.message);
-    else{Alert.alert("저장 완료",officialBlogStudio.name+" 공식 블로그 "+urls.length+"개를 등록했습니다.\n이제 해당 계정 게시물만 앱의 공개 소식에 표시됩니다.");setOfficialBlogStudio(null);setOfficialBlogUrls("");}
+    else{
+      const {error:queueError}=await supabase.rpc("admin_requeue_studio_blog_search",{p_studio_id:officialBlogStudio.id});
+      if(queueError){
+        Alert.alert("블로그는 저장됐지만 수집 요청 실패",queueError.message+"\n관리자 화면에서 블로그 검색 다시 요청을 눌러주세요.");
+      }else{
+        Alert.alert("저장 및 수집 요청 완료",officialBlogStudio.name+" 공식 블로그 "+urls.length+"개를 저장하고 최신 게시물 수집 대기열에 등록했습니다.");
+        setOfficialBlogStudio(null);setOfficialBlogUrls("");
+      }
+    }
     setOfficialBlogBusy(false);
   };
 
