@@ -25,6 +25,12 @@ export default function StudioManager(){
  const [businessAddress,setBusinessAddress]=useState("");
  const [documentPath,setDocumentPath]=useState("");
  const [galleryCount,setGalleryCount]=useState(0);
+ const [profileName,setProfileName]=useState(studioName);
+ const [profileDistrict,setProfileDistrict]=useState("");
+ const [profileAddress,setProfileAddress]=useState("");
+ const [profilePhone,setProfilePhone]=useState("");
+ const [profileWebsite,setProfileWebsite]=useState("");
+ const [profileDescription,setProfileDescription]=useState("");
  const [scheduleText,setScheduleText]=useState("");
  const [priceAmount,setPriceAmount]=useState("");
  const [pricePeriod,setPricePeriod]=useState("월 수강료");
@@ -44,12 +50,13 @@ export default function StudioManager(){
   const [ownerResult,appResult,studioResult]=await Promise.all([
    supabase.from("studio_owners").select("studio_id").eq("studio_id",studioId).eq("user_id",current.user.id).maybeSingle(),
    supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,business_registration_number,business_name,representative_name,business_address,document_path").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
-   supabase.from("studios").select("image_urls").eq("id",studioId).maybeSingle()
+   supabase.from("studios").select("image_urls,name,district,address,phone,website_url,description").eq("id",studioId).maybeSingle()
   ]);
   setOwner(!!ownerResult.data);
   setApplication(appResult.data||null);
   if(appResult.data){setBusinessNo(appResult.data.business_registration_number||"");setBusinessName(appResult.data.business_name||studioName);setRepresentative(appResult.data.representative_name||"");setBusinessAddress(appResult.data.business_address||"");setDocumentPath(appResult.data.document_path||"");}
   setGalleryCount((studioResult.data?.image_urls||[]).length);
+  if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
   if(ownerResult.data){
    const [scheduleResult,priceResult,noticeResult]=await Promise.all([
     supabase.from("studio_public_schedules").select("id,schedule_text,image_urls,is_active,published_at,candidate_id").eq("studio_id",studioId).is("candidate_id",null).order("published_at",{ascending:false}).limit(20),
@@ -63,6 +70,20 @@ export default function StudioManager(){
  },[studioId]);
 
  useEffect(()=>{load();if(!supabase)return;const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>load());return()=>subscription.unsubscribe();},[load]);
+
+ const saveProfile=async()=>{
+  if(!supabase||!owner)return;
+  setSaving(true);
+  try{
+   const {error}=await supabase.rpc("owner_update_studio_profile",{
+    p_studio_id:studioId,p_name:profileName,p_district:profileDistrict,p_address:profileAddress,
+    p_phone:profilePhone,p_website_url:profileWebsite,p_description:profileDescription
+   });
+   if(error)throw error;
+   Alert.alert("학원 정보 저장 완료","수정한 기본 정보가 학원 상세 페이지에 반영됩니다.");
+  }catch(e:any){Alert.alert("정보 저장 실패",e.message||"학원 정보를 저장하지 못했습니다.");}
+  finally{setSaving(false);}
+ };
 
  const chooseCertificate=async()=>{
   const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],quality:0.9});
@@ -198,6 +219,7 @@ export default function StudioManager(){
   :owner?
    <>
     <View style={s.card}><Text style={s.cardTitle}>승인된 원장님 계정</Text><Text style={s.body}>이 학원의 정보와 공개 자료를 관리할 수 있습니다. 등록한 내용은 학원 상세 페이지에 바로 공개됩니다.</Text></View>
+    <View style={s.card}><Text style={s.cardTitle}>학원 기본 정보 수정</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("공식 홈페이지",profileWebsite,setProfileWebsite,"https://") }<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:90,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>학원 대표 사진</Text><Text style={s.body}>현재 {galleryCount}/30장 등록</Text>{button("사진 업로드",uploadGallery,saving||galleryCount>=30)}</View>
     <View style={s.card}><Text style={s.cardTitle}>시간표 사진 및 안내</Text>{field("시간표 설명",""+scheduleText,setScheduleText,"예: 성인 초급반 월·수 19:00")}{button("시간표 사진 선택 후 등록",saveSchedule,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>가격표 등록</Text>{field("가격",""+priceAmount,setPriceAmount,"예: 150000","numeric")}{field("이용 기간",""+pricePeriod,setPricePeriod,"예: 월 8회 / 1개월")}{field("주당 횟수 (선택)",""+priceFrequency,setPriceFrequency,"예: 2","numeric")}{button("가격표 사진 선택 후 등록",savePrice,saving)}</View>
