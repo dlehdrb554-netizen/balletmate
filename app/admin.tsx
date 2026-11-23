@@ -364,7 +364,14 @@ export default function Admin() {
     finally{setBusy(false);}
   },[authorized]);
 
-  const loadAllPhotoStudios=async()=>{\n    if(!supabase||busy)return;setBusy(true);\n    try{const result=await readAllRows(()=>supabase!.from("studios").select(studioColumns).order("name").order("id"));if(result.error)throw result.error;const deduped=dedupeStudioRows(result.data||[]);setRows(deduped.rows as StudioRow[]);setStudioDbOffset((result.data||[]).length);setStudioHasMore(false);setStudioVisibleLimit(10000);setSelectedPhotoStudioIds([]);}\n    catch(error:any){Alert.alert("사진 보유 학원 조회 실패",error?.message||"전체 학원 목록을 조회하지 못했습니다.");}\n    finally{setBusy(false);}\n  };\n\n  const loadMoreStudios=async()=>{
+  const loadAllPhotoStudios=async()=>{
+    if(!supabase||busy)return;setBusy(true);
+    try{const result=await readAllRows(()=>supabase!.from("studios").select(studioColumns).order("name").order("id"));if(result.error)throw result.error;const deduped=dedupeStudioRows(result.data||[]);setRows(deduped.rows as StudioRow[]);setStudioDbOffset((result.data||[]).length);setStudioHasMore(false);setStudioVisibleLimit(10000);setSelectedPhotoStudioIds([]);}
+    catch(error:any){Alert.alert("사진 보유 학원 조회 실패",error?.message||"전체 학원 목록을 조회하지 못했습니다.");}
+    finally{setBusy(false);}
+  };
+
+  const loadMoreStudios=async()=>{
     if(!supabase||busy||!studioHasMore)return;
     setBusy(true);
     try{
