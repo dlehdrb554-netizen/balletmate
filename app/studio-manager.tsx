@@ -47,7 +47,7 @@ export default function StudioManager(){
   setSession(current);
   if(!current){setOwner(false);setApplication(null);setLoading(false);return;}
   const [ownerResult,appResult,studioResult]=await Promise.all([
-   supabase.from("studio_owners").select("studio_id").eq("studio_id",studioId).eq("user_id",current.user.id).maybeSingle(),
+   supabase.from("studio_owners").select("studio_id,status").eq("studio_id",studioId).eq("user_id",current.user.id).eq("status","approved").maybeSingle(),
    supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,verification_url,verification_code,verification_method").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
    supabase.from("studios").select("image_urls,name,district,address,phone,website_url,description").eq("id",studioId).maybeSingle()
   ]);
@@ -211,7 +211,7 @@ export default function StudioManager(){
     <View style={s.card}><Text style={s.cardTitle}>공지사항 관리</Text>{notices.length?notices.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.body}</Text>{button(item.is_active?"공지 숨기기":"공지 다시 공개",()=>toggleNotice(item),saving)}</View>):<Text style={s.body}>등록한 공지사항이 없습니다.</Text>}</View>
    </>
   :application&&application.status!=="needs_info"?
-   <View style={s.card}><Text style={s.cardTitle}>관리 권한 신청 상태</Text><Text style={s.status}>{application.status==="pending"?"운영자 심사 대기":application.status==="needs_info"?"추가 서류 확인 필요":application.status==="approved"?"승인 완료":"반려"}</Text>{application.is_transfer_request&&<Text style={s.body}>기존 관리자가 등록된 학원으로, 기존 관리자 변경 심사로 접수되었습니다. 운영자 승인 전까지 기존 권한은 유지됩니다.</Text>}<Text style={s.body}>자동 대조 결과: {application.auto_match_status==="match"?"학원명·주소 일치":"운영자 확인 필요"}</Text>{application.review_note&&<Text style={s.body}>운영자 메모: {application.review_note}</Text>}{application.status==="rejected"&&button("다시 신청하기",()=>setApplication(null))}</View>
+   <View style={s.card}><Text style={s.cardTitle}>관리 권한 신청 상태</Text><Text style={s.status}>{application.status==="pending"?"운영자 심사 대기":application.status==="needs_info"?"추가 확인 요청":application.status==="approved"?"승인 완료":"반려"}</Text><Text style={s.body}>운영 관계 확인 후 운영자가 권한을 승인합니다.</Text>{application.review_note&&<Text style={s.body}>운영자 메모: {application.review_note}</Text>}{application.status==="rejected"&&button("다시 신청하기",()=>setApplication(null))}</View>
   :<View style={s.card}>
     <Text style={s.cardTitle}>{application?.status==="needs_info"?"추가 확인 정보 제출":"학원 관리자 권한 신청"}</Text>{application?.status==="needs_info"&&<Text style={s.body}>운영자가 확인을 요청했습니다. 다시 제출해 주세요. {application.review_note||""}</Text>}
     <Text style={s.body}>이메일 또는 소셜 로그인 계정으로 신청하고 아래 방법 중 하나로 운영 관계를 확인합니다. 사업자번호·대표자·주소·등록증은 수집하지 않습니다. 확인 후 운영자 승인을 받습니다.</Text>
