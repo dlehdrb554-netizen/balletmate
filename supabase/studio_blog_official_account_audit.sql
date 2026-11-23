@@ -109,18 +109,21 @@ flagged AS (
       ELSE position(regexp_replace(lower(a.target_branch), '[^a-z0-9가-힣]', '', 'g')
         IN regexp_replace(lower(a.evidence_text), '[^a-z0-9가-힣]', '', 'g')) = 0
     END AS target_branch_not_proven,
-    EXISTS (
-      SELECT 1
-      FROM admin_area_tokens area
-      WHERE position(area.area_token IN a.evidence_text) > 0
-        AND NOT EXISTS (
-          SELECT 1
-          FROM regexp_matches(a.studio_address,
-            '([가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구))',
-            'g') AS own_area(parts)
-          WHERE own_area.parts[1] = area.area_token
-        )
-    ) AS different_admin_area_mentioned,
+    CASE
+      WHEN a.studio_id IS NULL OR btrim(a.studio_address) = '' THEN false
+      ELSE EXISTS (
+        SELECT 1
+        FROM admin_area_tokens area
+        WHERE position(area.area_token IN a.evidence_text) > 0
+          AND NOT EXISTS (
+            SELECT 1
+            FROM regexp_matches(a.studio_address,
+              '([가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구))',
+              'g') AS own_area(parts)
+            WHERE own_area.parts[1] = area.area_token
+          )
+      )
+    END AS different_admin_area_mentioned,
     EXISTS (
       SELECT 1
       FROM public.studio_blog_official_accounts other
