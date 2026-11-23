@@ -22,9 +22,12 @@ CREATE TABLE IF NOT EXISTS public.studio_owner_applications (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS studio_owner_application_active_business_no
+ALTER TABLE public.studio_owner_applications
+  ADD COLUMN IF NOT EXISTS is_transfer_request boolean NOT NULL DEFAULT false;
+DROP INDEX IF EXISTS public.studio_owner_application_active_business_no;
+CREATE UNIQUE INDEX studio_owner_application_active_business_no
   ON public.studio_owner_applications(business_registration_number)
-  WHERE status IN ('pending','needs_info','approved');
+  WHERE status IN ('pending','needs_info');
 CREATE UNIQUE INDEX IF NOT EXISTS studio_owner_application_one_pending_per_user_studio
   ON public.studio_owner_applications(user_id, studio_id)
   WHERE status IN ('pending','needs_info');
@@ -113,6 +116,7 @@ DECLARE
   v_address_match boolean;
   v_id uuid;
   v_existing_id uuid;
+  v_current_owner public.studio_owners%ROWTYPE;
   v_reg text := regexp_replace(coalesce(p_business_registration_number,''),'[^0-9]','','g');
   v_business text := trim(coalesce(p_business_name,''));
   v_rep text := trim(coalesce(p_representative_name,''));
@@ -128,15 +132,14 @@ BEGIN
   END IF;
   SELECT * INTO v_studio FROM public.studios WHERE id=p_studio_id;
   IF NOT FOUND THEN RAISE EXCEPTION '학원 정보를 찾을 수 없습니다.'; END IF;
-  IF EXISTS (SELECT 1 FROM public.studio_owners WHERE studio_id=p_studio_id) THEN
-    RAISE EXCEPTION '이미 관리자가 등록된 학원입니다. 관리자 변경 절차가 필요합니다.';
-  END IF;
+  SELECT * INTO v_current_owner FROM public.studio_owners WHERE studio_id=p_studio_id FOR UPDATE;
   SELECT id INTO v_existing_id FROM public.studio_owner_applications
     WHERE user_id=auth.uid() AND studio_id=p_studio_id AND status='needs_info'
     ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
-  IF EXISTS (SELECT 1 FROM public.studio_owners WHERE business_registration_number=v_reg)
+  IF EXISTS (SELECT 1 FROM public.studio_owners WHERE business_registration_number=v_reg
+               AND (v_current_owner.studio_id IS NULL OR studio_id<>p_studio_id))
      OR EXISTS (SELECT 1 FROM public.studio_owner_applications
-                WHERE business_registration_number=v_reg AND status IN ('pending','needs_info','approved')
+                WHERE business_registration_number=v_reg AND status IN ('pending','needs_info')
                   AND (v_existing_id IS NULL OR id<>v_existing_id)) THEN
     RAISE EXCEPTION '이미 신청 또는 등록된 사업자번호입니다. 중복 신청할 수 없습니다.';
   END IF;
@@ -160,18 +163,19 @@ BEGIN
       auto_match_status=CASE WHEN v_name_match AND v_address_match THEN 'match' ELSE 'manual_review' END,
       auto_match_details=jsonb_build_object('studio_name_match',v_name_match,'studio_address_match',v_address_match,
         'duplicate_business_number',false,'document_uploaded',true),
+      is_transfer_request=(v_current_owner.studio_id IS NOT NULL),
       status='pending',review_note=NULL,reviewed_by=NULL,reviewed_at=NULL,updated_at=now()
     WHERE id=v_existing_id RETURNING id INTO v_id;
   ELSE
     INSERT INTO public.studio_owner_applications(
       user_id,studio_id,business_registration_number,business_name,representative_name,
-      business_address,document_path,auto_match_status,auto_match_details,status
+      business_address,document_path,auto_match_status,auto_match_details,is_transfer_request,status
     ) VALUES (
       auth.uid(),p_studio_id,v_reg,v_business,v_rep,v_address,p_document_path,
       CASE WHEN v_name_match AND v_address_match THEN 'match' ELSE 'manual_review' END,
       jsonb_build_object('studio_name_match',v_name_match,'studio_address_match',v_address_match,
         'duplicate_business_number',false,'document_uploaded',true),
-      'pending'
+      (v_current_owner.studio_id IS NOT NULL),'pending'
     ) RETURNING id INTO v_id;
   END IF;
   RETURN v_id;
@@ -197,13 +201,22 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION '신청을 찾을 수 없습니다.'; END IF;
   IF v_app.status NOT IN ('pending','needs_info') THEN RAISE EXCEPTION '이미 처리된 신청입니다.'; END IF;
   IF p_decision='approved' THEN
-    IF EXISTS(SELECT 1 FROM public.studio_owners WHERE studio_id=v_app.studio_id OR business_registration_number=v_app.business_registration_number) THEN
-      RAISE EXCEPTION '해당 학원 또는 사업자에 이미 관리자가 등록되어 있습니다.';
+    IF v_app.is_transfer_request THEN
+      UPDATE public.studio_owners SET user_id=v_app.user_id,
+        business_registration_number=v_app.business_registration_number,
+        business_name=v_app.business_name,representative_name=v_app.representative_name,
+        approved_application_id=v_app.id,approved_by=auth.uid(),approved_at=now()
+      WHERE studio_id=v_app.studio_id;
+      IF NOT FOUND THEN RAISE EXCEPTION '교체할 기존 관리자 정보를 찾을 수 없습니다.'; END IF;
+    ELSE
+      IF EXISTS(SELECT 1 FROM public.studio_owners WHERE studio_id=v_app.studio_id OR business_registration_number=v_app.business_registration_number) THEN
+        RAISE EXCEPTION '해당 학원 또는 사업자에 이미 관리자가 등록되어 있습니다.';
+      END IF;
+      INSERT INTO public.studio_owners(studio_id,user_id,business_registration_number,business_name,
+        representative_name,approved_application_id,approved_by)
+      VALUES(v_app.studio_id,v_app.user_id,v_app.business_registration_number,v_app.business_name,
+        v_app.representative_name,v_app.id,auth.uid());
     END IF;
-    INSERT INTO public.studio_owners(studio_id,user_id,business_registration_number,business_name,
-      representative_name,approved_application_id,approved_by)
-    VALUES(v_app.studio_id,v_app.user_id,v_app.business_registration_number,v_app.business_name,
-      v_app.representative_name,v_app.id,auth.uid());
   END IF;
   UPDATE public.studio_owner_applications
   SET status=p_decision,review_note=nullif(trim(coalesce(p_note,'')), ''),
