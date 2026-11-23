@@ -88,6 +88,7 @@ export default function StudioManager(){
  const submitApplication=async()=>{
   if(!supabase||!session){Alert.alert("로그인 필요","로그인 후 신청해 주세요.");return;}
   const isSocial=verificationMethod==="blog"||verificationMethod==="instagram";
+  if(verificationMethod==="phone"&&!profilePhone.trim()){Alert.alert("전화 확인 불가","학원 공개 전화번호가 등록되어 있지 않습니다. 블로그, 인스타그램 또는 직접 확인을 선택해 주세요.");return;}
   if(isSocial&&(!blogUrl.trim()||!blogVerificationCode.trim())){
    Alert.alert("인증 정보 확인","공식 채널 주소와 인증 코드를 입력해 주세요.");return;
   }
