@@ -29,6 +29,7 @@ CREATE UNIQUE INDEX studio_owner_application_active_business_no
   ON public.studio_owner_applications(business_registration_number)
   WHERE status IN ('pending','needs_info');
 DROP INDEX IF EXISTS public.studio_owner_application_one_pending_per_user_studio;
+DROP INDEX IF EXISTS public.studio_owner_application_one_pending_per_studio;
 CREATE UNIQUE INDEX studio_owner_application_one_pending_per_studio
   ON public.studio_owner_applications(studio_id)
   WHERE status IN ('pending','needs_info');
@@ -342,6 +343,36 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.owner_add_studio_gallery_photo(uuid,text) FROM public;
 GRANT EXECUTE ON FUNCTION public.owner_add_studio_gallery_photo(uuid,text) TO authenticated;
+
+-- Keep owner-submitted images visible through the same public app views.
+ALTER TABLE public.studio_public_prices
+  ADD COLUMN IF NOT EXISTS image_urls text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS expires_at date;
+ALTER TABLE public.studio_public_schedules
+  ADD COLUMN IF NOT EXISTS image_urls text[] NOT NULL DEFAULT '{}';
+UPDATE public.studio_public_prices
+SET expires_at=COALESCE(expires_at,source_post_date+180,published_at::date+180)
+WHERE expires_at IS NULL;
+ALTER TABLE public.studio_public_prices
+  ALTER COLUMN expires_at SET DEFAULT (CURRENT_DATE+180),
+  ALTER COLUMN expires_at SET NOT NULL;
+
+CREATE OR REPLACE VIEW public.studio_public_prices_app
+WITH (security_invoker=true) AS
+SELECT p.id,p.studio_id,p.amount_krw,p.price_period,p.frequency_per_week,
+  p.evidence_text,p.source_title,p.source_url,p.source_post_date,p.published_at,
+  p.expires_at,p.image_urls
+FROM public.studio_public_prices p
+WHERE p.is_active=true AND p.expires_at>=CURRENT_DATE;
+GRANT SELECT ON public.studio_public_prices_app TO anon,authenticated;
+
+CREATE OR REPLACE VIEW public.studio_public_schedules_app
+WITH (security_invoker=true) AS
+SELECT s.id,s.studio_id,s.schedule_text,s.evidence_text,s.source_title,s.source_url,
+  s.source_post_date,s.published_at,s.expires_at,s.image_urls
+FROM public.studio_public_schedules s
+WHERE s.is_active=true AND s.expires_at>=CURRENT_DATE;
+GRANT SELECT ON public.studio_public_schedules_app TO anon,authenticated;
 
 COMMENT ON TABLE public.studio_owner_applications IS
   'Business-registration based studio ownership claims. Automatic checks compare submitted business identity/address and prevent duplicate business numbers; a human admin must approve.';
