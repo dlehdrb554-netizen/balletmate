@@ -43,11 +43,12 @@ export default function StudioManager(){
   if(!current){setOwner(false);setApplication(null);setLoading(false);return;}
   const [ownerResult,appResult,studioResult]=await Promise.all([
    supabase.from("studio_owners").select("studio_id").eq("studio_id",studioId).eq("user_id",current.user.id).maybeSingle(),
-   supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+   supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,business_registration_number,business_name,representative_name,business_address,document_path").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
    supabase.from("studios").select("image_urls").eq("id",studioId).maybeSingle()
   ]);
   setOwner(!!ownerResult.data);
   setApplication(appResult.data||null);
+  if(appResult.data){setBusinessNo(appResult.data.business_registration_number||"");setBusinessName(appResult.data.business_name||studioName);setRepresentative(appResult.data.representative_name||"");setBusinessAddress(appResult.data.business_address||"");setDocumentPath(appResult.data.document_path||"");}
   setGalleryCount((studioResult.data?.image_urls||[]).length);
   if(ownerResult.data){
    const [scheduleResult,priceResult,noticeResult]=await Promise.all([
@@ -155,7 +156,7 @@ export default function StudioManager(){
    const {error}=await supabase.from("studio_public_prices").insert({
     candidate_id:null,studio_id:studioId,amount_krw:amount,price_period:pricePeriod.trim(),
     frequency_per_week:frequency,evidence_text:null,source_title:"원장님 직접 등록",
-    source_url:null,source_post_date:null,published_by:session.user.id,is_active:true,image_urls:images
+    source_url:null,source_post_date:null,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true,image_urls:images
    });
    if(error)throw error;
    setPriceAmount("");setPriceFrequency("");Alert.alert("가격 등록 완료","학원 상세 페이지에 가격 정보가 공개됩니다.");await load();
@@ -204,17 +205,17 @@ export default function StudioManager(){
     <View style={s.card}><Text style={s.cardTitle}>등록한 시간표 및 가격</Text>{materials.length?materials.map(item=><View key={item.kind+"-"+item.id} style={s.item}><Text style={s.itemTitle}>{item.kind==="schedule"?"시간표":"가격표"} · {item.kind==="schedule"?item.schedule_text:"₩"+Number(item.amount_krw).toLocaleString("ko-KR")+" · "+item.price_period}</Text><Text style={s.body}>{item.is_active?"공개 중":"비공개"}</Text>{item.is_active&&button("공개 중단",()=>Alert.alert("공개 중단","이 자료를 비공개로 전환할까요?",[{text:"취소",style:"cancel"},{text:"중단",style:"destructive",onPress:()=>deactivateMaterial(item)}]),saving,true)}</View>):<Text style={s.body}>등록한 자료가 없습니다.</Text>}</View>
     <View style={s.card}><Text style={s.cardTitle}>공지사항 관리</Text>{notices.length?notices.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.body}</Text>{button(item.is_active?"공지 숨기기":"공지 다시 공개",()=>toggleNotice(item),saving)}</View>):<Text style={s.body}>등록한 공지사항이 없습니다.</Text>}</View>
    </>
-  :application?
+  :application&&application.status!=="needs_info"?
    <View style={s.card}><Text style={s.cardTitle}>관리 권한 신청 상태</Text><Text style={s.status}>{application.status==="pending"?"운영자 심사 대기":application.status==="needs_info"?"추가 서류 확인 필요":application.status==="approved"?"승인 완료":"반려"}</Text><Text style={s.body}>자동 대조 결과: {application.auto_match_status==="match"?"학원명·주소 일치":"운영자 확인 필요"}</Text>{application.review_note&&<Text style={s.body}>운영자 메모: {application.review_note}</Text>}{application.status==="rejected"&&button("다시 신청하기",()=>setApplication(null))}</View>
   :<View style={s.card}>
-    <Text style={s.cardTitle}>학원 관리자 권한 신청</Text><Text style={s.body}>사업자등록증을 제출하면 입력한 상호·주소와 학원 등록 정보를 자동 대조하고, 사업자번호 중복 여부를 확인합니다. 자동 대조는 참고 결과이며, 서류 원본과 실제 운영 관계는 운영자가 최종 심사합니다.</Text>
+    <Text style={s.cardTitle}>{application?.status==="needs_info"?"추가 정보 제출":"학원 관리자 권한 신청"}</Text>{application?.status==="needs_info"&&<Text style={s.body}>운영자가 추가 확인을 요청했습니다. 보완한 정보와 서류를 다시 제출해 주세요. {application.review_note||""}</Text>}<Text style={s.body}>사업자등록증을 제출하면 입력한 상호·주소와 학원 등록 정보를 자동 대조하고, 사업자번호 중복 여부를 확인합니다. 자동 대조는 참고 결과이며, 서류 원본과 실제 운영 관계는 운영자가 최종 심사합니다.</Text>
     {field("사업자등록번호 *",businessNo,setBusinessNo,"000-00-00000","number-pad")}
     {field("사업자등록증 상호 *",businessName,setBusinessName,"등록증에 표시된 상호")}
     {field("대표자명 *",representative,setRepresentative,"대표자 성명")}
     {field("사업장 주소 *",businessAddress,setBusinessAddress,"사업자등록증에 표시된 주소")}
     {button(documentPath?"사업자등록증 업로드 완료 · 다시 선택":"사업자등록증 사진 업로드 *",chooseCertificate,saving)}
     {!!documentPath&&<Text style={s.body}>비공개 저장소에 업로드됨 · {documentPath.split("/").pop()}</Text>}
-    {button("운영자 심사 신청",submitApplication,saving||!documentPath)}
+    {button(application?.status==="needs_info"?"보완 정보 다시 제출":"운영자 심사 신청",submitApplication,saving||!documentPath)}
    </View>}
  </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
