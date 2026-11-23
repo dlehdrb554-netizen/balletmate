@@ -36,7 +36,8 @@ SET eligible = is_open AND (
     END,
     updated_at = now();
 
-CREATE OR REPLACE VIEW public.neis_ballet_candidate_review
+DROP VIEW IF EXISTS public.neis_ballet_candidate_review;
+CREATE VIEW public.neis_ballet_candidate_review
 WITH (security_invoker = true) AS
 SELECT
   c.id, c.academy_name, c.district_name, c.address, c.academy_phone,
