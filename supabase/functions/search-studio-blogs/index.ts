@@ -381,7 +381,7 @@ Deno.serve(async (req) => {
             hasOfficialOperationSignal(sample.title + " " + sample.description) &&
             /(발레|바레|무용)/i.test(accountName + " " + sample.title + " " + sample.description)
           ).length;
-          const targetHasBranch = branchHints(String(job.studio_name)).length > 0;
+          const targetHasBranch = Boolean(splitStudioName(String(job.studio_name)).branchRaw);
           const locationReady = targetHasBranch ? branchEvidence : locationEvidence;
           const score = !branchSafe || locationConflict ? 0 :
             identityEvidence && operationPostCount >= 2 && branchEvidence && locationReady ? 96 :
