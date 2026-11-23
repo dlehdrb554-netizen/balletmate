@@ -87,14 +87,24 @@ Deno.serve(async (req) => {
     let requestCount = 0;
     const errors: string[] = [];
     try {
+      // Resolve verified accounts by stable studio_id first; studio_name is only a legacy fallback.
       const { data: officialRows, error: officialError } = await db.from("studio_blog_official_accounts")
         .select("blogger_url")
-        .eq("studio_name", String(job.studio_name))
+        .eq("studio_id", job.studio_id)
         .eq("is_active", true);
       if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
-      const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
+      let officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
+      if (!officialAccounts.length) {
+        const { data: legacyRows, error: legacyError } = await db.from("studio_blog_official_accounts")
+          .select("blogger_url")
+          .is("studio_id", null)
+          .eq("studio_name", String(job.studio_name))
+          .eq("is_active", true);
+        if (legacyError) throw new Error("기존 공식 블로그 계정 조회 실패: " + legacyError.message);
+        officialAccounts = (legacyRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
+      }
       const {data:kakaoCandidates,error:kakaoCandidateError}=await db.from("studio_blog_account_candidates")
-        .select("blogger_url").eq("studio_id",job.studio_id).eq("review_status","pending").gte("match_score",95).limit(5);
+        .select("blogger_url").eq("studio_id",job.studio_id).in("review_status",["pending","approved"]).gte("match_score",95).limit(5);
       if(kakaoCandidateError)throw new Error("카카오 블로그 후보 조회 실패: "+kakaoCandidateError.message);
       const kakaoSeedAccounts=(kakaoCandidates??[]).map((row:{blogger_url:string})=>row.blogger_url);
       const knownAccounts=[...officialAccounts,...kakaoSeedAccounts];
@@ -110,10 +120,14 @@ Deno.serve(async (req) => {
           if(rssRows.length){const {data,error}=await db.from("studio_blog_sources").upsert(rssRows,{onConflict:"studio_id,post_url",ignoreDuplicates:true}).select("id");if(error)throw new Error("RSS 게시물 저장 실패: "+error.message);saved+=data?.length??0;}
         }catch(rssError){errors.push("RSS("+blogAccountKey(accountUrl)+"): "+(rssError instanceof Error?rssError.message:"fetch failed"));}
       }
-      // Academy-name queries get priority so known account IDs cannot crowd them out.
+      // Official RSS is the first source of truth. If it already found relevant recent posts,
+      // let the post crawler inspect those posts and avoid spending Naver Search API quota.
+      // Otherwise query known official accounts first, then use one academy-name fallback.
       const academyQueries=[...new Set(SEARCH_SUFFIXES.map((suffix)=>suffix?studioQuery+" "+suffix:studioQuery))];
       const accountQueries=[...new Set(knownAccounts.map(blogAccountKey).filter(Boolean))];
-      const searchQueries=[...academyQueries.slice(0,6),...accountQueries.slice(0,2)];
+      const searchQueries=officialRssRelevant > 0
+        ? []
+        : [...accountQueries.slice(0,2), ...academyQueries.slice(0,1)];
       if (/(퀸스|퀸즈)/.test(studioQuery)) searchQueries.push(studioQuery.replace(/퀸스/g,"퀸즈"),studioQuery.replace(/퀸즈/g,"퀸스"),"퀸즈발레","퀸스발레","Queens Ballet","Queen's Ballet");
       if (/더블유|\\bW\\b|wballet/i.test(studioQuery)) searchQueries.push("더블유발레","W발레","wballet","W ballet");
       for (const query of [...new Set(searchQueries)].slice(0, 8)) {
