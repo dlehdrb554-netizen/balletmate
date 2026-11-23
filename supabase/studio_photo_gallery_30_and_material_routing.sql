@@ -1,6 +1,10 @@
 -- Balletmate photo routing and 30-slot gallery correction.
 -- Run once in Supabase SQL Editor. Safe to rerun.
 
+-- Ensure the material tables can hold their own supporting images.
+ALTER TABLE public.studio_public_schedules ADD COLUMN IF NOT EXISTS image_urls text[] NOT NULL DEFAULT '{}';
+ALTER TABLE public.studio_public_prices ADD COLUMN IF NOT EXISTS image_urls text[] NOT NULL DEFAULT '{}';
+
 CREATE OR REPLACE FUNCTION public.admin_manual_classify_studio_photo_candidate(
   p_candidate_id bigint,
   p_category text
