@@ -333,8 +333,8 @@ Deno.serve(async (req) => {
           const postText = title + " " + description;
           const postNorm = normalize(postText);
           const bloggerNorm = normalize(bloggerName);
-          const directName = bloggerNorm.includes(alias);
-          const directPost = postNorm.includes(alias);
+          const directName = nameMatches(String(job.studio_name), bloggerName);
+          const directPost = nameMatches(String(job.studio_name), postText);
           if (!directName && !directPost) continue;
           const existing = accountCandidates.get(accountKey) || {
             blogger_url: canonicalUrl, blogger_name: bloggerName || null, samples: [],
