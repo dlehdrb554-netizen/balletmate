@@ -37,6 +37,7 @@ export default function StudioManager(){
  const [noticeBody,setNoticeBody]=useState("");
  const [materials,setMaterials]=useState<any[]>([]);
  const [notices,setNotices]=useState<any[]>([]);
+ const [editHistory,setEditHistory]=useState<any[]>([]);
 
  const load=useCallback(async()=>{
   if(!supabase||!studioId){setLoading(false);return;}
@@ -56,13 +57,14 @@ export default function StudioManager(){
   setGalleryCount((studioResult.data?.image_urls||[]).length);
   if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
   if(ownerResult.data){
-   const [scheduleResult,priceResult,noticeResult]=await Promise.all([
+   const [scheduleResult,priceResult,noticeResult,historyResult]=await Promise.all([
     supabase.from("studio_public_schedules").select("id,schedule_text,image_urls,is_active,published_at,candidate_id").eq("studio_id",studioId).is("candidate_id",null).order("published_at",{ascending:false}).limit(20),
     supabase.from("studio_public_prices").select("id,amount_krw,price_period,image_urls,is_active,published_at,candidate_id").eq("studio_id",studioId).is("candidate_id",null).order("published_at",{ascending:false}).limit(20),
-    supabase.from("studio_owner_notices").select("id,title,body,is_active,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20)
+    supabase.from("studio_owner_notices").select("id,title,body,is_active,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20),
+    supabase.from("studio_owner_edit_history").select("id,entity,action,changed_fields,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20)
    ]);
    setMaterials([...(scheduleResult.data||[]).map(x=>({...x,kind:"schedule"})),...(priceResult.data||[]).map(x=>({...x,kind:"price"}))]);
-   setNotices(noticeResult.data||[]);
+   setNotices(noticeResult.data||[]);setEditHistory(historyResult.error?[]:(historyResult.data||[]));
   }
   setLoading(false);
  },[studioId]);
