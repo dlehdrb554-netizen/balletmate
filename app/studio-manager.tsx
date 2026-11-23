@@ -139,7 +139,18 @@ export default function StudioManager(){
   finally{setSaving(false);}
  };
 
- const registerPhotoUrl=async()=>{\n  const url=photoUrl.trim();\n  if(!supabase||!owner)return;\n  if(!/^https:\\/\\//i.test(url)){Alert.alert("URL 확인","https://로 시작하는 사진 주소를 입력해 주세요.");return;}\n  if(galleryCount>=30){Alert.alert("사진 등록 한도","학원 대표 사진은 최대 30장까지 등록할 수 있습니다.");return;}\n  setSaving(true);\n  try{const {error}=await supabase.rpc("owner_add_studio_gallery_photo",{p_studio_id:studioId,p_image_url:url});if(error)throw error;const refreshed=await supabase.from("studios").select("image_urls").eq("id",studioId).maybeSingle();if(refreshed.error)throw refreshed.error;setGalleryUrls(refreshed.data?.image_urls||[]);setGalleryCount((refreshed.data?.image_urls||[]).length);setPhotoUrl("");Alert.alert("사진 등록 완료","입력한 URL 사진을 등록했습니다.");}\n  catch(e:any){Alert.alert("사진 등록 실패",e.message||"사진 URL을 등록하지 못했습니다.");}\n  finally{setSaving(false);}\n };\n\n const setPrimaryPhoto=async(url:string)=>{
+ const registerPhotoUrl=async()=>{
+  const url=photoUrl.trim();
+  if(!supabase||!owner)return;
+  if(!url.toLowerCase().startsWith("https://")){Alert.alert("URL 확인","https://로 시작하는 사진 주소를 입력해 주세요.");return;}
+  if(galleryCount>=30){Alert.alert("사진 등록 한도","학원 대표 사진은 최대 30장까지 등록할 수 있습니다.");return;}
+  setSaving(true);
+  try{const {error}=await supabase.rpc("owner_add_studio_gallery_photo",{p_studio_id:studioId,p_image_url:url});if(error)throw error;const refreshed=await supabase.from("studios").select("image_urls").eq("id",studioId).maybeSingle();if(refreshed.error)throw refreshed.error;setGalleryUrls(refreshed.data?.image_urls||[]);setGalleryCount((refreshed.data?.image_urls||[]).length);setPhotoUrl("");Alert.alert("사진 등록 완료","입력한 URL 사진을 등록했습니다.");}
+  catch(e:any){Alert.alert("사진 등록 실패",e.message||"사진 URL을 등록하지 못했습니다.");}
+  finally{setSaving(false);}
+ };
+
+ const setPrimaryPhoto=async(url:string)=>{
   if(!supabase||!owner||galleryUrls[0]===url)return;
   setSaving(true);
   try{
