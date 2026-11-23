@@ -41,7 +41,7 @@ BEGIN
       current_images:=array_append(current_images,candidate.image_url);
       UPDATE public.studios SET image_urls=current_images,
         image_source_name=COALESCE(NULLIF(image_source_name,''),candidate.source_host,'관리자 수동 분류'),
-        image_usage_note=COALESCE(NULLIF(image_usage_note,''),'발레 관련 사진으로 관리자 분류. 출처: '||candidate.source_page_url),
+        image_usage_note=COALESCE(NULLIF(image_usage_note,''),'발레 관련 사진 또는 학원 로고로 관리자 분류. 출처: '||candidate.source_page_url),
         updated_at=now()
       WHERE id=candidate.studio_id;
     END IF;
