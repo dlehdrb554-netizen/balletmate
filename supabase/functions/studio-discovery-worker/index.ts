@@ -94,7 +94,7 @@ Deno.serve(async(req)=>{
  let existingKakaoChecks=0,existingKakaoBlogs=0;
  const {data:backfillRows,error:backfillError}=await db.from("studios")
   .select("id,name,source_url,kakao_place_blog_attempted_at")
-  .eq("is_active",true).like("source_url","https://place.map.kakao.com/%")
+  .eq("is_active",true).or("source_url.like.http://place.map.kakao.com/%,source_url.like.https://place.map.kakao.com/%")
   .is("kakao_place_blog_checked_at",null)
   .or("kakao_place_blog_attempted_at.is.null,kakao_place_blog_attempted_at.lt."+new Date(Date.now()-24*60*60*1000).toISOString())
   .order("kakao_place_blog_attempted_at",{ascending:true,nullsFirst:true}).limit(6);
