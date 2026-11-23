@@ -148,10 +148,14 @@ export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
   const existing = inFlightStudioSearches.get(key);
   if (existing) return existing;
 
-  const request = fetchStudiosInternal(bounds)
+  const requestsBeforeStart = networkSearches;
+  const pendingRequest = fetchStudiosInternal(bounds);
+  // The async function reserves its quota synchronously before its first await.
+  const reservedQuota = networkSearches > requestsBeforeStart;
+  const request = pendingRequest
     .catch((error) => {
       // A transient network/DB failure should not consume the user's session quota.
-      networkSearches = Math.max(0, networkSearches - 1);
+      if (reservedQuota) networkSearches = Math.max(0, networkSearches - 1);
       throw error;
     })
     .finally(() => {
