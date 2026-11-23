@@ -939,10 +939,10 @@ export default function Admin() {
   const uploadMaterialPhotos=async(kind:"price"|"schedule",record:any)=>{
     if(!supabase)return;
     const existing=Array.isArray(record.image_urls)?record.image_urls:[];
-    if(existing.length>=30){Alert.alert("사진 등록 한도","가격·시간표 자료는 한 묶음에 최대 30장까지 등록할 수 있습니다.");return;}
+    if(existing.length>=8){Alert.alert("사진 등록 한도","가격·시간표 자료는 한 묶음에 최대 8장까지 등록할 수 있습니다.");return;}
     const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
     if(!permission.granted){Alert.alert("사진 권한","사진 보관함 접근 권한을 허용해 주세요.");return;}
-    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:30-existing.length,quality:1});
+    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:8-existing.length,quality:1});
     if(picked.canceled||!picked.assets?.length)return;
     setEvidenceBusy(true);
     const uploadedPaths:string[]=[];
