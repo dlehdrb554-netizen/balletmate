@@ -82,7 +82,7 @@ function academyAliases(studioName: string): string[] {
   return [...new Set([full, branchless, stripGeneric(full), stripGeneric(branchless)].filter(x => x.length >= 3))];
 }
 function academyAlias(studioName: string): string {
-  return academyAliases(studioName).sort((a,b)=>b.length-a.length)[0] || "";
+  return academyAliases(studioName).sort((a,b)=>a.length-b.length)[0] || "";
 }
 function nameMatches(studioName: string, text: string): boolean {
   const normalizedText = normalize(text);
