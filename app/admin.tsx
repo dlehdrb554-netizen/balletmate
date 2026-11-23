@@ -442,13 +442,14 @@ export default function Admin() {
   };
 
   const searchStudiosServer=async()=>{
-    if(!supabase||busy)return;
+    const client=supabase;
+    if(!client||busy)return;
     const term=studioSearch.trim().replace(/[%,_(),]/g," ").replace(/\\s+/g," ").trim();
     const compact=term.replace(/\\s+/g,"");
     setStudioAppliedSearch(term);setStudioSearch(term);
     setBusy(true);
     try{
-      const baseQuery=()=>supabase.from("studios").select(studioColumns);
+      const baseQuery=()=>client.from("studios").select(studioColumns);
       // 이름/지역/주소의 일부 단어 및 띄어쓰기 없는 검색도 지원. 2글자 조각으로도 검색.
       const searchTerms=[...new Set([term,...term.split(" ").filter(Boolean),...(compact.length>2?compact.match(/.{1,2}/g)||[]:[])].filter(v=>v.length>=1))];
       let combined:any[]=[];
