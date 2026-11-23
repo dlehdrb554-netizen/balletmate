@@ -107,7 +107,7 @@ export default function Account(){
  const connected=(provider:string)=>identities.some(identity=>identity.provider===provider);
 
  return <SafeAreaView style={s.safe}>
-  <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}>
+  <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}>
    <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
     <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
     <Text style={s.brand}>Balletmate<Text style={{color:C.purple}}>.</Text></Text>
