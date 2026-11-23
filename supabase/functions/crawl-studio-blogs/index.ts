@@ -338,7 +338,10 @@ Deno.serve(async (req) => {
         results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "본문에서 학원 관련성 미확인" });
         continue;
       }
-      const images = extractImages(html, pageUrl);
+      // Photos are collected only from an academy's verified official Naver blog.
+      // Third-party posts may still contribute text/evidence, but never enter the
+      // photo candidate queue or consume Cloudflare Vision capacity.
+      const images = officialMatch ? extractImages(html, pageUrl) : [];
       let photoCandidateWarning: string | null = null;
       if (images.length) {
         const photoCandidates = images.map((image_url) => ({
@@ -349,27 +352,10 @@ Deno.serve(async (req) => {
           source_host: postUrl.hostname,
           review_status: "pending",
         }));
-        const { data: queuedPhotos, error: photoError } = await db.from("studio_photo_candidates")
-          .upsert(photoCandidates, { onConflict: "studio_id,image_url", ignoreDuplicates: true })
-          .select("id");
+        const { error: photoError } = await db.from("studio_photo_candidates")
+          .upsert(photoCandidates, { onConflict: "studio_id,image_url", ignoreDuplicates: true });
         if (photoError) photoCandidateWarning = photoError.message;
-        else if (queuedPhotos?.length) {
-          // Newly discovered blog photos are analyzed and published/excluded immediately.
-          const classifierEndpoint = url.replace(/\/$/, "") + "/functions/v1/classify-studio-photo";
-          let aiProcessed = 0, aiFailed = 0;
-          for (const photo of queuedPhotos) {
-            try {
-              const vision = await fetch(classifierEndpoint, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key, "x-photo-auto-secret": key },
-                body: JSON.stringify({ candidateId: photo.id }),
-                signal: AbortSignal.timeout(25000),
-              });
-              if (vision.ok) aiProcessed++; else aiFailed++;
-            } catch { aiFailed++; }
-          }
-          photoCandidateWarning = "AI 자동 분류 " + aiProcessed + "장" + (aiFailed ? " (실패 " + aiFailed + "장)" : "");
-        }
+        else photoCandidateWarning = "공식 블로그 사진 " + images.length + "장 Vision 대기열 등록";
       }
       const prices = evidence(textBody, "price");
       const schedules = evidence(textBody, "schedule");
