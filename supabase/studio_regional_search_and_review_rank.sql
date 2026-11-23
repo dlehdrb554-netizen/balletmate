@@ -3,19 +3,33 @@ CREATE TABLE IF NOT EXISTS public.studio_detail_view_events (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   studio_id uuid NOT NULL REFERENCES public.studios(id) ON DELETE CASCADE,
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  event_date date
 );
 CREATE INDEX IF NOT EXISTS studio_detail_view_events_studio_time_idx ON public.studio_detail_view_events(studio_id,created_at DESC);
+ALTER TABLE public.studio_detail_view_events ADD COLUMN IF NOT EXISTS event_date date;
+UPDATE public.studio_detail_view_events SET event_date=(created_at AT TIME ZONE 'Asia/Seoul')::date WHERE event_date IS NULL;
+DELETE FROM public.studio_detail_view_events a USING public.studio_detail_view_events b
+ WHERE a.user_id=b.user_id AND a.studio_id=b.studio_id AND a.event_date=b.event_date AND a.id>b.id
+   AND a.user_id IS NOT NULL;
+ALTER TABLE public.studio_detail_view_events ALTER COLUMN event_date SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS studio_detail_view_events_user_studio_day_uidx
+ ON public.studio_detail_view_events(user_id,studio_id,event_date);
 ALTER TABLE public.studio_detail_view_events ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.studio_detail_view_events FROM anon,authenticated;
 
 CREATE OR REPLACE FUNCTION public.record_studio_detail_view(p_studio_id uuid)
-RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+DECLARE v_inserted integer;
 BEGIN
  IF auth.uid() IS NULL OR NOT EXISTS(SELECT 1 FROM public.studios WHERE id=p_studio_id AND coalesce(is_active,true)) THEN RETURN false; END IF;
- IF EXISTS(SELECT 1 FROM public.studio_detail_view_events WHERE user_id=auth.uid() AND studio_id=p_studio_id AND created_at>now()-interval '24 hours') THEN RETURN false; END IF;
- INSERT INTO public.studio_detail_view_events(user_id,studio_id) VALUES(auth.uid(),p_studio_id); RETURN true;
-END; $$;
+ DELETE FROM public.studio_detail_view_events WHERE created_at<now()-interval '30 days';
+ INSERT INTO public.studio_detail_view_events(user_id,studio_id,event_date)
+ VALUES(auth.uid(),p_studio_id,(now() AT TIME ZONE 'Asia/Seoul')::date)
+ ON CONFLICT(user_id,studio_id,event_date) DO NOTHING;
+ GET DIAGNOSTICS v_inserted=ROW_COUNT;
+ RETURN v_inserted>0;
+END; $;
 REVOKE ALL ON FUNCTION public.record_studio_detail_view(uuid) FROM public,anon;
 GRANT EXECUTE ON FUNCTION public.record_studio_detail_view(uuid) TO authenticated;
 
