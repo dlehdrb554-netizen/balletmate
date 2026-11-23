@@ -1,7 +1,10 @@
 -- READ-ONLY historical candidate reassessment preview.
--- No rows are approved, rejected, deactivated, or modified by this script.
--- It combines saved candidate samples with studio_blog_sources and applies
--- conservative ownership, branch, and location evidence before any auto-approval.
+-- Covers pending AND already-approved candidates, and merges saved samples with
+-- studio_blog_sources. No database records are modified.
+-- Location comparison uses administrative units found in public.studios.address;
+-- ambiguous neighbourhood names are not hard-coded as location evidence.
+-- Different location/branch mentions are HOLD signals, not automatic BLOCKs,
+-- because a post can discuss a performance or another branch as context.
 
 WITH pending AS (
   SELECT
@@ -17,42 +20,46 @@ WITH pending AS (
     c.matched_post_count AS old_matched_post_count,
     c.review_status,
     COALESCE(c.sample_posts, '[]'::jsonb) AS sample_posts,
-    (regexp_match(c.studio_name, '([가-힣]{2,8})(?:본점|지점|점)$'))[1] AS target_branch,
+    (regexp_match(c.studio_name,
+      '(?:^|[[:space:]])([가-힣]{2,8}?)(?:본점|지점|점)$'))[1] AS target_branch,
     regexp_replace(
       regexp_replace(
-        regexp_replace(lower(c.studio_name), '[^a-z0-9가-힣]', '', 'g'),
-        '([가-힣]{2,8})(?:본점|지점|점)$', '', 'g'
+        lower(regexp_replace(c.studio_name,
+          '[[:space:]]+[가-힣]{2,8}?(?:본점|지점|점)$', '')),
+        '[^a-z0-9가-힣]', '', 'g'
       ),
       '(무용학원|발레학원|발레아카데미|무용아카데미|스튜디오|아카데미|학원|센터|교습소|본점|지점|점|키즈|성인|발레|무용)+$',
       '', 'g'
-    ) AS academy_alias
+    ) AS stripped_brand_alias,
+    regexp_replace(lower(c.studio_name), '[^a-z0-9가-힣]', '', 'g') AS full_name_norm
   FROM public.studio_blog_account_candidates c
-  JOIN public.studios s ON s.id = c.studio_id
-  WHERE c.review_status = 'pending'
+  LEFT JOIN public.studios s ON s.id = c.studio_id
+  WHERE c.review_status IN ('pending','approved')
+),
+prepared AS (
+  SELECT p.*,
+    CASE WHEN length(p.stripped_brand_alias) >= 3
+      THEN p.stripped_brand_alias ELSE p.full_name_norm END AS academy_alias
+  FROM pending p
 ),
 candidate_posts AS (
   SELECT
-    p.candidate_id,
-    p.studio_id,
-    p.account_key,
-    p.blogger_name,
+    p.candidate_id, p.studio_id, p.account_key, p.blogger_name,
     COALESCE(item->>'post_url', '') AS post_url,
     COALESCE(item->>'title', '') AS title,
     COALESCE(item->>'description', '') AS description,
     'sample'::text AS evidence_source
-  FROM pending p
+  FROM prepared p
   CROSS JOIN LATERAL jsonb_array_elements(p.sample_posts) AS item
   UNION ALL
   SELECT
-    p.candidate_id,
-    p.studio_id,
-    p.account_key,
+    p.candidate_id, p.studio_id, p.account_key,
     COALESCE(b.blogger_name, p.blogger_name),
     COALESCE(b.post_url, ''),
     COALESCE(b.title, ''),
     COALESCE(b.description, ''),
     'source'::text
-  FROM pending p
+  FROM prepared p
   JOIN public.studio_blog_sources b
     ON b.studio_id = p.studio_id
    AND lower(split_part(regexp_replace(b.blogger_url,
@@ -74,22 +81,32 @@ post_rollup AS (
       WHERE (p.title || ' ' || p.description) ~*
         '(시간표|스케줄|수강료|교습비|수업안내|강좌안내|신규회원|회원모집|원생모집|학생모집|입학|개강|상담|등록|강사진|강사소개|오픈|개원|공지|정규반|초등부모집|유아부모집|작품반모집)'
         AND (p.blogger_name || ' ' || p.title || ' ' || p.description) ~*
-        '(발레|바레|발레핏|파드되|토슈즈|바가노바|바워크|포인트슈즈|무용|댄스|폴댄스|현대무용|한국무용|실용무용)'
+        '(발레|바레|무용)'
     )::integer AS official_operation_post_count,
     count(DISTINCT p.post_url) FILTER (
-      WHERE length(regexp_replace(lower(p.title || ' ' || p.description),
-        '[^a-z0-9가-힣]', '', 'g')) >= 1
-    )::integer AS distinct_post_count,
+      WHERE (p.blogger_name || ' ' || p.title || ' ' || p.description) ~*
+        '(발레|바레|무용)'
+    )::integer AS ballet_related_post_count,
     string_agg(DISTINCT p.blogger_name, ' ') AS observed_blogger_names,
     string_agg(DISTINCT p.title || ' ' || p.description, ' ') AS post_evidence
   FROM dedup_posts p
   GROUP BY p.candidate_id
+),
+admin_area_tokens AS (
+  SELECT DISTINCT (m.parts)[1] AS area_token
+  FROM public.studios s
+  CROSS JOIN LATERAL regexp_matches(
+    COALESCE(s.address, ''),
+    '([가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구))',
+    'g'
+  ) AS m(parts)
 ),
 evidence AS (
   SELECT
     p.*,
     COALESCE(r.unique_post_count, 0) AS unique_post_count,
     COALESCE(r.official_operation_post_count, 0) AS official_operation_post_count,
+    COALESCE(r.ballet_related_post_count, 0) AS ballet_related_post_count,
     COALESCE(r.observed_blogger_names, '') AS observed_blogger_names,
     COALESCE(r.post_evidence, '') AS post_evidence,
     concat_ws(' ', p.blogger_name, r.observed_blogger_names, r.post_evidence) AS evidence_text,
@@ -98,7 +115,7 @@ evidence AS (
     regexp_replace(lower(concat_ws(' ', p.blogger_name, r.observed_blogger_names, r.post_evidence)),
       '[^a-z0-9가-힣]', '', 'g') AS evidence_norm,
     regexp_replace(lower(p.academy_alias), '[^a-z0-9가-힣]', '', 'g') AS alias_norm
-  FROM pending p
+  FROM prepared p
   LEFT JOIN post_rollup r ON r.candidate_id = p.candidate_id
 ),
 evaluated AS (
@@ -107,7 +124,17 @@ evaluated AS (
     (
       length(e.alias_norm) >= 3
       AND (
-        position(e.alias_norm IN e.blogger_name_norm) > 0
+        (
+          position(e.alias_norm IN e.blogger_name_norm) > 0
+          AND (
+            left(e.alias_norm, 1) !~ '[a-z0-9]'
+            OR substring(e.blogger_name_norm FROM position(e.alias_norm IN e.blogger_name_norm) - 1 FOR 1) !~ '[a-z0-9]'
+          )
+          AND (
+            right(e.alias_norm, 1) !~ '[a-z0-9]'
+            OR substring(e.blogger_name_norm FROM position(e.alias_norm IN e.blogger_name_norm) + length(e.alias_norm) FOR 1) !~ '[a-z0-9]'
+          )
+        )
         OR (
           SELECT count(DISTINCT d.post_url)
           FROM dedup_posts d
@@ -117,6 +144,7 @@ evaluated AS (
         ) >= 2
       )
     ) AS identity_evidence,
+    (e.evidence_text ~* '(발레|바레|무용)') AS ballet_evidence,
     CASE
       WHEN e.target_branch IS NULL THEN true
       ELSE position(regexp_replace(lower(e.target_branch), '[^a-z0-9가-힣]', '', 'g')
@@ -126,37 +154,34 @@ evaluated AS (
       WHEN e.target_branch IS NULL THEN false
       ELSE EXISTS (
         SELECT 1
-        FROM regexp_matches(e.evidence_text, '([가-힣]{2,8})(?:본점|지점|점)', 'g') AS branch_match(parts)
-        WHERE regexp_replace(branch_match.parts[1], '본$', '') <> e.target_branch
+        FROM regexp_matches(e.evidence_text,
+          '(?:^|[[:space:][:punct:]])([가-힣]{2,8}?)(?:본점|지점|점)(?:$|[[:space:][:punct:]])',
+          'g') AS branch_match(parts)
+        WHERE branch_match.parts[1] !~ '(장|단|차이|문제|시작|출발|기준|공통|합격|평|특징|강|약|관점|결정|종착|접점|초점|시점)$'
+          AND regexp_replace(branch_match.parts[1], '본$', '') <> e.target_branch
           AND position(regexp_replace(branch_match.parts[1], '본$', '') IN e.target_branch) = 0
           AND position(e.target_branch IN regexp_replace(branch_match.parts[1], '본$', '')) = 0
       )
     END AS different_branch_evidence,
     EXISTS (
       SELECT 1
-      FROM regexp_matches(e.studio_address, '[가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구)', 'g') AS unit(parts)
-      WHERE position(
-        regexp_replace(unit.parts[1], '(특별자치도|특별자치시|광역시|특별시|자치시|시|군|구)$', '')
-        IN e.evidence_norm
-      ) > 0
-    ) OR (
-      e.studio_address ~ '^(서울|인천|부산|대구|대전|광주|울산|세종|제주)'
-      AND position(substring(e.studio_address from '^(서울|인천|부산|대구|대전|광주|울산|세종|제주)')
-        IN e.evidence_norm) > 0
+      FROM regexp_matches(e.studio_address,
+        '([가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구))',
+        'g') AS unit(parts)
+      WHERE position(unit.parts[1] IN e.evidence_text) > 0
     ) AS location_evidence,
     EXISTS (
       SELECT 1
-      FROM (VALUES
-        ('서초'),('안양'),('평촌'),('청주'),('천안'),('오산'),('부평'),
-        ('강남'),('노원'),('전주'),('잠실'),('천호'),('분당'),('동탄'),
-        ('평택'),('의정부'),('미아'),('보라매'),('마곡'),('마포'),('세종'),
-        ('구월'),('만성'),('다산'),('군포'),('부천'),('수원'),('성남'),
-        ('울산'),('부산'),('대구'),('인천'),('서울'),('고양')
-      ) AS locations(token)
-      WHERE position(locations.token IN e.evidence_norm) > 0
-        AND position(locations.token IN
-          regexp_replace(lower(e.studio_address), '[^a-z0-9가-힣]', '', 'g')) = 0
-    ) AS conflicting_location_evidence,
+      FROM admin_area_tokens a
+      WHERE position(a.area_token IN e.evidence_text) > 0
+        AND NOT EXISTS (
+          SELECT 1
+          FROM regexp_matches(e.studio_address,
+            '([가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구))',
+            'g') AS own_unit(parts)
+          WHERE own_unit.parts[1] = a.area_token
+        )
+    ) AS different_admin_area_mentioned,
     EXISTS (
       SELECT 1
       FROM public.studio_blog_official_accounts o
@@ -173,8 +198,9 @@ decisions AS (
     v.*,
     CASE
       WHEN owned_by_another_studio THEN 'BLOCK_OTHER_STUDIO_OWNERSHIP'
-      WHEN different_branch_evidence THEN 'BLOCK_DIFFERENT_BRANCH'
-      WHEN conflicting_location_evidence THEN 'BLOCK_DIFFERENT_LOCATION'
+      WHEN different_branch_evidence THEN 'HOLD_DIFFERENT_BRANCH_MENTIONED'
+      WHEN different_admin_area_mentioned THEN 'HOLD_DIFFERENT_ADMIN_AREA_MENTIONED'
+      WHEN NOT ballet_evidence THEN 'HOLD_NO_BALLET_EVIDENCE'
       WHEN NOT identity_evidence THEN 'HOLD_WEAK_ACADEMY_IDENTITY'
       WHEN official_operation_post_count < 2 THEN 'HOLD_INSUFFICIENT_OFFICIAL_OPERATIONS'
       WHEN target_branch IS NOT NULL AND NOT target_branch_evidence THEN 'HOLD_BRANCH_NOT_PROVEN'
@@ -185,20 +211,25 @@ decisions AS (
 )
 SELECT
   candidate_id,
+  studio_id,
   studio_name,
   studio_address,
   blogger_url,
   blogger_name,
+  review_status,
   old_match_score,
   old_matched_post_count,
   unique_post_count,
+  ballet_related_post_count,
   official_operation_post_count,
+  academy_alias,
   identity_evidence,
+  ballet_evidence,
   target_branch,
   target_branch_evidence,
   different_branch_evidence,
   location_evidence,
-  conflicting_location_evidence,
+  different_admin_area_mentioned,
   owned_by_another_studio,
   reassessment_decision,
   evidence_text
@@ -210,5 +241,13 @@ ORDER BY
   unique_post_count DESC,
   candidate_id;
 
--- Decision distribution. This second SELECT repeats the same preview CTEs
--- when run independently; use the first result for row-level evidence.
+-- Separate distribution summary, intentionally standalone for easy SQL Editor use.
+SELECT
+  review_status,
+  count(*) AS candidate_count,
+  count(*) FILTER (WHERE sample_posts IS NOT NULL) AS with_sample_payload,
+  count(*) FILTER (WHERE blogger_name IS NOT NULL AND blogger_name <> '') AS with_blogger_name
+FROM public.studio_blog_account_candidates
+WHERE review_status IN ('pending','approved')
+GROUP BY review_status
+ORDER BY review_status;
