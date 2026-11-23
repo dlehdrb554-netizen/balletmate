@@ -117,7 +117,7 @@ const dedupeStudioRows=(input:any[])=>{
 };
 
 export default function Admin() {
-  const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios">("overview");
+  const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios"|"owners">("overview");
   const adminScrollRef=useRef<ScrollView>(null);
   const studioEditPanelY=useRef(0);
   const [studioActionId,setStudioActionId]=useState<string|null>(null);
@@ -128,6 +128,8 @@ export default function Admin() {
   const [checking,setChecking]=useState(true);
   const [busy,setBusy]=useState(false);
   const [rows,setRows]=useState<StudioRow[]>([]);
+  const [ownerApplications,setOwnerApplications]=useState<any[]>([]);
+  const [ownerReviewBusy,setOwnerReviewBusy]=useState(false);
   const [failedStudioThumbIds,setFailedStudioThumbIds]=useState<string[]>([]);
   const [photoCandidateRows,setPhotoCandidateRows]=useState<any[]>([]);
   const [photoReviewBusy,setPhotoReviewBusy]=useState(false);
@@ -700,6 +702,41 @@ export default function Admin() {
     ]);
   };
 
+  const loadOwnerApplications=useCallback(async()=>{
+    if(!supabase||!authorized)return;
+    setOwnerReviewBusy(true);
+    const {data,error}=await supabase.from("studio_owner_applications")
+      .select("id,user_id,studio_id,business_registration_number,business_name,representative_name,business_address,document_path,auto_match_status,auto_match_details,status,review_note,created_at")
+      .in("status",["pending","needs_info"]).order("created_at",{ascending:true}).limit(100);
+    if(error){Alert.alert("원장 신청 조회 실패",error.message);setOwnerApplications([]);}
+    else{
+      const applications=data||[];const ids=[...new Set(applications.map((item:any)=>item.studio_id))];
+      const studios=ids.length?await supabase.from("studios").select("id,name").in("id",ids):{data:[],error:null};
+      const names=new Map((studios.data||[]).map((row:any)=>[row.id,row.name]));
+      setOwnerApplications(applications.map((item:any)=>({...item,studio_name:names.get(item.studio_id)||"학원 정보 없음"})));
+    }
+    setOwnerReviewBusy(false);
+  },[authorized]);
+  const openOwnerApplicationDocument=async(item:any)=>{
+    if(!supabase)return;
+    const {data,error}=await supabase.storage.from("studio-business-documents").createSignedUrl(item.document_path,300);
+    if(error||!data?.signedUrl){Alert.alert("서류 열기 실패",error?.message||"서류 주소를 만들지 못했습니다.");return;}
+    Linking.openURL(data.signedUrl).catch(()=>Alert.alert("서류 열기 실패","사업자등록증을 열 수 없습니다."));
+  };
+  const reviewOwnerApplication=(item:any,decision:"approved"|"rejected"|"needs_info")=>{
+    const label=decision==="approved"?"승인":decision==="rejected"?"반려":"추가 서류 요청";
+    Alert.alert("원장님 신청 "+label,item.studio_name+" · "+item.business_name+" 신청을 "+label+" 처리할까요?",[
+      {text:"취소",style:"cancel"},
+      {text:label,style:decision==="rejected"?"destructive":"default",onPress:async()=>{
+        if(!supabase)return;setOwnerReviewBusy(true);
+        const note=decision==="approved"?"사업자등록증 및 운영 관계 확인 완료":decision==="rejected"?"사업자 정보 또는 운영 권한 확인 불가":"추가 서류 또는 정보 확인 필요";
+        const {error}=await supabase.rpc("admin_review_studio_owner_application",{p_application_id:item.id,p_decision:decision,p_note:note});
+        if(error)Alert.alert("심사 처리 실패",error.message);else Alert.alert("심사 완료",label+" 처리했습니다.");
+        await loadOwnerApplications();setOwnerReviewBusy(false);
+      }}
+    ]);
+  };
+
   const loadEvidence=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setEvidenceBusy(true);
@@ -856,7 +893,8 @@ export default function Admin() {
     if(adminTab==="overview"){loadDashboard();loadReports();}
     else if(adminTab==="review"||adminTab==="publish"){loadEvidence();if(adminTab==="review")loadPhotoCandidates();if(adminTab==="publish")loadScheduleClassCandidates();}
     else if(adminTab==="studios")load();
-  },[adminTab,loadDashboard,loadReports,loadEvidence,loadPhotoCandidates,loadScheduleClassCandidates,load]);
+    else if(adminTab==="owners")loadOwnerApplications();
+  },[adminTab,loadDashboard,loadReports,loadEvidence,loadPhotoCandidates,loadScheduleClassCandidates,load,loadOwnerApplications]);
 
   const generateScheduleClassCandidate=async(item:EvidenceCandidate)=>{
     if(!supabase||item.review_status!=="verified"||item.candidate_type!=="schedule")return;
@@ -1534,7 +1572,24 @@ export default function Admin() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView ref={adminScrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length.toLocaleString("ko-KR")}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
-    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"review",label:"자료 검토"},{key:"publish",label:"공개 관리"},{key:"studios",label:"학원 관리"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
+    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"review",label:"자료 검토"},{key:"publish",label:"공개 관리"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
+        {adminTab==="owners"&&<View style={styles.panel}>
+          <View style={styles.listHead}><Text style={styles.heading}>학원 관리자 권한 신청</Text><Pressable onPress={loadOwnerApplications} disabled={ownerReviewBusy}><Text style={styles.refresh}>{ownerReviewBusy?"조회 중…":"새로고침"}</Text></Pressable></View>
+          <Text style={styles.hint}>사업자등록증 원본과 신청 정보, 자동 대조 결과를 확인한 뒤 승인해야 원장님 계정에 학원 관리 권한이 부여됩니다. 서류를 직접 열어 확인하세요.</Text>
+          {ownerApplications.length?ownerApplications.map(item=><View key={item.id} style={{borderTopWidth:1,borderTopColor:"#E9E2F2",paddingTop:12,marginTop:12}}>
+            <Text style={{fontSize:14,fontWeight:"900",color:"#252238"}}>{item.studio_name}</Text>
+            <Text style={styles.hint}>신청 상호: {item.business_name} · 대표자: {item.representative_name}</Text>
+            <Text style={styles.hint}>사업자등록번호: {item.business_registration_number} · 신청 주소: {item.business_address}</Text>
+            <Text style={styles.hint}>자동 대조: {item.auto_match_status==="match"?"학원명·주소 일치":"불일치 또는 수동 확인 필요"} · {new Date(item.created_at).toLocaleString("ko-KR")}</Text>
+            <Text style={styles.hint}>대조 상세: 상호 {item.auto_match_details?.studio_name_match?"일치":"불일치"} / 주소 {item.auto_match_details?.studio_address_match?"일치":"불일치"}</Text>
+            <View style={{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:9}}>
+              <Pressable onPress={()=>openOwnerApplicationDocument(item)} style={{backgroundColor:"#F2ECFF",padding:10,borderRadius:9}}><Text style={{fontSize:11,fontWeight:"800",color:"#653BB7"}}>사업자등록증 확인</Text></Pressable>
+              <Pressable disabled={ownerReviewBusy} onPress={()=>reviewOwnerApplication(item,"approved")} style={{backgroundColor:"#EAF6EF",padding:10,borderRadius:9}}><Text style={{fontSize:11,fontWeight:"800",color:"#18794E"}}>승인</Text></Pressable>
+              <Pressable disabled={ownerReviewBusy} onPress={()=>reviewOwnerApplication(item,"needs_info")} style={{backgroundColor:"#FFF7E8",padding:10,borderRadius:9}}><Text style={{fontSize:11,fontWeight:"800",color:"#8A641C"}}>추가 확인</Text></Pressable>
+              <Pressable disabled={ownerReviewBusy} onPress={()=>reviewOwnerApplication(item,"rejected")} style={{backgroundColor:"#FFF1F1",padding:10,borderRadius:9}}><Text style={{fontSize:11,fontWeight:"800",color:"#A33342"}}>반려</Text></Pressable>
+            </View>
+          </View>):<Text style={styles.hint}>현재 심사 대기 중인 원장님 신청이 없습니다.</Text>}
+        </View>}
         {adminTab==="overview"&&<>
 <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>자동 수집 운영 현황</Text><Pressable onPress={loadDashboard} disabled={dashboardBusy}><Text style={styles.refresh}>{dashboardBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{dashboardError?<Text style={styles.hint}>대시보드 SQL 적용 필요 또는 조회 오류: {dashboardError}</Text>:dashboard?<><View style={styles.statsGrid}>{[
       ["학원",dashboard.studios?.total??0,"공개 "+(dashboard.studios?.active??0)],
