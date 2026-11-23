@@ -121,6 +121,7 @@ export default function Admin() {
   const [adminScrollRef]=useState<{current:ScrollView|null}>({current:null});
   const [studioEditPanelY]=useState<{current:number}>({current:0});
   const scrollToOfficialBlogRef=useRef(false);
+  const officialBlogPanelY=useRef(0);
   const [studioActionId,setStudioActionId]=useState<string|null>(null);
   const [username,setUsername]=useState("");
   const [password,setPassword]=useState("");
@@ -233,6 +234,13 @@ export default function Admin() {
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,s)=>{setSession(s);checkAdmin(s);});
     return ()=>subscription.unsubscribe();
   },[checkAdmin]);
+
+  useEffect(()=>{
+    if(officialBlogStudio&&scrollToOfficialBlogRef.current){
+      adminScrollRef.current?.scrollTo({y:Math.max(0,officialBlogPanelY.current-8),animated:true});
+      scrollToOfficialBlogRef.current=false;
+    }
+  },[officialBlogStudio?.id]);
 
   const openOfficialBlogManager=async(studio:StudioRow)=>{
     if(!supabase)return;
@@ -1678,7 +1686,7 @@ export default function Admin() {
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
     </View>
-    {officialBlogStudio&&<View style={styles.panel} onLayout={event=>{if(scrollToOfficialBlogRef.current){scrollToOfficialBlogRef.current=false;const y=Math.max(0,event.nativeEvent.layout.y-8);adminScrollRef.current?.scrollTo({y,animated:true});adminScrollRef.current?.scrollToEnd({animated:true});}}}>
+    {officialBlogStudio&&<View style={styles.panel} onLayout={event=>{officialBlogPanelY.current=event.nativeEvent.layout.y;if(scrollToOfficialBlogRef.current){adminScrollRef.current?.scrollTo({y:Math.max(0,officialBlogPanelY.current-8),animated:true});scrollToOfficialBlogRef.current=false;}}}>
       <View style={styles.listHead}><Text style={styles.heading}>{officialBlogStudio.name} · 공식 블로그</Text><Pressable onPress={()=>{setOfficialBlogStudio(null);setOfficialBlogUrls("");}}><Text style={styles.refresh}>닫기</Text></Pressable></View>
       <Text style={styles.hint}>학원에서 직접 운영하는 네이버 블로그 프로필 주소만 등록하세요. 게시글 URL이 아니라 블로그 홈 주소를 입력합니다. 등록된 계정의 게시물만 앱의 공개 소식에 표시됩니다. 최대 5개, 한 줄에 하나씩 입력하세요.</Text>
       <TextInput style={[styles.input,{minHeight:100,textAlignVertical:"top"}]} multiline autoCapitalize="none" autoCorrect={false} value={officialBlogUrls} onChangeText={setOfficialBlogUrls} placeholder={"https://blog.naver.com/blogid\nhttps://blog.naver.com/anotherid"}/>
