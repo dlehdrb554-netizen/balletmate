@@ -728,7 +728,7 @@ export default function Home() {
           <Text style={styles.sectionTitle}>대표 이미지</Text>
           {representativeStudioImage?
             <><Pressable onPress={()=>{if(representativeStudioImage.url)Linking.openURL(representativeStudioImage.url).catch(()=>Alert.alert("사진 출처","원문을 열 수 없습니다."));}}><Image source={{uri:representativeStudioImage.uri}} style={[styles.studioPhoto,{width:"100%",height:210,backgroundColor:"#F8F6FB"}]} resizeMode="contain"/></Pressable>
-            <Text style={styles.photoCredit}>{representativeStudioImage.label==="공식 사진"?"학원 공식 홈페이지/등록 사진":"공식 블로그 게시글 사진"}</Text>
+            <Text style={styles.photoCredit}>학원 관리자가 등록한 사진</Text>
             <Pressable onPress={()=>setDetailTab("photos")} style={{alignSelf:"flex-end",paddingVertical:6,paddingHorizontal:8}}><Text style={styles.photoSourceLink}>사진 {detailPhotoItems.length}장 모두 보기 ›</Text></Pressable></>
             :<View style={styles.photoEmpty}><Text style={styles.filterHint}>확인된 대표 이미지가 아직 없습니다.</Text>{detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}</View>}
           
