@@ -169,10 +169,7 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const clientId = Deno.env.get("NAVER_CLIENT_ID");
-  const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET");
   if (!supabaseUrl || !serviceRoleKey) return json({ error: "Supabase 서버 설정이 누락되었습니다." }, 500);
-  if (!clientId || !clientSecret) return json({ error: "NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET Secret이 누락되었습니다." }, 500);
 
   const db = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   let batchSize = 1;
@@ -191,6 +188,14 @@ Deno.serve(async (req) => {
     let requestCount = 0;
     const errors: string[] = [];
     try {
+      // Blog collection is allowed only when the academy has a Kakao Place listing.
+      const {data:studioOrigin,error:originError}=await db.from("studios").select("source_url").eq("id",job.studio_id).maybeSingle();
+      if(originError)throw new Error("카카오 장소 출처 확인 실패: "+originError.message);
+      if(!/^https?:\\/\\/(?:place\\.)?map\\.kakao\\.com\\//i.test(String(studioOrigin?.source_url||""))){
+        await db.from("studio_blog_search_queue").update({status:"completed",last_error:null,updated_at:new Date().toISOString()}).eq("studio_id",job.studio_id);
+        results.push({studio:job.studio_name,saved:0,requestCount:0,status:"skipped",reason:"Kakao Place source URL missing"});
+        continue;
+      }
       // Resolve verified accounts by stable studio_id first; studio_name is only a legacy fallback.
       const { data: officialRows, error: officialError } = await db.from("studio_blog_official_accounts")
         .select("blogger_url")
@@ -217,10 +222,12 @@ Deno.serve(async (req) => {
         .map((row: { studio_id: string; blogger_url: string }) => blogAccountKey(row.blogger_url))
         .filter(Boolean));
       const {data:kakaoCandidates,error:kakaoCandidateError}=await db.from("studio_blog_account_candidates")
-        .select("blogger_url").eq("studio_id",job.studio_id).in("review_status",["pending","approved"]).gte("match_score",95).limit(5);
-      if(kakaoCandidateError)throw new Error("카카오 블로그 후보 조회 실패: "+kakaoCandidateError.message);
+        .select("blogger_url").eq("studio_id",job.studio_id).eq("blogger_name","카카오 장소 등록 블로그").in("review_status",["pending","approved"]).limit(5);
+      if(kakaoCandidateError)throw new Error("카카오 장소 등록 블로그 조회 실패: "+kakaoCandidateError.message);
       const kakaoSeedAccounts=(kakaoCandidates??[]).map((row:{blogger_url:string})=>row.blogger_url);
-      const knownAccounts=[...officialAccounts,...kakaoSeedAccounts];
+      // Ignore legacy/manual candidates unless the exact account is also listed on Kakao Place.
+      officialAccounts=officialAccounts.filter((account)=>kakaoSeedAccounts.some((seed:string)=>blogAccountKey(seed)===blogAccountKey(account)));
+      const knownAccounts=[...new Set([...officialAccounts,...kakaoSeedAccounts])];
       const studioQuery = String(job.studio_name);
       // Known public blog RSS feeds discover new posts without depending on Naver ranking.
       const rssAccounts=[...new Set(knownAccounts.map(canonicalBlogUrl).filter(Boolean))].slice(0,5);
@@ -238,11 +245,8 @@ Deno.serve(async (req) => {
       // Otherwise query known official accounts first, then use one academy-name fallback.
       const academyQueries=[...new Set(SEARCH_SUFFIXES.map((suffix)=>suffix?studioQuery+" "+suffix:studioQuery))];
       const accountQueries=[...new Set(knownAccounts.map(blogAccountKey).filter(Boolean))];
-      const searchQueries=officialRssRelevant > 0
-        ? []
-        : [...accountQueries.slice(0,2), ...academyQueries.slice(0,1)];
-      if (/(퀸스|퀸즈)/.test(studioQuery)) searchQueries.push(studioQuery.replace(/퀸스/g,"퀸즈"),studioQuery.replace(/퀸즈/g,"퀸스"),"퀸즈발레","퀸스발레","Queens Ballet","Queen's Ballet");
-      if (/더블유|\\bW\\b|wballet/i.test(studioQuery)) searchQueries.push("더블유발레","W발레","wballet","W ballet");
+      // No Naver-wide blog search or inferred candidate discovery: absent Kakao Place links stay blank.
+      const searchQueries: string[] = [];
       for (const query of [...new Set(searchQueries)].slice(0, 8)) {
         const accountQueryKey = accountQueries.find((account) => normalize(account) === normalize(query)) || "";
         const endpoint = new URL("https://openapi.naver.com/v1/search/blog.json");
