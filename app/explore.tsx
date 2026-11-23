@@ -294,14 +294,14 @@ export default function Home() {
   }),[studios,globalSearchStudios,search,classSearchIds,adult,kids,coupon,level,dayFilter,timeFilter,maxPrice,durationFilter,classTypeFilter,hasClassLevelFilters,classFilterIds,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
 
   const allListAreas=[...new Set(studios.map(studio=>studio.area).filter(area=>area&&area!=="지역 정보 없음"))].sort((a,b)=>a.localeCompare(b,"ko"));
-  const cityLabels=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원","충북","충남","전북","전남","경북","경남","제주"];
+  const cityLabels=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원","충북","충남","전북","전남","경북","경남","제주","고양시","성남시","수원시","용인시","화성시","부천시","안양시","안산시","의정부시","남양주시","파주시","김포시","광명시","하남시","평택시","시흥시","광주시","양주시","구리시","군포시","오산시","이천시","포천시","춘천시","원주시","강릉시","청주시","천안시","아산시","전주시","익산시","군산시","목포시","여수시","순천시","포항시","경주시","구미시","창원시","김해시","진주시","거제시"];
   const seoulDistricts=["강남구","강동구","강북구","강서구","관악구","광진구","구로구","금천구","노원구","도봉구","동대문구","동작구","마포구","서대문구","서초구","성동구","성북구","송파구","양천구","영등포구","용산구","은평구","종로구","중구","중랑구"];
   const cityOfArea=(area:string)=>{const parts=area.trim().split(" ").filter(Boolean);const first=parts[0]||"";return cityLabels.includes(first)?first:(seoulDistricts.includes(first)?"서울":"기타");};
   const districtOfArea=(area:string)=>{const parts=area.trim().split(" ").filter(Boolean);return cityLabels.includes(parts[0])?parts.slice(1).join(" "):area;};
-  const listCities=["전체",...new Set(allListAreas.map(cityOfArea))].sort((a,b)=>a==="전체"?-1:a.localeCompare(b,"ko"));
+  const listCities=["전체",...new Set(allListAreas.map(cityOfArea))].sort((a,b)=>a==="전체"?-1:b==="전체"?1:a.localeCompare(b,"ko"));
   const listDistricts=allListAreas.filter(area=>regionCity==="전체"||cityOfArea(area)===regionCity);
   const listRows=useMemo(()=>{
-    const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion==="전체"||studio.area===selectedListRegion);
+    const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?studio.area===selectedListRegion:(regionCity==="전체"||cityOfArea(studio.area)===regionCity));
     return [...rows].sort((a,b)=>{
       if(listSort==="price"){
         if(a.price===null&&b.price===null)return a.name.localeCompare(b.name,"ko");
@@ -311,7 +311,7 @@ export default function Home() {
       }
       return distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng);
     });
-  },[view,favoriteStudios,results,listSort,searchedRegion,selectedListRegion]);
+  },[view,favoriteStudios,results,listSort,searchedRegion,selectedListRegion,regionCity]);
   useEffect(()=>{
     if(view!=="list"||!supabase)return;
     let active=true;setRankLoading(true);
@@ -320,11 +320,11 @@ export default function Home() {
       supabase.rpc("get_studio_favorite_rank",{p_region:selectedListRegion})
     ]).then(([viewsRes,favoritesRes])=>{
       if(!active)return;
-      setPopularViewRank(viewsRes.error?[]:(viewsRes.data||[]));
-      setFavoriteRank(favoritesRes.error?[]:(favoritesRes.data||[]));
+      setPopularViewRank(viewsRes.error?[]:(viewsRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"||regionCity==="전체"||cityOfArea(studios.find(studio=>studio.id===r.studio_id)?.area||"")===regionCity));
+      setFavoriteRank(favoritesRes.error?[]:(favoritesRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"||regionCity==="전체"||cityOfArea(studios.find(studio=>studio.id===r.studio_id)?.area||"")===regionCity));
     }).finally(()=>{if(active)setRankLoading(false);});
     return()=>{active=false;};
-  },[view,selectedListRegion,studios]);
+  },[view,selectedListRegion,regionCity,studios]);
   const REGIONAL_SEARCH:Record<string,{latitude:number;longitude:number}> = {
     "화곡":{latitude:37.5416,longitude:126.8466},"화곡동":{latitude:37.5416,longitude:126.8466},"화곡역":{latitude:37.5423,longitude:126.8403},
     "까치산":{latitude:37.5317,longitude:126.8489},"까치산역":{latitude:37.5317,longitude:126.8489},
