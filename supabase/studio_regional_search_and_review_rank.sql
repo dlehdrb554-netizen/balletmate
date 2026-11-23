@@ -25,10 +25,12 @@ LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
  SELECT s.id,s.name,count(DISTINCT v.user_id)::bigint AS view_count,
   (SELECT count(DISTINCT f.user_id)::bigint FROM public.user_favorites f WHERE f.studio_id=s.id
    AND NOT EXISTS(SELECT 1 FROM public.studio_owners o WHERE o.user_id=f.user_id)
+   AND NOT EXISTS(SELECT 1 FROM public.admin_users a WHERE a.user_id=f.user_id)
    AND NOT EXISTS(SELECT 1 FROM auth.users u WHERE u.id=f.user_id AND coalesce(u.raw_app_meta_data->>'role','') IN ('admin','balletmate_admin'))) AS favorite_count
  FROM public.studios s LEFT JOIN public.studio_detail_view_events v ON v.studio_id=s.id
   AND v.created_at>now()-interval '7 days'
   AND NOT EXISTS(SELECT 1 FROM public.studio_owners o WHERE o.user_id=v.user_id)
+  AND NOT EXISTS(SELECT 1 FROM public.admin_users a WHERE a.user_id=v.user_id)
   AND NOT EXISTS(SELECT 1 FROM auth.users u WHERE u.id=v.user_id AND coalesce(u.raw_app_meta_data->>'role','') IN ('admin','balletmate_admin'))
  WHERE coalesce(s.is_active,true) AND (coalesce(p_region,'전체')='전체' OR coalesce(s.district,'지역 정보 없음')=p_region)
  GROUP BY s.id,s.name ORDER BY view_count DESC,s.name ASC LIMIT 10;
