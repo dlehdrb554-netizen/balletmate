@@ -262,7 +262,20 @@ export default function Admin() {
     }
     setOfficialBlogBusy(false);
   };
-  const disconnectOfficialBlogAccounts=()=>{\n    if(!supabase||!officialBlogStudio)return;\n    Alert.alert("공식 블로그 연결 해제",officialBlogStudio.name+"에 연결된 공식 블로그를 모두 해제할까요? 이후 해당 블로그 게시물은 공개 소식에서 제외됩니다.",[\n      {text:"취소",style:"cancel"},\n      {text:"연결 해제",style:"destructive",onPress:async()=>{\n        setOfficialBlogBusy(true);\n        const {error}=await supabase!.rpc("admin_set_studio_official_blog_accounts",{p_studio_id:officialBlogStudio.id,p_blogger_urls:[]});\n        if(error)Alert.alert("연결 해제 실패",error.message);\n        else {setOfficialBlogUrls("");Alert.alert("연결 해제 완료","공식 블로그 연결을 모두 해제했습니다. 기존 학원 정보와 수집 기록은 삭제하지 않았습니다.");}\n        setOfficialBlogBusy(false);\n      }}\n    ]);\n  };\n  const saveOfficialBlogAccounts=async()=>{
+  const disconnectOfficialBlogAccounts=()=>{
+    if(!supabase||!officialBlogStudio)return;
+    Alert.alert("공식 블로그 연결 해제",officialBlogStudio.name+"에 연결된 공식 블로그를 모두 해제할까요? 이후 해당 블로그 게시물은 공개 소식에서 제외됩니다.",[
+      {text:"취소",style:"cancel"},
+      {text:"연결 해제",style:"destructive",onPress:async()=>{
+        setOfficialBlogBusy(true);
+        const {error}=await supabase!.rpc("admin_set_studio_official_blog_accounts",{p_studio_id:officialBlogStudio.id,p_blogger_urls:[]});
+        if(error)Alert.alert("연결 해제 실패",error.message);
+        else {setOfficialBlogUrls("");Alert.alert("연결 해제 완료","공식 블로그 연결을 모두 해제했습니다. 기존 학원 정보와 수집 기록은 삭제하지 않았습니다.");}
+        setOfficialBlogBusy(false);
+      }}
+    ]);
+  };
+  const saveOfficialBlogAccounts=async()=>{
     if(!supabase||!officialBlogStudio)return;
     const urls=[...new Set(officialBlogUrls.split(/[\r\n,]+/).map(value=>value.trim()).filter(Boolean))];
     if(urls.length>5){Alert.alert("등록 한도","학원별 공식 블로그는 최대 5개까지 등록할 수 있습니다.");return;}
