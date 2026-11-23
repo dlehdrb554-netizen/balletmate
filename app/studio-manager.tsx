@@ -150,6 +150,33 @@ export default function StudioManager(){
   finally{setSaving(false);}
  };
 
+ const removeGalleryPhoto=async(url:string)=>{
+  if(!supabase||!owner)return;
+  Alert.alert("사진 삭제","이 사진을 학원 갤러리에서 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
+   setSaving(true);
+   try{
+    const {error}=await supabase.rpc("owner_remove_studio_gallery_photo",{p_studio_id:studioId,p_image_url:url});
+    if(error)throw error;
+    let storageCleanupFailed=false;
+    try{
+     const marker="/storage/v1/object/public/studio-photos/";
+     const index=url.indexOf(marker);
+     if(index>=0){
+      const path=decodeURIComponent(url.slice(index+marker.length).split("?")[0]);
+      if(path.startsWith(studioId+"/")){
+       const {error:storageError}=await supabase.storage.from("studio-photos").remove([path]);
+       if(storageError)storageCleanupFailed=true;
+      }
+     }
+    }catch{storageCleanupFailed=true;}
+    const refreshed=await supabase.from("studios").select("image_urls").eq("id",studioId).maybeSingle();
+    if(refreshed.error)throw refreshed.error;
+    setGalleryUrls(refreshed.data?.image_urls||[]);setGalleryCount((refreshed.data?.image_urls||[]).length);
+    Alert.alert("삭제 완료",storageCleanupFailed?"갤러리에서 제거했습니다. 저장 파일은 정리되지 않아 관리자 확인이 필요할 수 있습니다.":"사진을 갤러리와 저장소에서 삭제했습니다.");
+   }catch(e:any){Alert.alert("사진 삭제 실패",e.message||"사진을 삭제하지 못했습니다.");}
+   finally{setSaving(false);}
+  }}]);
+ };
  const setPrimaryPhoto=async(url:string)=>{
   if(!supabase||!owner||galleryUrls[0]===url)return;
   setSaving(true);
@@ -232,7 +259,7 @@ export default function StudioManager(){
    <>
     <View style={s.card}><Text style={s.cardTitle}>승인된 원장님 계정</Text><Text style={s.body}>이 학원의 정보와 공개 자료를 관리할 수 있습니다. 등록한 내용은 학원 상세 페이지에 바로 공개됩니다.</Text></View>
     <View style={s.card}><Text style={s.cardTitle}>학원 기본 정보 수정</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("공식 홈페이지",profileWebsite,setProfileWebsite,"https://") }<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:90,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
-    <View style={s.card}><Text style={s.cardTitle}>학원 대표 사진</Text><Text style={s.body}>현재 {galleryCount}/30장 등록 · 기본은 2장만 표시합니다. 사진을 눌러 대표 사진으로 변경할 수 있습니다.</Text>{galleryUrls.length>0&&<View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12}}>{galleryUrls.slice(0,galleryExpanded?galleryUrls.length:2).map((url,index)=><View key={url} style={{width:"31%",minWidth:88,marginBottom:6}}><Image source={{uri:url}} style={{width:"100%",aspectRatio:1,borderRadius:8,backgroundColor:"#eee"}}/><Text style={[s.body,{fontSize:11,textAlign:"center",marginTop:4}]}>{index===0?"현재 대표 사진":"사진 "+(index+1)}</Text>{index!==0&&<Pressable disabled={saving} onPress={()=>setPrimaryPhoto(url)} style={{borderWidth:1,borderColor:C.purple,borderRadius:7,paddingVertical:5,marginTop:4,alignItems:"center"}}><Text style={{color:C.purple,fontSize:11,fontWeight:"700"}}>대표로 설정</Text></Pressable>}</View>)}</View>}{galleryUrls.length>2&&<Pressable onPress={()=>setGalleryExpanded(v=>!v)} style={{paddingVertical:8,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:C.purple}}>{galleryExpanded?"사진 접기":"사진 "+(galleryUrls.length-2)+"장 더 보기"}</Text></Pressable>}<View style={{marginTop:10}}><Text style={s.label}>사진 URL 등록</Text><TextInput value={photoUrl} onChangeText={setPhotoUrl} placeholder="https://... 이미지 주소" autoCapitalize="none" keyboardType="url" style={s.input}/>{button("URL로 사진 추가",registerPhotoUrl,saving||galleryCount>=30)}</View>{button("사진 추가 · 여러 장 선택",uploadGallery,saving||galleryCount>=30)}</View>
+    <View style={s.card}><Text style={s.cardTitle}>학원 대표 사진</Text><Text style={s.body}>현재 {galleryCount}/30장 등록 · 기본은 2장만 표시합니다. 사진을 눌러 대표 사진으로 변경할 수 있습니다.</Text>{galleryUrls.length>0&&<View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12}}>{galleryUrls.slice(0,galleryExpanded?galleryUrls.length:2).map((url,index)=><View key={url} style={{width:"31%",minWidth:88,marginBottom:6}}><Image source={{uri:url}} style={{width:"100%",aspectRatio:1,borderRadius:8,backgroundColor:"#eee"}}/><Text style={[s.body,{fontSize:11,textAlign:"center",marginTop:4}]}>{index===0?"현재 대표 사진":"사진 "+(index+1)}</Text>{index!==0&&<Pressable disabled={saving} onPress={()=>setPrimaryPhoto(url)} style={{borderWidth:1,borderColor:C.purple,borderRadius:7,paddingVertical:5,marginTop:4,alignItems:"center"}}><Text style={{color:C.purple,fontSize:11,fontWeight:"700"}}>대표로 설정</Text></Pressable>}<Pressable disabled={saving} onPress={()=>removeGalleryPhoto(url)} style={{borderWidth:1,borderColor:C.red,borderRadius:7,paddingVertical:5,marginTop:4,alignItems:"center"}}><Text style={{color:C.red,fontSize:11,fontWeight:"700"}}>사진 삭제</Text></Pressable></View>)}</View>}{galleryUrls.length>2&&<Pressable onPress={()=>setGalleryExpanded(v=>!v)} style={{paddingVertical:8,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:C.purple}}>{galleryExpanded?"사진 접기":"사진 "+(galleryUrls.length-2)+"장 더 보기"}</Text></Pressable>}<View style={{marginTop:10}}><Text style={s.label}>사진 URL 등록</Text><TextInput value={photoUrl} onChangeText={setPhotoUrl} placeholder="https://... 이미지 주소" autoCapitalize="none" keyboardType="url" style={s.input}/>{button("URL로 사진 추가",registerPhotoUrl,saving||galleryCount>=30)}</View>{button("사진 추가 · 여러 장 선택",uploadGallery,saving||galleryCount>=30)}</View>
     <View style={s.card}><Text style={s.cardTitle}>시간표 사진 및 안내</Text>{field("시간표 설명",""+scheduleText,setScheduleText,"예: 성인 초급반 월·수 19:00")}{button("시간표 사진 선택 후 등록",saveSchedule,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>가격표 등록</Text>{field("가격",""+priceAmount,setPriceAmount,"예: 150000","numeric")}{field("이용 기간",""+pricePeriod,setPricePeriod,"예: 월 8회 / 1개월")}{field("주당 횟수 (선택)",""+priceFrequency,setPriceFrequency,"예: 2","numeric")}{button("가격표 사진 선택 후 등록",savePrice,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>공지사항 작성</Text>{field("제목",noticeTitle,setNoticeTitle,"공지 제목") }<TextInput value={noticeBody} onChangeText={setNoticeBody} placeholder="휴강, 모집, 행사 등 공지 내용을 입력하세요." multiline style={[s.input,{height:110,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("공지사항 등록",saveNotice,saving)}</View>
