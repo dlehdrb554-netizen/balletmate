@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View, Alert
+  StyleSheet, Text, TextInput, View, Platform, Alert
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
