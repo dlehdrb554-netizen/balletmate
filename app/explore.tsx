@@ -51,9 +51,9 @@ const distanceKm=(lat1:number,lon1:number,lat2:number,lon2:number)=>{const rad=(
 const COLORS = {ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",bg:"#FBF9FF",line:"#E9E2F2",white:"#FFFFFF",pink:"#F7EFFF"};
 
 const sourceStatusMeta=(status?:string|null)=>{
-  if(status==="both")return {label:"교육청 등록 확인",icon:"shield-check" as const,color:"#18794E",bg:"#EAF6EF",description:"교육청 학원 정보와 지도 업체 정보가 함께 확인된 곳입니다."};
-  if(status==="kakao_only")return {label:"등록 여부 미확인",icon:"map-pin" as const,color:"#666477",bg:"#F1F0F5",description:"지도 업체 정보는 확인됐지만 교육청 등록 정보와의 연결은 확인되지 않았습니다. 미등록을 의미하지 않습니다."};
-  if(status==="neis_only")return {label:"교육청 등록 확인 · 위치 보완",icon:"school" as const,color:"#5D4AA2",bg:"#F1ECFC",description:"교육청 등록 정보는 확인됐으며, 지도 업체 정보가 없어 등록 주소를 기준으로 위치를 표시합니다."};
+  if(status==="both")return {label:"교육청 등록 확인",icon:"checkmark-circle" as const,color:"#18794E",bg:"#EAF6EF",description:"교육청 학원 정보와 지도 업체 정보가 함께 확인된 곳입니다."};
+  if(status==="kakao_only")return {label:"등록 여부 미확인",icon:"location-outline" as const,color:"#666477",bg:"#F1F0F5",description:"지도 업체 정보는 확인됐지만 교육청 등록 정보와의 연결은 확인되지 않았습니다. 미등록을 의미하지 않습니다."};
+  if(status==="neis_only")return {label:"교육청 등록 확인 · 위치 보완",icon:"business-outline" as const,color:"#5D4AA2",bg:"#F1ECFC",description:"교육청 등록 정보는 확인됐으며, 지도 업체 정보가 없어 등록 주소를 기준으로 위치를 표시합니다."};
   return null;
 };
 
