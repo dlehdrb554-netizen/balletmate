@@ -92,7 +92,7 @@ Deno.serve(async(req)=>{
  if(backfillRows.length<6&&!backfillQueryError){
   const remaining=6-backfillRows.length;
   const {data:retryRows,error:retryError}=await db.from("studios")
-   .select("id,name,source_url,kakao_place_blog_attempted_at")
+   .select("id,name,source_url,kakao_place_blog_attempted_at,website_url")
    .eq("is_active",true).is("kakao_place_blog_checked_at",null)
    .lt("kakao_place_blog_attempted_at",new Date(retryBefore).toISOString())
    .or(sourceFilter)
@@ -195,8 +195,7 @@ Deno.serve(async(req)=>{
         if(channelError)addError("카카오톡 채널 후보 저장 실패("+name+"): "+channelError.message.slice(0,100));else kakaoChannelCandidates++;
        }
       }
-      if(studioId&&officialLinks.website){const {error:websiteError}=await db.from("studios").update({website_url:officialLinks.website,updated_at:new Date().toISOString()}).eq("id",studioId).is("website_url",null);if(websiteError)addError("카카오 공식 홈페이지 저장 실패("+name+"): "+websiteError.message.slice(0,100));}
-     }
+        if(officialLinks.website){const {error:websiteError}=await db.from("studios").update({website_url:officialLinks.website,updated_at:new Date().toISOString()}).eq("id",studioId).is("website_url",null);if(websiteError)addError("카카오 공식 홈페이지 저장 실패("+name+"): "+websiteError.message.slice(0,100));}
     }
     if(payload?.meta?.is_end||docs.length<PAGE_SIZE)break;
    }catch(e){regionHasError=true;addError(term+": "+(e instanceof Error?e.message:"request failed"));break;}
