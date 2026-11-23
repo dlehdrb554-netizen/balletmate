@@ -14,9 +14,9 @@ function collectNaverBlogUrls(value:unknown,found:Set<string>,depth=0):void{
 function findKakaoPlaceWebsite(value:unknown,key="",depth=0):string|null{
  if(depth>10||value==null)return null;
  if(typeof value==="string"&&/(homepage|home.?page|website|official.?site|siteurl|homepageurl|websiteurl)/i.test(key)){
-  const candidates=value.match(/https?:\\/\\/[^\\s"'<>]+/gi)||[value.trim()];
+  const candidates=value.match(/https?:\/\/[^\s"'<>]+/gi)||[value.trim()];
   const excluded=["blog.naver.com","instagram.com","facebook.com","youtube.com","tiktok.com","kakao.com","place.map.kakao.com","naver.com","linktr.ee"];
-  for(const candidate of candidates){try{const url=new URL(candidate.replace(/[),.;]+$/,""));const host=url.hostname.toLowerCase().replace(/^www\\./,"");if(["http:","https:"].includes(url.protocol)&&!excluded.some(domain=>host===domain||host.endsWith("."+domain)))return url.toString();}catch{}}
+  for(const candidate of candidates){try{const url=new URL(candidate.replace(/[),.;]+$/,""));const host=url.hostname.toLowerCase().replace(/^www\./,"");if(["http:","https:"].includes(url.protocol)&&!excluded.some(domain=>host===domain||host.endsWith("."+domain)))return url.toString();}catch{}}
   return null;
  }
  if(Array.isArray(value)){for(const item of value){const found=findKakaoPlaceWebsite(item,key,depth+1);if(found)return found;}return null;}
