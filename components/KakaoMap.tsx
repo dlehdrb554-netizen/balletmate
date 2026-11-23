@@ -41,12 +41,16 @@ function buildHtml(initialRegion: MapRegion) {
 <script>
 (function(){
   var map=null, markers={}, currentMarker=null, pending=[], currentSelected=null;
+  var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
   function pinImage(selected){
+    var key=selected?'selected':'default';
+    if(cachedPinImages[key])return cachedPinImages[key];
     var color=selected?'#7661D8':'#A58BEA';
     var svg='<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11 16 24 16 24s16-13 16-24C33 8.2 25.8 1 17 1z" fill="'+color+'" stroke="white" stroke-width="2"/><circle cx="17" cy="17" r="5" fill="white"/></svg>';
-    return new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
+    cachedPinImages[key]=new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
+    return cachedPinImages[key];
   }
   function updateMarkers(list, selectedId, location){
     if(!map)return;
