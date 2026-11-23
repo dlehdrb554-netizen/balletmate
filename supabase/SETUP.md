@@ -125,6 +125,6 @@ Supabase currently lists its Free plan as $0 with 2 active projects, 500 MB data
 기존 학원 관리자 테이블을 이미 만든 프로젝트는 SQL Editor에서 아래를 실행하세요.
 
 1. `studio_owner_privacy_minimal_claims.sql`: 사업자번호·대표자·개인 주소·등록증 수집 경로를 중단하고 과거 신청 기록의 민감 필드를 비웁니다. 계정과 학원별 승인 관계를 복합키로 바꾸어 여러 관리자가 같은 학원을 관리할 수 있게 합니다. 신청 인증은 공개 전화, 네이버 블로그, 인스타그램, 운영자 직접 확인 중 선택합니다. 가격/시간표/사진/공지 수정 이력도 보관합니다.
-2. `studio_regional_search_and_review_rank.sql`: 지역별 많이 본 학원(최근 7일)과 즐겨찾기 많은 학원 순위를 설정합니다. 관리자·학원 관리자 계정은 집계에서 제외합니다.
+2. `studio_regional_search_and_review_rank.sql`: 지역별 많이 본 학원(최근 7일)과 즐겨찾기 많은 학원 순위를 설정합니다. 관리자·승인된 학원 관리자 계정은 집계에서 제외하며, 상세 조회 로그는 하루 1회 사용자별로 기록하고 30일 후 자동 정리합니다.
 
 **중요:** 기존 사업자등록증 이미지가 Supabase Storage의 `studio-business-documents`에 있다면 새 SQL은 업로드/조회 정책을 중단하고 버킷을 비공개로 바꿉니다. 저장소 파일 자체는 SQL에서 삭제하지 않으므로, Supabase Dashboard > Storage에서 해당 파일들을 직접 삭제한 뒤 사용하지 않는 버킷을 제거하세요. 이전 `owner_claim_phone_blog_verification.sql` 파일은 폐기된 설계이므로 실행하지 마세요.
