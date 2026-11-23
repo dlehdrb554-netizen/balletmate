@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
       // Blog collection is allowed only when the academy has a Kakao Place listing.
       const {data:studioOrigin,error:originError}=await db.from("studios").select("source_url").eq("id",job.studio_id).maybeSingle();
       if(originError)throw new Error("카카오 장소 출처 확인 실패: "+originError.message);
-      if(!/^https?:\\/\\/(?:place\\.)?map\\.kakao\\.com\\//i.test(String(studioOrigin?.source_url||""))){
+      if(!/^https?:\/\/(?:place\.)?map\.kakao\.com\//i.test(String(studioOrigin?.source_url||""))){
         await db.from("studio_blog_search_queue").update({status:"completed",last_error:null,updated_at:new Date().toISOString()}).eq("studio_id",job.studio_id);
         results.push({studio:job.studio_name,saved:0,requestCount:0,status:"skipped",reason:"Kakao Place source URL missing"});
         continue;
