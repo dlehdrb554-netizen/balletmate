@@ -83,7 +83,7 @@ export default function StudioManager(){
 
  const submitApplication=async()=>{
   if(!supabase||!session)return;
-  if(!/^\\d{3}-?\\d{2}-?\\d{5}$/.test(businessNo.replace(/\\s/g,""))||!businessName.trim()||!representative.trim()||!businessAddress.trim()||!documentPath){
+  if(!/^\d{3}-?\d{2}-?\d{5}$/.test(businessNo.replace(/\s/g,""))||!businessName.trim()||!representative.trim()||!businessAddress.trim()||!documentPath){
    Alert.alert("신청 정보 확인","사업자등록번호, 상호, 대표자, 사업장 주소와 사업자등록증 사진을 모두 입력해 주세요.");return;
   }
   setSaving(true);
