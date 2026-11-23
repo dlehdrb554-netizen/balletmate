@@ -150,26 +150,43 @@ ownership_checked AS (
           '^https?://(m[.])?blog[.]naver[.]com/', '', 'i'), '/', 1)) = s.account_key
     ) AS no_competing_academy
   FROM scored s
+),
+eligibility AS (
+  SELECT
+    o.*,
+    (SELECT count(*) FROM public.studio_blog_official_accounts a
+     WHERE a.studio_id = o.studio_id AND a.is_active = true) AS existing_active_count,
+    (o.recalculated_score >= 90
+      AND o.identity_confirmed
+      AND o.operation_post_count >= 2
+      AND o.target_branch_confirmed
+      AND NOT o.branch_conflict
+      AND o.location_confirmed
+      AND o.account_unowned
+      AND o.no_competing_academy) AS auto_eligible_base
+  FROM ownership_checked o
+),
+ranked_eligibility AS (
+  SELECT
+    e.*,
+    row_number() OVER (
+      PARTITION BY e.studio_id
+      ORDER BY e.auto_eligible_base DESC, e.recalculated_score DESC, e.operation_post_count DESC, e.id
+    ) AS studio_candidate_rank
+  FROM eligibility e
 )
 SELECT
-  o.*,
-  (o.recalculated_score >= 90
-    AND o.identity_confirmed
-    AND o.operation_post_count >= 2
-    AND o.target_branch_confirmed
-    AND NOT o.branch_conflict
-    AND o.location_confirmed
-    AND o.account_unowned
-    AND o.no_competing_academy) AS auto_eligible
-FROM ownership_checked o;
+  r.*,
+  (r.auto_eligible_base
+    AND r.studio_candidate_rank <= GREATEST(0, 5 - r.existing_active_count)) AS auto_eligible
+FROM ranked_eligibility r;
 
 UPDATE public.studio_blog_account_candidates c
 SET
   match_score = r.recalculated_score,
   matched_post_count = GREATEST(c.matched_post_count, r.operation_post_count),
   review_status = CASE WHEN r.auto_eligible
-    AND (SELECT count(*) FROM public.studio_blog_official_accounts a
-         WHERE a.studio_id = c.studio_id AND a.is_active = true) < 5
+    AND r.auto_eligible
     THEN 'approved' ELSE c.review_status END,
   reviewed_at = CASE WHEN r.auto_eligible
     AND (SELECT count(*) FROM public.studio_blog_official_accounts a
@@ -185,8 +202,7 @@ SELECT
   r.studio_id, r.studio_name, r.blogger_url, true, now()
 FROM ballet_candidate_reassessment r
 WHERE r.auto_eligible
-  AND (SELECT count(*) FROM public.studio_blog_official_accounts a
-       WHERE a.studio_id = r.studio_id AND a.is_active = true) < 5
+  AND r.auto_eligible
 ON CONFLICT (studio_id, blogger_url)
 DO UPDATE SET
   is_active = true,
