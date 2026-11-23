@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const OFFICE_CODES = ["B10","C10","D10","E10","F10","G10","H10","I10","J10","K10","M10","N10","P10","Q10","R10","S10","T10"];
-const BALLET_RE = /발레|ballet/i;
+const BALLET_RE = /발레|ballet|무용/i;
 const clean = (v: unknown) => String(v ?? "").trim();
 const norm = (v: unknown) => clean(v).toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
 const relevant = (row: Record<string, unknown>) => BALLET_RE.test([
@@ -70,6 +70,7 @@ Deno.serve(async (req) => {
           academy_number: academyNo,
           academy_name: academyName,
           academy_type: clean(row.ACA_INSTI_SC_NM),
+          academy_phone: clean(row.TELNO) || clean(row.PHONE) || clean(row.TEL),
           district_name: clean(row.ADMST_ZONE_NM),
           registration_status: clean(row.REG_STTUS_NM),
           field_name: clean(row.FLD_NM),
