@@ -227,6 +227,10 @@ export default function Admin() {
 
   const openOfficialBlogManager=async(studio:StudioRow)=>{
     if(!supabase)return;
+    if(!/^https?:\/\/place\.map\.kakao\.com\//i.test(String(studio.source_url||""))){
+      Alert.alert("카카오맵 등록 확인 필요","카카오맵 업체 페이지가 연결되지 않은 학원은 공식 블로그를 찾거나 연결하지 않습니다. 블로그는 비워 둡니다.");
+      return;
+    }
     setOfficialBlogStudio(studio);
     setOfficialBlogUrls("");
     setOfficialBlogBusy(true);
@@ -258,6 +262,11 @@ export default function Admin() {
     if(!supabase||!officialBlogStudio)return;
     const urls=[...new Set(officialBlogUrls.split(/[\r\n,]+/).map(value=>value.trim()).filter(Boolean))];
     if(urls.length>5){Alert.alert("등록 한도","학원별 공식 블로그는 최대 5개까지 등록할 수 있습니다.");return;}
+    const kakaoListed=new Set(officialBlogCandidates.map((row:any)=>String(row.blogger_url||"").replace(/\/+$/,"").toLowerCase()));
+    if(urls.some(url=>!kakaoListed.has(url.replace(/\/+$/,"").toLowerCase()))){
+      Alert.alert("카카오맵 등록 블로그만 허용","카카오맵 업체 페이지에서 확인된 블로그만 등록할 수 있습니다. 등록되지 않은 블로그 URL은 비워 주세요.");
+      return;
+    }
     setOfficialBlogBusy(true);
     const {data,error}=await supabase.rpc("admin_set_studio_official_blog_accounts",{p_studio_id:officialBlogStudio.id,p_blogger_urls:urls});
     if(error)Alert.alert("공식 블로그 저장 실패",error.message);
