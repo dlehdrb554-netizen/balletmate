@@ -17,9 +17,9 @@ function similarity(a:string,b:string):number{
 }
 function evaluate(c:any,p:any){
  const nameSim=similarity(c.academy_name,p.place_name||"");
- const candidateAddress=norm(c.address||c.district_name||"");
+ const candidateAddress=norm(c.address||"");
  const kakaoAddress=norm(p.road_address_name||p.address_name||"");
- const addressMatch=!!candidateAddress&&!!kakaoAddress&&(candidateAddress.includes(kakaoAddress)||kakaoAddress.includes(candidateAddress)||similarity(c.address||c.district_name||"",p.road_address_name||p.address_name||"")>=0.55);
+ const addressMatch=!!candidateAddress&&!!kakaoAddress&&(candidateAddress.includes(kakaoAddress)||kakaoAddress.includes(candidateAddress)||similarity(c.address||"",p.road_address_name||p.address_name||"")>=0.55);
  const candidatePhone=String(c.academy_phone||"").replace(/\D/g,"");
  const kakaoPhone=String(p.phone||"").replace(/\D/g,"");
  const phoneMatch=candidatePhone.length>=8&&candidatePhone===kakaoPhone;
