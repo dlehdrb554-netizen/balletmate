@@ -1,4 +1,5 @@
--- Automatically register only high-confidence Naver blog candidates.
+-- Automatically register high-confidence Naver blog candidates (score >= 90).
+-- Branch mismatches and accounts already owned by another academy remain excluded.
 -- Safe to rerun. Does not override manually rejected candidates and never assigns
 -- one Naver account to multiple academies.
 -- Run in Supabase SQL Editor after deploying search-studio-blogs.
@@ -26,7 +27,7 @@ WITH candidates AS (
     ) AS ballet_sample_count
   FROM public.studio_blog_account_candidates c
   WHERE c.review_status = 'pending'
-    AND c.match_score >= 94
+    AND c.match_score >= 90
     AND c.matched_post_count >= 2
 ), branch_checked AS (
   SELECT c.*
