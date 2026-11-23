@@ -171,6 +171,15 @@ Deno.serve(async (req) => {
         if (legacyError) throw new Error("기존 공식 블로그 계정 조회 실패: " + legacyError.message);
         officialAccounts = (legacyRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
       }
+      // A verified blog account belongs to its registered academy only.
+      // Prevent another academy's official posts from being attached by broad name searches.
+      const { data: allOfficialRows, error: allOfficialError } = await db.from("studio_blog_official_accounts")
+        .select("studio_id,blogger_url").eq("is_active", true).not("studio_id", "is", null);
+      if (allOfficialError) throw new Error("전체 공식 블로그 소속 조회 실패: " + allOfficialError.message);
+      const foreignOfficialKeys = new Set((allOfficialRows ?? [])
+        .filter((row: { studio_id: string; blogger_url: string }) => row.studio_id !== job.studio_id)
+        .map((row: { studio_id: string; blogger_url: string }) => blogAccountKey(row.blogger_url))
+        .filter(Boolean));
       const {data:kakaoCandidates,error:kakaoCandidateError}=await db.from("studio_blog_account_candidates")
         .select("blogger_url").eq("studio_id",job.studio_id).in("review_status",["pending","approved"]).gte("match_score",95).limit(5);
       if(kakaoCandidateError)throw new Error("카카오 블로그 후보 조회 실패: "+kakaoCandidateError.message);
@@ -220,6 +229,8 @@ Deno.serve(async (req) => {
           if (!isNaverBlogUrl(postUrl) || !title) return [];
           const description = cleanText(item.description);
           const bloggerUrl = cleanText(item.bloggerlink);
+          const resultAccountKey = blogAccountKey(bloggerUrl);
+          if (resultAccountKey && foreignOfficialKeys.has(resultAccountKey)) return [];
           // When searching a known account ID, only accept posts from that exact account.
           if (accountQueryKey && blogAccountKey(bloggerUrl) !== accountQueryKey) return [];
           if (!isRelevantBlog(String(job.studio_name), title, description, bloggerUrl, knownAccounts)) return [];
