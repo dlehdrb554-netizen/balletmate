@@ -598,13 +598,26 @@ export default function Admin() {
 
   const deletePhotoCandidate=async(item:any)=>{
     if(!supabase)return;
-    Alert.alert("사진 후보 삭제","이 사진 후보를 검토 대기열에서 영구 삭제할까요?",[
+    const isApproved=photoCandidateStatus==="approved";
+    Alert.alert("사진 후보 삭제",isApproved?"승인된 사진을 학원 갤러리에서도 제거하고 검토 이력을 삭제할까요?":"이 사진 후보를 검토 대기열에서 영구 삭제할까요?",[
       {text:"취소",style:"cancel"},
       {text:"삭제",style:"destructive",onPress:async()=>{
         setPhotoReviewBusy(true);
-        const {error}=await supabase!.rpc("admin_delete_studio_photo_candidate",{p_candidate_id:item.id});
-        if(error)Alert.alert("사진 삭제 실패",error.message);
-        else {setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));}
+        let galleryError:any=null;
+        if(isApproved){
+          const removed=await supabase!.rpc("admin_remove_studio_gallery_photo",{p_studio_id:item.studio_id,p_image_url:item.image_url});
+          galleryError=removed.error;
+        }
+        if(galleryError)Alert.alert("학원 갤러리 사진 삭제 실패",galleryError.message);
+        else{
+          const {error}=await supabase!.rpc("admin_delete_studio_photo_candidate",{p_candidate_id:item.id});
+          if(error)Alert.alert("사진 검토 기록 삭제 실패",error.message);
+          else{
+            setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));
+            setPhotoCandidateTotal(value=>Math.max(0,value-1));
+            if(isApproved)setRows(current=>current.map(row=>row.id===item.studio_id?{...row,image_urls:(row.image_urls||[]).filter((url:string)=>url!==item.image_url)}:row));
+          }
+        }
         setPhotoReviewBusy(false);
       }}
     ]);
