@@ -21,7 +21,7 @@ type Studio = {
   id: string; name: string; lat: number; lng: number; area: string;
   tags: string[]; price: number | null; coupon: boolean; adult: boolean; kids: boolean;
   level: string[]; days: string[]; time: string; duration: number; rating: number;
-  description: string; address?: string; phone?: string; imageUrls?: string[]; websiteUrl?: string; imageSourceName?: string; imageCheckedAt?: string; sourceUrl?: string; sourceName?: string; verifiedAt?: string; imageUsageNote?: string; priceEvidenceText?: string; scheduleEvidenceText?: string; detailsSourceUrls?: string[];kakaoChannelUrl?:string;detailsCheckedAt?: string; detailsStatus?: string; classDurations?: number[];
+  description: string; address?: string; phone?: string; imageUrls?: string[]; websiteUrl?: string; imageSourceName?: string; imageCheckedAt?: string; sourceUrl?: string; sourceName?: string; sourceStatus?: string; verifiedAt?: string; imageUsageNote?: string; priceEvidenceText?: string; scheduleEvidenceText?: string; detailsSourceUrls?: string[];kakaoChannelUrl?:string;detailsCheckedAt?: string; detailsStatus?: string; classDurations?: number[];
 };
 const mapStudioRecord = (r: StudioRecord): Studio => ({
   id:r.id,name:r.name,lat:Number(r.latitude),lng:Number(r.longitude),area:r.district||"지역 정보 없음",
@@ -31,7 +31,7 @@ const mapStudioRecord = (r: StudioRecord): Studio => ({
   description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],
   websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,
   imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,
-  sourceName:r.source_name||undefined,verifiedAt:r.verified_at||undefined,
+  sourceName:r.source_name||undefined,sourceStatus:r.source_status||undefined,verifiedAt:r.verified_at||undefined,
   imageUsageNote:r.image_usage_note||undefined,priceEvidenceText:r.price_evidence_text||undefined,
   scheduleEvidenceText:r.schedule_evidence_text||undefined,detailsSourceUrls:r.details_source_urls||[],kakaoChannelUrl:r.kakao_channel_url||undefined,
   detailsCheckedAt:r.details_checked_at||undefined,detailsStatus:r.details_status||undefined,
@@ -567,7 +567,7 @@ export default function Home() {
     </View>;
   };
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");const target={latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018};setPendingMapTarget(target);setRegion(target);if(!studios.some(x=>x.id===s.id)){setSearchedRegion(target);setAreaLocked(false);}}} style={[styles.studioCard,compact&&styles.compactCard]}>
-    <View style={styles.cardTop}><View style={styles.studioIcon}>{s.imageUrls?.[0]?<Image source={{uri:s.imageUrls[0]}} style={styles.studioThumb} resizeMode="cover"/>:<MaterialCommunityIcons name="human-female-dance" size={23} color={COLORS.purple}/>}</View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
+    <View style={styles.cardTop}><View style={styles.studioIcon}>{s.imageUrls?.[0]?<Image source={{uri:s.imageUrls[0]}} style={styles.studioThumb} resizeMode="cover"/>:<MaterialCommunityIcons name="human-female-dance" size={23} color={COLORS.purple}/>}</View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text>{s.sourceStatus&&<Text style={{fontSize:10,color:s.sourceStatus==="both"?"#16824A":"#8A6A20",marginTop:2}}>{s.sourceStatus==="both"?"교육청 등록 확인":s.sourceStatus==="neis_only"?"교육청 등록 · 지도 정보 없음":"등록 여부 미확인"}</Text>}<Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
     <View style={styles.cardBottom}><Text style={styles.priceText}>{s.price!==null?"₩"+s.price.toLocaleString():"가격 문의"}<Text style={styles.priceUnit}> / 회</Text></Text><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();openDetail(s);}} style={styles.actionChip}><Text style={styles.actionText}>상세정보</Text></Pressable></View>
   </Pressable>;
