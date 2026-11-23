@@ -13,7 +13,7 @@ Deno.serve(async(req)=>{
  const db=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const cutoff=new Date(Date.now()-60*60*1000).toISOString();
  const {data:candidates,error}=await db.from("neis_ballet_academy_candidates")
-  .select("id,academy_name,district_name,address,academy_phone,geocode_attempts,geocode_studio_id")
+  .select("id,academy_name,district_name,address,academy_phone,geocode_attempts,geocoded_studio_id")
   .eq("eligible",true).eq("is_open",true).eq("kakao_status","no_match")
   .is("matched_studio_id",null).not("address","is",null)
   .in("geocode_status",["pending","failed"])
