@@ -76,7 +76,9 @@ Deno.serve(async(req)=>{
  if(studioError)return json({error:"Classified, but studio gallery update failed: "+studioError.message},500);
  const current=Array.isArray(studio.image_urls)?studio.image_urls:[];
  if(keep){
-  if(!current.includes(candidate.image_url)){
+  // Only genuine ballet/class imagery belongs in the studio hero/gallery.
+  // Timetables and price sheets are attached to their own material records below.
+  if(result.category==="ballet_class"&&!current.includes(candidate.image_url)){
    const {error:galleryError}=await db.from("studios").update({image_urls:[...current,candidate.image_url],image_source_name:studio.image_source_name||candidate.source_host||"AI 자동 분류",image_usage_note:studio.image_usage_note||"AI 비전 분류로 자동 연계된 사진. 출처: "+candidate.source_page_url,updated_at:now}).eq("id",candidate.studio_id);
    if(galleryError)return json({error:"Classified and approved, but gallery update failed: "+galleryError.message},500);
   }
