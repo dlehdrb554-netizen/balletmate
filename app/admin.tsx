@@ -1333,6 +1333,7 @@ export default function Admin() {
             const {error}=await supabase.rpc("admin_remove_studio_gallery_photo",{p_studio_id:row.id,p_image_url:url});
             if(error){failed++;continue;}
             removed++;
+            const rowRemoved=removedUrls.get(row.id)||[];rowRemoved.push(url);removedUrls.set(row.id,rowRemoved);
             const marker="/storage/v1/object/public/studio-photos/",idx=url.indexOf(marker);
             if(idx>=0){const objectPath=decodeURIComponent(url.slice(idx+marker.length).split("?")[0]);if(objectPath){const result=await supabase.storage.from("studio-photos").remove([objectPath]);if(result.error)storageFailed++;}}
           }
