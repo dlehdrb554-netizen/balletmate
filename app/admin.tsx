@@ -21,6 +21,7 @@ type StudioRow = {
 
 const blank = {name:"",latitude:"",longitude:"",district:"",address:"",phone:"",website_url:"",source_url:"",source_name:"",verified_at:"",image_urls:"",image_source_name:"",image_usage_note:"",price_per_class:"",adult_classes:true,kids_classes:false,is_active:false};
 const STUDIO_PAGE_SIZE = 20;
+const STUDIO_GALLERY_LIMIT = 30;
 const parseStudioImageSlots=(value:string)=>String(value||"").includes("\n")?String(value||"").split(/\r?\n/):String(value||"").split(",");
 const parseStudioImageUrls=(value:string)=>parseStudioImageSlots(value).map(v=>v.trim()).filter(Boolean);
 const isNeisPhotoSource=(item:any)=>{const host=String(item?.source_host||(()=>{try{return new URL(item?.source_page_url||"").hostname}catch{return ""}})()).toLowerCase();return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr");};
@@ -261,7 +262,7 @@ export default function Admin() {
     }
     setOfficialBlogBusy(false);
   };
-  const saveOfficialBlogAccounts=async()=>{
+  const disconnectOfficialBlogAccounts=()=>{\n    if(!supabase||!officialBlogStudio)return;\n    Alert.alert("공식 블로그 연결 해제",officialBlogStudio.name+"에 연결된 공식 블로그를 모두 해제할까요? 이후 해당 블로그 게시물은 공개 소식에서 제외됩니다.",[\n      {text:"취소",style:"cancel"},\n      {text:"연결 해제",style:"destructive",onPress:async()=>{\n        setOfficialBlogBusy(true);\n        const {error}=await supabase!.rpc("admin_set_studio_official_blog_accounts",{p_studio_id:officialBlogStudio.id,p_blogger_urls:[]});\n        if(error)Alert.alert("연결 해제 실패",error.message);\n        else {setOfficialBlogUrls("");Alert.alert("연결 해제 완료","공식 블로그 연결을 모두 해제했습니다. 기존 학원 정보와 수집 기록은 삭제하지 않았습니다.");}\n        setOfficialBlogBusy(false);\n      }}\n    ]);\n  };\n  const saveOfficialBlogAccounts=async()=>{
     if(!supabase||!officialBlogStudio)return;
     const urls=[...new Set(officialBlogUrls.split(/[\r\n,]+/).map(value=>value.trim()).filter(Boolean))];
     if(urls.length>5){Alert.alert("등록 한도","학원별 공식 블로그는 최대 5개까지 등록할 수 있습니다.");return;}
@@ -591,7 +592,7 @@ export default function Admin() {
       setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));setPhotoCandidateOffset(value=>Math.max(0,value-1));
       if(status==="approved"){
         setRows(current=>current.map(row=>row.id===item.studio_id
-          ?{...row,image_urls:[...(row.image_urls||[]),item.image_url].slice(0,10),
+          ?{...row,image_urls:[...(row.image_urls||[]),item.image_url].slice(0,30),
             image_source_name:row.image_source_name||item.source_host}
           :row));
       }
@@ -938,10 +939,10 @@ export default function Admin() {
   const uploadMaterialPhotos=async(kind:"price"|"schedule",record:any)=>{
     if(!supabase)return;
     const existing=Array.isArray(record.image_urls)?record.image_urls:[];
-    if(existing.length>=8){Alert.alert("사진 등록 한도","가격·시간표 자료는 한 묶음에 최대 8장까지 등록할 수 있습니다.");return;}
+    if(existing.length>=30){Alert.alert("사진 등록 한도","가격·시간표 자료는 한 묶음에 최대 30장까지 등록할 수 있습니다.");return;}
     const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
     if(!permission.granted){Alert.alert("사진 권한","사진 보관함 접근 권한을 허용해 주세요.");return;}
-    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:8-existing.length,quality:1});
+    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:30-existing.length,quality:1});
     if(picked.canceled||!picked.assets?.length)return;
     setEvidenceBusy(true);
     const uploadedPaths:string[]=[];
@@ -1249,7 +1250,7 @@ export default function Admin() {
     if(form.website_url.trim()&&!/^https?:\/\//i.test(form.website_url.trim())){Alert.alert("홈페이지 주소","공식 홈페이지는 http:// 또는 https:// 주소로 입력하세요.");return;}
     if(form.source_url.trim()&&!/^https?:\/\//i.test(form.source_url.trim())){Alert.alert("출처 주소","출처 URL은 http:// 또는 https:// 주소로 입력하세요.");return;}
     const imageUrls=parseStudioImageUrls(form.image_urls);
-    if(imageUrls.length>10||imageUrls.some(v=>!/^https:\/\//i.test(v))){Alert.alert("사진 주소 확인","사진은 HTTPS 주소로 최대 10개까지 입력할 수 있습니다.");return;}
+    if(imageUrls.length>STUDIO_GALLERY_LIMIT||imageUrls.some(v=>!/^https:\/\//i.test(v))){Alert.alert("사진 주소 확인","사진은 HTTPS 주소로 최대 30개까지 입력할 수 있습니다.");return;}
     const verifiedAt=form.verified_at.trim()?new Date(form.verified_at.trim()):null;
     if(verifiedAt&&!Number.isFinite(verifiedAt.getTime())){Alert.alert("확인 날짜","확인 날짜는 YYYY-MM-DD 형식으로 입력하세요.");return;}
     const lat=Number(form.latitude),lng=Number(form.longitude),price=form.price_per_class.trim()?Number(form.price_per_class):null;
@@ -1559,7 +1560,7 @@ export default function Admin() {
 
     </View>}
     {adminTab==="studios"&&<>
-<View style={styles.panel}><Text style={styles.heading}>{reportEditingId!==null?"제보 기반 학원 정보 수정":editing?"학원 정보 수정":"학원 등록"}</Text>{reportEditingId!==null&&<Text style={styles.hint}>제보 내용을 확인해 학원 정보를 수정하고 저장하면 해당 제보가 처리 완료로 변경됩니다. 폐업·이전이 확인된 경우 앱에 공개 토글을 끄세요.</Text>}{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}<Text style={styles.hint}>사진은 최대 10장까지 등록할 수 있습니다. 각 칸에서 실제 사진 미리보기를 확인하고 URL을 교체하거나 삭제할 수 있습니다.</Text><View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>{Array.from({length:10},(_,index)=>{const url=parseStudioImageSlots(form.image_urls)[index]?.trim()||"";return <View key={"edit-photo-slot-"+index} style={styles.photoSlot}><Text style={styles.label}>사진 {index+1}</Text>{url?<Image source={{uri:url}} style={styles.photoSlotImage} resizeMode="cover"/>:<View style={styles.photoSlotEmpty}><Ionicons name="image-outline" size={25} color={c.muted}/><Text style={styles.compactSecondary}>사진 없음</Text></View>}<TextInput style={styles.photoSlotInput} value={url} onChangeText={value=>setForm(current=>{const slots=parseStudioImageSlots(current.image_urls);while(slots.length<=index)slots.push("");slots[index]=value;return {...current,image_urls:slots.join("\n")};})} placeholder={"사진 "+(index+1)+" URL"} autoCapitalize="none" autoCorrect={false}/>{url&&editing&&<Pressable onPress={()=>removeStudioGalleryPhoto(editing,url)}><Text style={[styles.action,{color:"#B95764"}]}>사진 {index+1} 삭제</Text></Pressable>}</View>})}</View>{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
+<View style={styles.panel}><Text style={styles.heading}>{reportEditingId!==null?"제보 기반 학원 정보 수정":editing?"학원 정보 수정":"학원 등록"}</Text>{reportEditingId!==null&&<Text style={styles.hint}>제보 내용을 확인해 학원 정보를 수정하고 저장하면 해당 제보가 처리 완료로 변경됩니다. 폐업·이전이 확인된 경우 앱에 공개 토글을 끄세요.</Text>}{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}<Text style={styles.hint}>학원 관리 화면의 사진 1~30번 슬롯입니다. 발레 사진만 대표 이미지 갤러리에 넣고, 시간표·가격표는 자료 분류를 통해 해당 자료로 관리합니다.</Text><View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>{Array.from({length:STUDIO_GALLERY_LIMIT},(_,index)=>{const url=parseStudioImageSlots(form.image_urls)[index]?.trim()||"";return <View key={"edit-photo-slot-"+index} style={styles.photoSlot}><Text style={styles.label}>사진 {index+1}</Text>{url?<Image source={{uri:url}} style={styles.photoSlotImage} resizeMode="cover"/>:<View style={styles.photoSlotEmpty}><Ionicons name="image-outline" size={25} color={c.muted}/><Text style={styles.compactSecondary}>사진 없음</Text></View>}<TextInput style={styles.photoSlotInput} value={url} onChangeText={value=>setForm(current=>{const slots=parseStudioImageSlots(current.image_urls);while(slots.length<=index)slots.push("");slots[index]=value;return {...current,image_urls:slots.join("\n")};})} placeholder={"사진 "+(index+1)+" URL"} autoCapitalize="none" autoCorrect={false}/>{url&&editing&&<Pressable onPress={()=>removeStudioGalleryPhoto(editing,url)}><Text style={[styles.action,{color:"#B95764"}]}>사진 {index+1} 삭제</Text></Pressable>}</View>})}</View>{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
     </View>
@@ -1567,7 +1568,7 @@ export default function Admin() {
       <View style={styles.listHead}><Text style={styles.heading}>{officialBlogStudio.name} · 공식 블로그</Text><Pressable onPress={()=>{setOfficialBlogStudio(null);setOfficialBlogUrls("");}}><Text style={styles.refresh}>닫기</Text></Pressable></View>
       <Text style={styles.hint}>학원에서 직접 운영하는 네이버 블로그 프로필 주소만 등록하세요. 게시글 URL이 아니라 블로그 홈 주소를 입력합니다. 등록된 계정의 게시물만 앱의 공개 소식에 표시됩니다. 최대 5개, 한 줄에 하나씩 입력하세요.</Text>
       <TextInput style={[styles.input,{minHeight:100,textAlignVertical:"top"}]} multiline autoCapitalize="none" autoCorrect={false} value={officialBlogUrls} onChangeText={setOfficialBlogUrls} placeholder={"https://blog.naver.com/blogid\nhttps://blog.naver.com/anotherid"}/>
-      <View style={styles.buttons}><Pressable style={styles.secondary} onPress={()=>{setOfficialBlogStudio(null);setOfficialBlogUrls("");setOfficialBlogCandidates([]);}}><Text style={styles.secondaryText}>취소</Text></Pressable><Pressable style={styles.button} disabled={officialBlogBusy} onPress={saveOfficialBlogAccounts}><Text style={styles.buttonText}>{officialBlogBusy?"처리 중…":"공식 계정 저장"}</Text></Pressable></View>
+      <View style={styles.buttons}><Pressable style={styles.secondary} disabled={officialBlogBusy} onPress={disconnectOfficialBlogAccounts}><Text style={[styles.secondaryText,{color:"#B95764"}]}>공식 블로그 연결 해제</Text></Pressable><Pressable style={styles.secondary} onPress={()=>{setOfficialBlogStudio(null);setOfficialBlogUrls("");setOfficialBlogCandidates([]);}}><Text style={styles.secondaryText}>취소</Text></Pressable><Pressable style={styles.button} disabled={officialBlogBusy} onPress={saveOfficialBlogAccounts}><Text style={styles.buttonText}>{officialBlogBusy?"처리 중…":"공식 계정 저장"}</Text></Pressable></View>
       <View style={styles.listHead}><Text style={styles.heading}>자동 발견된 계정 후보 ({officialBlogCandidates.filter((x:any)=>x.review_status==="pending").length})</Text><Pressable onPress={async()=>{setOfficialBlogBusy(true);const result=await supabase!.rpc("admin_list_studio_blog_account_candidates",{p_studio_id:officialBlogStudio.id});if(result.error)Alert.alert("후보 조회 실패",result.error.message);else setOfficialBlogCandidates(Array.isArray(result.data)?result.data:[]);setOfficialBlogBusy(false);}}><Text style={styles.refresh}>새로고침</Text></Pressable></View>
       <Text style={styles.hint}>학원명 검색 결과에서 계정명·게시글 내용·영문 블로그 ID·반복 노출을 종합해 후보를 찾습니다. 일치도가 낮은 후보도 확인할 수 있으며, 공식 여부를 확인한 뒤 승인하세요. 승인 전에는 공개되지 않습니다.</Text>
       {officialBlogCandidates.map((candidate:any)=><View key={String(candidate.id)} style={styles.evidenceCard}>
