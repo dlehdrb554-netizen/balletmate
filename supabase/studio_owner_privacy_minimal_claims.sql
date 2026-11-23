@@ -93,8 +93,8 @@ BEGIN
  IF public.is_studio_owner(p_studio_id) THEN RAISE EXCEPTION '이미 이 학원의 관리 권한이 있습니다.'; END IF;
  IF p_verification_method IN ('blog','instagram') THEN
    IF v_url='' OR v_code='' THEN RAISE EXCEPTION '공식 채널 주소와 인증 코드를 입력하세요.'; END IF;
-   IF p_verification_method='blog' AND v_url !~* '^https?://(m\\.)?blog\\.naver\\.com/' THEN RAISE EXCEPTION '네이버 블로그 주소를 확인하세요.'; END IF;
-   IF p_verification_method='instagram' AND v_url !~* '^https?://(www\\.)?instagram\\.com/' THEN RAISE EXCEPTION '인스타그램 주소를 확인하세요.'; END IF;
+   IF p_verification_method='blog' AND v_url !~* '^https?://(m\.)?blog\.naver\.com/' THEN RAISE EXCEPTION '네이버 블로그 주소를 확인하세요.'; END IF;
+   IF p_verification_method='instagram' AND v_url !~* '^https?://(www\.)?instagram\.com/' THEN RAISE EXCEPTION '인스타그램 주소를 확인하세요.'; END IF;
  ELSE
    v_url:=NULL;v_code:=NULL;
  END IF;
