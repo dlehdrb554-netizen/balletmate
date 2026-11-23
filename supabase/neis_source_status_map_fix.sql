@@ -10,8 +10,9 @@ JOIN public.studios s ON s.id = v.id;
 
 GRANT SELECT ON public.studio_map_search_app_with_source TO anon, authenticated, service_role;
 
--- Backfill only links that point to an actual Kakao Place URL.
--- NEIS-to-studio links without a Kakao source remain NEIS-only.
+-- Backfill only candidates whose own Kakao verification is confirmed.
+-- A studio having a Kakao URL is not sufficient to prove this candidate
+-- matched that exact place.
 UPDATE public.studios s
 SET source_status = 'both',
     neis_candidate_id = c.id,
@@ -20,7 +21,9 @@ FROM public.neis_ballet_academy_candidates c
 WHERE c.matched_studio_id = s.id
   AND c.eligible = true
   AND c.is_open = true
-  AND s.source_url ILIKE '%place.map.kakao.com/%'
+  AND c.kakao_status = 'matched'
+  AND NULLIF(c.kakao_place_url, '') IS NOT NULL
+  AND s.source_url = c.kakao_place_url
   AND (s.source_status IS DISTINCT FROM 'both'
        OR s.neis_candidate_id IS DISTINCT FROM c.id);
 
@@ -41,8 +44,11 @@ BEGIN
   IF NEW.kakao_status = 'matched' AND NULLIF(NEW.kakao_place_url, '') IS NOT NULL THEN
     target_status := 'both';
   ELSE
+    -- A Kakao URL on the studio row is not proof that this NEIS candidate
+    -- was verified against that Kakao place. Keep it Kakao-only until the
+    -- candidate's own Kakao verification returns a confirmed place URL.
     SELECT CASE
-      WHEN s.source_url ILIKE '%place.map.kakao.com/%' THEN 'both'
+      WHEN s.source_url ILIKE '%place.map.kakao.com/%' THEN 'kakao_only'
       ELSE 'neis_only'
     END
     INTO target_status
@@ -73,3 +79,21 @@ FOR EACH ROW
 EXECUTE FUNCTION public.sync_studio_source_status_from_neis_candidate();
 
 REVOKE ALL ON FUNCTION public.sync_studio_source_status_from_neis_candidate() FROM PUBLIC, anon, authenticated;
+
+
+-- Undo premature promotion for candidates whose Kakao verification is still pending.
+UPDATE public.studios s
+SET source_status = CASE
+      WHEN s.source_url ILIKE '%place.map.kakao.com/%' THEN 'kakao_only'
+      ELSE 'neis_only'
+    END,
+    neis_candidate_id = NULL,
+    updated_at = now()
+FROM public.neis_ballet_academy_candidates c
+WHERE c.matched_studio_id = s.id
+  AND c.eligible = true
+  AND c.is_open = true
+  AND (c.kakao_status IS DISTINCT FROM 'matched'
+       OR NULLIF(c.kakao_place_url, '') IS NULL
+       OR s.source_url IS DISTINCT FROM c.kakao_place_url)
+  AND (s.source_status = 'both' OR s.neis_candidate_id = c.id);
