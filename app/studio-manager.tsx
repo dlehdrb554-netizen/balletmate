@@ -80,7 +80,7 @@ export default function StudioManager(){
     p_phone:profilePhone,p_website_url:profileWebsite,p_description:profileDescription
    });
    if(error)throw error;
-   Alert.alert("학원 정보 저장 완료","수정한 기본 정보가 학원 상세 페이지에 반영됩니다.");
+   Alert.alert("학원 정보 저장 완료","수정한 기본 정보가 학원 상세 페이지에 반영됩니다.");await load();
   }catch(e:any){Alert.alert("정보 저장 실패",e.message||"학원 정보를 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
