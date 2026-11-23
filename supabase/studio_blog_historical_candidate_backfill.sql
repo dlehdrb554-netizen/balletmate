@@ -54,7 +54,7 @@ per_account AS (
       WHEN length(a.studio_alias) >= 3 AND a.post_norm LIKE '%' || a.studio_alias || '%' THEN 88
       WHEN a.ballet_intent AND length(a.studio_alias) >= 3
         AND a.post_norm LIKE '%' || a.studio_alias || '%' THEN 88
-      WHEN a.ballet_intent AND (
+      WHEN a.ballet_intent AND length(a.studio_alias) >= 3 AND (
         a.blogger_norm LIKE '%' || left(a.studio_alias, 4) || '%'
         OR a.post_norm LIKE '%' || left(a.studio_alias, 4) || '%'
       ) THEN 55
