@@ -139,3 +139,17 @@ CREATE INDEX IF NOT EXISTS neis_ballet_kakao_runs_candidate_idx
 ALTER TABLE public.neis_ballet_kakao_verification_runs ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.neis_ballet_kakao_verification_runs FROM anon,authenticated;
 GRANT ALL ON public.neis_ballet_kakao_verification_runs TO service_role;
+
+-- Run staged Kakao verification slowly to control free-tier/API usage.
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
+SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname='balletmate-neis-kakao-verification';
+SELECT cron.schedule('balletmate-neis-kakao-verification','*/10 * * * *',$$
+ SELECT net.http_post(
+  url:='https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/neis-ballet-kakao-verification',
+  headers:=jsonb_build_object('Content-Type','application/json','x-crawl-secret',(select decrypted_secret from vault.decrypted_secrets where name='balletmate_crawl_worker_secret' order by created_at desc limit 1)),
+  body:='{}'::jsonb,
+  timeout_milliseconds:=30000
+ );
+$$);
