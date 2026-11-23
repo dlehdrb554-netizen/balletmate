@@ -23,6 +23,7 @@ export default function StudioManager(){
  const [blogUrl,setBlogUrl]=useState("");
  const [blogVerificationCode,setBlogVerificationCode]=useState("");
  const [galleryCount,setGalleryCount]=useState(0);
+ const [galleryUrls,setGalleryUrls]=useState<string[]>([]);
  const [profileName,setProfileName]=useState(studioName);
  const [profileDistrict,setProfileDistrict]=useState("");
  const [profileAddress,setProfileAddress]=useState("");
@@ -54,6 +55,7 @@ export default function StudioManager(){
   setOwner(!!ownerResult.data);
   setApplication(appResult.data||null);
   if(appResult.data){setBlogUrl(appResult.data.verification_url||"");setBlogVerificationCode(appResult.data.verification_code||"");setVerificationMethod(appResult.data.verification_method||"phone");}
+  setGalleryUrls(studioResult.data?.image_urls||[]);
   setGalleryCount((studioResult.data?.image_urls||[]).length);
   if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
   if(ownerResult.data){
@@ -129,8 +131,21 @@ export default function StudioManager(){
    let count=galleryCount;
    for(const url of urls){const result=await supabase.rpc("owner_add_studio_gallery_photo",{p_studio_id:studioId,p_image_url:url});if(result.error)throw result.error;count=Number(result.data??count);}
    setGalleryCount(count);
+   if(supabase){const refreshed=await supabase.from("studios").select("image_urls").eq("id",studioId).maybeSingle();if(!refreshed.error){setGalleryUrls(refreshed.data?.image_urls||[]);setGalleryCount((refreshed.data?.image_urls||[]).length);}}
    Alert.alert("사진 등록 완료",urls.length+"장을 학원 대표 사진으로 등록했습니다.");
   }catch(e:any){Alert.alert("사진 등록 실패",e.message||"사진을 등록하지 못했습니다.");}
+  finally{setSaving(false);}
+ };
+
+ const setPrimaryPhoto=async(url:string)=>{
+  if(!supabase||!owner||galleryUrls[0]===url)return;
+  setSaving(true);
+  try{
+   const {error}=await supabase.rpc("owner_set_studio_primary_photo",{p_studio_id:studioId,p_image_url:url});
+   if(error)throw error;
+   setGalleryUrls(current=>[url,...current.filter(item=>item!==url)]);
+   Alert.alert("대표 사진 변경 완료","선택한 사진이 학원 대표 사진으로 설정됐습니다.");
+  }catch(e:any){Alert.alert("대표 사진 변경 실패",e.message||"대표 사진을 변경하지 못했습니다.");}
   finally{setSaving(false);}
  };
 
@@ -204,7 +219,7 @@ export default function StudioManager(){
    <>
     <View style={s.card}><Text style={s.cardTitle}>승인된 원장님 계정</Text><Text style={s.body}>이 학원의 정보와 공개 자료를 관리할 수 있습니다. 등록한 내용은 학원 상세 페이지에 바로 공개됩니다.</Text></View>
     <View style={s.card}><Text style={s.cardTitle}>학원 기본 정보 수정</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("공식 홈페이지",profileWebsite,setProfileWebsite,"https://") }<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:90,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
-    <View style={s.card}><Text style={s.cardTitle}>학원 대표 사진</Text><Text style={s.body}>현재 {galleryCount}/30장 등록</Text>{button("사진 업로드",uploadGallery,saving||galleryCount>=30)}</View>
+    <View style={s.card}><Text style={s.cardTitle}>학원 대표 사진</Text><Text style={s.body}>현재 {galleryCount}/30장 등록 · 사진을 눌러 대표 사진으로 변경할 수 있습니다.</Text>{galleryUrls.length>0&&<View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12}}>{galleryUrls.map((url,index)=><View key={url} style={{width:"31%",minWidth:88,marginBottom:6}}><Image source={{uri:url}} style={{width:"100%",aspectRatio:1,borderRadius:8,backgroundColor:"#eee"}}/><Text style={[s.body,{fontSize:11,textAlign:"center",marginTop:4}]}>{index===0?"현재 대표 사진":"사진 "+(index+1)}</Text>{index!==0&&<Pressable disabled={saving} onPress={()=>setPrimaryPhoto(url)} style={{borderWidth:1,borderColor:C.purple,borderRadius:7,paddingVertical:5,marginTop:4,alignItems:"center"}}><Text style={{color:C.purple,fontSize:11,fontWeight:"700"}}>대표로 설정</Text></Pressable>}</View>)}</View>}{button("사진 업로드",uploadGallery,saving||galleryCount>=30)}</View>
     <View style={s.card}><Text style={s.cardTitle}>시간표 사진 및 안내</Text>{field("시간표 설명",""+scheduleText,setScheduleText,"예: 성인 초급반 월·수 19:00")}{button("시간표 사진 선택 후 등록",saveSchedule,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>가격표 등록</Text>{field("가격",""+priceAmount,setPriceAmount,"예: 150000","numeric")}{field("이용 기간",""+pricePeriod,setPricePeriod,"예: 월 8회 / 1개월")}{field("주당 횟수 (선택)",""+priceFrequency,setPriceFrequency,"예: 2","numeric")}{button("가격표 사진 선택 후 등록",savePrice,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>공지사항 작성</Text>{field("제목",noticeTitle,setNoticeTitle,"공지 제목") }<TextInput value={noticeBody} onChangeText={setNoticeBody} placeholder="휴강, 모집, 행사 등 공지 내용을 입력하세요." multiline style={[s.input,{height:110,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("공지사항 등록",saveNotice,saving)}</View>
