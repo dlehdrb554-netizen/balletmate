@@ -194,8 +194,8 @@ Deno.serve(async(req)=>{
         const {error:channelError}=await db.from("studios").update({kakao_channel_url:officialLinks.channel,updated_at:new Date().toISOString()}).eq("id",studioId);
         if(channelError)addError("카카오톡 채널 후보 저장 실패("+name+"): "+channelError.message.slice(0,100));else kakaoChannelCandidates++;
        }
-      }
         if(officialLinks.website){const {error:websiteError}=await db.from("studios").update({website_url:officialLinks.website,updated_at:new Date().toISOString()}).eq("id",studioId).is("website_url",null);if(websiteError)addError("카카오 공식 홈페이지 저장 실패("+name+"): "+websiteError.message.slice(0,100));}
+      }
     }
     if(payload?.meta?.is_end||docs.length<PAGE_SIZE)break;
    }catch(e){regionHasError=true;addError(term+": "+(e instanceof Error?e.message:"request failed"));break;}
