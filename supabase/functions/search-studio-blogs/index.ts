@@ -63,26 +63,23 @@ const academyAliases = (studioName: string): string[] => {
 // Prefer the complete academy name (including branch) over short, collision-prone aliases.
 const academyAlias = (studioName: string) => academyAliases(studioName).sort((a,b)=>b.length-a.length)[0] || "";
 const branchHints = (value: string): string[] => {
-  const matches = [...value.matchAll(/([가-힣]{2,8})(?:지점|점)/g)]
-    .map((match) => normalize(match[1])).filter((part) => part.length >= 2);
+  const matches = [...value.matchAll(/([가-힣]{2,8})(?:본점|지점|점)/g)]
+    .map((match) => normalize(match[1].replace(/본$/, ""))).filter((part) => part.length >= 2);
   return [...new Set(matches)];
 };
 const branchConsistent = (
   studioName: string,
   bloggerName: string,
-  samples: Array<{title:string;post_url:string}>,
+  samples: Array<{title:string;post_url:string;description?:string}>,
   requireBranchEvidence = false,
 ): boolean => {
   const targets = branchHints(studioName);
   if (!targets.length) return true;
-  const evidence = [bloggerName, ...samples.map((sample) => sample.title)].join(" ");
-  const evidenceNorm = normalize(evidence);
+  const evidence = [bloggerName, ...samples.map((sample) => sample.title + " " + (sample.description || ""))].join(" ");
   const namedBranches = branchHints(evidence);
-  // A branch-specific academy must never inherit a different branch's account.
   if (namedBranches.some((branch) => !targets.some((target) =>
     branch === target || branch.includes(target) || target.includes(branch)))) return false;
-  // For automatic registration, the target branch itself must be explicit.
-  return !requireBranchEvidence || targets.some((target) => evidenceNorm.includes(target));
+  return !requireBranchEvidence || targets.some((target) => normalize(evidence).includes(target));
 };
 const nameMatches = (studioName: string, text: string): boolean => {
   const normalizedText = normalize(text);
@@ -289,16 +286,35 @@ Deno.serve(async (req) => {
           .select("address").eq("id", job.studio_id).maybeSingle();
         if (studioLocationError) throw new Error("학원 주소 조회 실패: " + studioLocationError.message);
         const addressText = String(studioLocation?.address ?? "");
-        const locationParts = addressText.split(/[\s,]+/)
-          .map((value) => normalize(value).replace(/(특별자치도|광역시|특별시|자치시|도|시|구|군)$/g, ""))
-          .filter((value) => value.length >= 2 && !/^(대한민국|한국)$/.test(value));
-        const locationTokens = [...new Set(locationParts.flatMap((value) =>
-          /^[가-힣]+$/.test(value) && value.length >= 3 ? [value, value.slice(0, 2)] : [value]))];
-        const hasLocationEvidence = (value: string) => locationTokens.some((token) => normalize(value).includes(token));
+        // Use actual city/district units from the address; avoid broad province prefixes.
+        const addressUnits = [...addressText.matchAll(/[가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구)/g)]
+          .map((match) => normalize(match[0]));
+        const locationTokens = [...new Set(addressUnits.flatMap((unit) => {
+          const stripped = unit.replace(/(특별자치도|특별자치시|광역시|특별시|자치시|시|군|구)$/g, "");
+          return [unit, stripped].filter((token) => token.length >= 2);
+        }))];
+        const hasLocationEvidence = (value: string) =>
+          locationTokens.some((token) => normalize(value).includes(token));
+        const commonLocationTokens = [
+          "서울","인천","부산","대구","대전","광주","울산","세종","제주",
+          "강남","서초","송파","강서","마포","노원","강북","영등포","남동","부평",
+          "고양","덕양","일산","안양","평촌","청주","천안","오산","평택","전주",
+          "부천","수원","성남","분당","정자","동탄","의정부","군포","남양주",
+          "다산","마곡","공덕","잠실","천호","미아","보라매","구월","만성","동래",
+          "대연","용호","서원"
+        ];
+        const hasConflictingLocation = (value: string) => {
+          const normalized = normalize(value);
+          const mentioned = commonLocationTokens.filter((token) => normalized.includes(normalize(token)));
+          return mentioned.some((token) => !locationTokens.some((target) =>
+            normalize(target).includes(normalize(token)) || normalize(token).includes(normalize(target))));
+        };
+        const hasOfficialOperationSignal = (value: string) =>
+          /(시간표|스케줄|수강료|교습비|수업안내|강좌안내|신규회원|회원모집|원생모집|학생모집|입학|개강|상담|등록|강사진|강사소개|오픈|개원|공지|정규반|초등부모집|유아부모집|작품반모집)/i.test(value);
         const accountCandidates = new Map<string, {
-          blogger_url: string; blogger_name: string | null; samples: Array<{title:string;post_url:string}>;
-          directName: boolean; directPostCount: number; operationPostCount: number;
-          locationPostCount: number; matchCount: number;
+          blogger_url: string; blogger_name: string | null;
+          samples: Array<{title:string;post_url:string;description?:string}>;
+          directName: boolean; matchCount: number;
         }>();
         for (const item of items as Array<Record<string, unknown>>) {
           const bloggerUrl = cleanText(item.bloggerlink);
@@ -313,44 +329,24 @@ Deno.serve(async (req) => {
           const postText = title + " " + description;
           const postNorm = normalize(postText);
           const bloggerNorm = normalize(bloggerName);
-          // Keep the full academy identity, including a branch suffix, intact.
           const directName = bloggerNorm.includes(alias);
           const directPost = postNorm.includes(alias);
-          const operationPost = /(발레|바레|발레핏|파드되|토슈즈|바가노바|바워크|포인트슈즈|무용|댄스|폴댄스|현대무용|한국무용|실용무용|시간표|스케줄|수강료|교습비|수업|클래스|레슨|모집|입시|공연|작품반)/i.test(postText);
           if (!directName && !directPost) continue;
           const existing = accountCandidates.get(accountKey) || {
             blogger_url: canonicalUrl, blogger_name: bloggerName || null, samples: [],
-            directName: false, directPostCount: 0, operationPostCount: 0,
-            locationPostCount: 0, matchCount: 0,
+            directName: false, matchCount: 0,
           };
           existing.directName ||= directName;
-          if (directPost && operationPost) existing.directPostCount++;
-          if (operationPost) existing.operationPostCount++;
-          if (operationPost && hasLocationEvidence(postText)) existing.locationPostCount++;
           existing.matchCount++;
           if (!existing.blogger_name && bloggerName) existing.blogger_name = bloggerName;
           const postUrl = cleanText(item.link);
           if (postUrl && !existing.samples.some((sample) => sample.post_url === postUrl)) {
-            existing.samples.push({ title, post_url: postUrl });
+            existing.samples.push({ title, description, post_url: postUrl });
             existing.samples = existing.samples.slice(-10);
           }
           accountCandidates.set(accountKey, existing);
         }
         for (const candidate of accountCandidates.values()) {
-          const branchSafe = branchConsistent(
-            String(job.studio_name), candidate.blogger_name || "", candidate.samples, false,
-          );
-          const identityEvidence = candidate.directName ||
-            candidate.samples.filter((sample) => normalize(sample.title).includes(alias)).length >= 2;
-          const branchEvidence = branchConsistent(
-            String(job.studio_name), candidate.blogger_name || "", candidate.samples, true,
-          );
-          const score = !branchSafe ? 0 :
-            identityEvidence && candidate.operationPostCount >= 2 && branchEvidence ? 96 :
-            identityEvidence && candidate.operationPostCount >= 2 ? 88 :
-            identityEvidence && candidate.operationPostCount >= 1 && candidate.locationPostCount >= 1 ? 82 :
-            candidate.directPostCount >= 2 && candidate.locationPostCount >= 1 ? 72 : 0;
-          if (score < 60) continue;
           const { data: prior, error: priorError } = await db.from("studio_blog_account_candidates")
             .select("id,matched_post_count,sample_posts,review_status,match_score")
             .eq("studio_id", job.studio_id)
@@ -359,18 +355,44 @@ Deno.serve(async (req) => {
           if (priorError) throw new Error("공식 블로그 후보 조회 실패: " + priorError.message);
           const priorSamples = Array.isArray(prior?.sample_posts) ? prior.sample_posts : [];
           const mergedSamples = [...priorSamples, ...candidate.samples]
-            .filter((post, index, all) => all.findIndex((item) => item.post_url === post.post_url) === index).slice(-10);
+            .filter((post, index, all) => post?.post_url &&
+              all.findIndex((item) => item?.post_url === post.post_url) === index).slice(-10)
+            .map((post) => ({
+              title: String(post.title || ""),
+              description: String(post.description || ""),
+              post_url: String(post.post_url || ""),
+            }));
+          const accountName = candidate.blogger_name || "";
+          const accountAndPosts = [accountName, ...mergedSamples.map((sample) =>
+            sample.title + " " + sample.description)].join(" ");
+          const identityEvidence = candidate.directName ||
+            mergedSamples.filter((sample) => normalize(sample.title + " " + sample.description).includes(alias)).length >= 2;
+          const branchSafe = branchConsistent(
+            String(job.studio_name), accountName, mergedSamples, false,
+          );
+          const branchEvidence = branchConsistent(
+            String(job.studio_name), accountName, mergedSamples, true,
+          );
+          const locationEvidence = hasLocationEvidence(accountAndPosts);
+          const locationConflict = hasConflictingLocation(accountAndPosts);
+          const operationPostCount = mergedSamples.filter((sample) =>
+            hasOfficialOperationSignal(sample.title + " " + sample.description) &&
+            /(발레|바레|발레핏|파드되|토슈즈|바가노바|바워크|포인트슈즈|무용|댄스|폴댄스|현대무용|한국무용|실용무용)/i.test(accountName + " " + sample.title + " " + sample.description)
+          ).length;
+          const targetHasBranch = branchHints(String(job.studio_name)).length > 0;
+          const locationReady = targetHasBranch ? branchEvidence : locationEvidence;
+          const score = !branchSafe || locationConflict ? 0 :
+            identityEvidence && operationPostCount >= 2 && branchEvidence && locationReady ? 96 :
+            identityEvidence && operationPostCount >= 1 && (branchEvidence || locationEvidence) ? 82 :
+            identityEvidence && mergedSamples.length >= 2 ? 68 : 0;
+          if (score < 60) continue;
+
           const { count: sourceCount, error: countError } = await db.from("studio_blog_sources")
             .select("id", { count: "exact", head: true })
             .eq("studio_id", job.studio_id)
             .eq("blogger_url", candidate.blogger_url);
           if (countError) throw new Error("후보 게시물 수 확인 실패: " + countError.message);
           const priorRejected = prior?.review_status === "rejected";
-          const safeBranchForApproval = branchConsistent(
-            String(job.studio_name), candidate.blogger_name || "", mergedSamples, true,
-          );
-          const identityForApproval = candidate.directName ||
-            mergedSamples.filter((sample) => normalize(sample.title).includes(alias)).length >= 2;
           const { data: ownerRows, error: ownerError } = await db.from("studio_blog_official_accounts")
             .select("studio_id,blogger_url").eq("is_active", true);
           if (ownerError) throw new Error("블로그 소유 학원 확인 실패: " + ownerError.message);
@@ -381,9 +403,9 @@ Deno.serve(async (req) => {
             .select("id", { count: "exact", head: true })
             .eq("studio_id", job.studio_id).eq("is_active", true);
           if (activeCountError) throw new Error("공식 블로그 등록 개수 확인 실패: " + activeCountError.message);
-          const shouldAutoApprove = score >= 90 && identityForApproval &&
-            candidate.operationPostCount >= 2 && safeBranchForApproval &&
-            !belongsToAnotherStudio && !priorRejected &&
+          const shouldAutoApprove = score >= 90 && identityEvidence &&
+            operationPostCount >= 2 && branchSafe && branchEvidence && locationReady &&
+            !locationConflict && !belongsToAnotherStudio && !priorRejected &&
             (Number(activeCount ?? 0) < 5 || (ownerRows ?? []).some((row: {studio_id:string|null;blogger_url:string}) =>
               row.studio_id === job.studio_id && blogAccountKey(row.blogger_url) === accountKey));
           const { error: candidateError } = await db.from("studio_blog_account_candidates")
@@ -392,7 +414,7 @@ Deno.serve(async (req) => {
               studio_name: String(job.studio_name),
               blogger_url: candidate.blogger_url,
               blogger_name: candidate.blogger_name,
-              matched_post_count: Math.max(candidate.matchCount, Number(sourceCount ?? 0), Number(prior?.matched_post_count ?? 0)),
+              matched_post_count: Math.max(mergedSamples.length, Number(sourceCount ?? 0), Number(prior?.matched_post_count ?? 0)),
               sample_posts: mergedSamples,
               match_score: score,
               ...(shouldAutoApprove ? { review_status: "approved", reviewed_at: new Date().toISOString() } : {}),
