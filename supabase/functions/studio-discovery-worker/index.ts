@@ -100,7 +100,7 @@ Deno.serve(async(req)=>{
   .order("kakao_place_blog_attempted_at",{ascending:true,nullsFirst:true}).limit(6);
  if(backfillError)console.error("Kakao blog backfill target query failed:",backfillError.message);
  for(const studio of backfillRows||[]){
-  const placeId=String(studio.source_url||"").match(/place\\.map\\.kakao\\.com\\/(?:main\\/v\\/)?(\\d+)/i)?.[1];
+  const placeId=String(studio.source_url||"").match(/place\.map\.kakao\.com\/(?:main\/v\/)?(\d+)/i)?.[1];
   if(!placeId)continue;
   existingKakaoChecks++;
   const attemptedAt=new Date().toISOString();
