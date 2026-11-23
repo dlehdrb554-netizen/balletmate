@@ -73,6 +73,26 @@ ORDER BY
 
 -- Source-level rows without ballet evidence, useful for spotting wrong-account
 -- posts that entered through an approved account's RSS or a broad search.
+WITH source_rows AS (
+  SELECT
+    b.id AS source_id,
+    b.studio_id,
+    s.name AS studio_name,
+    s.address AS studio_address,
+    b.blogger_name,
+    b.blogger_url,
+    lower(split_part(regexp_replace(b.blogger_url,
+      '^https?://(m[.])?blog[.]naver[.]com/', '', 'i'), '/', 1)) AS account_key,
+    b.title,
+    b.description,
+    b.post_url,
+    b.collected_at,
+    (COALESCE(b.blogger_name, '') || ' ' || COALESCE(b.title, '') || ' ' ||
+      COALESCE(b.description, '')) ~* '(발레|바레|무용)' AS has_ballet_evidence
+  FROM public.studio_blog_sources b
+  LEFT JOIN public.studios s ON s.id = b.studio_id
+  WHERE b.blogger_url IS NOT NULL
+)
 SELECT
   source_id,
   studio_id,
