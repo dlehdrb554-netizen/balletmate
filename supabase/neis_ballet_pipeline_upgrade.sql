@@ -154,3 +154,29 @@ SELECT cron.schedule('balletmate-neis-kakao-verification','*/10 * * * *',$$
   timeout_milliseconds:=30000
  );
 $$);
+
+
+-- Independent source aggregation: Kakao discovery remains valid without NEIS.
+ALTER TABLE public.studios
+  ADD COLUMN IF NOT EXISTS source_status text NOT NULL DEFAULT 'kakao_only'
+    CHECK (source_status IN ('both','kakao_only','neis_only')),
+  ADD COLUMN IF NOT EXISTS neis_candidate_id bigint REFERENCES public.neis_ballet_academy_candidates(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS studios_source_status_idx ON public.studios(source_status);
+UPDATE public.studios s SET source_status='both',neis_candidate_id=c.id,updated_at=now()
+FROM public.neis_ballet_academy_candidates c
+WHERE c.matched_studio_id=s.id AND c.eligible=true AND c.is_open=true;
+UPDATE public.studios SET source_status='kakao_only'
+WHERE neis_candidate_id IS NULL AND source_status IS DISTINCT FROM 'neis_only';
+CREATE OR REPLACE FUNCTION public.sync_neis_kakao_source_status()
+RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE n integer:=0;
+BEGIN
+ IF coalesce(auth.role(),'')<>'service_role' THEN RAISE EXCEPTION 'service role required' USING ERRCODE='42501'; END IF;
+ UPDATE public.studios s SET source_status='both',neis_candidate_id=c.id,updated_at=now()
+ FROM public.neis_ballet_academy_candidates c
+ WHERE c.matched_studio_id=s.id AND c.eligible=true AND c.is_open=true
+ AND (s.source_status IS DISTINCT FROM 'both' OR s.neis_candidate_id IS DISTINCT FROM c.id);
+ GET DIAGNOSTICS n=ROW_COUNT; RETURN n;
+END $$;
+REVOKE ALL ON FUNCTION public.sync_neis_kakao_source_status() FROM public,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.sync_neis_kakao_source_status() TO service_role;
