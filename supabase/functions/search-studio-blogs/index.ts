@@ -60,7 +60,7 @@ const academyAliases = (studioName: string): string[] => {
   };
   return [...new Set([full, branchless, stripGeneric(full), stripGeneric(branchless)].filter(x => x.length >= 3))];
 };
-const academyAlias = (studioName: string) => academyAliases(studioName).sort((a,b)=>b.length-a.length)[0] || "";
+const academyAlias = (studioName: string) => academyAliases(studioName).sort((a,b)=>a.length-b.length)[0] || "";
 const nameMatches = (studioName: string, text: string): boolean => {
   const normalizedText = normalize(text);
   return academyAliases(studioName).some(alias => alias.length >= 3 && normalizedText.includes(alias));
