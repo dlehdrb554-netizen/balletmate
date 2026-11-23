@@ -7,6 +7,9 @@ ALTER TABLE public.studio_owner_applications
   ALTER COLUMN representative_name DROP NOT NULL,
   ALTER COLUMN business_address DROP NOT NULL,
   ALTER COLUMN document_path DROP NOT NULL,
+  ADD COLUMN IF NOT EXISTS contact_phone text,
+  ADD COLUMN IF NOT EXISTS blog_url text,
+  ADD COLUMN IF NOT EXISTS verification_code text,
   ADD COLUMN IF NOT EXISTS verification_method text,
   ADD COLUMN IF NOT EXISTS verification_url text;
 
