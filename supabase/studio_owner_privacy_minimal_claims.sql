@@ -133,3 +133,87 @@ GRANT EXECUTE ON FUNCTION public.admin_review_studio_owner_application(uuid,text
 
 -- Approved users may relinquish or admins may revoke using the status field.
 COMMENT ON TABLE public.studio_owners IS 'Per-studio manager permissions. One account may manage multiple studios and each studio may have multiple approved managers.';
+
+-- Owner-edit audit log (captures public fields only; no identity documents or private claims).
+CREATE TABLE IF NOT EXISTS public.studio_owner_edit_history (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ studio_id uuid NOT NULL REFERENCES public.studios(id) ON DELETE CASCADE,
+ actor_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+ entity text NOT NULL,
+ entity_id text,
+ action text NOT NULL CHECK(action IN ('insert','update','delete')),
+ changed_fields text[] NOT NULL DEFAULT '{}',
+ before_snapshot jsonb,
+ after_snapshot jsonb,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS studio_owner_edit_history_studio_time_idx
+ ON public.studio_owner_edit_history(studio_id,created_at DESC);
+ALTER TABLE public.studio_owner_edit_history ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.studio_owner_edit_history FROM anon,authenticated;
+GRANT SELECT ON public.studio_owner_edit_history TO authenticated;
+DROP POLICY IF EXISTS "owners and admins read edit history" ON public.studio_owner_edit_history;
+CREATE POLICY "owners and admins read edit history" ON public.studio_owner_edit_history FOR SELECT TO authenticated
+ USING(public.is_studio_owner(studio_id) OR public.is_balletmate_admin());
+
+CREATE OR REPLACE FUNCTION public.record_studio_owner_edit_history()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE
+ v_old jsonb;v_new jsonb;v_studio_id uuid;v_entity_id text;v_action text;
+ v_fields text[];
+BEGIN
+ v_action:=lower(TG_OP);
+ IF TG_OP='DELETE' THEN
+  v_studio_id:=OLD.studio_id;v_entity_id:=OLD.id::text;
+ ELSIF TG_OP='INSERT' THEN
+  v_studio_id:=NEW.studio_id;v_entity_id:=NEW.id::text;
+ ELSE
+  v_studio_id:=NEW.studio_id;v_entity_id:=NEW.id::text;
+ END IF;
+ IF TG_TABLE_NAME='studios' THEN
+  IF TG_OP='DELETE' THEN v_old:=to_jsonb(OLD); ELSE v_new:=to_jsonb(NEW); END IF;
+  v_old:=CASE WHEN v_old IS NULL THEN NULL ELSE v_old-ARRAY['source_status','source_url','source_name','image_source_name','image_usage_note','details_source_urls','price_evidence_text','schedule_evidence_text'] END;
+  v_new:=CASE WHEN v_new IS NULL THEN NULL ELSE v_new-ARRAY['source_status','source_url','source_name','image_source_name','image_usage_note','details_source_urls','price_evidence_text','schedule_evidence_text'] END;
+  v_fields:=ARRAY['name','district','address','phone','website_url','description','image_urls'];
+  IF v_old IS NOT NULL THEN v_old:=v_old-ARRAY(SELECT jsonb_object_keys(v_old) WHERE jsonb_object_keys(v_old)<>ALL(v_fields); END IF;
+  IF v_new IS NOT NULL THEN v_new:=v_new-ARRAY(SELECT jsonb_object_keys(v_new) WHERE jsonb_object_keys(v_new)<>ALL(v_fields); END IF;
+ ELSIF TG_TABLE_NAME='studio_public_prices' THEN
+  IF TG_OP='DELETE' THEN v_old:=to_jsonb(OLD); ELSE v_new:=to_jsonb(NEW); END IF;
+  v_fields:=ARRAY['amount_krw','price_period','frequency_per_week','image_urls','is_active','expires_at'];
+  IF v_old IS NOT NULL THEN v_old:=v_old-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at']; END IF;
+  IF v_new IS NOT NULL THEN v_new:=v_new-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at']; END IF;
+ ELSIF TG_TABLE_NAME='studio_public_schedules' THEN
+  IF TG_OP='DELETE' THEN v_old:=to_jsonb(OLD); ELSE v_new:=to_jsonb(NEW); END IF;
+  v_fields:=ARRAY['schedule_text','image_urls','is_active','expires_at'];
+  IF v_old IS NOT NULL THEN v_old:=v_old-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at']; END IF;
+  IF v_new IS NOT NULL THEN v_new:=v_new-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at']; END IF;
+ ELSE
+  IF TG_OP='DELETE' THEN v_old:=to_jsonb(OLD); ELSE v_new:=to_jsonb(NEW); END IF;
+  v_fields:=ARRAY['title','body','is_active'];
+  IF v_old IS NOT NULL THEN v_old:=v_old-ARRAY['created_by','studio_id','created_at','updated_at']; END IF;
+  IF v_new IS NOT NULL THEN v_new:=v_new-ARRAY['created_by','studio_id','created_at','updated_at']; END IF;
+ END IF;
+ IF TG_OP='UPDATE' THEN
+  SELECT coalesce(array_agg(k ORDER BY k),'{}') INTO v_fields
+   FROM jsonb_object_keys(coalesce(v_new,'{}')) k WHERE coalesce(v_old,'{}')->k IS DISTINCT FROM v_new->k;
+ ELSE v_fields:=coalesce(v_fields,'{}'); END IF;
+ IF TG_OP<>'UPDATE' OR cardinality(v_fields)>0 THEN
+  INSERT INTO public.studio_owner_edit_history(studio_id,actor_user_id,entity,entity_id,action,changed_fields,before_snapshot,after_snapshot)
+  VALUES(v_studio_id,auth.uid(),TG_TABLE_NAME,v_entity_id,v_action,v_fields,v_old,v_new);
+ END IF;
+ IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END $$;
+
+DROP TRIGGER IF EXISTS studio_owner_audit_studios ON public.studios;
+CREATE TRIGGER studio_owner_audit_studios AFTER UPDATE ON public.studios
+ FOR EACH ROW EXECUTE FUNCTION public.record_studio_owner_edit_history();
+DROP TRIGGER IF EXISTS studio_owner_audit_prices ON public.studio_public_prices;
+CREATE TRIGGER studio_owner_audit_prices AFTER INSERT OR UPDATE OR DELETE ON public.studio_public_prices
+ FOR EACH ROW EXECUTE FUNCTION public.record_studio_owner_edit_history();
+DROP TRIGGER IF EXISTS studio_owner_audit_schedules ON public.studio_public_schedules;
+CREATE TRIGGER studio_owner_audit_schedules AFTER INSERT OR UPDATE OR DELETE ON public.studio_public_schedules
+ FOR EACH ROW EXECUTE FUNCTION public.record_studio_owner_edit_history();
+DROP TRIGGER IF EXISTS studio_owner_audit_notices ON public.studio_owner_notices;
+CREATE TRIGGER studio_owner_audit_notices AFTER INSERT OR UPDATE OR DELETE ON public.studio_owner_notices
+ FOR EACH ROW EXECUTE FUNCTION public.record_studio_owner_edit_history();
+
