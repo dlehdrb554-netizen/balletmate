@@ -225,7 +225,6 @@ export default function StudioManager(){
     {verificationMethod==="phone"&&<Text style={s.body}>학원에 공개된 전화번호로 운영자가 직접 확인합니다. 공개 번호가 없는 경우 다른 확인 방법을 선택해 주세요. {profilePhone?("현재 공개 번호: "+profilePhone):"공개 전화번호가 등록되어 있지 않습니다."}</Text>}
     {verificationMethod==="manual"&&<Text style={s.body}>운영자가 공개 연락처, 공식 채널 또는 기타 자료로 운영 관계를 확인합니다. 필요 시 신청 계정으로 추가 안내합니다.</Text>}
     {button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving)}
-   </View>
    </View>}
  </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
