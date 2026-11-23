@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
     .select("id", { count: "exact", head: true })
     .eq("review_status", "pending");
   const dailyRemaining = Math.max(0, visionDailyLimit - (processedToday || 0));
-  const batchSize = visionPauseReason || pendingCountError ? 0 : Math.min(1, dailyRemaining);
+  // Process a small batch automatically while both the app daily cap and the\n  // account-wide Neurons guard allow it. This is not a one-photo-per-run throttle.\n  const batchSize = visionPauseReason || pendingCountError ? 0 : Math.min(10, dailyRemaining);
   let visionProcessed = 0;
   let visionFailed = 0;
   const visionResults: Array<{ candidateId: number; ok: boolean; detail?: string }> = [];
@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       .lt("auto_retry_count", 3)
       .or("auto_classified_at.is.null,auto_classified_at.lt." + retryBefore)
       .order("created_at", { ascending: true })
-      .limit(20);
+      .limit(Math.min(100, batchSize * 5));
 
     if (candidateError) {
       return json({ crawlClaimed: jobs?.length || 0, crawlSucceeded, crawlFailed, crawlResults,
@@ -186,34 +186,42 @@ Deno.serve(async (req) => {
     // Legacy pending photos may have been collected from third-party search results.
     // Recheck ownership before every Vision call; only the registered official blog
     // for that academy is allowed to consume AI capacity.
-    let eligibleCandidate: (typeof candidates extends Array<infer T> ? T : never) | null = null;
+    const eligibleCandidates: typeof candidates = [];
+    const officialAccountCache = new Map<string, string[]>();
     for (const candidate of candidates || []) {
-      const { data: officialAccounts, error: officialError } = await adminClient
-        .from("studio_blog_official_accounts")
-        .select("blogger_url")
-        .eq("studio_id", candidate.studio_id)
-        .eq("is_active", true);
-      if (officialError) {
-        return json({ crawlClaimed: jobs?.length || 0, crawlSucceeded, crawlFailed, crawlResults,
-          visionProcessed, visionFailed, visionError: "공식 블로그 확인 실패: " + officialError.message }, 500);
+      const studioId = String(candidate.studio_id);
+      let officialAccountKeys = officialAccountCache.get(studioId);
+      if (!officialAccountKeys) {
+        const { data: officialAccounts, error: officialError } = await adminClient
+          .from("studio_blog_official_accounts")
+          .select("blogger_url")
+          .eq("studio_id", candidate.studio_id)
+          .eq("is_active", true);
+        if (officialError) {
+          return json({ crawlClaimed: jobs?.length || 0, crawlSucceeded, crawlFailed, crawlResults,
+            visionProcessed, visionFailed, visionError: "공식 블로그 확인 실패: " + officialError.message }, 500);
+        }
+        officialAccountKeys = (officialAccounts || [])
+          .map((account: { blogger_url: string }) => blogAccountKey(account.blogger_url))
+          .filter(Boolean);
+        officialAccountCache.set(studioId, officialAccountKeys);
       }
       const sourceAccount = blogAccountKey(candidate.source_page_url);
-      const isOfficialPhoto = !!sourceAccount && (officialAccounts || []).some(
-        (account: { blogger_url: string }) => blogAccountKey(account.blogger_url) === sourceAccount
-      );
+      const isOfficialPhoto = !!sourceAccount && officialAccountKeys.includes(sourceAccount);
       if (isOfficialPhoto) {
-        eligibleCandidate = candidate;
-        break;
+        eligibleCandidates.push(candidate);
+        if (eligibleCandidates.length >= batchSize) break;
+      } else {
+        await adminClient.from("studio_photo_candidates").update({
+          review_status: "rejected",
+          auto_reason: "공식 블로그 계정에서 수집된 사진이 아니므로 Vision 분류 제외",
+          auto_classified_at: new Date().toISOString(),
+        }).eq("id", candidate.id).eq("review_status", "pending");
       }
-      await adminClient.from("studio_photo_candidates").update({
-        review_status: "rejected",
-        auto_reason: "공식 블로그 계정에서 수집된 사진이 아니므로 Vision 분류 제외",
-        auto_classified_at: new Date().toISOString(),
-      }).eq("id", candidate.id).eq("review_status", "pending");
     }
 
     const classifierEndpoint = supabaseUrl.replace(/\/$/, "") + "/functions/v1/classify-studio-photo";
-    for (const candidate of (eligibleCandidate ? [eligibleCandidate] : [])) {
+    for (const candidate of eligibleCandidates) {
       try {
         const response = await fetch(classifierEndpoint, {
           method: "POST",
