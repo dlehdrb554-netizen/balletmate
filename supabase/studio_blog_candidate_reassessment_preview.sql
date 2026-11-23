@@ -79,7 +79,7 @@ post_rollup AS (
     count(DISTINCT p.post_url)::integer AS unique_post_count,
     count(DISTINCT p.post_url) FILTER (
       WHERE (p.title || ' ' || p.description) ~*
-        '(시간표|스케줄|수강료|교습비|수업안내|강좌안내|신규회원|회원모집|원생모집|학생모집|입학|개강|상담|등록|강사진|강사소개|오픈|개원|공지|정규반|초등부모집|유아부모집|작품반모집)'
+        '(시간표|스케줄|수강료|수업료|교습비|교육비|수업안내|강좌안내|신규회원|회원모집|원생모집|학생모집|발레반모집|성인반모집|키즈반모집|입시반모집|입학안내|개강안내|강사진|강사소개|정규반|초등부모집|유아부모집|작품반모집|교육과정|프로그램안내|레벨테스트)'
         AND (p.blogger_name || ' ' || p.title || ' ' || p.description) ~*
         '(발레|바레|무용)'
     )::integer AS official_operation_post_count,
