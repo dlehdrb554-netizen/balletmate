@@ -266,8 +266,9 @@ Deno.serve(async (req) => {
           .select("address").eq("id", job.studio_id).maybeSingle();
         if (studioLocationError) throw new Error("학원 주소 조회 실패: " + studioLocationError.message);
         const addressText = String(studioLocation?.address ?? "");
-        const locationTokens = [...new Set((addressText.match(/(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[^\\s,]+/g) ?? [])
-          .map((value) => normalize(value)).filter((value) => value.length >= 2))];
+        const locationTokens = [...new Set(addressText.split(/[\\s,]+/)
+          .map((value) => normalize(value).replace(/(특별자치도|광역시|특별시|자치시|도|시|구|군)$/g, ""))
+          .filter((value) => value.length >= 2 && !/^(대한민국|한국)$/.test(value)))];
         const hasLocationEvidence = (value: string) => locationTokens.some((token) => normalize(value).includes(token));
         const accountCandidates = new Map<string, {
           blogger_url: string; blogger_name: string | null; samples: Array<{title:string;post_url:string}>;
