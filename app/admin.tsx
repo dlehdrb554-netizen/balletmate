@@ -460,16 +460,33 @@ export default function Admin() {
   const classifyPhotoCandidateAI=async(item:any,quiet=false)=>{
     if(!supabase)return false;
     if(!quiet)setPhotoAutoScanBusy(true);
-    const {data,error}=await supabase.functions.invoke("classify-studio-photo",{body:{candidateId:item.id}});
-    if(error||data?.error){
-      if(!quiet)Alert.alert("이미지 자동 분류 실패",data?.error||error?.message||"분류에 실패했습니다.");
-      if(!quiet)setPhotoAutoScanBusy(false);
+    try{
+      const {data,error}=await supabase.functions.invoke("classify-studio-photo",{body:{candidateId:item.id}});
+      let functionErrorBody:any=null;
+      if(error?.context){
+        try{functionErrorBody=await error.context.clone().json();}catch{
+          try{functionErrorBody={detail:await error.context.clone().text()};}catch{}
+        }
+      }
+      if(error||data?.error){
+        const payload=data||functionErrorBody||{};
+        const detail=[
+          payload?.error||error?.message||"분류에 실패했습니다.",
+          payload?.status?"HTTP "+payload.status:"",
+          payload?.detail||payload?.message||""
+        ].filter(Boolean).join("\n");
+        if(!quiet)Alert.alert("이미지 자동 분류 실패",detail);
+        return false;
+      }
+      setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));
+      setPhotoCandidateTotal(value=>Math.max(0,value-1));
+      return true;
+    }catch(error:any){
+      if(!quiet)Alert.alert("이미지 자동 분류 실패",String(error?.message||error));
       return false;
+    }finally{
+      if(!quiet)setPhotoAutoScanBusy(false);
     }
-    setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));
-    setPhotoCandidateTotal(value=>Math.max(0,value-1));
-    if(!quiet)setPhotoAutoScanBusy(false);
-    return true;
   };
   const testPhotoAIConnection=async()=>{
     if(!supabase||photoAiTestBusy)return;
