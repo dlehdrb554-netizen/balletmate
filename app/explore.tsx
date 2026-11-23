@@ -89,6 +89,7 @@ export default function Home() {
   const [popularViewRank,setPopularViewRank]=useState<any[]>([]);
   const [favoriteRank,setFavoriteRank]=useState<any[]>([]);
   const [rankLoading,setRankLoading]=useState(false);
+  const [selectedRankStudio,setSelectedRankStudio]=useState<Studio|null>(null);
   const [menuOpen,setMenuOpen]=useState(false);
   const [filterOpen,setFilterOpen]=useState(false);
   const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
@@ -647,7 +648,18 @@ export default function Home() {
   </View>
   <View style={{marginTop:10,backgroundColor:rankMode==="views"?"#F7F4FF":"#F8F7FA",borderRadius:12,padding:12}}>
     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{fontSize:13,fontWeight:"900",color:rankMode==="views"?COLORS.purple:COLORS.ink}}>{rankMode==="views"?"많이 본 학원":"즐겨찾기 많은 학원"}</Text>{rankMode==="views"&&<Text style={{fontSize:10,fontWeight:"700",color:COLORS.muted,backgroundColor:"#fff",paddingHorizontal:8,paddingVertical:4,borderRadius:8}}>최근 7일</Text>}</View>
-    {rankLoading?<Text style={styles.photoCredit}>순위를 불러오는 중…</Text>:rankItems.length>0?rankItems.slice(0,5).map((r:any,i)=><Pressable key={r.studio_id} onPress={async()=>{const item=studios.find(studio=>studio.id===r.studio_id)||await fetchStudioById(r.studio_id).then(row=>row?mapStudioRecord(row):null);if(item)openDetail(item);}} style={{paddingVertical:8,borderTopWidth:i===0?0:1,borderTopColor:"#EAE5F1",flexDirection:"row",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple,width:24}}>{i+1}</Text><Text style={{fontSize:12,color:COLORS.ink,flex:1}}>{r.studio_name}</Text><Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted}}>{rankMode==="views"?r.view_count+"회":r.favorite_count+"명"}</Text></Pressable>):<Text style={styles.photoCredit}>{rankMode==="views"?"10회 이하 조회는 데이터가 쌓이면 표시됩니다.":"즐겨찾기가 쌓이면 표시됩니다."}</Text>}
+    {rankLoading?<Text style={styles.photoCredit}>순위를 불러오는 중…</Text>:rankItems.length>0?rankItems.slice(0,5).map((r:any,i)=><Pressable key={r.studio_id} onPress={async()=>{try{const item=studios.find(studio=>studio.id===r.studio_id)||await fetchStudioById(r.studio_id).then(row=>row?mapStudioRecord(row):null);if(item)setSelectedRankStudio(item);else Alert.alert("학원 정보","학원 위치 정보를 불러오지 못했습니다.");}catch{Alert.alert("학원 정보","학원 정보를 불러오지 못했습니다.");}}} style={{marginTop:7,paddingVertical:9,paddingHorizontal:9,borderRadius:10,backgroundColor:"#fff",borderWidth:1,borderColor:selectedRankStudio?.id===r.studio_id?COLORS.purple:"#EAE5F1",flexDirection:"row",alignItems:"center",gap:8}}>
+      <View style={{width:27,height:27,borderRadius:9,backgroundColor:i<3?"#F0E8FF":"#F4F2F7",alignItems:"center",justifyContent:"center"}}><Text style={{fontSize:12,fontWeight:"900",color:i<3?COLORS.purple:COLORS.muted}}>{i+1}</Text></View>
+      <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} ellipsizeMode="tail" style={{fontSize:12,fontWeight:"800",color:COLORS.ink,lineHeight:17}}>{r.studio_name}</Text></View>
+      <Text style={{fontSize:11,fontWeight:"900",color:COLORS.purple,flexShrink:0}}>{rankMode==="views"?r.view_count+"회":r.favorite_count+"명"}</Text>
+      <Ionicons name="chevron-forward" size={15} color={COLORS.muted}/>
+    </Pressable>):<Text style={styles.photoCredit}>{rankMode==="views"?"10회 이하 조회는 데이터가 쌓이면 표시됩니다.":"즐겨찾기가 쌓이면 표시됩니다."}</Text>}
+    {selectedRankStudio&&<Pressable onPress={()=>{const item=selectedRankStudio;const next={latitude:item.lat,longitude:item.lng,latitudeDelta:0.009,longitudeDelta:0.009};setGlobalSearchStudios([]);setSelected(item);setAreaLocked(false);setMapMoved(false);setSearchedRegion(next);setRegion(next);setPendingMapTarget(next);setView("map");}} style={{marginTop:11,padding:11,borderRadius:12,backgroundColor:"#EEE7FF",borderWidth:1,borderColor:"#D6C5FF"}}>
+      <View style={{flexDirection:"row",alignItems:"center",gap:6,marginBottom:5}}><Ionicons name="location" size={15} color={COLORS.purple}/><Text style={{fontSize:11,fontWeight:"900",color:COLORS.purple}}>선택한 학원 · 지도에서 보기</Text></View>
+      <Text numberOfLines={2} style={{fontSize:13,fontWeight:"900",color:COLORS.ink,lineHeight:18}}>{selectedRankStudio.name}</Text>
+      <Text numberOfLines={2} style={{fontSize:10,color:COLORS.muted,marginTop:4}}>{selectedRankStudio.address||selectedRankStudio.area||"주소 정보 없음"}</Text>
+      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"flex-end",marginTop:7}}><Text style={{fontSize:11,fontWeight:"900",color:COLORS.purple}}>지도에서 위치 확인  ›</Text></View>
+    </Pressable>}
   </View>
 </View>}<FlatList data={listRows} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" ListEmptyComponent={<Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"검색 조건에 맞는 학원이 없어요."}</Text>}/></>}
     </View>
