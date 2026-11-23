@@ -5,6 +5,22 @@ const normalize=(value:string)=>value.toLowerCase().replace(/[^a-z0-9가-힣]/g,
 function stripHtml(value:unknown):string{
  return String(value||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
 }
+// Supports legacy NAVER Developers keys and newer NAVER API HUB keys.
+async function fetchNaverSearch(endpoint:URL,clientId:string,clientSecret:string,timeoutMs:number):Promise<Response>{
+ const legacyResponse=await fetch(endpoint.toString(),{headers:{"X-Naver-Client-Id":clientId,"X-Naver-Client-Secret":clientSecret},signal:AbortSignal.timeout(timeoutMs)});
+ if(legacyResponse.ok||legacyResponse.status!==401)return legacyResponse;
+ const legacyDetail=await legacyResponse.text();
+ if(!/NID AUTH Result Invalid|errorCode["']?\\s*:\\s*["']?024/i.test(legacyDetail))throw new Error("Naver API HTTP 401: "+legacyDetail.slice(0,240));
+ const apiType=endpoint.pathname.match(/\\/v1\\/search\\/([a-z0-9]+)\\.json$/i)?.[1];
+ if(!apiType)throw new Error("NAVER API HUB 전환 실패: 검색 API 종류 확인 불가");
+ const hubEndpoint=new URL("https://naverapihub.apigw.ntruss.com/search/v1/"+apiType);
+ endpoint.searchParams.forEach((value,key)=>hubEndpoint.searchParams.set(key,value));
+ hubEndpoint.searchParams.set("format","json");
+ const hubResponse=await fetch(hubEndpoint.toString(),{headers:{"X-NCP-APIGW-API-KEY-ID":clientId,"X-NCP-APIGW-API-KEY":clientSecret},signal:AbortSignal.timeout(timeoutMs)});
+ if(hubResponse.ok)return hubResponse;
+ const hubDetail=(await hubResponse.text()).slice(0,240);
+ throw new Error("NAVER 인증 실패: 기존 API 401(024), NAVER API HUB HTTP "+hubResponse.status+": "+hubDetail);
+}
 async function findHomepageCandidate(name:string,address:string|null,clientId:string,clientSecret:string):Promise<{url:string|null;error:string|null}>{
  const queries=[name+" "+(address||"")+" 발레학원 홈페이지",`"${name}" 발레 공식 홈페이지`];
  if(/[a-z]/i.test(name))queries.push(name+" ballet studio official website");
@@ -16,7 +32,7 @@ async function findHomepageCandidate(name:string,address:string|null,clientId:st
   try{
    const api=new URL("https://openapi.naver.com/v1/search/webkr.json");
    api.searchParams.set("query",query);api.searchParams.set("display","10");
-   const response=await fetch(api.toString(),{headers:{"X-Naver-Client-Id":clientId,"X-Naver-Client-Secret":clientSecret},signal:AbortSignal.timeout(6000)});
+   const response=await fetchNaverSearch(api,clientId,clientSecret,6000);
    if(!response.ok)return {url:null,error:"Naver API HTTP "+response.status};
    const payload=await response.json();
    for(const item of payload.items||[]){
