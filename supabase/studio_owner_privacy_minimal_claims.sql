@@ -31,7 +31,7 @@ DROP INDEX IF EXISTS public.studio_owners_user_id_idx;
 CREATE INDEX IF NOT EXISTS studio_owners_user_id_idx ON public.studio_owners(user_id);
 -- Legacy UNIQUE constraints are removed in the following catalog-driven block.
 
-DO $$
+DO $ballet$
 DECLARE c record;
 BEGIN
   FOR c IN SELECT conname FROM pg_constraint
@@ -41,7 +41,7 @@ BEGIN
   LOOP
     EXECUTE format('ALTER TABLE public.studio_owners DROP CONSTRAINT %I',c.conname);
   END LOOP;
-END $$;
+END $ballet$;
 ALTER TABLE public.studio_owners ADD CONSTRAINT studio_owners_pkey PRIMARY KEY(studio_id,user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS studio_owner_application_one_pending_per_user_studio
   ON public.studio_owner_applications(studio_id,user_id)
@@ -86,17 +86,17 @@ CREATE POLICY "owners view own studio ownership" ON public.studio_owners FOR SEL
  USING(user_id=auth.uid() OR public.is_balletmate_admin());
 
 CREATE OR REPLACE FUNCTION public.is_studio_owner(p_studio_id uuid)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $ballet$
  SELECT EXISTS(SELECT 1 FROM public.studio_owners
   WHERE studio_id=p_studio_id AND user_id=auth.uid() AND status='approved');
-$$;
+$ballet$;
 REVOKE ALL ON FUNCTION public.is_studio_owner(uuid) FROM public,anon;
 GRANT EXECUTE ON FUNCTION public.is_studio_owner(uuid) TO authenticated;
 
 -- No business registration, representative name, address or uploaded documents are collected.
 CREATE OR REPLACE FUNCTION public.submit_studio_owner_application_light(
  p_studio_id uuid,p_verification_method text,p_verification_url text DEFAULT NULL,p_verification_code text DEFAULT NULL
-) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $ballet$
 DECLARE v_id uuid; v_url text:=trim(coalesce(p_verification_url,'')); v_code text:=trim(coalesce(p_verification_code,''));
 BEGIN
  IF auth.uid() IS NULL THEN RAISE EXCEPTION '로그인이 필요합니다.'; END IF;
@@ -130,20 +130,20 @@ BEGIN
   RETURNING id INTO v_id;
  END IF;
  RETURN v_id;
-END $$;
+END $ballet$;
 
 REVOKE ALL ON FUNCTION public.submit_studio_owner_application_light(uuid,text,text,text) FROM public,anon;
 GRANT EXECUTE ON FUNCTION public.submit_studio_owner_application_light(uuid,text,text,text) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application(uuid,text,text,text,text,text) FROM authenticated;
-DO $$ BEGIN
+DO $ballet$ BEGIN
  IF to_regprocedure('public.submit_studio_owner_application_secure(uuid,text,text,text,text,text,text,text)') IS NOT NULL THEN
   EXECUTE 'REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application_secure(uuid,text,text,text,text,text,text,text) FROM authenticated';
  END IF;
-END $$;
+END $ballet$;
 
 -- Manual approval creates a user-to-studio permission link. Multiple approved managers per studio are supported.
 CREATE OR REPLACE FUNCTION public.admin_review_studio_owner_application(p_application_id uuid,p_decision text,p_note text DEFAULT NULL)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $ballet$
 DECLARE v_app public.studio_owner_applications%ROWTYPE;
 BEGIN
  IF NOT public.is_balletmate_admin() THEN RAISE EXCEPTION '관리자 권한이 필요합니다.'; END IF;
@@ -159,7 +159,7 @@ BEGIN
  END IF;
  UPDATE public.studio_owner_applications SET status=p_decision,review_note=nullif(trim(coalesce(p_note,'')), ''),
   reviewed_by=auth.uid(),reviewed_at=now(),updated_at=now() WHERE id=p_application_id;
-END $$;
+END $ballet$;
 REVOKE ALL ON FUNCTION public.admin_review_studio_owner_application(uuid,text,text) FROM public,anon;
 GRANT EXECUTE ON FUNCTION public.admin_review_studio_owner_application(uuid,text,text) TO authenticated;
 
@@ -189,7 +189,7 @@ CREATE POLICY "owners and admins read edit history" ON public.studio_owner_edit_
  USING(public.is_studio_owner(studio_id) OR public.is_balletmate_admin());
 
 CREATE OR REPLACE FUNCTION public.record_studio_owner_edit_history()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $ballet$
 DECLARE
  v_old jsonb;v_new jsonb;v_studio_id uuid;v_entity_id text;v_action text;
  v_fields text[];
@@ -244,7 +244,7 @@ BEGIN
   VALUES(v_studio_id,auth.uid(),TG_TABLE_NAME,v_entity_id,v_action,v_fields,v_old,v_new);
  END IF;
  IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
-END $$;
+END $ballet$;
 
 DROP TRIGGER IF EXISTS studio_owner_audit_studios ON public.studios;
 CREATE TRIGGER studio_owner_audit_studios AFTER UPDATE ON public.studios
