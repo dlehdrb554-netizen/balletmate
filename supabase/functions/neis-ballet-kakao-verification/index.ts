@@ -87,7 +87,7 @@ Deno.serve(async(req)=>{
     const {data:byName}=await db.from("studios").select("id,name,address,phone").eq("is_active",true).limit(100);
     const matched=(byName||[]).find((s:any)=>norm(s.name)===normalizedName&&
       ((norm(s.address||"")&&norm(s.address||"")===norm(chosen.road_address_name||chosen.address_name||""))||
-       (String(s.phone||"").replace(/\\D/g,"")&&String(s.phone||"").replace(/\\D/g,"")===String(chosen.phone||"").replace(/\\D/g,""))));
+       (String(s.phone||"").replace(/\D/g,"")&&String(s.phone||"").replace(/\D/g,"")===String(chosen.phone||"").replace(/\D/g,""))));
     linkedStudioId=matched?.id||null;
    }
    if(linkedStudioId){
