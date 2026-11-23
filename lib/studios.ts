@@ -34,7 +34,7 @@ export type StudioRecord = {
   schedule_evidence_text: string | null;
   details_source_urls: string[] | null;
   details_checked_at: string | null;
-  details_status,source_status: string | null;
+  details_status: string | null;
   class_durations?: number[] | null;
 };
 
