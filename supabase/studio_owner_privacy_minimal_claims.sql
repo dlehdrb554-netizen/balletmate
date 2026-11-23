@@ -46,6 +46,9 @@ ALTER TABLE public.studio_owners ADD CONSTRAINT studio_owners_pkey PRIMARY KEY(s
 CREATE UNIQUE INDEX IF NOT EXISTS studio_owner_application_one_pending_per_user_studio
   ON public.studio_owner_applications(studio_id,user_id)
   WHERE status IN ('pending','needs_info');
+CREATE UNIQUE INDEX IF NOT EXISTS studio_owner_application_one_pending_per_studio
+  ON public.studio_owner_applications(studio_id)
+  WHERE status IN ('pending','needs_info');
 
 -- Disable old document upload/read access. Existing storage files require manual deletion
 -- from Supabase Storage dashboard because file deletion is handled by the Storage API.
