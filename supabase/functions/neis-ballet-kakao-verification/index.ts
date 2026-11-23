@@ -62,6 +62,54 @@ Deno.serve(async(req)=>{
    if(best.match.confident&&!ambiguous){status="matched";reason="이름 유사도와 주소/전화 교차 확인 통과";}
    else{status="manual_review";reason=ambiguous?"유사 후보가 복수":"이름 또는 주소/전화 교차검증 부족";}
   }
+  // Independent-source merge: a confident Kakao match upgrades the existing map studio;
+  // no Kakao result falls back to NEIS address geocoding for a map-only record.
+  let linkedStudioId:string|null=null;
+  if(status==="matched"&&chosen){
+   const placeUrl=String(chosen.place_url||"");
+   if(placeUrl){
+    const {data:byPlace}=await db.from("studios").select("id").eq("source_url",placeUrl).limit(1).maybeSingle();
+    linkedStudioId=byPlace?.id||null;
+   }
+   if(!linkedStudioId){
+    const normalizedName=norm(c.academy_name);
+    const {data:byName}=await db.from("studios").select("id,name,address,phone").eq("is_active",true).limit(100);
+    const matched=(byName||[]).find((s:any)=>norm(s.name)===normalizedName&&
+      ((norm(s.address||"")&&norm(s.address||"")===norm(chosen.road_address_name||chosen.address_name||""))||
+       (String(s.phone||"").replace(/\\D/g,"")&&String(s.phone||"").replace(/\\D/g,"")===String(chosen.phone||"").replace(/\\D/g,""))));
+    linkedStudioId=matched?.id||null;
+   }
+   if(linkedStudioId){
+    await db.from("studios").update({source_status:"both",source_url:chosen.place_url||null,source_name:"Kakao Local + NEIS 등록 확인",neis_candidate_id:c.id,updated_at:new Date().toISOString()}).eq("id",linkedStudioId);
+    await db.from("neis_ballet_academy_candidates").update({matched_studio_id:linkedStudioId,review_status:"matched"}).eq("id",c.id);
+   }
+  } else if(status==="no_match"&&c.address){
+   try{
+    const geocode=new URL("https://dapi.kakao.com/v2/local/search/address.json");
+    geocode.searchParams.set("query",String(c.address));
+    const geoResponse=await fetch(geocode.toString(),{headers:{Authorization:"KakaoAK "+key},signal:AbortSignal.timeout(7000)});
+    if(geoResponse.ok){
+     const geoPayload=await geoResponse.json(),geo=geoPayload.documents?.[0];
+     if(geo){
+      const lat=Number(geo.y),lng=Number(geo.x);
+      if(Number.isFinite(lat)&&Number.isFinite(lng)){
+       const {data:duplicate}=await db.from("studios").select("id").eq("name",c.academy_name).eq("address",c.address).limit(1).maybeSingle();
+       if(duplicate?.id)linkedStudioId=duplicate.id;
+       else{
+        const {data:newStudio,error:insertError}=await db.from("studios").insert({
+         name:c.academy_name,latitude:lat,longitude:lng,district:c.district_name||null,address:c.address,
+         phone:c.academy_phone||null,source_url:null,source_name:"NEIS 등록 정보 · 주소 지오코딩(카카오)",verified_at:null,
+         is_active:true,adult_classes:false,kids_classes:false,source_status:"neis_only",neis_candidate_id:c.id
+        }).select("id").single();
+        if(!insertError)linkedStudioId=newStudio?.id||null;
+        else reason+="; 주소 지도 등록 실패: "+insertError.message.slice(0,100);
+       }
+       if(linkedStudioId)await db.from("neis_ballet_academy_candidates").update({matched_studio_id:linkedStudioId,review_status:"matched"}).eq("id",c.id);
+      }
+     }
+    }
+   }catch(geoError){reason+="; 주소 지오코딩 실패: "+(geoError instanceof Error?geoError.message:"unknown");}
+  }
   const update={kakao_status:status,kakao_place_id:chosen?String(chosen.id):null,kakao_name:chosen?.place_name||null,
    kakao_address:chosen?(chosen.road_address_name||chosen.address_name||null):null,kakao_phone:chosen?.phone||null,
    kakao_latitude:chosen?Number(chosen.y):null,kakao_longitude:chosen?Number(chosen.x):null,
