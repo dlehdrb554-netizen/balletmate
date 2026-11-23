@@ -65,7 +65,7 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
   const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,kakao_channel_url,details_checked_at,details_status,source_status";
   const searchColumns = "search_days,search_time_slots,search_levels,search_class_durations,search_price,search_adult,search_kids";
   const readPages=async(query:any)=>{let collected:any[]=[];for(let offset=0;offset<2400;offset+=300){const page=await query.range(offset,offset+299);if(page.error) return {data:null,error:page.error};const values=page.data||[];collected=collected.concat(values);if(values.length<300)break;}return {data:collected,error:null};};
-  const result = await readPages(applyBounds(supabase.from("studio_map_search_app").select(selectColumns+","+searchColumns).order("name")));
+  const result = await readPages(applyBounds(supabase.from("studio_map_search_app_with_source").select(selectColumns+","+searchColumns).order("name")));
 
   let rows: StudioRecord[];
   if (result.error) {
@@ -158,7 +158,7 @@ export async function fetchStudioById(studioId: string): Promise<StudioRecord | 
 
   // Merge schedule and class-derived price fields from the map view, while
   // keeping all descriptive/media fields from the canonical studios row.
-  const derived = await supabase.from("studio_map_search_app")
+  const derived = await supabase.from("studio_map_search_app_with_source")
     .select("search_days,search_time_slots,search_class_durations,search_price")
     .eq("id", studioId).maybeSingle();
   if (derived.error) console.warn("Studio derived map fields unavailable:", derived.error.message);
