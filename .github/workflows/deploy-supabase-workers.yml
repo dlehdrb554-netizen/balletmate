@@ -55,6 +55,9 @@ jobs:
       - name: Deploy NEIS Kakao verification
         run: supabase functions deploy neis-ballet-kakao-verification --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
+      - name: Deploy NEIS-only geocoding
+        run: supabase functions deploy neis-only-geocoding --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+
       - name: Deploy Kakao studio search
         run: supabase functions deploy search-studios-kakao --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
