@@ -84,7 +84,10 @@ EXECUTE FUNCTION public.sync_studio_source_status_from_neis_candidate();
 REVOKE ALL ON FUNCTION public.sync_studio_source_status_from_neis_candidate() FROM PUBLIC, anon, authenticated;
 
 
--- Undo premature promotion for candidates whose Kakao verification is still pending.
+-- Undo every unverified 'both' classification, including rows whose candidate link
+-- was previously cleared or whose candidate row was not joined by the earlier UPDATE.
+-- A valid 'both' requires an eligible/open linked candidate, candidate-level Kakao
+-- verification, a non-empty candidate place URL, and exact equality with studio.source_url.
 UPDATE public.studios s
 SET source_status = CASE
       WHEN s.source_url ILIKE '%place.map.kakao.com/%' THEN 'kakao_only'
@@ -92,11 +95,34 @@ SET source_status = CASE
     END,
     neis_candidate_id = NULL,
     updated_at = now()
-FROM public.neis_ballet_academy_candidates c
-WHERE c.matched_studio_id = s.id
-  AND c.eligible = true
-  AND c.is_open = true
-  AND (c.kakao_status IS DISTINCT FROM 'matched'
-       OR NULLIF(c.kakao_place_url, '') IS NULL
-       OR s.source_url IS DISTINCT FROM c.kakao_place_url)
-  AND (s.source_status = 'both' OR s.neis_candidate_id = c.id);
+WHERE s.source_status = 'both'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.neis_ballet_academy_candidates c
+    WHERE c.id = s.neis_candidate_id
+      AND c.matched_studio_id = s.id
+      AND c.eligible = true
+      AND c.is_open = true
+      AND c.kakao_status = 'matched'
+      AND NULLIF(c.kakao_place_url, '') IS NOT NULL
+      AND s.source_url = c.kakao_place_url
+  );
+
+-- Also clear stale candidate links for Kakao-only rows unless the exact candidate-level
+-- Kakao verification is confirmed.
+UPDATE public.studios s
+SET neis_candidate_id = NULL,
+    updated_at = now()
+WHERE s.source_status = 'kakao_only'
+  AND s.neis_candidate_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.neis_ballet_academy_candidates c
+    WHERE c.id = s.neis_candidate_id
+      AND c.matched_studio_id = s.id
+      AND c.eligible = true
+      AND c.is_open = true
+      AND c.kakao_status = 'matched'
+      AND NULLIF(c.kakao_place_url, '') IS NOT NULL
+      AND s.source_url = c.kakao_place_url
+  );
