@@ -724,7 +724,7 @@ export default function Admin() {
       {text:"취소",style:"cancel"},
       {text:label,style:decision==="rejected"?"destructive":"default",onPress:async()=>{
         if(!supabase)return;setOwnerReviewBusy(true);
-        const note=decision==="approved"?"사업자등록증 및 운영 관계 확인 완료":decision==="rejected"?"사업자 정보 또는 운영 권한 확인 불가":"추가 서류 또는 정보 확인 필요";
+        const note=decision==="approved"?"전화 및 네이버 블로그 인증 코드 확인 완료":decision==="rejected"?"전화 또는 블로그 운영 관계 확인 불가":"추가 정보 또는 인증 확인 필요";
         const {error}=await supabase.rpc("admin_review_studio_owner_application",{p_application_id:item.id,p_decision:decision,p_note:note});
         if(error)Alert.alert("심사 처리 실패",error.message);else Alert.alert("심사 완료",label+" 처리했습니다.");
         await loadOwnerApplications();setOwnerReviewBusy(false);
@@ -1570,7 +1570,7 @@ export default function Admin() {
     <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"review",label:"자료 검토"},{key:"publish",label:"공개 관리"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
         {adminTab==="owners"&&<View style={styles.panel}>
           <View style={styles.listHead}><Text style={styles.heading}>학원 관리자 권한 신청</Text><Pressable onPress={loadOwnerApplications} disabled={ownerReviewBusy}><Text style={styles.refresh}>{ownerReviewBusy?"조회 중…":"새로고침"}</Text></Pressable></View>
-          <Text style={styles.hint}>사업자등록증 원본과 신청 정보, 자동 대조 결과를 확인한 뒤 승인해야 원장님 계정에 학원 관리 권한이 부여됩니다. 서류를 직접 열어 확인하세요.</Text>
+          <Text style={styles.hint}>전화번호로 직접 연락하고, 신청자가 입력한 인증 문구가 공식 네이버 블로그에 게시됐는지 확인한 뒤 승인하세요. 민감한 사업자등록증 파일은 수집하지 않습니다.</Text>
           {ownerApplications.length?ownerApplications.map(item=><View key={item.id} style={{borderTopWidth:1,borderTopColor:"#E9E2F2",paddingTop:12,marginTop:12}}>
             <Text style={{fontSize:14,fontWeight:"900",color:"#252238"}}>{item.studio_name}{item.is_transfer_request?" · 기존 관리자 변경 신청":""}</Text>
             <Text style={styles.hint}>신청 상호: {item.business_name} · 대표자: {item.representative_name}</Text>
