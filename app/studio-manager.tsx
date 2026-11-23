@@ -19,9 +19,7 @@ export default function StudioManager(){
  const [saving,setSaving]=useState(false);
  const [owner,setOwner]=useState(false);
  const [application,setApplication]=useState<any>(null);
- const [verificationMethod,setVerificationMethod]=useState<"blog"|"phone"|"manual">("blog");
- const [contactPhone,setContactPhone]=useState("");
- const [studioPublicPhone,setStudioPublicPhone]=useState("");
+ const [verificationMethod,setVerificationMethod]=useState<"phone"|"blog"|"instagram"|"manual">("phone");
  const [blogUrl,setBlogUrl]=useState("");
  const [blogVerificationCode,setBlogVerificationCode]=useState("");
  const [galleryCount,setGalleryCount]=useState(0);
@@ -49,12 +47,12 @@ export default function StudioManager(){
   if(!current){setOwner(false);setApplication(null);setLoading(false);return;}
   const [ownerResult,appResult,studioResult]=await Promise.all([
    supabase.from("studio_owners").select("studio_id").eq("studio_id",studioId).eq("user_id",current.user.id).maybeSingle(),
-   supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,is_transfer_request,business_name,contact_phone,blog_url,verification_code,verification_method").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+   supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,verification_url,verification_code,verification_method").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
    supabase.from("studios").select("image_urls,name,district,address,phone,website_url,description").eq("id",studioId).maybeSingle()
   ]);
   setOwner(!!ownerResult.data);
   setApplication(appResult.data||null);
-  if(appResult.data){setBusinessNo(appResult.data.business_registration_number||"");setBusinessName(appResult.data.business_name||studioName);setRepresentative(appResult.data.representative_name||"");setBusinessAddress(appResult.data.business_address||"");setContactPhone(appResult.data.contact_phone||"");setBlogUrl(appResult.data.blog_url||"");setBlogVerificationCode(appResult.data.verification_code||"");}
+  if(appResult.data){setBlogUrl(appResult.data.verification_url||appResult.data.blog_url||"");setBlogVerificationCode(appResult.data.verification_code||"");setVerificationMethod(appResult.data.verification_method||"phone");}
   setGalleryCount((studioResult.data?.image_urls||[]).length);
   if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
   if(ownerResult.data){
@@ -95,11 +93,14 @@ export default function StudioManager(){
   }
   setSaving(true);
   try{
-   const {data,error}=await supabase.rpc("submit_studio_owner_application_light",{
+   const isSocial=verificationMethod==="blog"||verificationMethod==="instagram";
+  if(isSocial&&(!blogUrl.trim()||!blogVerificationCode.trim())){
+   Alert.alert("인증 정보 확인","공식 채널 주소와 인증 코드를 입력해 주세요.");return;
+  }
+  const {data,error}=await supabase.rpc("submit_studio_owner_application_light",{
     p_studio_id:studioId,p_verification_method:verificationMethod,
-    p_contact_phone:contactPhone.trim()||studioPublicPhone.trim(),
-    p_blog_url:verificationMethod==="blog"?blogUrl.trim():"",
-    p_verification_code:verificationMethod==="blog"?blogVerificationCode.trim():""
+    p_verification_url:isSocial?blogUrl.trim():null,
+    p_verification_code:isSocial?blogVerificationCode.trim():null
    });
    if(error)throw error;
    Alert.alert("관리 권한 신청 완료","개인 민감정보와 서류는 수집하지 않습니다. 운영자가 선택한 방법으로 운영 관계를 확인 후 승인합니다.");
@@ -223,9 +224,9 @@ export default function StudioManager(){
     </View>
     {verificationMethod==="blog"&&<>
       {field("공식 네이버 블로그 URL *",blogUrl,setBlogUrl,"https://blog.naver.com/아이디")}
-      <View style={{backgroundColor:C.pale,borderRadius:10,padding:11,marginTop:10}}><Text style={s.body}>공식 블로그 새 게시물에 인증 문구를 올려 주세요. 확인 후 게시물은 삭제해도 됩니다.</Text><Text style={{fontSize:15,fontWeight:"900",color:C.purple,marginTop:6}}>{blogVerificationCode||"인증 코드를 생성하세요"}</Text><Pressable onPress={()=>setBlogVerificationCode("BALLET-"+Math.random().toString(36).slice(2,8).toUpperCase())} style={{marginTop:8}}><Text style={s.buttonText}>인증 코드 생성</Text></Pressable></View>
+      <View style={{backgroundColor:C.pale,borderRadius:10,padding:11,marginTop:10}}><Text style={s.body}>선택한 공식 채널의 새 게시물 또는 소개란에 인증 문구를 올려 주세요. 확인 후 삭제해도 됩니다.</Text><Text style={{fontSize:15,fontWeight:"900",color:C.purple,marginTop:6}}>{blogVerificationCode||"인증 코드를 생성하세요"}</Text><Pressable onPress={()=>setBlogVerificationCode("BALLET-"+Math.random().toString(36).slice(2,8).toUpperCase())} style={{marginTop:8}}><Text style={s.buttonText}>인증 코드 생성</Text></Pressable></View>
     </>}
-    {verificationMethod==="phone"&&<>{studioPublicPhone?<Text style={s.body}>등록된 공개 전화번호: {studioPublicPhone} (운영자가 직접 전화 확인)</Text>:field("확인 가능한 전화번호 *",contactPhone,setContactPhone,"전화 확인에 사용할 번호","phone-pad")}</>}
+    {verificationMethod==="phone"&&<Text style={s.body}>등록된 학원 공개 전화번호로 운영자가 직접 확인합니다. 공개 번호가 없으면 다른 확인 방법을 선택해 주세요. {profilePhone?`현재 공개 번호: ${profilePhone}`:"공개 전화번호가 등록되어 있지 않습니다."}</Text>}
     {verificationMethod==="manual"&&<Text style={s.body}>운영자가 공개 연락처, 공식 채널 또는 기타 자료로 운영 관계를 확인합니다. 필요 시 신청 계정으로 추가 안내합니다.</Text>}
     {button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving)}
    </View>
