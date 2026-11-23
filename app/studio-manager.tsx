@@ -23,6 +23,9 @@ export default function StudioManager(){
  const [businessName,setBusinessName]=useState(studioName);
  const [representative,setRepresentative]=useState("");
  const [businessAddress,setBusinessAddress]=useState("");
+ const [contactPhone,setContactPhone]=useState("");
+ const [blogUrl,setBlogUrl]=useState("");
+ const [blogVerificationCode,setBlogVerificationCode]=useState("");
  const [documentPath,setDocumentPath]=useState("");
  const [galleryCount,setGalleryCount]=useState(0);
  const [profileName,setProfileName]=useState(studioName);
@@ -49,7 +52,7 @@ export default function StudioManager(){
   if(!current){setOwner(false);setApplication(null);setLoading(false);return;}
   const [ownerResult,appResult,studioResult]=await Promise.all([
    supabase.from("studio_owners").select("studio_id").eq("studio_id",studioId).eq("user_id",current.user.id).maybeSingle(),
-   supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,is_transfer_request,business_registration_number,business_name,representative_name,business_address,document_path").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+   supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,is_transfer_request,business_registration_number,business_name,representative_name,business_address,document_path,contact_phone,blog_url,verification_code").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
    supabase.from("studios").select("image_urls,name,district,address,phone,website_url,description").eq("id",studioId).maybeSingle()
   ]);
   setOwner(!!ownerResult.data);
