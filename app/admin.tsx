@@ -416,7 +416,9 @@ export default function Admin() {
 
   const loadAllPhotoStudios=async()=>{
     if(!supabase||busy)return;setBusy(true);
-    try{const result=await readAllRows(()=>supabase!.from("studios").select(studioColumns).order("name").order("id"));if(result.error)throw result.error;const deduped=dedupeStudioRows(result.data||[]);setRows(deduped.rows as StudioRow[]);setStudioDbOffset((result.data||[]).length);setStudioHasMore(false);setStudioVisibleLimit(10000);setSelectedPhotoStudioIds([]);}
+    try{const result=await readAllRows(()=>supabase!.from("studios").select(studioColumns).order("name").order("id"));if(result.error)throw result.error;
+      // Keep all database records here: duplicate-name/nearby branches are still separate photo-managed academies.
+      setRows((result.data||[]) as StudioRow[]);setStudioDbOffset((result.data||[]).length);setStudioHasMore(false);setStudioVisibleLimit(10000);setSelectedPhotoStudioIds([]);}
     catch(error:any){Alert.alert("사진 보유 학원 조회 실패",error?.message||"전체 학원 목록을 조회하지 못했습니다.");}
     finally{setBusy(false);}
   };
