@@ -86,8 +86,10 @@ function isRelevantBlog(studioName: string, title: string, context = "", blogger
   const accountKey = blogAccountKey(bloggerUrl);
   const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
   const balletIntent = /(발레|바레|시간표|스케줄|월간|월별|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + "\\n" + context);
-  // A verified account is accepted only for ballet/class-related posts, avoiding unrelated posts on the same blog.
-  return nameMatch || (officialMatch && balletIntent);
+  // A manually verified representative blog is authoritative for this studio.
+  // Crawl its recent posts even when the title/body has no obvious ballet keyword;
+  // the admin-facing evidence and date checks happen after the full content is stored.
+  return nameMatch || officialMatch;
 }
 function evidence(text: string, kind: "price" | "schedule"): string[] {
   const re = kind === "price"
