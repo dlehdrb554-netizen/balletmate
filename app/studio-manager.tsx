@@ -53,7 +53,7 @@ export default function StudioManager(){
   ]);
   setOwner(!!ownerResult.data);
   setApplication(appResult.data||null);
-  if(appResult.data){setBlogUrl(appResult.data.verification_url||appResult.data.blog_url||"");setBlogVerificationCode(appResult.data.verification_code||"");setVerificationMethod(appResult.data.verification_method||"phone");}
+  if(appResult.data){setBlogUrl(appResult.data.verification_url||"");setBlogVerificationCode(appResult.data.verification_code||"");setVerificationMethod(appResult.data.verification_method||"phone");}
   setGalleryCount((studioResult.data?.image_urls||[]).length);
   if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
   if(ownerResult.data){
