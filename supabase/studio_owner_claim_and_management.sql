@@ -28,8 +28,9 @@ DROP INDEX IF EXISTS public.studio_owner_application_active_business_no;
 CREATE UNIQUE INDEX studio_owner_application_active_business_no
   ON public.studio_owner_applications(business_registration_number)
   WHERE status IN ('pending','needs_info');
-CREATE UNIQUE INDEX IF NOT EXISTS studio_owner_application_one_pending_per_user_studio
-  ON public.studio_owner_applications(user_id, studio_id)
+DROP INDEX IF EXISTS public.studio_owner_application_one_pending_per_user_studio;
+CREATE UNIQUE INDEX studio_owner_application_one_pending_per_studio
+  ON public.studio_owner_applications(studio_id)
   WHERE status IN ('pending','needs_info');
 
 CREATE TABLE IF NOT EXISTS public.studio_owners (
@@ -226,6 +227,43 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_review_studio_owner_application(uuid,text,text) FROM public;
 GRANT EXECUTE ON FUNCTION public.admin_review_studio_owner_application(uuid,text,text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.owner_update_studio_profile(
+  p_studio_id uuid,
+  p_name text,
+  p_district text,
+  p_address text,
+  p_phone text,
+  p_website_url text,
+  p_description text
+)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $
+BEGIN
+  IF NOT public.is_studio_owner(p_studio_id) THEN
+    RAISE EXCEPTION '승인된 학원 관리자만 기본 정보를 수정할 수 있습니다.';
+  END IF;
+  IF length(trim(coalesce(p_name,''))) NOT BETWEEN 2 AND 100 THEN
+    RAISE EXCEPTION '학원명은 2~100자로 입력하세요.';
+  END IF;
+  IF coalesce(p_website_url,'')<>'' AND p_website_url !~ '^https?://' THEN
+    RAISE EXCEPTION '홈페이지 주소는 http:// 또는 https://로 시작해야 합니다.';
+  END IF;
+  UPDATE public.studios SET
+    name=trim(p_name),
+    district=nullif(trim(coalesce(p_district,'')),''),
+    address=nullif(trim(coalesce(p_address,'')),''),
+    phone=nullif(trim(coalesce(p_phone,'')),''),
+    website_url=nullif(trim(coalesce(p_website_url,'')),''),
+    description=nullif(trim(coalesce(p_description,'')),''),
+    updated_at=now()
+  WHERE id=p_studio_id;
+END;
+$;
+REVOKE ALL ON FUNCTION public.owner_update_studio_profile(uuid,text,text,text,text,text,text) FROM public;
+GRANT EXECUTE ON FUNCTION public.owner_update_studio_profile(uuid,text,text,text,text,text,text) TO authenticated;
 
 -- Existing reviewed public-material tables also host owner-submitted materials.
 ALTER TABLE public.studio_public_schedules ALTER COLUMN candidate_id DROP NOT NULL;
