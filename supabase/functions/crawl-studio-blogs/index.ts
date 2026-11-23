@@ -66,10 +66,27 @@ function extractImages(html: string, base: string): string[] {
   }
   return out;
 }
-function normalize(value: string): string { return value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, ""); }
+function normalize(value: string): string { return value.toLowerCase().replace(/[^a-z0-9가-힣]/g, ""); }
+function academyAliases(studioName: string): string[] {
+  const full = normalize(studioName);
+  const branchless = full.replace(/[가-힣]{1,5}(?:지점|점)$/g, "");
+  const stripGeneric = (value: string) => {
+    let result = value;
+    for (let i = 0; i < 4; i++) {
+      const next = result.replace(/(무용학원|발레학원|발레아카데미|무용아카데미|스튜디오|아카데미|학원|센터|교습소|본점|지점|점|키즈|성인|발레|무용)$/g, "");
+      if (next === result) break;
+      result = next;
+    }
+    return result;
+  };
+  return [...new Set([full, branchless, stripGeneric(full), stripGeneric(branchless)].filter(x => x.length >= 3))];
+}
 function academyAlias(studioName: string): string {
-  return normalize(studioName)
-    .replace(/(무용학원|발레학원|발레아카데미|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
+  return academyAliases(studioName).sort((a,b)=>b.length-a.length)[0] || "";
+}
+function nameMatches(studioName: string, text: string): boolean {
+  const normalizedText = normalize(text);
+  return academyAliases(studioName).some(alias => alias.length >= 3 && normalizedText.includes(alias));
 }
 function blogAccountKey(raw: string | null | undefined): string {
   try {
@@ -79,17 +96,13 @@ function blogAccountKey(raw: string | null | undefined): string {
   } catch { return ""; }
 }
 function isRelevantBlog(studioName: string, title: string, context = "", bloggerUrl = "", officialAccounts: string[] = []): boolean {
-  const alias = academyAlias(studioName);
-  const titleText = normalize(title);
-  const contextText = normalize(context);
-  const nameMatch = alias.length >= 3 && (titleText.includes(alias) || contextText.includes(alias));
+  const text = title + "\\n" + context;
+  const nameMatch = nameMatches(studioName, text);
   const accountKey = blogAccountKey(bloggerUrl);
   const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
-  const balletIntent = /(발레|바레|시간표|스케줄|월간|월별|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + "\\n" + context);
-  // A manually verified representative blog is authoritative for this studio.
-  // Crawl its recent posts even when the title/body has no obvious ballet keyword;
-  // the admin-facing evidence and date checks happen after the full content is stored.
-  return nameMatch || officialMatch;
+  const balletIntent = /(발레|바레|시간표|스케줄|월간|월별|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(text);
+  // Verified accounts are trusted. Other posts must mention this academy by a meaningful name alias and be ballet-related.
+  return officialMatch || (nameMatch && balletIntent);
 }
 function evidence(text: string, kind: "price" | "schedule"): string[] {
   const re = kind === "price"
