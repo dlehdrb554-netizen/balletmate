@@ -706,25 +706,26 @@ export default function Admin() {
     if(!supabase||!authorized)return;
     setOwnerReviewBusy(true);
     const {data,error}=await supabase.from("studio_owner_applications")
-      .select("id,user_id,studio_id,business_registration_number,business_name,representative_name,business_address,document_path,contact_phone,blog_url,verification_code,verification_method,auto_match_status,auto_match_details,status,review_note,created_at,is_transfer_request")
+      .select("id,user_id,studio_id,verification_method,verification_url,verification_code,status,review_note,created_at")
       .in("status",["pending","needs_info"]).order("created_at",{ascending:true}).limit(100);
     if(error){Alert.alert("원장 신청 조회 실패",error.message);setOwnerApplications([]);}
     else{
       const applications=data||[];const ids=[...new Set(applications.map((item:any)=>item.studio_id))];
-      const studios=ids.length?await supabase.from("studios").select("id,name").in("id",ids):{data:[],error:null};
+      const studios=ids.length?await supabase.from("studios").select("id,name,phone").in("id",ids):{data:[],error:null};
       const names=new Map((studios.data||[]).map((row:any)=>[row.id,row.name]));
-      setOwnerApplications(applications.map((item:any)=>({...item,studio_name:names.get(item.studio_id)||"학원 정보 없음"})));
+      const phones=new Map((studios.data||[]).map((row:any)=>[row.id,row.phone]));
+      setOwnerApplications(applications.map((item:any)=>({...item,studio_name:names.get(item.studio_id)||"학원 정보 없음",public_phone:phones.get(item.studio_id)||null})));
     }
     setOwnerReviewBusy(false);
   },[authorized]);
-  const openOwnerApplicationBlog=async(item:any)=>{if(!item.blog_url)return;Linking.openURL(item.blog_url).catch(()=>Alert.alert("블로그 열기 실패","블로그를 열 수 없습니다."));};
+  const openOwnerApplicationBlog=async(item:any)=>{if(!item.verification_url)return;Linking.openURL(item.verification_url).catch(()=>Alert.alert("공식 채널 열기 실패","채널을 열 수 없습니다."));};
   const reviewOwnerApplication=(item:any,decision:"approved"|"rejected"|"needs_info")=>{
-    const label=decision==="approved"?(item.is_transfer_request?"기존 관리자 교체 승인":"승인"):decision==="rejected"?"반려":"추가 서류 요청";
-    Alert.alert("원장님 신청 "+label,item.studio_name+" · "+label+" 처리할까요?"+(item.is_transfer_request?"\n기존 관리 계정의 권한을 이 신청 계정으로 이전합니다.":""),[
+    const label=decision==="approved"?"승인":decision==="rejected"?"반려":"추가 확인";
+    Alert.alert("원장님 신청 "+label,item.studio_name+" · "+label+" 처리할까요?"+(decision==="approved"?"\n이 계정에 학원 관리 권한을 추가합니다.":""),[
       {text:"취소",style:"cancel"},
       {text:label,style:decision==="rejected"?"destructive":"default",onPress:async()=>{
         if(!supabase)return;setOwnerReviewBusy(true);
-        const method=item.verification_method==="blog"?"공식 블로그 인증":item.verification_method==="phone"?"학원 전화 확인":"운영자 직접 확인";
+        const method=item.verification_method==="blog"?"네이버 블로그 인증":item.verification_method==="instagram"?"인스타그램 인증":item.verification_method==="phone"?"공개 전화 확인":"운영자 직접 확인";
         const note=decision==="approved"?method+" 확인 완료":decision==="rejected"?"운영 관계 확인 불가":"추가 확인 요청";
         const {error}=await supabase.rpc("admin_review_studio_owner_application",{p_application_id:item.id,p_decision:decision,p_note:note});
         if(error)Alert.alert("심사 처리 실패",error.message);else Alert.alert("심사 완료",label+" 처리했습니다.");
@@ -1571,15 +1572,15 @@ export default function Admin() {
     <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"review",label:"자료 검토"},{key:"publish",label:"공개 관리"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
         {adminTab==="owners"&&<View style={styles.panel}>
           <View style={styles.listHead}><Text style={styles.heading}>학원 관리자 권한 신청</Text><Pressable onPress={loadOwnerApplications} disabled={ownerReviewBusy}><Text style={styles.refresh}>{ownerReviewBusy?"조회 중…":"새로고침"}</Text></Pressable></View>
-          <Text style={styles.hint}>전화번호로 직접 연락하고, 신청자가 입력한 인증 문구가 공식 네이버 블로그에 게시됐는지 확인한 뒤 승인하세요. 민감한 사업자등록증 파일은 수집하지 않습니다.</Text>
+          <Text style={styles.hint}>공개 전화번호 확인, 공식 블로그/인스타 인증 코드 또는 직접 확인으로 운영 관계를 확인한 후 승인하세요. 사업자번호·대표자·주소·등록증은 수집하지 않습니다.</Text>
           {ownerApplications.length?ownerApplications.map(item=><View key={item.id} style={{borderTopWidth:1,borderTopColor:"#E9E2F2",paddingTop:12,marginTop:12}}>
-            <Text style={{fontSize:14,fontWeight:"900",color:"#252238"}}>{item.studio_name}{item.is_transfer_request?" · 기존 관리자 변경 신청":""}</Text>
-            <Text style={styles.hint}>확인 방법: {item.verification_method==="blog"?"공식 블로그 인증":item.verification_method==="phone"?"학원 전화 확인":"운영자 직접 확인"}</Text>
-            {item.verification_method==="phone"&&<Text style={styles.hint}>확인 전화: {item.contact_phone||"학원 공개 전화번호"}</Text>}
-            {item.verification_method==="blog"&&<Text style={styles.hint}>인증 코드: {item.verification_code||"-"} · 블로그: {item.blog_url||"-"}</Text>}
+            <Text style={{fontSize:14,fontWeight:"900",color:"#252238"}}>{item.studio_name}</Text>
+            <Text style={styles.hint}>확인 방법: {item.verification_method==="blog"?"네이버 블로그 인증":item.verification_method==="instagram"?"인스타그램 인증":item.verification_method==="phone"?"공개 전화 확인":"운영자 직접 확인"}</Text>
+            {item.verification_method==="phone"&&<Text style={styles.hint}>학원 공개 전화번호: {item.public_phone||"전화번호 미등록 — 다른 방법으로 확인"}</Text>}
+            {(item.verification_method==="blog"||item.verification_method==="instagram")&&<Text style={styles.hint}>인증 코드: {item.verification_code||"-"} · 공식 채널: {item.verification_url||"-"}</Text>}
             <Text style={styles.hint}>신청 시각: {new Date(item.created_at).toLocaleString("ko-KR")}</Text>
             <View style={{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:9}}>
-              {item.verification_method==="blog"&&<Pressable onPress={()=>openOwnerApplicationBlog(item)} style={{backgroundColor:"#F2ECFF",padding:10,borderRadius:9}}><Text style={{fontSize:11,fontWeight:"800",color:"#653BB7"}}>인증 블로그 열기</Text></Pressable>}
+              {(item.verification_method==="blog"||item.verification_method==="instagram")&&<Pressable onPress={()=>openOwnerApplicationBlog(item)} style={{backgroundColor:"#F2ECFF",padding:10,borderRadius:9}}><Text style={{fontSize:11,fontWeight:"800",color:"#653BB7"}}>공식 채널 열기</Text></Pressable>}
               <Pressable disabled={ownerReviewBusy} onPress={()=>reviewOwnerApplication(item,"approved")} style={{backgroundColor:"#EAF6EF",padding:10,borderRadius:9}}><Text style={{fontSize:11,fontWeight:"800",color:"#18794E"}}>승인</Text></Pressable>
               <Pressable disabled={ownerReviewBusy} onPress={()=>reviewOwnerApplication(item,"needs_info")} style={{backgroundColor:"#FFF7E8",padding:10,borderRadius:9}}><Text style={{fontSize:11,fontWeight:"800",color:"#8A641C"}}>추가 확인</Text></Pressable>
               <Pressable disabled={ownerReviewBusy} onPress={()=>reviewOwnerApplication(item,"rejected")} style={{backgroundColor:"#FFF1F1",padding:10,borderRadius:9}}><Text style={{fontSize:11,fontWeight:"800",color:"#A33342"}}>반려</Text></Pressable>
