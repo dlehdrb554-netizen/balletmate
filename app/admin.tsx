@@ -142,7 +142,7 @@ export default function Admin() {
   const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
   const [studioDbOffset,setStudioDbOffset]=useState(0);
   const [studioHasMore,setStudioHasMore]=useState(false);
-  const [studioListFilter,setStudioListFilter]=useState<"all"|"has_photo"|"missing_photo"|"missing_website"|"website_candidate"|"active"|"inactive">("all");
+  const [studioListFilter,setStudioListFilter]=useState<"all"|"has_photo"|"missing_photo"|"missing_website"|"active"|"inactive">("all");
   const [selectedPhotoStudioIds,setSelectedPhotoStudioIds]=useState<string[]>([]);
   const [form,setForm]=useState({...blank});
   const [editing,setEditing]=useState<string|null>(null);
