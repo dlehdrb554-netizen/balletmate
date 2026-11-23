@@ -92,6 +92,8 @@ Deno.serve(async(req)=>{
  // Backfill existing studios that already have a Kakao Place URL. Keep this
  // independent from new regional discovery and process only a small batch.
  let existingKakaoChecks=0,existingKakaoBlogs=0;
+ let backfillCandidateCount=0,backfillSelectedCount=0;
+ let backfillQueryError:string|null=null,backfillUpdateErrors:string[]=[];
  const {data:backfillCandidates,error:backfillError}=await db.from("studios")
   .select("id,name,source_url,kakao_place_blog_attempted_at")
   .eq("is_active",true)
@@ -100,20 +102,24 @@ Deno.serve(async(req)=>{
   .order("kakao_place_blog_attempted_at",{ascending:true,nullsFirst:true})
   .limit(100);
  const retryBefore=Date.now()-24*60*60*1000;
+ backfillCandidateCount=(backfillCandidates||[]).length;
  const backfillRows=(backfillCandidates||[])
   .filter((studio)=>!studio.kakao_place_blog_attempted_at||new Date(studio.kakao_place_blog_attempted_at).getTime()<retryBefore)
   .slice(0,6);
- if(backfillError)console.error("Kakao blog backfill target query failed:",backfillError.message);
+ backfillSelectedCount=backfillRows.length;
+ if(backfillError){backfillQueryError=backfillError.message;console.error("Kakao blog backfill target query failed:",backfillError.message);}
  for(const studio of backfillRows||[]){
   const placeId=String(studio.source_url||"").match(/place\.map\.kakao\.com\/(?:main\/v\/)?(\d+)/i)?.[1];
   if(!placeId)continue;
   existingKakaoChecks++;
   const attemptedAt=new Date().toISOString();
-  await db.from("studios").update({kakao_place_blog_attempted_at:attemptedAt,updated_at:attemptedAt}).eq("id",studio.id);
+  const {error:attemptUpdateError}=await db.from("studios").update({kakao_place_blog_attempted_at:attemptedAt,updated_at:attemptedAt}).eq("id",studio.id);
+  if(attemptUpdateError)backfillUpdateErrors.push(String(studio.name)+": attempted_at 저장 실패: "+attemptUpdateError.message);
   const links=await findKakaoPlaceOfficialLinks(placeId);
   if(links.checked){
    const checkedAt=new Date().toISOString();
-   await db.from("studios").update({kakao_place_blog_checked_at:checkedAt,updated_at:checkedAt}).eq("id",studio.id);
+   const {error:checkedUpdateError}=await db.from("studios").update({kakao_place_blog_checked_at:checkedAt,updated_at:checkedAt}).eq("id",studio.id);
+   if(checkedUpdateError)backfillUpdateErrors.push(String(studio.name)+": checked_at 저장 실패: "+checkedUpdateError.message);
   }
   if(links.blog){
    const {error:seedError}=await db.from("studio_blog_account_candidates").upsert({
@@ -223,5 +229,5 @@ Deno.serve(async(req)=>{
   duplicate_count:duplicateCount,homepage_search_count:homepageSearches,
   homepage_found_count:homepagesFound,error:errors.join(" | ").slice(0,1000)||null
  });
- return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,kakaoDetailChecks,kakaoBlogCandidates,kakaoChannelCandidates,existingKakaoChecks,existingKakaoBlogs,homepageSearches,homepagesFound,errors,logSaved:!logError,logError:logError?.message});
+ return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,kakaoDetailChecks,kakaoBlogCandidates,kakaoChannelCandidates,existingKakaoChecks,existingKakaoBlogs,backfillCandidateCount,backfillSelectedCount,backfillQueryError,backfillUpdateErrors,backfillSample:(backfillCandidates||[]).slice(0,5).map((s)=>({id:s.id,name:s.name,source_url:s.source_url,attempted_at:s.kakao_place_blog_attempted_at})),homepageSearches,homepagesFound,errors,logSaved:!logError,logError:logError?.message});
 });
