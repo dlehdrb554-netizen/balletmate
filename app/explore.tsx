@@ -273,13 +273,17 @@ export default function Home() {
     return()=>{active=false;clearTimeout(timer);};
   },[search]);
 
-  const results=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(s=>[s.id,s])).values()].filter(s=>{
+  const globalSearchIdSet=useMemo(()=>new Set(globalSearchStudios.map(studio=>studio.id)),[globalSearchStudios]);
+  const classSearchIdSet=useMemo(()=>new Set(classSearchIds),[classSearchIds]);
+  const classFilterIdSet=useMemo(()=>new Set(classFilterIds),[classFilterIds]);
+  const mergedStudios=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()],[studios,globalSearchStudios]);
+  const results=useMemo(()=>mergedStudios.filter(s=>{
     const q=search.trim().toLowerCase();
-    if(q && !globalSearchStudios.some(item=>item.id===s.id) && !s.name.toLowerCase().includes(q) && !s.area.toLowerCase().includes(q) && !s.tags.some(t=>t.toLowerCase().includes(q)) && !classSearchIds.includes(s.id)) return false;
+    if(q && !globalSearchIdSet.has(s.id) && !s.name.toLowerCase().includes(q) && !s.area.toLowerCase().includes(q) && !s.tags.some(t=>t.toLowerCase().includes(q)) && !classSearchIdSet.has(s.id)) return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
     if(neisOnlyFilter&&s.sourceStatus!=="both"&&s.sourceStatus!=="neis_only")return false;
-    if(hasClassLevelFilters&&!classFilterIds.includes(s.id))return false;
+    if(hasClassLevelFilters&&!classFilterIdSet.has(s.id))return false;
     if(level&&!s.level.includes(level))return false;
     if(dayFilter&&!s.days.includes(dayFilter))return false;
     if(timeFilter&&!s.time.includes(timeFilter))return false;
@@ -292,8 +296,11 @@ export default function Home() {
       if(Math.abs(s.lat-searchedRegion.latitude)>latSpan||Math.abs(s.lng-searchedRegion.longitude)>lngSpan)return false;
     }
     return true;
-  }),[studios,globalSearchStudios,search,classSearchIds,adult,kids,coupon,level,dayFilter,timeFilter,maxPrice,durationFilter,classTypeFilter,hasClassLevelFilters,classFilterIds,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
+  }),[mergedStudios,globalSearchIdSet,search,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,maxPrice,durationFilter,classTypeFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
 
+  const mapMarkers=useMemo(()=>results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng})),[results]);
+  const handleMapRegionChange=useCallback((next:Region)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);},[]);
+  const handleMapMarkerPress=useCallback((id:string)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);},[results]);
   const allListAreas=[...new Set(studios.map(studio=>studio.area).filter(area=>area&&area!=="지역 정보 없음"))].sort((a,b)=>a.localeCompare(b,"ko"));
   const cityLabels=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원","충북","충남","전북","전남","경북","경남","제주","고양시","성남시","수원시","용인시","화성시","부천시","안양시","안산시","의정부시","남양주시","파주시","김포시","광명시","하남시","평택시","시흥시","광주시","양주시","구리시","군포시","오산시","이천시","포천시","춘천시","원주시","강릉시","청주시","천안시","아산시","전주시","익산시","군산시","목포시","여수시","순천시","포항시","경주시","구미시","창원시","김해시","진주시","거제시"];
   const seoulDistricts=["강남구","강동구","강북구","강서구","관악구","광진구","구로구","금천구","노원구","도봉구","동대문구","동작구","마포구","서대문구","서초구","성동구","성북구","송파구","양천구","영등포구","용산구","은평구","종로구","중구","중랑구"];
@@ -633,7 +640,7 @@ export default function Home() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow:0,flexShrink:0}} contentContainerStyle={[styles.quickFilters,{alignItems:"center"}]}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/><Chip label="쿠폰" active={coupon} onPress={()=>setCoupon(!coupon)}/><Chip label="초급" active={level==="초급"} onPress={()=>setLevel(level==="초급"?null:"초급")}/><Chip label="전체" onPress={resetFilters}/></ScrollView>
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
-        <KakaoMap ref={map} initialRegion={region} markers={results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng}))} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={(next)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);}} onMarkerPress={(id)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);}} />
+        <KakaoMap ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} />
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":"이 지역에서 재검색"}</Text></View></Pressable>}
         <Pressable style={styles.locateButton} onPress={locate}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
         <Pressable style={styles.mapCount} onPress={()=>{if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}</Text>곳{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
