@@ -23,7 +23,7 @@ BEGIN
   IF NOT public.is_balletmate_admin() THEN
     RAISE EXCEPTION 'admin access required' USING ERRCODE = '42501';
   END IF;
-  DELETE FROM public.studio_discovery_runs;
+  DELETE FROM public.studio_discovery_runs WHERE id IS NOT NULL;
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
   RETURN deleted_count;
 END;
