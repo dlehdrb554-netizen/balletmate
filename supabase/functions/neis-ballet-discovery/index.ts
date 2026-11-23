@@ -6,7 +6,7 @@ const BALLET_RE = /발레|ballet|무용/i;
 const clean = (v: unknown) => String(v ?? "").trim();
 const norm = (v: unknown) => clean(v).toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
 const relevant = (row: Record<string, unknown>) => BALLET_RE.test([
-  row.ACA_NM, row.FLD_NM, row.TRNG_AFLT_NM, row.TRNG_CRS_LIST_NM, row.TRNG_CRS_NM
+  row.ACA_NM, row.REALM_SC_NM, row.LE_ORD_NM, row.LE_CRSE_LIST_NM, row.LE_CRSE_NM
 ].map(clean).join(" "));
 const isOpen = (row: Record<string, unknown>) => /개원|운영|등록/i.test(clean(row.REG_STTUS_NM)) && !/폐원|휴원|취소/i.test(clean(row.REG_STTUS_NM));
 
@@ -63,30 +63,31 @@ Deno.serve(async (req) => {
         const academyName = clean(row.ACA_NM);
         if (!academyNo || !academyName) continue;
         const rowOpen = isOpen(row);
-        const address = [clean(row.ROAD_NM_ADDR), clean(row.DADDR)].filter(Boolean).join(" ");
+        const address = [clean(row.FA_RDNMA), clean(row.FA_RDNDA)].filter(Boolean).join(" ");
         const { error: saveError } = await db.from("neis_ballet_academy_candidates").upsert({
           office_code: office,
           office_name: clean(row.ATPT_OFCDC_SC_NM),
           academy_number: academyNo,
           academy_name: academyName,
           academy_type: clean(row.ACA_INSTI_SC_NM),
+          academy_phone: clean(row.FA_TELNO),
           academy_phone: clean(row.TELNO) || clean(row.PHONE) || clean(row.TEL),
           district_name: clean(row.ADMST_ZONE_NM),
           registration_status: clean(row.REG_STTUS_NM),
-          field_name: clean(row.FLD_NM),
-          teaching_affiliation: clean(row.TRNG_AFLT_NM),
-          course_list: clean(row.TRNG_CRS_LIST_NM),
-          course_name: clean(row.TRNG_CRS_NM),
+          field_name: clean(row.REALM_SC_NM),
+          teaching_affiliation: clean(row.LE_ORD_NM),
+          course_list: clean(row.LE_CRSE_LIST_NM),
+          course_name: clean(row.LE_CRSE_NM),
           address,
-          postal_code: clean(row.ROAD_NM_ZIP),
+          postal_code: clean(row.FA_RDNZC),
           established_date: clean(row.ESTBL_YMD) || null,
           registered_date: clean(row.REG_YMD) || null,
-          tuition_text: clean(row.INDV_ATNLC_AMT_CN),
-          tuition_public: clean(row.ATNLC_AMT_RLS_YN),
-          dormitory: clean(row.DMTR_PEI_YN),
-          capacity: clean(row.PSCP_SUM) || null,
+          tuition_text: clean(row.PSNBY_THCC_CNTNT),
+          tuition_public: clean(row.THCC_OTHBC_YN),
+          dormitory: clean(row.BRHS_ACA_YN),
+          capacity: clean(row.TOFOR_SMTOT) || clean(row.DTM_RCPTN_ABLTY_NMPR_SMTOT) || null,
           raw_data: row,
-          source_updated_at: clean(row.LOAD_DT) || null,
+          source_updated_at: clean(row.LOAD_DTM) || null,
           is_open: rowOpen,
           last_seen_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
