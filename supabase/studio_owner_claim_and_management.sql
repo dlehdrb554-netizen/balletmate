@@ -241,7 +241,7 @@ CREATE OR REPLACE FUNCTION public.owner_update_studio_profile(
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 BEGIN
   IF NOT public.is_studio_owner(p_studio_id) THEN
     RAISE EXCEPTION '승인된 학원 관리자만 기본 정보를 수정할 수 있습니다.';
