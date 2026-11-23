@@ -45,7 +45,7 @@ CREATE INDEX IF NOT EXISTS studio_owners_user_id_idx ON public.studio_owners(use
 ALTER TABLE public.studio_owner_applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.studio_owners ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.studio_owner_applications, public.studio_owners FROM anon, authenticated;
-GRANT SELECT ON public.studio_owner_applications TO authenticated;
+GRANT SELECT ON public.studio_owner_applications, public.studio_owners TO authenticated;
 
 DROP POLICY IF EXISTS "users view own studio owner applications" ON public.studio_owner_applications;
 CREATE POLICY "users view own studio owner applications"
@@ -148,6 +148,7 @@ BEGIN
   v_name_match := regexp_replace(lower(v_business),'[^a-z0-9가-힣]','','g')
     = regexp_replace(lower(coalesce(v_studio.name,'')),'[^a-z0-9가-힣]','','g');
   v_address_match := length(regexp_replace(lower(v_address),'[^a-z0-9가-힣]','','g')) > 0
+    AND length(regexp_replace(lower(coalesce(v_studio.address,'')),'[^a-z0-9가-힣]','','g')) > 0
     AND (regexp_replace(lower(v_address),'[^a-z0-9가-힣]','','g')
          LIKE '%'||left(regexp_replace(lower(coalesce(v_studio.address,'')),'[^a-z0-9가-힣]','','g'),12)||'%'
       OR regexp_replace(lower(coalesce(v_studio.address,'')),'[^a-z0-9가-힣]','','g')
