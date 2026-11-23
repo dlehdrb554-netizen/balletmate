@@ -135,7 +135,7 @@ END $$;
 REVOKE ALL ON FUNCTION public.submit_studio_owner_application_light(uuid,text,text,text) FROM public,anon;
 GRANT EXECUTE ON FUNCTION public.submit_studio_owner_application_light(uuid,text,text,text) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application(uuid,text,text,text,text,text) FROM authenticated;
-DO $ BEGIN
+DO $$ BEGIN
  IF to_regprocedure('public.submit_studio_owner_application_secure(uuid,text,text,text,text,text,text,text)') IS NOT NULL THEN
   EXECUTE 'REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application_secure(uuid,text,text,text,text,text,text,text) FROM authenticated';
  END IF;
