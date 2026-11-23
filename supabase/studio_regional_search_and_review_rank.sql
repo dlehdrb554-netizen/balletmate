@@ -37,8 +37,8 @@ CREATE OR REPLACE FUNCTION public.get_studio_popular_views_rank(p_region text DE
 RETURNS TABLE(studio_id uuid,studio_name text,view_count bigint,favorite_count bigint)
 LANGUAGE sql SECURITY DEFINER SET search_path=public AS $ballet$
  SELECT s.id,s.name,count(DISTINCT v.user_id)::bigint AS view_count,
-  (SELECT count(DISTINCT f.user_id)::bigint FROM public.user_favorites f WHERE f.studio_id=s.id
-   AND NOT EXISTS(SELECT 1 FROM public.studio_owners o WHERE o.user_id=f.user_id AND o.status='approved')
+  (SELECT count(DISTINCT f.user_id)::bigint FROM public.user_favorites f WHERE f.studio_id=s.id::text
+   AND NOT EXISTS(SELECT 1 FROM public.studio_owners o WHERE o.user_id=f.user_id)
    AND NOT EXISTS(SELECT 1 FROM public.admin_users a WHERE a.user_id=f.user_id)
    AND NOT EXISTS(SELECT 1 FROM auth.users u WHERE u.id=f.user_id AND coalesce(u.raw_app_meta_data->>'role','') IN ('admin','balletmate_admin'))) AS favorite_count
  FROM public.studios s LEFT JOIN public.studio_detail_view_events v ON v.studio_id=s.id
@@ -56,9 +56,10 @@ CREATE OR REPLACE FUNCTION public.get_studio_favorite_rank(p_region text DEFAULT
 RETURNS TABLE(studio_id uuid,studio_name text,favorite_count bigint)
 LANGUAGE sql SECURITY DEFINER SET search_path=public AS $ballet$
  SELECT s.id,s.name,count(DISTINCT f.user_id)::bigint
- FROM public.studios s JOIN public.user_favorites f ON f.studio_id=s.id
+ FROM public.studios s JOIN public.user_favorites f ON f.studio_id=s.id::text
  WHERE coalesce(s.is_active,true) AND (coalesce(p_region,'전체')='전체' OR coalesce(s.district,'지역 정보 없음')=p_region)
   AND NOT EXISTS(SELECT 1 FROM public.studio_owners o WHERE o.user_id=f.user_id)
+  AND NOT EXISTS(SELECT 1 FROM public.admin_users a WHERE a.user_id=f.user_id)
   AND NOT EXISTS(SELECT 1 FROM auth.users u WHERE u.id=f.user_id AND coalesce(u.raw_app_meta_data->>'role','') IN ('admin','balletmate_admin'))
  GROUP BY s.id,s.name ORDER BY count(DISTINCT f.user_id) DESC,s.name ASC LIMIT 10;
 $ballet$;
