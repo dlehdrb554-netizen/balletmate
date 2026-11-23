@@ -25,7 +25,7 @@ async function fetchNaverSearch(endpoint: URL, clientId: string, clientSecret: s
     throw new Error(`NAVER Search API HTTP 401: ${legacyDetail.slice(0, 240)}`);
   }
 
-  const apiType = endpoint.pathname.match(/\/v1\/search\\/([a-z0-9]+)\.json$/i)?.[1];
+  const apiType = endpoint.pathname.split("/").pop()?.replace(".json", "");
   if (!apiType) throw new Error("NAVER API HUB 전환 실패: 검색 API 종류를 확인할 수 없습니다.");
   const hubEndpoint = new URL(`https://naverapihub.apigw.ntruss.com/search/v1/${apiType}`);
   endpoint.searchParams.forEach((value, key) => hubEndpoint.searchParams.set(key, value));
