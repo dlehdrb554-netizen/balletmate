@@ -166,6 +166,7 @@ export default function Home() {
   const [adult,setAdult]=useState(false);
   const [kids,setKids]=useState(false);
   const [coupon,setCoupon]=useState(false);
+  const [neisOnlyFilter,setNeisOnlyFilter]=useState(false);
   const [level,setLevel]=useState<string|null>(null);
   const [dayFilter,setDayFilter]=useState<string|null>(null);
   const [timeFilter,setTimeFilter]=useState<string|null>(null);
@@ -258,6 +259,7 @@ export default function Home() {
     if(q && !globalSearchStudios.some(item=>item.id===s.id) && !s.name.toLowerCase().includes(q) && !s.area.toLowerCase().includes(q) && !s.tags.some(t=>t.toLowerCase().includes(q)) && !classSearchIds.includes(s.id)) return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
+    if(neisOnlyFilter&&s.sourceStatus!=="both")return false;
     if(hasClassLevelFilters&&!classFilterIds.includes(s.id))return false;
     if(level&&!s.level.includes(level))return false;
     if(dayFilter&&!s.days.includes(dayFilter))return false;
@@ -271,7 +273,7 @@ export default function Home() {
       if(Math.abs(s.lat-searchedRegion.latitude)>latSpan||Math.abs(s.lng-searchedRegion.longitude)>lngSpan)return false;
     }
     return true;
-  }),[studios,globalSearchStudios,search,classSearchIds,adult,kids,coupon,level,dayFilter,timeFilter,maxPrice,durationFilter,classTypeFilter,hasClassLevelFilters,classFilterIds,maxDistance,areaLocked,searchedRegion]);
+  }),[studios,globalSearchStudios,search,classSearchIds,adult,kids,coupon,level,dayFilter,timeFilter,maxPrice,durationFilter,classTypeFilter,hasClassLevelFilters,classFilterIds,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
 
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:results;
@@ -505,7 +507,7 @@ export default function Home() {
       else client.from("user_favorites").upsert({user_id:uid,studio_id:studio.id,studio_snapshot:studio,updated_at:new Date().toISOString()},{onConflict:"user_id,studio_id"}).then(({error})=>{if(error)console.warn("Favorite save sync failed",error);});
     });
   };
-  const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setMaxPrice(null);setDurationFilter(null);setClassTypeFilter(null);setMaxDistance(null);};
+  const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setNeisOnlyFilter(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setMaxPrice(null);setDurationFilter(null);setClassTypeFilter(null);setMaxDistance(null);};
   const openDirections=async(studio:Studio,provider:"google"|"kakao")=>{
     const destination=studio.address||studio.name;
     const url=provider==="google"
@@ -756,6 +758,7 @@ export default function Home() {
         <Text style={styles.sectionTitle}>가격</Text><View style={styles.filterChoices}>{[{label:"2만원 이하",value:20000},{label:"2.5만원 이하",value:25000},{label:"3만원 이하",value:30000}].map(v=><Chip key={v.value} label={v.label} active={maxPrice===v.value} onPress={()=>setMaxPrice(maxPrice===v.value?null:v.value)}/>)}</View>
         <Text style={styles.sectionTitle}>수업 길이</Text><View style={styles.filterChoices}>{[45,50,60,75,90].map(v=><Chip key={v} label={v+"분"} active={durationFilter===v} onPress={()=>setDurationFilter(durationFilter===v?null:v)}/>)}</View>
         <Text style={styles.sectionTitle}>거리 (지도 중심 기준)</Text><View style={styles.filterChoices}>{[1,3,5,10].map(v=><Chip key={v} label={v+"km"} active={maxDistance===v} onPress={()=>setMaxDistance(maxDistance===v?null:v)}/>)}</View>
+        <Text style={styles.sectionTitle}>교육청 등록 여부</Text><View style={styles.filterChoices}><Chip label="교육청 등록 확인된 곳만" active={neisOnlyFilter} onPress={()=>setNeisOnlyFilter(!neisOnlyFilter)}/></View>
         <Text style={styles.sectionTitle}>혜택</Text><View style={styles.filterChoices}><Chip label="쿠폰/할인" active={coupon} onPress={()=>setCoupon(!coupon)}/></View>
         <Text style={styles.filterHint}>거리 필터는 현재 지도 중심을 기준으로 계산합니다.</Text>
         </ScrollView><View style={styles.modalActions}><Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>초기화</Text></Pressable><Pressable style={styles.applyButton} onPress={()=>setFilterOpen(false)}><Text style={styles.applyText}>결과 {results.length}곳 보기</Text></Pressable></View>
