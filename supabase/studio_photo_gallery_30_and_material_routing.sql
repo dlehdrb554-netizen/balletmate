@@ -96,7 +96,11 @@ $$;
 REVOKE ALL ON FUNCTION public.admin_manual_classify_studio_photo_candidate(bigint,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_manual_classify_studio_photo_candidate(bigint,text) TO authenticated;
 
-CREATE OR REPLACE FUNCTION public.admin_review_studio_photo_candidate(
+-- The function's OUT/RETURNS TABLE shape changed. PostgreSQL requires dropping
+-- the previous signature before recreating it with the new return columns.
+DROP FUNCTION IF EXISTS public.admin_review_studio_photo_candidate(bigint, text);
+
+CREATE FUNCTION public.admin_review_studio_photo_candidate(
   p_candidate_id bigint,
   p_status text
 )
