@@ -5,6 +5,14 @@ ALTER TABLE public.studio_owner_applications
   ADD COLUMN IF NOT EXISTS blog_url text,
   ADD COLUMN IF NOT EXISTS verification_code text;
 
+-- Disable the former document-upload path completely; retain the private bucket
+-- temporarily so any old files can be reviewed and manually purged before removal.
+REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application(uuid,text,text,text,text,text) FROM authenticated;
+DROP POLICY IF EXISTS "applicants upload own business documents" ON storage.objects;
+DROP POLICY IF EXISTS "applicants read own business documents" ON storage.objects;
+DROP POLICY IF EXISTS "applicants replace own pending business documents" ON storage.objects;
+UPDATE storage.buckets SET public=false WHERE id='studio-business-documents';
+
 CREATE OR REPLACE FUNCTION public.submit_studio_owner_application_secure(
   p_studio_id uuid,
   p_business_registration_number text,
