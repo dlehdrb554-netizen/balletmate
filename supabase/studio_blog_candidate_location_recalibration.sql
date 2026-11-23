@@ -40,15 +40,33 @@ aliases AS (
   FROM normalized n
 ),
 location_tokens AS (
-  SELECT DISTINCT
-    s.id AS studio_id,
-    regexp_replace(
-      regexp_replace(lower(token), '[^a-z0-9가-힣]', '', 'g'),
-      '(특별자치도|광역시|특별시|자치시|도|시|구|군)$', '', 'g'
-    ) AS location_token
-  FROM public.studios s
-  CROSS JOIN LATERAL regexp_split_to_table(COALESCE(s.address, ''), '[[:space:],]+') token
-  WHERE COALESCE(s.is_active, true)
+  SELECT DISTINCT studio_id, location_token
+  FROM (
+    SELECT
+      s.id AS studio_id,
+      regexp_replace(
+        regexp_replace(lower(token), '[^a-z0-9가-힣]', '', 'g'),
+        '(특별자치도|광역시|특별시|자치시|도|시|구|군)$', '', 'g'
+      ) AS location_token
+    FROM public.studios s
+    CROSS JOIN LATERAL regexp_split_to_table(COALESCE(s.address, ''), '[[:space:],]+') token
+    WHERE COALESCE(s.is_active, true)
+    UNION ALL
+    SELECT
+      s.id AS studio_id,
+      left(regexp_replace(
+        regexp_replace(lower(token), '[^a-z0-9가-힣]', '', 'g'),
+        '(특별자치도|광역시|특별시|자치시|도|시|구|군)$', '', 'g'
+      ), 2) AS location_token
+    FROM public.studios s
+    CROSS JOIN LATERAL regexp_split_to_table(COALESCE(s.address, ''), '[[:space:],]+') token
+    WHERE COALESCE(s.is_active, true)
+      AND length(regexp_replace(
+        regexp_replace(lower(token), '[^a-z0-9가-힣]', '', 'g'),
+        '(특별자치도|광역시|특별시|자치시|도|시|구|군)$', '', 'g'
+      )) >= 3
+  ) tokens
+  WHERE length(location_token) >= 2
 ),
 account_evidence AS (
   SELECT
