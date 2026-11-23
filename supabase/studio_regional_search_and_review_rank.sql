@@ -37,7 +37,7 @@ LANGUAGE sql SECURITY DEFINER SET search_path=public
 AS $$
   SELECT e.query,count(*)::bigint AS search_count
   FROM public.studio_search_events e
-  WHERE e.created_at>=date_trunc('day',now())
+  WHERE e.created_at>=(date_trunc('day',now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul')
     AND (coalesce(p_region,'전체')='전체' OR e.region=p_region)
   GROUP BY e.query ORDER BY search_count DESC,e.query ASC LIMIT 10;
 $$;
