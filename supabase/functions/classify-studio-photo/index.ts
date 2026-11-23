@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
-const permittedHost=(h:string)=>/(^|\.)pstatic\.net$|(^|\.)naver\.net$|(^|\.)googleusercontent\.com$/i.test(h);
+const permittedHost=(h:string)=>/(^|\.)pstatic\.net$|(^|\.)naver\.net$|(^|\.)naver\.com$|(^|\.)googleusercontent\.com$/i.test(h);
 function privateHost(h:string){const x=h.toLowerCase();if(x==="localhost"||x.endsWith(".local")||x.endsWith(".localhost")||x.includes(":"))return true;const p=x.split(".");if(p.length!==4||!p.every(v=>/^\\d{1,3}$/.test(v)))return false;const [a,b]=p.map(Number);return a===0||a===10||a===127||a>=224||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127);}
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok");
@@ -42,7 +42,7 @@ Deno.serve(async(req)=>{
  const {data:candidate,error:candidateError}=await db.from("studio_photo_candidates").select("id,studio_id,studio_name,image_url,source_page_url,source_host,review_status").eq("id",body.candidateId).eq("review_status","pending").single();
  if(candidateError||!candidate)return json({error:"Candidate not found"},404);
  let imageUrl:URL;try{imageUrl=new URL(candidate.image_url);const sourceHost=new URL(candidate.source_page_url).hostname;
- if(imageUrl.protocol!=="https:"||imageUrl.username||imageUrl.password||privateHost(imageUrl.hostname)||(!permittedHost(imageUrl.hostname)&&imageUrl.hostname!==sourceHost&&!imageUrl.hostname.endsWith("."+sourceHost)))throw new Error();}catch{return json({error:"Image host not permitted"},400);}
+ if(imageUrl.protocol!=="https:"||imageUrl.username||imageUrl.password||privateHost(imageUrl.hostname)||(!permittedHost(imageUrl.hostname)&&imageUrl.hostname!==sourceHost&&!imageUrl.hostname.endsWith("."+sourceHost)))throw new Error();}catch{return json({error:"Image host not permitted",imageHost:(()=>{try{return new URL(candidate.image_url).hostname}catch{return "invalid-url"}})(),sourceHost:(()=>{try{return new URL(candidate.source_page_url).hostname}catch{return "invalid-source-url"}})()},status:400},400);}
  let imageResponse:Response;try{imageResponse=await fetch(imageUrl.toString(),{redirect:"error",headers:{Accept:"image/*",Referer:candidate.source_page_url},signal:AbortSignal.timeout(10000)});}catch{return json({error:"Image fetch failed"},502);}
  const mime=(imageResponse.headers.get("content-type")||"").split(";")[0].toLowerCase(),size=Number(imageResponse.headers.get("content-length")||0);
  if(!imageResponse.ok||!mime.startsWith("image/")||mime==="image/svg+xml"||size>5000000)return json({error:"Image type unsupported or exceeds 5MB"},422);
