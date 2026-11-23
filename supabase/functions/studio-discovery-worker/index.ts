@@ -58,12 +58,12 @@ function findKakaoPlaceChannel(value:unknown,depth=0):string|null{
  if(typeof value==="object"){for(const [key,item] of Object.entries(value as Record<string,unknown>)){if(/channel|kakao|plus.?friend|sns|url|link|homepage|site/i.test(key)||depth<3){const found=findKakaoPlaceChannel(item,depth+1);if(found)return found;}}}
  return null;
 }
-async function findKakaoPlaceOfficialLinks(placeId:string):Promise<{blog:string|null;channel:string|null}>{
+async function findKakaoPlaceOfficialLinks(placeId:string):Promise<{blog:string|null;channel:string|null;checked:boolean}>{
  const headers={"User-Agent":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36","Referer":"https://place.map.kakao.com/"+placeId};
- let blog:string|null=null,channel:string|null=null;
+ let blog:string|null=null,channel:string|null=null,checked=false;
  for(const endpoint of ["https://place.map.kakao.com/main/v/"+encodeURIComponent(placeId),"https://place.map.kakao.com/"+encodeURIComponent(placeId)]){
   try{
-   const response=await fetch(endpoint,{headers,signal:AbortSignal.timeout(6000)});if(!response.ok)continue;
+   const response=await fetch(endpoint,{headers,signal:AbortSignal.timeout(6000)});if(!response.ok)continue;checked=true;
    const body=await response.text();let payload:unknown=body;
    try{payload=JSON.parse(body);}catch{}
    if(!blog){const found=new Set<string>();collectNaverBlogUrls(payload,found);blog=[...found][0]||null;}
@@ -71,7 +71,7 @@ async function findKakaoPlaceOfficialLinks(placeId:string):Promise<{blog:string|
    if(blog&&channel)break;
   }catch{/* best effort */}
  }
- return {blog,channel};
+ return {blog,channel,checked};
 }
 async function findKakaoPlaceBlog(placeId:string):Promise<string|null>{
  const found=new Set<string>();const headers={"User-Agent":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36","Referer":"https://place.map.kakao.com/"+placeId};
@@ -89,6 +89,43 @@ Deno.serve(async(req)=>{
  const url=Deno.env.get("SUPABASE_URL"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),kakaoKey=Deno.env.get("KAKAO_REST_API_KEY");
  if(!url||!serviceKey||!kakaoKey)return json({error:"SUPABASE or KAKAO_REST_API_KEY secret missing"},500);
  const db=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+ // Backfill existing studios that already have a Kakao Place URL. Keep this
+ // independent from new regional discovery and process only a small batch.
+ let existingKakaoChecks=0,existingKakaoBlogs=0;
+ const {data:backfillRows,error:backfillError}=await db.from("studios")
+  .select("id,name,source_url,kakao_place_blog_attempted_at")
+  .eq("is_active",true).like("source_url","https://place.map.kakao.com/%")
+  .is("kakao_place_blog_checked_at",null)
+  .or("kakao_place_blog_attempted_at.is.null,kakao_place_blog_attempted_at.lt."+new Date(Date.now()-24*60*60*1000).toISOString())
+  .order("kakao_place_blog_attempted_at",{ascending:true,nullsFirst:true}).limit(6);
+ if(backfillError)console.error("Kakao blog backfill target query failed:",backfillError.message);
+ for(const studio of backfillRows||[]){
+  const placeId=String(studio.source_url||"").match(/place\\.map\\.kakao\\.com\\/(?:main\\/v\\/)?(\\d+)/i)?.[1];
+  if(!placeId)continue;
+  existingKakaoChecks++;
+  const attemptedAt=new Date().toISOString();
+  await db.from("studios").update({kakao_place_blog_attempted_at:attemptedAt,updated_at:attemptedAt}).eq("id",studio.id);
+  const links=await findKakaoPlaceOfficialLinks(placeId);
+  if(links.checked){
+   const checkedAt=new Date().toISOString();
+   await db.from("studios").update({kakao_place_blog_checked_at:checkedAt,updated_at:checkedAt}).eq("id",studio.id);
+  }
+  if(links.blog){
+   const {error:seedError}=await db.from("studio_blog_account_candidates").upsert({
+    studio_id:studio.id,studio_name:String(studio.name||""),blogger_url:links.blog,
+    blogger_name:"카카오 장소 등록 블로그",matched_post_count:1,sample_posts:[],
+    match_score:98,last_seen_at:new Date().toISOString()
+   },{onConflict:"studio_id,blogger_url"});
+   if(seedError)console.error("Kakao blog backfill candidate save failed:",seedError.message);
+   else{
+    existingKakaoBlogs++;
+    const {error:queueError}=await db.from("studio_blog_search_queue").upsert({
+     studio_id:studio.id,status:"pending",attempts:0,last_error:null,updated_at:new Date().toISOString()
+    },{onConflict:"studio_id"});
+    if(queueError)console.error("Kakao blog backfill search enqueue failed:",queueError.message);
+   }
+  }
+ }
  const {data:regions,error:regionError}=await db.rpc("next_studio_discovery_region");
  if(regionError||!regions?.length)return json({error:"지역 배정 실패: "+(regionError?.message||"empty")},500);
  const region=regions[0];
@@ -181,5 +218,5 @@ Deno.serve(async(req)=>{
   duplicate_count:duplicateCount,homepage_search_count:homepageSearches,
   homepage_found_count:homepagesFound,error:errors.join(" | ").slice(0,1000)||null
  });
- return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,kakaoDetailChecks,kakaoBlogCandidates,kakaoChannelCandidates,homepageSearches,homepagesFound,errors,logSaved:!logError,logError:logError?.message});
+ return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,kakaoDetailChecks,kakaoBlogCandidates,kakaoChannelCandidates,existingKakaoChecks,existingKakaoBlogs,homepageSearches,homepagesFound,errors,logSaved:!logError,logError:logError?.message});
 });
