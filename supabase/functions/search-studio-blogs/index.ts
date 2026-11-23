@@ -289,10 +289,12 @@ Deno.serve(async (req) => {
         // Use actual city/district units from the address; avoid broad province prefixes.
         const addressUnits = [...addressText.matchAll(/[가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구)/g)]
           .map((match) => normalize(match[0]));
-        const locationTokens = [...new Set(addressUnits.flatMap((unit) => {
+        const metroPrefixes = ["서울","인천","부산","대구","대전","광주","울산","세종","제주"]
+          .filter((prefix) => normalize(addressText).includes(normalize(prefix)));
+        const locationTokens = [...new Set([...metroPrefixes, ...addressUnits.flatMap((unit) => {
           const stripped = unit.replace(/(특별자치도|특별자치시|광역시|특별시|자치시|시|군|구)$/g, "");
           return [unit, stripped].filter((token) => token.length >= 2);
-        }))];
+        })])];
         const hasLocationEvidence = (value: string) =>
           locationTokens.some((token) => normalize(value).includes(token));
         const commonLocationTokens = [
