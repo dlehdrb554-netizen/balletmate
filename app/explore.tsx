@@ -266,7 +266,7 @@ export default function Home() {
     if(q && !globalSearchStudios.some(item=>item.id===s.id) && !s.name.toLowerCase().includes(q) && !s.area.toLowerCase().includes(q) && !s.tags.some(t=>t.toLowerCase().includes(q)) && !classSearchIds.includes(s.id)) return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
-    if(neisOnlyFilter&&s.sourceStatus!=="both")return false;
+    if(neisOnlyFilter&&s.sourceStatus!=="both"&&s.sourceStatus!=="neis_only")return false;
     if(hasClassLevelFilters&&!classFilterIds.includes(s.id))return false;
     if(level&&!s.level.includes(level))return false;
     if(dayFilter&&!s.days.includes(dayFilter))return false;
@@ -765,7 +765,7 @@ export default function Home() {
         <Text style={styles.sectionTitle}>가격</Text><View style={styles.filterChoices}>{[{label:"2만원 이하",value:20000},{label:"2.5만원 이하",value:25000},{label:"3만원 이하",value:30000}].map(v=><Chip key={v.value} label={v.label} active={maxPrice===v.value} onPress={()=>setMaxPrice(maxPrice===v.value?null:v.value)}/>)}</View>
         <Text style={styles.sectionTitle}>수업 길이</Text><View style={styles.filterChoices}>{[45,50,60,75,90].map(v=><Chip key={v} label={v+"분"} active={durationFilter===v} onPress={()=>setDurationFilter(durationFilter===v?null:v)}/>)}</View>
         <Text style={styles.sectionTitle}>거리 (지도 중심 기준)</Text><View style={styles.filterChoices}>{[1,3,5,10].map(v=><Chip key={v} label={v+"km"} active={maxDistance===v} onPress={()=>setMaxDistance(maxDistance===v?null:v)}/>)}</View>
-        <Text style={styles.sectionTitle}>교육청 등록 정보</Text><View style={styles.filterChoices}><Chip label="등록 확인된 곳만 보기" active={neisOnlyFilter} onPress={()=>setNeisOnlyFilter(!neisOnlyFilter)}/></View><Text style={styles.filterHint}>기본 검색에는 지도에서 확인된 모든 학원이 표시됩니다. 필터를 켜면 교육청 등록 정보가 확인된 학원만 볼 수 있습니다. 등록 여부 미확인은 미등록을 뜻하지 않습니다.</Text>
+        <Text style={styles.sectionTitle}>교육청 등록 정보</Text><View style={styles.filterChoices}><Chip label="교육청 등록 정보 확인된 곳만" active={neisOnlyFilter} onPress={()=>setNeisOnlyFilter(!neisOnlyFilter)}/></View><Text style={styles.filterHint}>기본 검색에는 지도에서 확인된 모든 학원이 표시됩니다. 필터를 켜면 교육청 등록 정보가 확인된 학원만 볼 수 있습니다. 등록 여부 미확인은 미등록을 뜻하지 않습니다.</Text>
         <Text style={styles.sectionTitle}>혜택</Text><View style={styles.filterChoices}><Chip label="쿠폰/할인" active={coupon} onPress={()=>setCoupon(!coupon)}/></View>
         <Text style={styles.filterHint}>거리 필터는 현재 지도 중심을 기준으로 계산합니다.</Text>
         </ScrollView><View style={styles.modalActions}><Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>초기화</Text></Pressable><Pressable style={styles.applyButton} onPress={()=>setFilterOpen(false)}><Text style={styles.applyText}>결과 {results.length}곳 보기</Text></Pressable></View>
