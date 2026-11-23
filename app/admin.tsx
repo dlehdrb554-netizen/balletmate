@@ -1234,7 +1234,6 @@ export default function Admin() {
     if(studioListFilter==="has_photo"&&(row.image_urls||[]).length===0)return false;
     if(studioListFilter==="missing_photo"&&(row.image_urls||[]).length>0)return false;
     if(studioListFilter==="missing_website"&&!!row.website_url)return false;
-    if(studioListFilter==="website_candidate"&&!String(row.source_name||"").includes("홈페이지 검색 후보"))return false;
     if(studioListFilter==="active"&&!row.is_active)return false;
     if(studioListFilter==="inactive"&&row.is_active)return false;
     return true;
@@ -1244,7 +1243,7 @@ export default function Admin() {
   const save=async()=>{
     if(!supabase)return;
     if(!form.name.trim()||!form.latitude.trim()||!form.longitude.trim()){Alert.alert("필수 정보","학원명과 위도/경도를 입력하세요.");return;}
-    if(form.website_url.trim()&&!/^https:\/\//i.test(form.website_url.trim())){Alert.alert("홈페이지 주소","공식 홈페이지는 https:// 주소로 입력하세요.");return;}
+    if(form.website_url.trim()&&!/^https?:\/\//i.test(form.website_url.trim())){Alert.alert("홈페이지 주소","공식 홈페이지는 http:// 또는 https:// 주소로 입력하세요.");return;}
     if(form.source_url.trim()&&!/^https?:\/\//i.test(form.source_url.trim())){Alert.alert("출처 주소","출처 URL은 http:// 또는 https:// 주소로 입력하세요.");return;}
     const imageUrls=form.image_urls.split(/[\n,]+/).map(v=>v.trim()).filter(Boolean);
     if(imageUrls.length>10||imageUrls.some(v=>!/^https:\/\//i.test(v))){Alert.alert("사진 주소 확인","사진은 HTTPS 주소로 최대 10개까지 입력할 수 있습니다.");return;}
@@ -1272,42 +1271,29 @@ export default function Admin() {
     }
     setBusy(false);
   };
-  const verifyHomepageCandidate=(studio:StudioRow)=>{
-    if(!supabase||!studio.website_url)return;
-    Alert.alert("공식 홈페이지 후보 확인",
-      studio.name+"\n"+studio.website_url+"\n\n해당 주소가 이 학원의 공식 홈페이지인지 확인해 주세요. 홈페이지를 열어 확인한 뒤 승인하면 사진·가격·시간표 수집 대기열에 등록됩니다.",
-      [
-        {text:"취소",style:"cancel"},
-        {text:"홈페이지 열기",onPress:()=>Linking.openURL(studio.website_url!).catch(()=>Alert.alert("홈페이지 연결","주소를 열 수 없습니다."))},
-        {text:"공식 홈페이지로 승인",onPress:async()=>{
-          setBusy(true);
-          const checkedAt=new Date().toISOString();
-          const {error}=await supabase!.from("studios").update({
-            source_name:"관리자 확인 공식 홈페이지",verified_at:checkedAt
-          }).eq("id",studio.id);
-          if(error)Alert.alert("홈페이지 승인 실패",error.message);
-          else {
-            const {error:queueError}=await supabase!.from("studio_image_crawl_queue").upsert({
-              studio_id:studio.id,status:"pending",attempts:0,next_attempt_at:checkedAt,last_error:null,updated_at:checkedAt
-            },{onConflict:"studio_id"});
-            if(queueError)Alert.alert("수집 대기열 등록 실패",queueError.message);
-            else {
-              setRows(current=>current.map(row=>row.id===studio.id?{...row,source_name:"관리자 확인 공식 홈페이지",verified_at:checkedAt}:row));
-              Alert.alert("공식 홈페이지 승인 완료","이제 자동 수집 대기열에서 처리할 수 있습니다.");
-            }
-          }
-          setBusy(false);
-        }}
-      ]
-    );
+  const deleteHomepageCandidate=async(studio:StudioRow)=>{
+    if(!supabase)return;
+    Alert.alert("후보 홈페이지 삭제",studio.name+"에 저장된 미검증 홈페이지 주소를 삭제할까요? 학원 정보와 카카오맵 출처는 유지됩니다.",[
+      {text:"취소",style:"cancel"},
+      {text:"삭제",style:"destructive",onPress:async()=>{
+        setBusy(true);
+        const {error}=await supabase!.from("studios").update({
+          website_url:null,
+          source_name:studio.source_name?.includes("홈페이지 검색 후보")?null:studio.source_name,
+          verified_at:studio.source_name?.includes("홈페이지 검색 후보")?null:studio.verified_at,
+          updated_at:new Date().toISOString()
+        }).eq("id",studio.id);
+        if(error)Alert.alert("홈페이지 후보 삭제 실패",error.message);
+        else{
+          setRows(current=>current.map(row=>row.id===studio.id?{...row,website_url:null,source_name:studio.source_name?.includes("홈페이지 검색 후보")?null:row.source_name,verified_at:studio.source_name?.includes("홈페이지 검색 후보")?null:row.verified_at}:row));
+          Alert.alert("삭제 완료","미검증 홈페이지 주소를 삭제했습니다.");
+        }
+        setBusy(false);
+      }}
+    ]);
   };
-
   const crawlImages=async(id:string,name:string)=>{
     if(!supabase)return;
-    const studio=rows.find(row=>row.id===id);
-    if(studio?.source_name?.includes("홈페이지 검색 후보")&&studio.source_name.includes("미검증")){
-      Alert.alert("홈페이지 확인 필요","검색으로 발견한 홈페이지 후보입니다. 주소를 확인한 뒤 '홈페이지 후보 확인'을 먼저 눌러 주세요.");return;
-    }
     setBusy(true);
     try{
       const {data,error}=await supabase.functions.invoke("crawl-studio",{body:{studioId:id}});
@@ -1610,9 +1596,9 @@ export default function Admin() {
     <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active,image_urls,image_usage_note · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,25000,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원 · 화면 {visibleStudioRows.length}/{filteredStudioRows.length} · 조회 {rows.length}개</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View>
       <TextInput style={styles.input} value={studioSearch} onChangeText={value=>{setStudioSearch(value);setStudioVisibleLimit(100);}} placeholder="학원명·지역·주소·전화 검색" autoCapitalize="none"/><View style={styles.buttons}><Pressable style={styles.button} disabled={busy} onPress={searchStudiosServer}><Text style={styles.buttonText}>전체 학원 검색</Text></Pressable><Pressable style={styles.secondary} disabled={busy} onPress={()=>{setStudioSearch("");setStudioAppliedSearch("");load();}}><Text style={styles.secondaryText}>초기화</Text></Pressable></View>
-      <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"has_photo",label:"사진 있음"},{key:"missing_photo",label:"사진 없음"},{key:"missing_website",label:"홈페이지 없음"},{key:"website_candidate",label:"홈페이지 후보"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>{setStudioListFilter(option.key);setStudioVisibleLimit(100);if(option.key==="has_photo")loadAllPhotoStudios();}}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
+      <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"has_photo",label:"사진 있음"},{key:"missing_photo",label:"사진 없음"},{key:"missing_website",label:"홈페이지 없음"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>{setStudioListFilter(option.key);setStudioVisibleLimit(100);if(option.key==="has_photo")loadAllPhotoStudios();}}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
             {studioListFilter==="has_photo"&&<View style={[styles.row,{justifyContent:"space-between",flexWrap:"wrap"}]}><Text style={styles.rowMeta}>사진 보유 학원 {filteredStudioRows.length}개 · 선택 {selectedPhotoStudioIds.length}개</Text><View style={{flexDirection:"row",gap:8,flexWrap:"wrap"}}><Pressable style={styles.secondary} onPress={selectFilteredPhotoStudios}><Text style={styles.secondaryText}>필터 결과 전체 선택</Text></Pressable><Pressable style={styles.secondary} onPress={()=>setSelectedPhotoStudioIds([])}><Text style={styles.secondaryText}>선택 해제</Text></Pressable><Pressable style={[styles.button,{backgroundColor:"#B94C58"}]} disabled={busy||!selectedPhotoStudioIds.length} onPress={bulkDeleteStudioPhotos}><Text style={styles.buttonText}>선택 사진 삭제</Text></Pressable></View></View>}
-      {visibleStudioRows.map(r=><View key={r.id} style={styles.row}>{studioListFilter==="has_photo"&&<Pressable onPress={()=>togglePhotoStudioSelection(r.id)} style={{paddingRight:6}}><Ionicons name={selectedPhotoStudioIds.includes(r.id)?"checkbox":"square-outline"} size={24} color={selectedPhotoStudioIds.includes(r.id)?c.purple:c.muted}/></Pressable>}{(r.image_urls||[]).length>0&&!failedStudioThumbIds.includes(r.id)?<Image source={{uri:r.image_urls![0]}} style={styles.studioListImage} resizeMode="cover" onError={()=>setFailedStudioThumbIds(ids=>ids.includes(r.id)?ids:[...ids,r.id])}/>:<View style={styles.studioListThumb}><Ionicons name="image-outline" size={22} color={c.muted}/></View>}<View style={{flex:1,minWidth:0}}><Text style={styles.rowName} numberOfLines={1}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · 사진 {(r.image_urls||[]).length}장 · {r.is_active?"공개":"비공개"}{String(r.source_name||"").includes("홈페이지 검색 후보")?" · 홈페이지 후보(미검증)":""}</Text>{String(r.source_name||"").includes("홈페이지 검색 후보")&&!!r.website_url&&<Pressable onPress={()=>Linking.openURL(r.website_url!).catch(()=>Alert.alert("홈페이지 연결","주소를 열 수 없습니다."))}><Text style={styles.action}>후보 홈페이지 확인 ↗</Text></Pressable>}</View><Pressable style={styles.manageButton} onPress={()=>setStudioActionId(current=>current===r.id?null:r.id)}><Text style={styles.manageButtonText}>{studioActionId===r.id?"닫기":"관리"}</Text></Pressable>{studioActionId===r.id&&<View style={styles.studioActionMenu}><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);startEdit(r);}}><Text style={styles.manageButtonText}>정보 수정</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);setClassStudio(r);resetClass();}}><Text style={styles.manageButtonText}>수업 관리</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);openOfficialBlogManager(r);}}><Text style={styles.manageButtonText}>공식 블로그 등록</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);uploadPhotos(r.id,r.name);}}><Text style={styles.manageButtonText}>사진 업로드</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);requeueStudioBlogSearch(r);}}><Text style={styles.manageButtonText}>카카오 블로그 수집</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);if(r.source_name?.includes("홈페이지 검색 후보")&&r.source_name.includes("미검증"))verifyHomepageCandidate(r);else if(r.website_url)crawlImages(r.id,r.name);else Alert.alert("홈페이지 필요","사진 자동 수집을 위해 홈페이지 주소를 먼저 등록해 주세요.");}}><Text style={styles.manageButtonText}>{r.source_name?.includes("홈페이지 검색 후보")&&r.source_name.includes("미검증")?"홈페이지 후보 확인":"사진 수집"}</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);remove(r.id,r.name);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View>}</View>)}
+      {visibleStudioRows.map(r=><View key={r.id} style={styles.row}>{studioListFilter==="has_photo"&&<Pressable onPress={()=>togglePhotoStudioSelection(r.id)} style={{paddingRight:6}}><Ionicons name={selectedPhotoStudioIds.includes(r.id)?"checkbox":"square-outline"} size={24} color={selectedPhotoStudioIds.includes(r.id)?c.purple:c.muted}/></Pressable>}{(r.image_urls||[]).length>0&&!failedStudioThumbIds.includes(r.id)?<Image source={{uri:r.image_urls![0]}} style={styles.studioListImage} resizeMode="cover" onError={()=>setFailedStudioThumbIds(ids=>ids.includes(r.id)?ids:[...ids,r.id])}/>:<View style={styles.studioListThumb}><Ionicons name="image-outline" size={22} color={c.muted}/></View>}<View style={{flex:1,minWidth:0}}><Text style={styles.rowName} numberOfLines={1}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · 사진 {(r.image_urls||[]).length}장 · {r.is_active?"공개":"비공개"}</Text></View><Pressable style={styles.manageButton} onPress={()=>setStudioActionId(current=>current===r.id?null:r.id)}><Text style={styles.manageButtonText}>{studioActionId===r.id?"닫기":"관리"}</Text></Pressable>{studioActionId===r.id&&<View style={styles.studioActionMenu}><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);startEdit(r);}}><Text style={styles.manageButtonText}>정보 수정</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);setClassStudio(r);resetClass();}}><Text style={styles.manageButtonText}>수업 관리</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);openOfficialBlogManager(r);}}><Text style={styles.manageButtonText}>공식 블로그 등록</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);uploadPhotos(r.id,r.name);}}><Text style={styles.manageButtonText}>사진 업로드</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);requeueStudioBlogSearch(r);}}><Text style={styles.manageButtonText}>카카오 블로그 수집</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);if(r.website_url)crawlImages(r.id,r.name);else Alert.alert("홈페이지 필요","사진 자동 수집을 위해 공식 홈페이지 주소가 등록된 학원만 수집할 수 있습니다.");}}><Text style={styles.manageButtonText}>사진 수집</Text></Pressable>{String(r.source_name||"").includes("홈페이지 검색 후보")&&<Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);deleteHomepageCandidate(r);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>후보 홈페이지 삭제</Text></Pressable>}<Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);remove(r.id,r.name);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View>}</View>)}
       {visibleStudioRows.length<filteredStudioRows.length&&<Pressable style={styles.secondary} onPress={()=>setStudioVisibleLimit(limit=>limit+100)}><Text style={styles.secondaryText}>학원 100개 더 보기 ({visibleStudioRows.length}/{filteredStudioRows.length})</Text></Pressable>}
       {studioHasMore&&<Pressable style={styles.secondary} disabled={busy} onPress={loadMoreStudios}><Text style={styles.secondaryText}>{busy?"조회 중…":"다음 학원 20개 불러오기"}</Text></Pressable>}
       {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}{rows.length>0&&!visibleStudioRows.length&&<Text style={styles.hint}>검색/필터 조건에 맞는 학원이 없습니다.</Text>}
