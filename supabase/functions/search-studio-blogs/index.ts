@@ -60,7 +60,21 @@ const academyAliases = (studioName: string): string[] => {
   };
   return [...new Set([full, branchless, stripGeneric(full), stripGeneric(branchless)].filter(x => x.length >= 3))];
 };
-const academyAlias = (studioName: string) => academyAliases(studioName).sort((a,b)=>a.length-b.length)[0] || "";
+// Prefer the complete academy name (including branch) over short, collision-prone aliases.
+const academyAlias = (studioName: string) => academyAliases(studioName).sort((a,b)=>b.length-a.length)[0] || "";
+const branchHints = (value: string): string[] => {
+  const matches = [...value.matchAll(/([가-힣]{2,8})(?:지점|점)/g)]
+    .map((match) => normalize(match[1])).filter((part) => part.length >= 2);
+  return [...new Set(matches)];
+};
+const branchConsistent = (studioName: string, bloggerName: string, samples: Array<{title:string;post_url:string}>): boolean => {
+  const targets = branchHints(studioName);
+  if (!targets.length) return true;
+  const evidence = [bloggerName, ...samples.map((sample) => sample.title)].join(" ");
+  const namedBranches = branchHints(evidence);
+  if (namedBranches.some((branch) => !targets.some((target) => branch === target || branch.includes(target) || target.includes(branch)))) return false;
+  return namedBranches.length === 0 || targets.some((target) => normalize(evidence).includes(target));
+};
 const nameMatches = (studioName: string, text: string): boolean => {
   const normalizedText = normalize(text);
   return academyAliases(studioName).some(alias => {
@@ -331,6 +345,13 @@ Deno.serve(async (req) => {
             .eq("studio_id", job.studio_id)
             .eq("blogger_url", candidate.blogger_url);
           if (countError) throw new Error("후보 게시물 수 확인 실패: " + countError.message);
+          const autoApprove = score >= 90 && candidate.balletPostCount >= 2 &&
+            branchConsistent(String(job.studio_name), candidate.blogger_name || "", mergedSamples);
+          const { data: ownerRows, error: ownerError } = await db.from("studio_blog_official_accounts")
+            .select("studio_id").eq("is_active", true).eq("blogger_url", candidate.blogger_url);
+          if (ownerError) throw new Error("블로그 소유 학원 확인 실패: " + ownerError.message);
+          const belongsToAnotherStudio = (ownerRows ?? []).some((row: {studio_id:string|null}) => row.studio_id && row.studio_id !== job.studio_id);
+          const shouldAutoApprove = autoApprove && !belongsToAnotherStudio;
           const { error: candidateError } = await db.from("studio_blog_account_candidates")
             .upsert({
               studio_id: job.studio_id,
@@ -340,9 +361,17 @@ Deno.serve(async (req) => {
               matched_post_count: Math.max(candidate.matchCount, Number(sourceCount ?? 0), Number(prior?.matched_post_count ?? 0)),
               sample_posts: mergedSamples,
               match_score: score,
+              ...(shouldAutoApprove ? { review_status: "approved", reviewed_at: new Date().toISOString() } : {}),
               last_seen_at: new Date().toISOString(),
             }, { onConflict: "studio_id,blogger_url" });
           if (candidateError) throw new Error("공식 블로그 후보 저장 실패: " + candidateError.message);
+          if (shouldAutoApprove) {
+            const { error: officialInsertError } = await db.from("studio_blog_official_accounts").upsert({
+              studio_id: job.studio_id, studio_name: String(job.studio_name), blogger_url: candidate.blogger_url,
+              is_active: true, verified_at: new Date().toISOString(),
+            }, { onConflict: "studio_id,blogger_url" });
+            if (officialInsertError) throw new Error("고득점 공식 블로그 자동 등록 실패: " + officialInsertError.message);
+          }
         }
       }
       const { error: finishError } = await db.from("studio_blog_search_queue")
