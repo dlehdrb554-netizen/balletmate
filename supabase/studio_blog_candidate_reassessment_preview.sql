@@ -187,18 +187,21 @@ evaluated AS (
         'g') AS unit(parts)
       WHERE position(unit.parts[1] IN e.evidence_text) > 0
     ) AS location_evidence,
-    EXISTS (
-      SELECT 1
-      FROM admin_area_tokens a
-      WHERE position(a.area_token IN e.evidence_text) > 0
-        AND NOT EXISTS (
-          SELECT 1
-          FROM regexp_matches(e.studio_address,
-            '([가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구))',
-            'g') AS own_unit(parts)
-          WHERE own_unit.parts[1] = a.area_token
-        )
-    ) AS different_admin_area_mentioned,
+    CASE
+      WHEN btrim(e.studio_address) = '' THEN false
+      ELSE EXISTS (
+        SELECT 1
+        FROM admin_area_tokens a
+        WHERE position(a.area_token IN e.evidence_text) > 0
+          AND NOT EXISTS (
+            SELECT 1
+            FROM regexp_matches(e.studio_address,
+              '([가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구))',
+              'g') AS own_unit(parts)
+            WHERE own_unit.parts[1] = a.area_token
+          )
+      )
+    END AS different_admin_area_mentioned,
     EXISTS (
       SELECT 1
       FROM public.studio_blog_official_accounts o
