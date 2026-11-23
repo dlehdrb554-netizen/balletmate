@@ -214,7 +214,7 @@ BEGIN
   IF TG_OP='DELETE' THEN v_old:=to_jsonb(OLD); ELSE v_new:=to_jsonb(NEW); IF TG_OP='UPDATE' THEN v_old:=to_jsonb(OLD); END IF; END IF;
   IF TG_TABLE_NAME='studio_public_prices' THEN
    v_fields:=ARRAY['amount_krw','price_period','frequency_per_week','image_urls','is_active','expires_at'];
-   v_old:=CASE WHEN v_old IS NULL THEN NULL ELSE v_old-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','id'] END;
+   v_old:=CASE WHEN v_old IS NULL THEN NULL ELSE v_old-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','published_by','id'] END;
    v_new:=CASE WHEN v_new IS NULL THEN NULL ELSE v_new-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','id'] END;
   ELSIF TG_TABLE_NAME='studio_public_schedules' THEN
    v_fields:=ARRAY['schedule_text','image_urls','is_active','expires_at'];
