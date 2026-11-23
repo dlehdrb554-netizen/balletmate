@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     if (!admin) return json({ error: "관리자만 사진 자동 분류를 실행할 수 있습니다." }, 403);
   }
 
-  // Scheduled requests also claim website-crawl jobs. Admin-triggered requests only process one Vision candidate.
+  // Scheduled requests claim website-crawl jobs; Vision uses the same bounded batch queue for scheduled and admin runs.
   const { data: jobs, error: claimError } = isWorkerRequest
     ? await adminClient.rpc("claim_studio_image_crawl_queue", { p_limit: 5 })
     : { data: [], error: null };
@@ -163,7 +163,9 @@ Deno.serve(async (req) => {
     .select("id", { count: "exact", head: true })
     .eq("review_status", "pending");
   const dailyRemaining = Math.max(0, visionDailyLimit - (processedToday || 0));
-  // Process a small batch automatically while both the app daily cap and the\n  // account-wide Neurons guard allow it. This is not a one-photo-per-run throttle.\n  const batchSize = visionPauseReason || pendingCountError ? 0 : Math.min(10, dailyRemaining);
+  // Process a bounded batch while both the app daily cap and account-wide Neurons guard allow it.
+  // This preserves automatic multi-photo processing rather than throttling to one photo per run.
+  const batchSize = visionPauseReason || pendingCountError ? 0 : Math.min(10, dailyRemaining);
   let visionProcessed = 0;
   let visionFailed = 0;
   const visionResults: Array<{ candidateId: number; ok: boolean; detail?: string }> = [];
