@@ -85,19 +85,13 @@ export default function StudioManager(){
 
  const submitApplication=async()=>{
   if(!supabase||!session){Alert.alert("로그인 필요","로그인 후 신청해 주세요.");return;}
-  if(verificationMethod==="blog"&&(!/^https?:\\/\\/(m\\.)?blog\\.naver\\.com\\//i.test(blogUrl)||!blogVerificationCode.trim())){
-   Alert.alert("블로그 인증 정보 확인","공식 네이버 블로그 주소와 인증 코드를 입력해 주세요.");return;
-  }
-  if(verificationMethod==="phone"&&!contactPhone.trim()&&!studioPublicPhone.trim()){
-   Alert.alert("전화 확인 정보","학원에 공개된 전화번호가 없으면 확인 가능한 연락처를 입력해 주세요.");return;
-  }
-  setSaving(true);
-  try{
-   const isSocial=verificationMethod==="blog"||verificationMethod==="instagram";
+  const isSocial=verificationMethod==="blog"||verificationMethod==="instagram";
   if(isSocial&&(!blogUrl.trim()||!blogVerificationCode.trim())){
    Alert.alert("인증 정보 확인","공식 채널 주소와 인증 코드를 입력해 주세요.");return;
   }
-  const {data,error}=await supabase.rpc("submit_studio_owner_application_light",{
+  setSaving(true);
+  try{
+   const {error}=await supabase.rpc("submit_studio_owner_application_light",{
     p_studio_id:studioId,p_verification_method:verificationMethod,
     p_verification_url:isSocial?blogUrl.trim():null,
     p_verification_code:isSocial?blogVerificationCode.trim():null
@@ -220,13 +214,13 @@ export default function StudioManager(){
     <Text style={s.cardTitle}>{application?.status==="needs_info"?"추가 확인 정보 제출":"학원 관리자 권한 신청"}</Text>{application?.status==="needs_info"&&<Text style={s.body}>운영자가 확인을 요청했습니다. 다시 제출해 주세요. {application.review_note||""}</Text>}
     <Text style={s.body}>이메일 또는 소셜 로그인 계정으로 신청하고 아래 방법 중 하나로 운영 관계를 확인합니다. 사업자번호·대표자·주소·등록증은 수집하지 않습니다. 확인 후 운영자 승인을 받습니다.</Text>
     <View style={{flexDirection:"row",gap:7,marginTop:10,flexWrap:"wrap"}}>
-      {([{value:"blog",label:"공식 블로그 인증"},{value:"phone",label:"학원 전화 확인"},{value:"manual",label:"운영자 직접 확인"}] as const).map(option=><Pressable key={option.value} onPress={()=>setVerificationMethod(option.value)} style={{paddingHorizontal:11,paddingVertical:9,borderRadius:10,backgroundColor:verificationMethod===option.value?C.purple:"#F2F0F6"}}><Text style={{fontSize:11,fontWeight:"800",color:verificationMethod===option.value?"#fff":C.ink}}>{option.label}</Text></Pressable>)}
+      {([{value:"phone",label:"공개 전화 확인"},{value:"blog",label:"네이버 블로그"},{value:"instagram",label:"인스타그램"},{value:"manual",label:"운영자 직접 확인"}] as const).map(option=><Pressable key={option.value} onPress={()=>setVerificationMethod(option.value)} style={{paddingHorizontal:11,paddingVertical:9,borderRadius:10,backgroundColor:verificationMethod===option.value?C.purple:"#F2F0F6"}}><Text style={{fontSize:11,fontWeight:"800",color:verificationMethod===option.value?"#fff":C.ink}}>{option.label}</Text></Pressable>)}
     </View>
-    {verificationMethod==="blog"&&<>
-      {field("공식 네이버 블로그 URL *",blogUrl,setBlogUrl,"https://blog.naver.com/아이디")}
+    {(verificationMethod==="blog"||verificationMethod==="instagram")&&<>
+      {field(verificationMethod==="blog"?"공식 네이버 블로그 URL *":"공식 인스타그램 URL *",blogUrl,setBlogUrl,verificationMethod==="blog"?"https://blog.naver.com/아이디":"https://www.instagram.com/아이디")}
       <View style={{backgroundColor:C.pale,borderRadius:10,padding:11,marginTop:10}}><Text style={s.body}>선택한 공식 채널의 새 게시물 또는 소개란에 인증 문구를 올려 주세요. 확인 후 삭제해도 됩니다.</Text><Text style={{fontSize:15,fontWeight:"900",color:C.purple,marginTop:6}}>{blogVerificationCode||"인증 코드를 생성하세요"}</Text><Pressable onPress={()=>setBlogVerificationCode("BALLET-"+Math.random().toString(36).slice(2,8).toUpperCase())} style={{marginTop:8}}><Text style={s.buttonText}>인증 코드 생성</Text></Pressable></View>
     </>}
-    {verificationMethod==="phone"&&<Text style={s.body}>등록된 학원 공개 전화번호로 운영자가 직접 확인합니다. 공개 번호가 없으면 다른 확인 방법을 선택해 주세요. {profilePhone?`현재 공개 번호: ${profilePhone}`:"공개 전화번호가 등록되어 있지 않습니다."}</Text>}
+    {verificationMethod==="phone"&&<Text style={s.body}>학원에 공개된 전화번호로 운영자가 직접 확인합니다. 공개 번호가 없는 경우 다른 확인 방법을 선택해 주세요. {profilePhone?("현재 공개 번호: "+profilePhone):"공개 전화번호가 등록되어 있지 않습니다."}</Text>}
     {verificationMethod==="manual"&&<Text style={s.body}>운영자가 공개 연락처, 공식 채널 또는 기타 자료로 운영 관계를 확인합니다. 필요 시 신청 계정으로 추가 안내합니다.</Text>}
     {button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving)}
    </View>
