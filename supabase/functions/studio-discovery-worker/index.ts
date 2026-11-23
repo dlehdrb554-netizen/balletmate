@@ -105,6 +105,13 @@ Deno.serve(async(req)=>{
  const url=Deno.env.get("SUPABASE_URL"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),kakaoKey=Deno.env.get("KAKAO_REST_API_KEY");
  if(!url||!serviceKey||!kakaoKey)return json({error:"SUPABASE or KAKAO_REST_API_KEY secret missing"},500);
  const db=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+ // Only NEIS-eligible matched studios receive automated detail enrichment.
+ // Other Kakao discoveries remain map-only.
+ const {data:neisLinkedRows,error:neisLinkedError}=await db.from("neis_ballet_academy_candidates")
+  .select("matched_studio_id").eq("eligible",true).eq("is_open",true).eq("review_status","matched").not("matched_studio_id","is",null);
+ const neisLinkedStudioIds=[...new Set((neisLinkedRows||[]).map((r:any)=>r.matched_studio_id).filter(Boolean))];
+ if(neisLinkedError)console.error("NEIS enrichment eligibility lookup failed; enrichment disabled:",neisLinkedError.message);
+ const canEnrichStudio=(studioId:string)=>!neisLinkedError&&neisLinkedStudioIds.includes(studioId);
  // Backfill existing studios that already have a Kakao Place URL. Keep this
  // independent from new regional discovery and process only a small batch.
  let existingKakaoChecks=0,existingKakaoBlogs=0;
@@ -118,7 +125,7 @@ Deno.serve(async(req)=>{
   .is("kakao_place_blog_attempted_at",null)
   .or(sourceFilter)
   .order("created_at",{ascending:true})
-  .limit(6);
+   .in("id",neisLinkedStudioIds).limit(6);
  let backfillRows=unattemptedRows||[];
  if(unattemptedError)backfillQueryError="미처리 대상 조회 실패: "+unattemptedError.message;
  if(backfillRows.length<6&&!backfillQueryError){
@@ -129,7 +136,7 @@ Deno.serve(async(req)=>{
    .lt("kakao_place_blog_attempted_at",new Date(retryBefore).toISOString())
    .or(sourceFilter)
    .order("kakao_place_blog_attempted_at",{ascending:true})
-   .limit(remaining);
+    .in("id",neisLinkedStudioIds).limit(remaining);
   if(retryError)backfillQueryError="재시도 대상 조회 실패: "+retryError.message;
   else backfillRows=[...backfillRows,...(retryRows||[])];
  }
@@ -182,7 +189,7 @@ Deno.serve(async(req)=>{
   const {data:existing,error:existingError}=await db.from("studios")
    .select("id,name,address")
    .eq("is_active",true).is("website_url",null).is("homepage_search_checked_at",null)
-   .order("created_at",{ascending:true}).limit(10);
+    .in("id",neisLinkedStudioIds).order("created_at",{ascending:true}).limit(10);
   if(existingError)addError("기존 학원 홈페이지 검색 대상 조회 실패: "+existingError.message.slice(0,140));
   for(const studio of existing||[]){
    homepageSearches++;
@@ -226,7 +233,7 @@ Deno.serve(async(req)=>{
      const {data,error}=await db.rpc("register_discovered_studio",{p_name:name,p_latitude:lat,p_longitude:lng,p_address:address,p_phone:item.phone||null,p_place_url:item.place_url||null,p_region:region.region_name});
      if(error){regionHasError=true;addError(error.message.slice(0,160));}
      else {if(data?.[0]?.inserted)insertedCount++;else duplicateCount++;const studioId=data?.[0]?.studio_id;
-      if(studioId&&item.id&&kakaoDetailChecks<35){
+      if(studioId&&item.id&&kakaoDetailChecks<35&&canEnrichStudio(studioId)){
        kakaoDetailChecks++;
        const officialLinks=await findKakaoPlaceOfficialLinks(String(item.id));
        if(officialLinks.blog){
@@ -242,7 +249,7 @@ Deno.serve(async(req)=>{
         if(channelError)addError("카카오톡 채널 후보 저장 실패("+name+"): "+channelError.message.slice(0,100));else kakaoChannelCandidates++;
        }
       }
-      if(studioId&&naverId&&naverSecret&&homepageSearches<12){const {data:siteRow}=await db.from("studios").select("website_url,homepage_search_checked_at").eq("id",studioId).maybeSingle();if(!siteRow?.website_url&&!siteRow?.homepage_search_checked_at){homepageSearches++;const found=await findHomepageCandidate(name,address,naverId,naverSecret);if(found.error)addError("신규 학원 네이버 검색 실패: "+found.error.slice(0,100));else{const checkedAt=new Date().toISOString();const update:Record<string,unknown>={homepage_search_checked_at:checkedAt,updated_at:checkedAt};if(found.url){update.website_url=found.url;update.source_name="Kakao Local 발견 · Naver 홈페이지 검색 후보(미검증)";}const {error:websiteError}=await db.from("studios").update(update).eq("id",studioId).is("website_url",null);if(websiteError)addError("홈페이지 후보 저장 실패: "+websiteError.message.slice(0,100));else if(found.url)homepagesFound++;}}}
+      if(studioId&&naverId&&naverSecret&&homepageSearches<12&&canEnrichStudio(studioId)){const {data:siteRow}=await db.from("studios").select("website_url,homepage_search_checked_at").eq("id",studioId).maybeSingle();if(!siteRow?.website_url&&!siteRow?.homepage_search_checked_at){homepageSearches++;const found=await findHomepageCandidate(name,address,naverId,naverSecret);if(found.error)addError("신규 학원 네이버 검색 실패: "+found.error.slice(0,100));else{const checkedAt=new Date().toISOString();const update:Record<string,unknown>={homepage_search_checked_at:checkedAt,updated_at:checkedAt};if(found.url){update.website_url=found.url;update.source_name="Kakao Local 발견 · Naver 홈페이지 검색 후보(미검증)";}const {error:websiteError}=await db.from("studios").update(update).eq("id",studioId).is("website_url",null);if(websiteError)addError("홈페이지 후보 저장 실패: "+websiteError.message.slice(0,100));else if(found.url)homepagesFound++;}}}
      }
     }
     if(payload?.meta?.is_end||docs.length<PAGE_SIZE)break;
