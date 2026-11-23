@@ -36,6 +36,7 @@ create index if not exists neis_ballet_candidates_district_idx on public.neis_ba
 
 alter table public.neis_ballet_academy_candidates enable row level security;
 grant select on public.neis_ballet_academy_candidates to authenticated;
+grant all on public.neis_ballet_academy_candidates to service_role;
 drop policy if exists "admins view NEIS candidates" on public.neis_ballet_academy_candidates;
 create policy "admins view NEIS candidates" on public.neis_ballet_academy_candidates for select to authenticated using (public.is_balletmate_admin());
 
@@ -44,6 +45,7 @@ create table if not exists public.neis_academy_sync_cursor (
  page_index integer not null default 1, last_office_code text, last_run_at timestamptz,
  last_error text, updated_at timestamptz not null default now()
 );
+grant all on public.neis_academy_sync_cursor to service_role;
 insert into public.neis_academy_sync_cursor(id,office_index,page_index) values(1,0,1) on conflict(id) do nothing;
 
 create table if not exists public.neis_academy_sync_runs (
@@ -54,6 +56,7 @@ create table if not exists public.neis_academy_sync_runs (
 );
 alter table public.neis_academy_sync_runs enable row level security;
 grant select on public.neis_academy_sync_runs to authenticated;
+grant all on public.neis_academy_sync_runs to service_role;
 drop policy if exists "admins view NEIS sync runs" on public.neis_academy_sync_runs;
 create policy "admins view NEIS sync runs" on public.neis_academy_sync_runs for select to authenticated using (public.is_balletmate_admin());
 
