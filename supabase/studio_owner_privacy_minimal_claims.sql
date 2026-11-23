@@ -139,7 +139,7 @@ DO $ BEGIN
  IF to_regprocedure('public.submit_studio_owner_application_secure(uuid,text,text,text,text,text,text,text)') IS NOT NULL THEN
   EXECUTE 'REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application_secure(uuid,text,text,text,text,text,text,text) FROM authenticated';
  END IF;
-END $;
+END $$;
 
 -- Manual approval creates a user-to-studio permission link. Multiple approved managers per studio are supported.
 CREATE OR REPLACE FUNCTION public.admin_review_studio_owner_application(p_application_id uuid,p_decision text,p_note text DEFAULT NULL)
