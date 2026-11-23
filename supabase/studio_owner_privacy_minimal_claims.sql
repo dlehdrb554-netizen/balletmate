@@ -93,20 +93,33 @@ BEGIN
  IF public.is_studio_owner(p_studio_id) THEN RAISE EXCEPTION '이미 이 학원의 관리 권한이 있습니다.'; END IF;
  IF p_verification_method IN ('blog','instagram') THEN
    IF v_url='' OR v_code='' THEN RAISE EXCEPTION '공식 채널 주소와 인증 코드를 입력하세요.'; END IF;
-   IF p_verification_method='blog' AND v_url !~* '^https?://(m\.)?blog\.naver\.com/' THEN RAISE EXCEPTION '네이버 블로그 주소를 확인하세요.'; END IF;
-   IF p_verification_method='instagram' AND v_url !~* '^https?://(www\.)?instagram\.com/' THEN RAISE EXCEPTION '인스타그램 주소를 확인하세요.'; END IF;
+   IF p_verification_method='blog' AND v_url !~* '^https?://(m\\.)?blog\\.naver\\.com/' THEN RAISE EXCEPTION '네이버 블로그 주소를 확인하세요.'; END IF;
+   IF p_verification_method='instagram' AND v_url !~* '^https?://(www\\.)?instagram\\.com/' THEN RAISE EXCEPTION '인스타그램 주소를 확인하세요.'; END IF;
  ELSE
    v_url:=NULL;v_code:=NULL;
  END IF;
+ SELECT id INTO v_id FROM public.studio_owner_applications
+  WHERE user_id=auth.uid() AND studio_id=p_studio_id AND status IN ('needs_info','rejected')
+  ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
  IF EXISTS(SELECT 1 FROM public.studio_owner_applications WHERE studio_id=p_studio_id AND status='pending') THEN
    RAISE EXCEPTION '이 학원은 현재 다른 신청을 심사 중입니다.';
  END IF;
- INSERT INTO public.studio_owner_applications(user_id,studio_id,business_registration_number,business_name,representative_name,business_address,document_path,contact_phone,verification_method,verification_url,verification_code,auto_match_status,auto_match_details,is_transfer_request,status)
- VALUES(auth.uid(),p_studio_id,NULL,NULL,NULL,NULL,NULL,NULL,p_verification_method,v_url,NULLIF(v_code,''),'manual_review',
-  jsonb_build_object('privacy_minimized',true,'verification_method',p_verification_method,'documents_collected',false),false,'pending')
- RETURNING id INTO v_id;
+ IF v_id IS NOT NULL THEN
+  UPDATE public.studio_owner_applications SET verification_method=p_verification_method,verification_url=v_url,
+   verification_code=NULLIF(v_code,''),business_registration_number=NULL,business_name=NULL,representative_name=NULL,
+   business_address=NULL,document_path=NULL,contact_phone=NULL,auto_match_status='manual_review',
+   auto_match_details=jsonb_build_object('privacy_minimized',true,'verification_method',p_verification_method,'documents_collected',false),
+   is_transfer_request=false,status='pending',review_note=NULL,reviewed_by=NULL,reviewed_at=NULL,updated_at=now()
+  WHERE id=v_id;
+ ELSE
+  INSERT INTO public.studio_owner_applications(user_id,studio_id,business_registration_number,business_name,representative_name,business_address,document_path,contact_phone,verification_method,verification_url,verification_code,auto_match_status,auto_match_details,is_transfer_request,status)
+  VALUES(auth.uid(),p_studio_id,NULL,NULL,NULL,NULL,NULL,NULL,p_verification_method,v_url,NULLIF(v_code,''),'manual_review',
+   jsonb_build_object('privacy_minimized',true,'verification_method',p_verification_method,'documents_collected',false),false,'pending')
+  RETURNING id INTO v_id;
+ END IF;
  RETURN v_id;
 END $$;
+
 REVOKE ALL ON FUNCTION public.submit_studio_owner_application_light(uuid,text,text,text) FROM public,anon;
 GRANT EXECUTE ON FUNCTION public.submit_studio_owner_application_light(uuid,text,text,text) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application(uuid,text,text,text,text,text) FROM authenticated;
