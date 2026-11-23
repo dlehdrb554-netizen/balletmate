@@ -4,7 +4,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 const SEARCH_SUFFIXES = ["", "발레", "시간표", "수강료", "성인발레", "키즈발레", "모집"];
-const RSS_MAX_ITEMS = 15;
+const RSS_MAX_ITEMS = 30;
 const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
 const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, "");
@@ -101,9 +101,10 @@ Deno.serve(async (req) => {
       const studioQuery = String(job.studio_name);
       // Known public blog RSS feeds discover new posts without depending on Naver ranking.
       const rssAccounts=[...new Set(knownAccounts.map(canonicalBlogUrl).filter(Boolean))].slice(0,5);
+      let officialRssRelevant=0;
       for(const accountUrl of rssAccounts){
         try{const accountId=blogAccountKey(accountUrl);const rssResponse=await fetch("https://rss.blog.naver.com/"+encodeURIComponent(accountId)+".xml",{headers:{"User-Agent":"Mozilla/5.0"},signal:AbortSignal.timeout(7000)});if(!rssResponse.ok)continue;
-          const rssRows=parseNaverRss(await rssResponse.text(),accountUrl).map((post)=>({studio_id:job.studio_id,search_query:"NAVER_BLOG_RSS:"+accountId,...post,collected_at:new Date().toISOString()}));
+          const parsedRss=parseNaverRss(await rssResponse.text(),accountUrl);\n          officialRssRelevant+=parsedRss.filter(post=>/(시간표|스케줄|수강료|가격|모집|등록|수업|클래스|발레|바레|작품반|강좌)/i.test(post.title+" "+(post.description||""))).length;\n          const rssRows=parsedRss.map((post)=>({studio_id:job.studio_id,search_query:"KAKAO_OFFICIAL_BLOG_RSS:"+accountId,...post,collected_at:new Date().toISOString()}));
           if(rssRows.length){const {data,error}=await db.from("studio_blog_sources").upsert(rssRows,{onConflict:"studio_id,post_url",ignoreDuplicates:true}).select("id");if(error)throw new Error("RSS 게시물 저장 실패: "+error.message);saved+=data?.length??0;}
         }catch(rssError){errors.push("RSS("+blogAccountKey(accountUrl)+"): "+(rssError instanceof Error?rssError.message:"fetch failed"));}
       }
