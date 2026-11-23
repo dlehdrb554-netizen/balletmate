@@ -52,8 +52,8 @@ export default function StudioManager(){
   setGalleryCount((studioResult.data?.image_urls||[]).length);
   if(ownerResult.data){
    const [scheduleResult,priceResult,noticeResult]=await Promise.all([
-    supabase.from("studio_public_schedules").select("id,schedule_text,image_urls,is_active,published_at").eq("studio_id",studioId).order("published_at",{ascending:false}).limit(20),
-    supabase.from("studio_public_prices").select("id,amount_krw,price_period,image_urls,is_active,published_at").eq("studio_id",studioId).order("published_at",{ascending:false}).limit(20),
+    supabase.from("studio_public_schedules").select("id,schedule_text,image_urls,is_active,published_at,candidate_id").eq("studio_id",studioId).is("candidate_id",null).order("published_at",{ascending:false}).limit(20),
+    supabase.from("studio_public_prices").select("id,amount_krw,price_period,image_urls,is_active,published_at,candidate_id").eq("studio_id",studioId).is("candidate_id",null).order("published_at",{ascending:false}).limit(20),
     supabase.from("studio_owner_notices").select("id,title,body,is_active,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20)
    ]);
    setMaterials([...(scheduleResult.data||[]).map(x=>({...x,kind:"schedule"})),...(priceResult.data||[]).map(x=>({...x,kind:"price"}))]);
@@ -100,11 +100,11 @@ export default function StudioManager(){
   finally{setSaving(false);}
  };
 
- const pickImages=async(multiple=true)=>{
-  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:multiple,quality:0.9,selectionLimit:8});
+ const pickImages=async(multiple=true,maxCount=8)=>{
+  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:multiple,quality:0.9,selectionLimit:maxCount});
   if(result.canceled||!result.assets?.length||!supabase||!session)return [] as string[];
   const urls:string[]=[];
-  for(const [index,asset] of result.assets.slice(0,8).entries()){
+  for(const [index,asset] of result.assets.slice(0,maxCount).entries()){
    const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1600}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
    const bytes=await (await fetch(optimized.uri)).arrayBuffer();
    const path=studioId+"/"+session.user.id+"/"+Date.now()+"-"+index+".jpg";
@@ -120,9 +120,9 @@ export default function StudioManager(){
   if(galleryCount>=30){Alert.alert("사진 등록 한도","학원 대표 사진은 최대 30장까지 등록할 수 있습니다.");return;}
   setSaving(true);
   try{
-   const urls=await pickImages(true);
+   const urls=await pickImages(true,Math.max(1,30-galleryCount));
    let count=galleryCount;
-   for(const url of urls){count=Number((await supabase.rpc("owner_add_studio_gallery_photo",{p_studio_id:studioId,p_image_url:url})).data??count);}
+   for(const url of urls){const result=await supabase.rpc("owner_add_studio_gallery_photo",{p_studio_id:studioId,p_image_url:url});if(result.error)throw result.error;count=Number(result.data??count);}
    setGalleryCount(count);
    Alert.alert("사진 등록 완료",urls.length+"장을 학원 대표 사진으로 등록했습니다.");
   }catch(e:any){Alert.alert("사진 등록 실패",e.message||"사진을 등록하지 못했습니다.");}
