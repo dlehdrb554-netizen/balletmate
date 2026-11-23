@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-const SEARCH_SUFFIXES = ["", "발레", "시간표", "수강료"];
+const SEARCH_SUFFIXES = ["", "발레", "시간표", "수강료", "성인발레", "키즈발레", "모집"];\nconst RSS_MAX_ITEMS = 15;
 const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
 const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
 const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, "");
@@ -40,7 +40,7 @@ const cleanText = (value: unknown): string =>
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&")
     .replace(/\s+/g, " ").trim().slice(0, 2000);
 
-Deno.serve(async (req) => {
+const parseNaverRss = (xml: string, accountUrl: string) => {\n  const account = blogAccountKey(accountUrl);\n  const decode = (value: string) => value.replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, "$1").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, "&");\n  return [...xml.matchAll(/<item[\\s\\S]*?<\\/item>/gi)].slice(0, RSS_MAX_ITEMS).flatMap((match) => {\n    const item = match[0];\n    const field = (tag: string) => decode(item.match(new RegExp("<"+tag+"[^>]*>([\\\\s\\\\S]*?)<\\\\/"+tag+">", "i"))?.[1] || "").trim();\n    const title = field("title").replace(/<[^>]*>/g," ").trim();\n    const link = field("link") || field("guid");\n    const description = field("description").replace(/<[^>]*>/g," ").trim();\n    if (!title || !isNaverBlogUrl(link) || !link.includes(account)) return [];\n    const date = field("pubDate"); const parsed = date ? new Date(date) : null;\n    return [{ title: title.slice(0,2000), post_url: link, description: description || null, blogger_name: account, blogger_url: canonicalBlogUrl(accountUrl), post_date: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString().slice(0,10) : null }];\n  });\n};\n\nDeno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   if (req.method !== "POST") return json({ error: "POST 요청만 허용됩니다." }, 405);
 
@@ -83,27 +83,10 @@ Deno.serve(async (req) => {
       const kakaoSeedAccounts=(kakaoCandidates??[]).map((row:{blogger_url:string})=>row.blogger_url);
       const knownAccounts=[...officialAccounts,...kakaoSeedAccounts];
       const studioQuery = String(job.studio_name);
-      const searchQueries = new Set<string>();
-      for(const accountUrl of kakaoSeedAccounts){const accountId=blogAccountKey(accountUrl);if(accountId)searchQueries.add(accountId);}
-      for(const query of SEARCH_SUFFIXES.map((suffix) => suffix ? studioQuery+" "+suffix : studioQuery))searchQueries.add(query);
-      if (/(퀸스|퀸즈)/.test(studioQuery)) {
-        searchQueries.add(studioQuery.replace(/퀸스/g, "퀸즈"));
-        searchQueries.add(studioQuery.replace(/퀸즈/g, "퀸스"));
-        searchQueries.add("퀸즈발레");
-        searchQueries.add("퀸스발레");
-        searchQueries.add("Queens Ballet");
-        searchQueries.add("Queen's Ballet");
-      }
-      if (/더블유|\bW\b|wballet/i.test(studioQuery)) {
-        searchQueries.add("더블유발레");
-        searchQueries.add("W발레");
-        searchQueries.add("wballet");
-        searchQueries.add("W ballet");
-      }
-      for (const query of [...searchQueries].slice(0, 8)) {
+      // Known public blog RSS feeds discover new posts without depending on Naver ranking.\n      const rssAccounts=[...new Set(knownAccounts.map(canonicalBlogUrl).filter(Boolean))].slice(0,5);\n      for(const accountUrl of rssAccounts){\n        try{const accountId=blogAccountKey(accountUrl);const rssResponse=await fetch("https://rss.blog.naver.com/"+encodeURIComponent(accountId)+".xml",{headers:{"User-Agent":"Mozilla/5.0"},signal:AbortSignal.timeout(7000)});if(!rssResponse.ok)continue;\n          const rssRows=parseNaverRss(await rssResponse.text(),accountUrl).map((post)=>({studio_id:job.studio_id,search_query:"NAVER_BLOG_RSS:"+accountId,...post,collected_at:new Date().toISOString()}));\n          if(rssRows.length){const {data,error}=await db.from("studio_blog_sources").upsert(rssRows,{onConflict:"studio_id,post_url",ignoreDuplicates:true}).select("id");if(error)throw new Error("RSS 게시물 저장 실패: "+error.message);saved+=data?.length??0;}\n        }catch(rssError){errors.push("RSS("+blogAccountKey(accountUrl)+"): "+(rssError instanceof Error?rssError.message:"fetch failed"));}\n      }\n      // Academy-name queries get priority so known account IDs cannot crowd them out.\n      const academyQueries=[...new Set(SEARCH_SUFFIXES.map((suffix)=>suffix?studioQuery+" "+suffix:studioQuery))];\n      const accountQueries=[...new Set(knownAccounts.map(blogAccountKey).filter(Boolean))];\n      const searchQueries=[...academyQueries.slice(0,6),...accountQueries.slice(0,2)];\n      if (/(퀸스|퀸즈)/.test(studioQuery)) searchQueries.push(studioQuery.replace(/퀸스/g,"퀸즈"),studioQuery.replace(/퀸즈/g,"퀸스"),"퀸즈발레","퀸스발레","Queens Ballet","Queen's Ballet");\n      if (/더블유|\\bW\\b|wballet/i.test(studioQuery)) searchQueries.push("더블유발레","W발레","wballet","W ballet");\n      for (const query of [...new Set(searchQueries)].slice(0, 8)) {
         const endpoint = new URL("https://openapi.naver.com/v1/search/blog.json");
         endpoint.searchParams.set("query", query);
-        endpoint.searchParams.set("display", "10");
+        endpoint.searchParams.set("display", "30");
         endpoint.searchParams.set("sort", "date");
         endpoint.searchParams.set("format", "json");
 
