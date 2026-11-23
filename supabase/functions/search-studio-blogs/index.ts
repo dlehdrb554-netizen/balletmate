@@ -370,7 +370,9 @@ Deno.serve(async (req) => {
           const accountAndPosts = [accountName, ...mergedSamples.map((sample) =>
             sample.title + " " + sample.description)].join(" ");
           const identityEvidence = candidate.directName ||
-            mergedSamples.filter((sample) => normalize(sample.title + " " + sample.description).includes(alias)).length >= 2;
+            mergedSamples.filter((sample) =>
+              nameMatches(String(job.studio_name), sample.title + " " + sample.description)
+            ).length >= 2;
           const branchSafe = branchConsistent(
             String(job.studio_name), accountName, mergedSamples, false,
           );
