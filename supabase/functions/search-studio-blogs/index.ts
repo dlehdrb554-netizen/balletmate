@@ -46,25 +46,38 @@ async function fetchNaverSearch(endpoint: URL, clientId: string, clientSecret: s
 const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
 const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
-const academyAliases = (studioName: string): string[] => {
-  const full = normalize(studioName);
-  const branchless = full.replace(/[가-힣]{1,5}(?:지점|점)$/g, "");
-  const stripGeneric = (value: string) => {
-    let result = value;
-    for (let i = 0; i < 4; i++) {
-      const next = result.replace(/(무용학원|발레학원|발레아카데미|무용아카데미|스튜디오|아카데미|학원|센터|교습소|본점|지점|점|키즈|성인|발레|무용)$/g, "");
-      if (next === result) break;
-      result = next;
-    }
-    return result;
-  };
-  return [...new Set([full, branchless, stripGeneric(full), stripGeneric(branchless)].filter(x => x.length >= 3))];
+const stripAcademyGeneric = (value: string) => {
+  let result = value;
+  for (let i = 0; i < 5; i++) {
+    const next = result.replace(/(무용학원|발레학원|발레아카데미|무용아카데미|스튜디오|아카데미|학원|센터|교습소|본점|지점|점|키즈|성인|발레|무용)$/g, "");
+    if (next === result) break;
+    result = next;
+  }
+  return result;
 };
-// Prefer the complete academy name (including branch) over short, collision-prone aliases.
-const academyAlias = (studioName: string) => academyAliases(studioName).sort((a,b)=>b.length-a.length)[0] || "";
+const splitStudioName = (studioName: string) => {
+  const trimmed = studioName.trim();
+  const match = trimmed.match(/^(.*?)(?:\s+)([가-힣]{2,8}?)(?:본점|지점|점)$/);
+  const brandRaw = match?.[1]?.trim() || trimmed;
+  const branchRaw = match?.[2] || "";
+  const full = normalize(trimmed);
+  const branchless = normalize(brandRaw);
+  const aliases = [...new Set([
+    full, branchless, stripAcademyGeneric(full), stripAcademyGeneric(branchless),
+  ].filter((value) => value.length >= 3))];
+  return { aliases, brandRaw, branchRaw };
+};
+const academyAliases = (studioName: string): string[] => splitStudioName(studioName).aliases;
+const academyAlias = (studioName: string) =>
+  academyAliases(studioName).sort((a,b)=>b.length-a.length)[0] || "";
+const GENERIC_BRANCH_WORDS = new Set([
+  "장","단","차이","문제","시작","출발","기준","공통","합격","평","특징","강","약",
+  "관점","결정","종착","접점","초점","시점",
+]);
 const branchHints = (value: string): string[] => {
-  const matches = [...value.matchAll(/([가-힣]{2,8})(?:본점|지점|점)/g)]
-    .map((match) => normalize(match[1].replace(/본$/, ""))).filter((part) => part.length >= 2);
+  const matches = [...value.matchAll(/(?:^|\s)([가-힣]{2,8}?)(?:본점|지점|점)(?=$|\s|[),.!?])/g)]
+    .map((match) => normalize(match[1].replace(/본$/, "")))
+    .filter((part) => part.length >= 2 && !GENERIC_BRANCH_WORDS.has(part));
   return [...new Set(matches)];
 };
 const branchConsistent = (
@@ -73,7 +86,8 @@ const branchConsistent = (
   samples: Array<{title:string;post_url:string;description?:string}>,
   requireBranchEvidence = false,
 ): boolean => {
-  const targets = branchHints(studioName);
+  const branchRaw = splitStudioName(studioName).branchRaw;
+  const targets = branchRaw ? [normalize(branchRaw)] : [];
   if (!targets.length) return true;
   const evidence = [bloggerName, ...samples.map((sample) => sample.title + " " + (sample.description || ""))].join(" ");
   const namedBranches = branchHints(evidence);
@@ -83,20 +97,19 @@ const branchConsistent = (
 };
 const nameMatches = (studioName: string, text: string): boolean => {
   const normalizedText = normalize(text);
-  return academyAliases(studioName).some(alias => {
-    if (alias.length < 3 || !normalizedText.includes(alias)) return false;
-    // Short academy names are prone to accidental matches inside ordinary Korean words.
-    // In particular, "발레보" must not match the phrase "발레보다".
-    if (alias.length <= 3 && alias.endsWith("보")) {
-      let index = normalizedText.indexOf(alias);
-      while (index !== -1) {
-        const suffix = normalizedText.slice(index + alias.length);
-        if (!suffix.startsWith("다")) return true;
-        index = normalizedText.indexOf(alias, index + 1);
-      }
-      return false;
+  const aliases = academyAliases(studioName).filter((alias) => alias.length >= 4);
+  return aliases.some((alias) => {
+    let index = normalizedText.indexOf(alias);
+    while (index !== -1) {
+      const before = normalizedText[index - 1] || "";
+      const after = normalizedText[index + alias.length] || "";
+      const startsLatin = /^[a-z0-9]/.test(alias);
+      const endsLatin = /[a-z0-9]$/.test(alias);
+      if ((!startsLatin || !/[a-z0-9]/.test(before)) &&
+          (!endsLatin || !/[a-z0-9]/.test(after))) return true;
+      index = normalizedText.indexOf(alias, index + 1);
     }
-    return true;
+    return false;
   });
 };
 const blogAccountKey = (raw: string): string => {
@@ -297,20 +310,9 @@ Deno.serve(async (req) => {
         })])];
         const hasLocationEvidence = (value: string) =>
           locationTokens.some((token) => normalize(value).includes(token));
-        const commonLocationTokens = [
-          "서울","인천","부산","대구","대전","광주","울산","세종","제주",
-          "강남","서초","송파","강서","마포","노원","강북","영등포","남동","부평",
-          "고양","덕양","일산","안양","평촌","청주","천안","오산","평택","전주",
-          "부천","수원","성남","분당","정자","동탄","의정부","군포","남양주",
-          "다산","마곡","공덕","잠실","천호","미아","보라매","구월","만성","동래",
-          "대연","용호","서원"
-        ];
-        const hasConflictingLocation = (value: string) => {
-          const normalized = normalize(value);
-          const mentioned = commonLocationTokens.filter((token) => normalized.includes(normalize(token)));
-          return mentioned.some((token) => !locationTokens.some((target) =>
-            normalize(target).includes(normalize(token)) || normalize(token).includes(normalize(target))));
-        };
+        // A missing address is unknown, never evidence of a location conflict.
+        // Avoid broad hard-coded place-name substring lists (e.g. 고양이, 구월/9월).
+        const hasConflictingLocation = (_value: string) => false;
         const hasOfficialOperationSignal = (value: string) =>
           /(시간표|스케줄|수강료|교습비|수업안내|강좌안내|신규회원|회원모집|원생모집|학생모집|입학|개강|상담|등록|강사진|강사소개|오픈|개원|공지|정규반|초등부모집|유아부모집|작품반모집)/i.test(value);
         const accountCandidates = new Map<string, {
@@ -379,7 +381,7 @@ Deno.serve(async (req) => {
           const locationConflict = hasConflictingLocation(accountAndPosts);
           const operationPostCount = mergedSamples.filter((sample) =>
             hasOfficialOperationSignal(sample.title + " " + sample.description) &&
-            /(발레|바레|발레핏|파드되|토슈즈|바가노바|바워크|포인트슈즈|무용|댄스|폴댄스|현대무용|한국무용|실용무용)/i.test(accountName + " " + sample.title + " " + sample.description)
+            /(발레|바레|무용)/i.test(accountName + " " + sample.title + " " + sample.description)
           ).length;
           const targetHasBranch = branchHints(String(job.studio_name)).length > 0;
           const locationReady = targetHasBranch ? branchEvidence : locationEvidence;
