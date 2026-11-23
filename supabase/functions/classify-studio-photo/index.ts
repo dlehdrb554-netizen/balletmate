@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
-const permittedHost=(h:string)=>/(^|\\.)pstatic\\.net$|(^|\\.)naver\\.net$|(^|\\.)googleusercontent\\.com$/i.test(h);
+const permittedHost=(h:string)=>/(^|\.)pstatic\.net$|(^|\.)naver\.net$|(^|\.)googleusercontent\.com$/i.test(h);
 function privateHost(h:string){const x=h.toLowerCase();if(x==="localhost"||x.endsWith(".local")||x.endsWith(".localhost")||x.includes(":"))return true;const p=x.split(".");if(p.length!==4||!p.every(v=>/^\\d{1,3}$/.test(v)))return false;const [a,b]=p.map(Number);return a===0||a===10||a===127||a>=224||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127);}
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok");
