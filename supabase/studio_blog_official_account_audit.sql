@@ -17,6 +17,15 @@ WITH source_rollup AS (
     AND b.blogger_url ~* '^https?://(m[.])?blog[.]naver[.]com/'
   GROUP BY b.studio_id, account_key
 ),
+admin_area_tokens AS (
+  SELECT DISTINCT (m.parts)[1] AS area_token
+  FROM public.studios s
+  CROSS JOIN LATERAL regexp_matches(
+    COALESCE(s.address, ''),
+    '([가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구))',
+    'g'
+  ) AS m(parts)
+),
 active_accounts AS (
   SELECT
     o.id AS official_account_id,
@@ -50,12 +59,35 @@ flagged AS (
     ) AS missing_ballet_evidence,
     (
       a.academy_alias <> ''
-      AND position(a.academy_alias IN regexp_replace(lower(a.evidence_text),
-        '[^a-z0-9가-힣]', '', 'g')) = 0
+      AND (
+        position(a.academy_alias IN regexp_replace(lower(a.evidence_text),
+          '[^a-z0-9가-힣]', '', 'g')) = 0
+        OR (
+          left(a.academy_alias, 1) ~ '[a-z0-9]'
+          AND position(a.academy_alias IN regexp_replace(lower(a.evidence_text),
+            '[^a-z0-9가-힣]', '', 'g')) > 1
+          AND substring(regexp_replace(lower(a.evidence_text),
+            '[^a-z0-9가-힣]', '', 'g') FROM
+            (position(a.academy_alias IN regexp_replace(lower(a.evidence_text),
+              '[^a-z0-9가-힣]', '', 'g')) - 1) FOR 1) ~ '[a-z0-9]'
+        )
+      )
     ) AS academy_name_not_found,
     (
       a.evidence_text ~* '(영어학원|수학학원|부동산|음악학원|미술학원|피아노학원|태권도학원)'
     ) AS non_ballet_operator_context,
+    EXISTS (
+      SELECT 1
+      FROM admin_area_tokens area
+      WHERE position(area.area_token IN a.evidence_text) > 0
+        AND NOT EXISTS (
+          SELECT 1
+          FROM regexp_matches(a.studio_address,
+            '([가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|군|구))',
+            'g') AS own_area(parts)
+          WHERE own_area.parts[1] = area.area_token
+        )
+    ) AS different_admin_area_mentioned,
     CASE
       WHEN a.target_branch IS NULL THEN false
       ELSE EXISTS (
@@ -99,6 +131,7 @@ SELECT
   different_branch_mentioned,
   target_branch_not_proven,
   non_ballet_operator_context,
+  different_admin_area_mentioned,
   same_blog_registered_to_other_studio,
   array_remove(ARRAY[
     CASE WHEN missing_ballet_evidence THEN '발레/바레/무용 긍정 증거 없음' END,
@@ -106,6 +139,7 @@ SELECT
     CASE WHEN different_branch_mentioned THEN '다른 지점명 확인' END,
     CASE WHEN target_branch_not_proven THEN '대상 지점 일치 근거 부족' END,
     CASE WHEN non_ballet_operator_context THEN '타 업종 운영 흔적' END,
+    CASE WHEN different_admin_area_mentioned THEN '다른 행정구역 언급(문맥 검토 필요)' END,
     CASE WHEN same_blog_registered_to_other_studio THEN '동일 블로그가 다른 학원에도 공식 등록됨' END,
     CASE WHEN source_count = 0 THEN '수집 게시글 근거 없음' END
   ], NULL) AS audit_flags,
@@ -114,7 +148,7 @@ FROM flagged
 ORDER BY
   (missing_ballet_evidence OR academy_name_not_found OR different_branch_mentioned OR
    target_branch_not_proven OR non_ballet_operator_context OR
-   same_blog_registered_to_other_studio OR source_count = 0) DESC,
+   different_admin_area_mentioned OR same_blog_registered_to_other_studio OR source_count = 0) DESC,
   studio_name,
   blogger_url;
 
