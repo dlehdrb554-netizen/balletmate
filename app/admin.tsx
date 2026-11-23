@@ -933,7 +933,7 @@ export default function Admin() {
       {text:"취소",style:"cancel"},
       {text:"영구 삭제",style:"destructive",onPress:async()=>{
         setEvidenceBusy(true);
-        const {error}=await supabase!.from("studio_public_schedules").delete().eq("id",schedule.id);
+        const {error}=await supabase!.rpc("admin_delete_studio_public_schedule",{p_schedule_id:Number(schedule.id)});
         if(error)Alert.alert("삭제 실패",error.message);
         else {setActivePublicSchedules(current=>current.filter(row=>row.id!==schedule.id));Alert.alert("삭제 완료","공개 시간표 자료를 삭제했습니다.");}
         setEvidenceBusy(false);
