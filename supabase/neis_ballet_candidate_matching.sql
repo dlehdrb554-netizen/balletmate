@@ -28,7 +28,13 @@ begin
       (c.c_name<>'' and c.c_name=s.s_name) name_match,
       (c.c_address<>'' and s.s_address<>'' and c.c_address=s.s_address) address_match,
       (c.c_phone<>'' and s.s_phone<>'' and c.c_phone=s.s_phone) phone_match
-    from normalized c cross join studios_normalized s
+    from normalized c
+    join studios_normalized s on
+      (c.c_name<>'' and c.c_name=s.s_name and
+        ((c.c_address<>'' and s.s_address<>'' and c.c_address=s.s_address)
+         or (c.c_phone<>'' and s.s_phone<>'' and c.c_phone=s.s_phone)))
+      or (c.c_address<>'' and s.s_address<>'' and c.c_address=s.s_address
+          and c.c_phone<>'' and s.s_phone<>'' and c.c_phone=s.s_phone)
   ), confident as (
     select candidate_id, studio_id
     from possible
