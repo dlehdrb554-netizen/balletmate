@@ -3,6 +3,18 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
+function blogAccountKey(raw: string | null | undefined): string {
+  try {
+    const url = new URL(String(raw ?? ""));
+    if (!["blog.naver.com", "m.blog.naver.com"].includes(url.hostname.toLowerCase())) return "";
+    const queryId = url.searchParams.get("blogId") || url.searchParams.get("blogid");
+    if (queryId) return queryId.trim().toLowerCase();
+    return url.pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+  } catch {
+    return "";
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST 요청만 허용됩니다." }, 405);
   const secret = Deno.env.get("CRAWL_WORKER_SECRET");
@@ -159,20 +171,49 @@ Deno.serve(async (req) => {
     const retryBefore = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { data: candidates, error: candidateError } = await adminClient
       .from("studio_photo_candidates")
-      .select("id,auto_retry_count")
+      .select("id,studio_id,source_page_url,auto_retry_count")
       .eq("review_status", "pending")
       .lt("auto_retry_count", 3)
       .or("auto_classified_at.is.null,auto_classified_at.lt." + retryBefore)
       .order("created_at", { ascending: true })
-      .limit(batchSize);
+      .limit(20);
 
     if (candidateError) {
       return json({ crawlClaimed: jobs?.length || 0, crawlSucceeded, crawlFailed, crawlResults,
         visionProcessed, visionFailed, visionError: "Vision 대기열 조회 실패: " + candidateError.message }, 500);
     }
 
-    const classifierEndpoint = supabaseUrl.replace(/\/$/, "") + "/functions/v1/classify-studio-photo";
+    // Legacy pending photos may have been collected from third-party search results.
+    // Recheck ownership before every Vision call; only the registered official blog
+    // for that academy is allowed to consume AI capacity.
+    let eligibleCandidate: (typeof candidates extends Array<infer T> ? T : never) | null = null;
     for (const candidate of candidates || []) {
+      const { data: officialAccounts, error: officialError } = await adminClient
+        .from("studio_blog_official_accounts")
+        .select("blogger_url")
+        .eq("studio_id", candidate.studio_id)
+        .eq("is_active", true);
+      if (officialError) {
+        return json({ crawlClaimed: jobs?.length || 0, crawlSucceeded, crawlFailed, crawlResults,
+          visionProcessed, visionFailed, visionError: "공식 블로그 확인 실패: " + officialError.message }, 500);
+      }
+      const sourceAccount = blogAccountKey(candidate.source_page_url);
+      const isOfficialPhoto = !!sourceAccount && (officialAccounts || []).some(
+        (account: { blogger_url: string }) => blogAccountKey(account.blogger_url) === sourceAccount
+      );
+      if (isOfficialPhoto) {
+        eligibleCandidate = candidate;
+        break;
+      }
+      await adminClient.from("studio_photo_candidates").update({
+        review_status: "rejected",
+        auto_reason: "공식 블로그 계정에서 수집된 사진이 아니므로 Vision 분류 제외",
+        auto_classified_at: new Date().toISOString(),
+      }).eq("id", candidate.id).eq("review_status", "pending");
+    }
+
+    const classifierEndpoint = supabaseUrl.replace(/\/$/, "") + "/functions/v1/classify-studio-photo";
+    for (const candidate of (eligibleCandidate ? [eligibleCandidate] : [])) {
       try {
         const response = await fetch(classifierEndpoint, {
           method: "POST",
