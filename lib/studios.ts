@@ -69,7 +69,7 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
 
   const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,kakao_channel_url,details_checked_at,details_status,source_status";
   const searchColumns = "search_days,search_time_slots,search_levels,search_class_durations,search_price,search_adult,search_kids";
-  const readPages=async(query:any)=>{let collected:any[]=[];for(let offset=0;offset<2400;offset+=300){const page=await query.range(offset,offset+299);if(page.error) return {data:null,error:page.error};const values=page.data||[];collected=collected.concat(values);if(values.length<300)break;}return {data:collected,error:null};};
+  const readPages=async(query:any)=>{const collected:any[]=[];for(let offset=0;offset<2400;offset+=300){const page=await query.range(offset,offset+299);if(page.error) return {data:null,error:page.error};const values=page.data||[];collected.push(...values);if(values.length<300)break;}return {data:collected,error:null};};
   const result = await readPages(applyBounds(supabase.from("studio_map_search_app_with_source").select(selectColumns+","+searchColumns).order("name")));
 
   let rows: StudioRecord[];
@@ -112,7 +112,9 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
   const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(100);
   const runSearch=async(needle:string)=>{let result=await searchQuery("studio_map_search_app_with_source",needle);if(result.error)result=await searchQuery("studios",needle);if(result.error)throw result.error;return (result.data||[]) as any[];};
   const results=new Map<string,any>();
-  for(const variant of variants){const v=variant.trim();if(v.length<2)continue;const patterns=[`name.ilike.%${v}%`,`address.ilike.%${v}%`,`district.ilike.%${v}%`];const cv=compact(v);if(cv.length>=2&&cv!==v)patterns.push(`name.ilike.%${cv}%`,`address.ilike.%${cv}%`);const rows=await runSearch(patterns.join(","));rows.forEach(row=>results.set(row.id,row));}
+  const variantQueries=[...variants].map(variant=>variant.trim()).filter(v=>v.length>=2).map(v=>{const patterns=[`name.ilike.%${v}%`,`address.ilike.%${v}%`,`district.ilike.%${v}%`];const cv=compact(v);if(cv.length>=2&&cv!==v)patterns.push(`name.ilike.%${cv}%`,`address.ilike.%${cv}%`);return patterns.join(",");});
+  // Preserve the same query variants while running them in small batches to reduce user wait time without flooding Supabase.
+  for(let i=0;i<variantQueries.length;i+=3){const batch=await Promise.all(variantQueries.slice(i,i+3).map(runSearch));batch.flat().forEach(row=>results.set(row.id,row));}
   if(!results.size){for(const token of term.split(/\s+/).filter(token=>token.length>=2).slice(0,3)){const rows=await runSearch([`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`].join(","));rows.forEach(row=>results.set(row.id,row));}}
   return [...results.values()].map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
 }
