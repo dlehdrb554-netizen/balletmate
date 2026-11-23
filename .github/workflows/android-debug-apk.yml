@@ -17,7 +17,7 @@ on:
       - "package-lock.json"
 
 concurrency:
-  group: balletmate-photo-ai-filter-${{ github.ref }}
+  group: balletmate-android-apk-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
