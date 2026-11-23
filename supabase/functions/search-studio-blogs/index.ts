@@ -21,11 +21,11 @@ async function fetchNaverSearch(endpoint: URL, clientId: string, clientSecret: s
   if (legacyResponse.ok || legacyResponse.status !== 401) return legacyResponse;
 
   const legacyDetail = await legacyResponse.text();
-  if (!/NID AUTH Result Invalid|errorCode["']?\\s*:\\s*["']?024/i.test(legacyDetail)) {
+  if (!/NID AUTH Result Invalid|errorCode["']?\s*:\s*["']?024/i.test(legacyDetail)) {
     throw new Error(`NAVER Search API HTTP 401: ${legacyDetail.slice(0, 240)}`);
   }
 
-  const apiType = endpoint.pathname.match(/\\/v1\\/search\\/([a-z0-9]+)\\.json$/i)?.[1];
+  const apiType = endpoint.pathname.match(/\/v1\/search\\/([a-z0-9]+)\.json$/i)?.[1];
   if (!apiType) throw new Error("NAVER API HUB 전환 실패: 검색 API 종류를 확인할 수 없습니다.");
   const hubEndpoint = new URL(`https://naverapihub.apigw.ntruss.com/search/v1/${apiType}`);
   endpoint.searchParams.forEach((value, key) => hubEndpoint.searchParams.set(key, value));
@@ -84,7 +84,7 @@ const parseNaverRss = (xml: string, accountUrl: string) => {
   const decode = (value: string) => value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, "&");
   return [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)].slice(0, RSS_MAX_ITEMS).flatMap((match) => {
     const item = match[0];
-    const field = (tag: string) => decode(item.match(new RegExp("<"+tag+"[^>]*>([\\s\\S]*?)</"+tag+">", "i"))?.[1] || "").trim();
+    const field = (tag: string) => decode(item.match(new RegExp("<"+tag+"[^>]*>([\s\\S]*?)</"+tag+">", "i"))?.[1] || "").trim();
     const title = field("title").replace(/<[^>]*>/g," ").trim();
     const link = field("link") || field("guid");
     const description = field("description").replace(/<[^>]*>/g," ").trim();
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
         // post text, Naver profile ID and repeated appearances contribute confidence.
         // Candidates are never public until an administrator approves them.
         const alias = academyAlias(String(job.studio_name));
-        const aliasTokens = String(job.studio_name).split(/[\\s·ㆍ()[\\]_-]+/)
+        const aliasTokens = String(job.studio_name).split(/[\s·ㆍ()[\\]_-]+/)
           .map((token) => normalize(token)).filter((token) => token.length >= 2 &&
             !/(발레|학원|스튜디오|아카데미|센터|무용|키즈|성인|교습소)$/.test(token));
         const accountCandidates = new Map<string, {
