@@ -118,6 +118,8 @@ const dedupeStudioRows=(input:any[])=>{
 
 export default function Admin() {
   const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios">("overview");
+  const adminScrollRef=useRef<ScrollView>(null);
+  const studioEditPanelY=useRef(0);
   const [studioActionId,setStudioActionId]=useState<string|null>(null);
   const [username,setUsername]=useState("");
   const [password,setPassword]=useState("");
@@ -636,6 +638,37 @@ export default function Admin() {
           }
         }
         setPhotoReviewBusy(false);
+      }}
+    ]);
+  };
+  const deleteSelectedPhotoCandidates=()=>{
+    if(!supabase||photoReviewBusy||!selectedPhotoCandidateIds.length)return;
+    const targets=photoCandidateRows.filter(item=>selectedPhotoCandidateIds.includes(Number(item.id)));
+    if(!targets.length){setSelectedPhotoCandidateIds([]);return;}
+    const isApproved=photoCandidateStatus==="approved";
+    Alert.alert("사진 후보 일괄 영구 삭제","선택한 "+targets.length+"장을 "+(isApproved?"학원 갤러리에서도 제거하고 ":"")+"검토 이력에서 영구 삭제할까요? 원본 블로그 게시물은 삭제되지 않습니다.",[
+      {text:"취소",style:"cancel"},
+      {text:"선택 사진 삭제",style:"destructive",onPress:async()=>{
+        setPhotoReviewBusy(true);
+        let completed=0;const failures:number[]=[];const removedByStudio=new Map<string,string[]>();
+        for(const item of targets){
+          if(isApproved){
+            const removed=await supabase!.rpc("admin_remove_studio_gallery_photo",{p_studio_id:item.studio_id,p_image_url:item.image_url});
+            if(removed.error){failures.push(Number(item.id));continue;}
+          }
+          const result=await supabase!.rpc("admin_delete_studio_photo_candidate",{p_candidate_id:Number(item.id)});
+          if(result.error){failures.push(Number(item.id));continue;}
+          completed++;
+          if(isApproved){const urls=removedByStudio.get(item.studio_id)||[];urls.push(item.image_url);removedByStudio.set(item.studio_id,urls);}
+        }
+        const completedIds=targets.filter(item=>!failures.includes(Number(item.id))).map(item=>Number(item.id));
+        setPhotoCandidateRows(current=>current.filter(item=>!completedIds.includes(Number(item.id))));
+        setPhotoCandidateTotal(value=>Math.max(0,value-completed));
+        setPhotoCandidateOffset(value=>Math.max(0,value-completed));
+        setSelectedPhotoCandidateIds(failures);
+        if(isApproved&&removedByStudio.size)setRows(current=>current.map(row=>removedByStudio.has(row.id)?{...row,image_urls:(row.image_urls||[]).filter(url=>!removedByStudio.get(row.id)!.includes(url))}:row));
+        setPhotoReviewBusy(false);
+        Alert.alert("일괄 삭제 결과",completed+"장 삭제 완료"+(failures.length?" · "+failures.length+"장 실패 (실패 항목은 선택 상태로 남겼습니다)":""));
       }}
     ]);
   };
@@ -1197,6 +1230,10 @@ export default function Admin() {
   const startEdit=(r:StudioRow)=>{
     setEditing(r.id);setForm({name:r.name,latitude:String(r.latitude),longitude:String(r.longitude),district:r.district||"",address:r.address||"",phone:r.phone||"",website_url:r.website_url||"",source_url:r.source_url||"",source_name:r.source_name||"",verified_at:r.verified_at?r.verified_at.slice(0,10):"",image_urls:(r.image_urls||[]).join("\n"),image_source_name:r.image_source_name||"",image_usage_note:r.image_usage_note||"",price_per_class:r.price_per_class==null?"":String(r.price_per_class),adult_classes:r.adult_classes,kids_classes:r.kids_classes,is_active:r.is_active});
   };
+  useEffect(()=>{
+    if(!editing||adminTab!=="studios")return;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>adminScrollRef.current?.scrollTo({y:Math.max(0,studioEditPanelY.current-12),animated:true})));
+  },[editing,adminTab]);
   const openReportStudioEdit=async(report:any)=>{
     if(!supabase||busy)return;
     setBusy(true);
@@ -1495,7 +1532,7 @@ export default function Admin() {
   if(!session)return <SafeAreaView style={styles.safe}><View style={styles.login}><Ionicons name="shield-checkmark-outline" size={38} color={c.purple} style={{alignSelf:"center",marginBottom:4}} /><Text style={[styles.brand,{textAlign:"center"}]}>Balletmate 관리자</Text><Text style={styles.hint}>관리자 계정으로 로그인하세요.</Text><TextInput style={styles.input} value={username} onChangeText={setUsername} placeholder="관리자 아이디" autoCapitalize="none"/><TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="비밀번호" secureTextEntry/><Pressable style={[styles.button,styles.loginButton]} onPress={login} disabled={busy}><Text style={styles.buttonText}>{busy?"처리 중…":"로그인"}</Text></Pressable></View></SafeAreaView>;
   if(!authorized)return <SafeAreaView style={styles.safe}><View style={styles.login}><Text style={styles.brand}>관리자 권한 없음</Text><Text style={styles.hint}>이 계정은 Balletmate 관리자 목록에 등록되지 않았습니다.</Text><Pressable style={[styles.button,styles.loginButton]} onPress={logout}><Text style={styles.buttonText}>로그아웃</Text></Pressable></View></SafeAreaView>;
 
-  return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+  return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView ref={adminScrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length.toLocaleString("ko-KR")}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
     <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"review",label:"자료 검토"},{key:"publish",label:"공개 관리"},{key:"studios",label:"학원 관리"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
         {adminTab==="overview"&&<>
@@ -1538,7 +1575,7 @@ export default function Admin() {
   {photoAutoFilter==="priority"&&<Text style={styles.hint}>AI 자동 분류 결과를 우선 표시합니다. 자동 처리 실패 사진은 재시도 대상입니다.</Text>}
   {photoAutoFilter==="suspect"&&<Text style={styles.hint}>AI가 인물·무관·판단 불가로 분류한 제외 사진입니다.</Text>}
   {photoAutoFilter==="ballet"&&<Text style={styles.hint}>AI가 공개 대상으로 분류한 발레 관련 사진·자료 후보입니다.</Text>}{photoAutoFilter==="excluded"&&<Text style={styles.hint}>AI가 인물·무관·판단 불가 또는 신뢰도 부족으로 제외하는 유형입니다.</Text>}{photoAutoFilter==="all"&&<Text style={styles.hint}>AI 분류와 관계없이 불러온 후보 전체를 표시합니다.</Text>}
-  <View style={{marginTop:8,marginBottom:8,gap:7}}><Text style={styles.hint}>사진을 선택한 뒤 판정하세요 · 선택 {selectedPhotoCandidateIds.length}장</Text><Pressable style={[styles.toolbarButton,{alignSelf:"flex-start",flexDirection:"row",gap:6,paddingHorizontal:12}]} onPress={()=>setSelectedPhotoCandidateIds(photoFilteredCandidates.map(item=>Number(item.id)))}><Ionicons name="checkbox-outline" size={16} color={c.purple}/><Text style={{fontSize:12,fontWeight:"800",color:c.purple}}>현재 필터 결과 전체 선택 ({photoFilteredCandidates.length}장)</Text></Pressable></View>{selectedPhotoCandidateIds.length>0&&<View style={{backgroundColor:"#F2ECFF",borderRadius:12,padding:10,marginBottom:10,gap:8}}><View style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:c.ink}}>선택한 {selectedPhotoCandidateIds.length}장 일괄 판정</Text><Pressable onPress={()=>setSelectedPhotoCandidateIds([])}><Text style={styles.refresh}>선택 해제</Text></Pressable></View><View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>{([{key:"ballet_class",label:"발레 사진"},{key:"schedule",label:"시간표"},{key:"price",label:"가격표"},{key:"poster",label:"포스터·로고"},{key:"unrelated",label:"제외"}] as const).map(option=><Pressable key={option.key} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifySelectedPhotoCandidates(option.key)} style={{backgroundColor:"#FFFFFF",borderRadius:8,paddingHorizontal:11,paddingVertical:8,borderWidth:1,borderColor:"#DCD2F0"}}><Text style={{fontSize:11,fontWeight:"700",color:c.purple}}>{option.label}</Text></Pressable>)}</View></View>}
+  <View style={{marginTop:8,marginBottom:8,gap:7}}><Text style={styles.hint}>사진을 선택한 뒤 판정하세요 · 선택 {selectedPhotoCandidateIds.length}장</Text><Pressable style={[styles.toolbarButton,{alignSelf:"flex-start",flexDirection:"row",gap:6,paddingHorizontal:12}]} onPress={()=>setSelectedPhotoCandidateIds(photoFilteredCandidates.map(item=>Number(item.id)))}><Ionicons name="checkbox-outline" size={16} color={c.purple}/><Text style={{fontSize:12,fontWeight:"800",color:c.purple}}>현재 필터 결과 전체 선택 ({photoFilteredCandidates.length}장)</Text></Pressable></View>{selectedPhotoCandidateIds.length>0&&<View style={{backgroundColor:"#F2ECFF",borderRadius:12,padding:10,marginBottom:10,gap:8}}><View style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:c.ink}}>선택한 {selectedPhotoCandidateIds.length}장 일괄 판정</Text><Pressable onPress={()=>setSelectedPhotoCandidateIds([])}><Text style={styles.refresh}>선택 해제</Text></Pressable></View><View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>{([{key:"ballet_class",label:"발레 사진"},{key:"schedule",label:"시간표"},{key:"price",label:"가격표"},{key:"poster",label:"포스터·로고"},{key:"unrelated",label:"제외"}] as const).map(option=><Pressable key={option.key} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifySelectedPhotoCandidates(option.key)} style={{backgroundColor:"#FFFFFF",borderRadius:8,paddingHorizontal:11,paddingVertical:8,borderWidth:1,borderColor:"#DCD2F0"}}><Text style={{fontSize:11,fontWeight:"700",color:c.purple}}>{option.label}</Text></Pressable>)}<Pressable disabled={photoReviewBusy||photoAutoScanBusy} onPress={deleteSelectedPhotoCandidates} style={{backgroundColor:"#FFF5F5",borderRadius:8,paddingHorizontal:11,paddingVertical:8,borderWidth:1,borderColor:"#E6C5C9"}}><Text style={{fontSize:11,fontWeight:"800",color:"#A33342"}}>선택 항목 영구 삭제</Text></Pressable></View></View>}
   {photoReviewBusy&&<ActivityIndicator color={c.purple}/>}
   {photoFilteredCandidates.map(item=><View key={"photo-candidate-"+item.id} style={[styles.photoReviewCard,selectedPhotoCandidateIds.includes(Number(item.id))&&{borderColor:c.purple,borderWidth:2}]}>
     <Pressable onPress={()=>togglePhotoCandidateSelection(Number(item.id))} style={styles.photoReviewSelect}><Ionicons name={selectedPhotoCandidateIds.includes(Number(item.id))?"checkbox":"square-outline"} size={23} color={c.purple}/></Pressable>
@@ -1573,7 +1610,7 @@ export default function Admin() {
 
     </View>}
     {adminTab==="studios"&&<>
-<View style={styles.panel}><Text style={styles.heading}>{reportEditingId!==null?"제보 기반 학원 정보 수정":editing?"학원 정보 수정":"학원 등록"}</Text>{reportEditingId!==null&&<Text style={styles.hint}>제보 내용을 확인해 학원 정보를 수정하고 저장하면 해당 제보가 처리 완료로 변경됩니다. 폐업·이전이 확인된 경우 앱에 공개 토글을 끄세요.</Text>}{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}<Text style={styles.hint}>학원 관리 화면의 사진 1~30번 슬롯입니다. 발레 사진만 대표 이미지 갤러리에 넣고, 시간표·가격표는 자료 분류를 통해 해당 자료로 관리합니다.</Text><View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>{Array.from({length:STUDIO_GALLERY_LIMIT},(_,index)=>{const url=parseStudioImageSlots(form.image_urls)[index]?.trim()||"";return <View key={"edit-photo-slot-"+index} style={styles.photoSlot}><Text style={styles.label}>사진 {index+1}</Text>{url?<Image source={{uri:url}} style={styles.photoSlotImage} resizeMode="cover"/>:<View style={styles.photoSlotEmpty}><Ionicons name="image-outline" size={25} color={c.muted}/><Text style={styles.compactSecondary}>사진 없음</Text></View>}<TextInput style={styles.photoSlotInput} value={url} onChangeText={value=>setForm(current=>{const slots=parseStudioImageSlots(current.image_urls);while(slots.length<=index)slots.push("");slots[index]=value;return {...current,image_urls:slots.join("\n")};})} placeholder={"사진 "+(index+1)+" URL"} autoCapitalize="none" autoCorrect={false}/>{url&&editing&&<Pressable onPress={()=>removeStudioGalleryPhoto(editing,url)}><Text style={[styles.action,{color:"#B95764"}]}>사진 {index+1} 삭제</Text></Pressable>}</View>})}</View>{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
+<View style={styles.panel} onLayout={event=>{studioEditPanelY.current=event.nativeEvent.layout.y;}}><Text style={styles.heading}>{reportEditingId!==null?"제보 기반 학원 정보 수정":editing?"학원 정보 수정":"학원 등록"}</Text>{reportEditingId!==null&&<Text style={styles.hint}>제보 내용을 확인해 학원 정보를 수정하고 저장하면 해당 제보가 처리 완료로 변경됩니다. 폐업·이전이 확인된 경우 앱에 공개 토글을 끄세요.</Text>}{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("공식 홈페이지 URL (https://)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}<Text style={styles.hint}>학원 관리 화면의 사진 1~30번 슬롯입니다. 발레 사진만 대표 이미지 갤러리에 넣고, 시간표·가격표는 자료 분류를 통해 해당 자료로 관리합니다.</Text><View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>{Array.from({length:STUDIO_GALLERY_LIMIT},(_,index)=>{const url=parseStudioImageSlots(form.image_urls)[index]?.trim()||"";return <View key={"edit-photo-slot-"+index} style={styles.photoSlot}><Text style={styles.label}>사진 {index+1}</Text>{url?<Image source={{uri:url}} style={styles.photoSlotImage} resizeMode="cover"/>:<View style={styles.photoSlotEmpty}><Ionicons name="image-outline" size={25} color={c.muted}/><Text style={styles.compactSecondary}>사진 없음</Text></View>}<TextInput style={styles.photoSlotInput} value={url} onChangeText={value=>setForm(current=>{const slots=parseStudioImageSlots(current.image_urls);while(slots.length<=index)slots.push("");slots[index]=value;return {...current,image_urls:slots.join("\n")};})} placeholder={"사진 "+(index+1)+" URL"} autoCapitalize="none" autoCorrect={false}/>{url&&editing&&<Pressable onPress={()=>removeStudioGalleryPhoto(editing,url)}><Text style={[styles.action,{color:"#B95764"}]}>사진 {index+1} 삭제</Text></Pressable>}</View>})}</View>{field("사진 출처명 (예: 관리자 직접 등록)","image_source_name")}{field("사진 사용 허가/출처 메모","image_usage_note")}{field("1회 수업 가격 (원)","price_per_class","numeric")}
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
     </View>
