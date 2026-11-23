@@ -35,7 +35,9 @@ DO $$
 DECLARE c record;
 BEGIN
   FOR c IN SELECT conname FROM pg_constraint
-    WHERE conrelid='public.studio_owners'::regclass AND contype IN ('p','u')
+    WHERE conrelid='public.studio_owners'::regclass
+      AND (contype='p' OR (contype='u' AND
+        (pg_get_constraintdef(oid) ILIKE '%studio_id%' OR pg_get_constraintdef(oid) ILIKE '%business_registration_number%')))
   LOOP
     EXECUTE format('ALTER TABLE public.studio_owners DROP CONSTRAINT %I',c.conname);
   END LOOP;
