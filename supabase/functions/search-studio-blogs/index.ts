@@ -45,9 +45,26 @@ async function fetchNaverSearch(endpoint: URL, clientId: string, clientSecret: s
 }
 const BLOG_HOSTS = new Set(["blog.naver.com", "m.blog.naver.com"]);
 const isNaverBlogUrl = (raw: string): boolean => { try { const u = new URL(raw); return u.protocol === "https:" && BLOG_HOSTS.has(u.hostname.toLowerCase()); } catch { return false; } };
-const normalize = (value: string) => value.toLowerCase().replace(/[\s·ㆍ()[\]_-]/g, "");
-const academyAlias = (studioName: string) => normalize(studioName)
-  .replace(/(무용학원|발레학원|발레아카데미|스튜디오|아카데미|학원|센터|본점|지점|점)$/g, "");
+const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
+const academyAliases = (studioName: string): string[] => {
+  const full = normalize(studioName);
+  const branchless = full.replace(/[가-힣]{1,5}(?:지점|점)$/g, "");
+  const stripGeneric = (value: string) => {
+    let result = value;
+    for (let i = 0; i < 4; i++) {
+      const next = result.replace(/(무용학원|발레학원|발레아카데미|무용아카데미|스튜디오|아카데미|학원|센터|교습소|본점|지점|점|키즈|성인|발레|무용)$/g, "");
+      if (next === result) break;
+      result = next;
+    }
+    return result;
+  };
+  return [...new Set([full, branchless, stripGeneric(full), stripGeneric(branchless)].filter(x => x.length >= 3))];
+};
+const academyAlias = (studioName: string) => academyAliases(studioName).sort((a,b)=>b.length-a.length)[0] || "";
+const nameMatches = (studioName: string, text: string): boolean => {
+  const normalizedText = normalize(text);
+  return academyAliases(studioName).some(alias => alias.length >= 3 && normalizedText.includes(alias));
+};
 const blogAccountKey = (raw: string): string => {
   try {
     const u = new URL(raw);
@@ -65,14 +82,13 @@ const canonicalBlogUrl = (raw: string): string => {
   return key ? `https://blog.naver.com/${key}` : "";
 };
 const isRelevantBlog = (studioName: string, title: string, description: string, bloggerUrl: string, officialAccounts: string[]): boolean => {
-  const alias = academyAlias(studioName);
-  const text = normalize(title + " " + description);
-  const hasAcademy = alias.length >= 3 && text.includes(alias);
-  const hasBalletIntent = /(발레|바레|시간표|스케줄|월간|월별|수강료|가격|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + " " + description);
-  const nameMatch = hasAcademy && hasBalletIntent;
+  const text = title + " " + description;
+  const hasBalletIntent = /(발레|바레|시간표|스케줄|월간|월별|수강료|가격|수업|클래스|레슨|모집|파드되|작품반)/i.test(text);
+  const nameMatch = nameMatches(studioName, text);
   const accountKey = blogAccountKey(bloggerUrl);
   const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
-  return nameMatch || hasBalletIntent || officialMatch;
+  // Only a verified representative account or a post explicitly mentioning this academy is accepted.
+  return officialMatch || (nameMatch && hasBalletIntent);
 };
 const cleanText = (value: unknown): string =>
   String(value ?? "").replace(/<[^>]*>/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
@@ -169,6 +185,7 @@ Deno.serve(async (req) => {
       if (/(퀸스|퀸즈)/.test(studioQuery)) searchQueries.push(studioQuery.replace(/퀸스/g,"퀸즈"),studioQuery.replace(/퀸즈/g,"퀸스"),"퀸즈발레","퀸스발레","Queens Ballet","Queen's Ballet");
       if (/더블유|\\bW\\b|wballet/i.test(studioQuery)) searchQueries.push("더블유발레","W발레","wballet","W ballet");
       for (const query of [...new Set(searchQueries)].slice(0, 8)) {
+        const accountQueryKey = accountQueries.find((account) => normalize(account) === normalize(query)) || "";
         const endpoint = new URL("https://openapi.naver.com/v1/search/blog.json");
         endpoint.searchParams.set("query", query);
         endpoint.searchParams.set("display", "30");
@@ -188,7 +205,10 @@ Deno.serve(async (req) => {
           const title = cleanText(item.title);
           if (!isNaverBlogUrl(postUrl) || !title) return [];
           const description = cleanText(item.description);
-          if (!isRelevantBlog(String(job.studio_name), title, description, cleanText(item.bloggerlink), knownAccounts)) return [];
+          const bloggerUrl = cleanText(item.bloggerlink);
+          // When searching a known account ID, only accept posts from that exact account.
+          if (accountQueryKey && blogAccountKey(bloggerUrl) !== accountQueryKey) return [];
+          if (!isRelevantBlog(String(job.studio_name), title, description, bloggerUrl, knownAccounts)) return [];
           const dateText = String(item.postdate ?? "");
           const postDate = /^\d{8}$/.test(dateText)
             ? `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6, 8)}`
