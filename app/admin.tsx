@@ -443,21 +443,24 @@ export default function Admin() {
 
   const searchStudiosServer=async()=>{
     if(!supabase||busy)return;
-    const term=studioSearch.trim().replace(/[%,_(),]/g," ").replace(/\s+/g," ").trim();
+    const term=studioSearch.trim().replace(/[%,_(),]/g," ").replace(/\\s+/g," ").trim();
+    const compact=term.replace(/\\s+/g,"");
     setStudioAppliedSearch(term);setStudioSearch(term);
     setBusy(true);
     try{
-      const baseQuery=supabase.from("studios").select(studioColumns);
-      const query=term
-        ? baseQuery.or(`name.ilike.%${term}%,district.ilike.%${term}%,address.ilike.%${term}%,phone.ilike.%${term}%`)
-        : baseQuery;
-      const {data,error}=await query.order("name").order("id").range(0,STUDIO_PAGE_SIZE-1);
-      if(error)throw error;
-      const page=data||[];
-      const deduped=dedupeStudioRows(page);
+      const baseQuery=()=>supabase.from("studios").select(studioColumns);
+      // 이름/지역/주소의 일부 단어 및 띄어쓰기 없는 검색도 지원. 2글자 조각으로도 검색.
+      const searchTerms=[...new Set([term,...term.split(" ").filter(Boolean),...(compact.length>2?compact.match(/.{1,2}/g)||[]:[])].filter(v=>v.length>=1))];
+      let combined:any[]=[];
+      if(!term){const {data,error}=await baseQuery().order("name").order("id").range(0,STUDIO_PAGE_SIZE-1);if(error)throw error;combined=data||[];}
+      else for(const fragment of searchTerms){
+        const {data,error}=await baseQuery().or(`name.ilike.%${fragment}%,district.ilike.%${fragment}%,address.ilike.%${fragment}%,phone.ilike.%${fragment}%`).order("name").order("id").range(0,STUDIO_PAGE_SIZE-1);
+        if(error)throw error;combined.push(...(data||[]));
+      }
+      const deduped=dedupeStudioRows(combined);
       setRows(deduped.rows as StudioRow[]);
-      setStudioDbOffset(page.length);
-      setStudioHasMore(page.length===STUDIO_PAGE_SIZE);
+      setStudioDbOffset(combined.length);
+      setStudioHasMore(combined.length>=STUDIO_PAGE_SIZE);
       setStudioVisibleLimit(100);
     }catch(error:any){Alert.alert("학원 검색 실패",error?.message||"전체 학원 검색을 완료하지 못했습니다.");}
     finally{setBusy(false);}
@@ -1338,8 +1341,10 @@ export default function Admin() {
     ]);
   };
   const filteredStudioRows=useMemo(()=>rows.filter(row=>{
-    const q=studioSearch.trim().toLowerCase();
-    if(q&&!([row.name,row.district||"",row.address||"",row.phone||""].some(value=>value.toLowerCase().includes(q))))return false;
+    const q=studioSearch.trim().toLowerCase().replace(/\\s+/g,"");
+    const initials=(value:string)=>value.split("").map(char=>{const code=char.charCodeAt(0)-44032;if(code<0||code>11171)return char;return "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"[Math.floor(code/588)]||char;}).join("");
+    const fields=[row.name,row.district||"",row.address||"",row.phone||""];
+    if(q&&!fields.some(value=>value.toLowerCase().replace(/\\s+/g,"").includes(q)||initials(value.replace(/\\s+/g,"")).includes(q)))return false;
     if(studioListFilter==="has_photo"&&(row.image_urls||[]).length===0)return false;
     if(studioListFilter==="missing_photo"&&(row.image_urls||[]).length>0)return false;
     if(studioListFilter==="missing_website"&&!!row.website_url)return false;
