@@ -211,7 +211,7 @@ export default function StudioManager(){
  const button=(label:string,onPress:()=>void,disabled=false,destructive=false)=><Pressable disabled={disabled} onPress={onPress} style={[s.button,destructive&&s.danger,disabled&&{opacity:0.5}]}><Text style={[s.buttonText,destructive&&{color:C.red}]}>{label}</Text></Pressable>;
  const field=(label:string,value:string,onChangeText:(v:string)=>void,placeholder:string="",keyboardType:any="default")=><View style={{marginTop:12}}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} keyboardType={keyboardType} style={s.input}/></View>;
 
- return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+ return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
   <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
   <Text style={s.brand}>Balletmate · 학원 관리</Text><Text style={s.title}>{studioName}</Text>
   {loading?<ActivityIndicator color={C.purple} style={{marginTop:28}}/>:!session?
