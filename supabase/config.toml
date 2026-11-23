@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.search-studios-kakao]
 verify_jwt = false
+
+[functions.neis-ballet-kakao-verification]
+verify_jwt = false
