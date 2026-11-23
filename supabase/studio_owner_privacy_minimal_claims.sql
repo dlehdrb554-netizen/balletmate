@@ -45,6 +45,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS studio_owner_application_one_pending_per_user_
   ON public.studio_owner_applications(studio_id,user_id)
   WHERE status IN ('pending','needs_info');
 
+-- Disable old document upload/read access. Existing storage files require manual deletion
+-- from Supabase Storage dashboard because file deletion is handled by the Storage API.
+DROP POLICY IF EXISTS "applicants upload own business documents" ON storage.objects;
+DROP POLICY IF EXISTS "applicants read own business documents" ON storage.objects;
+DROP POLICY IF EXISTS "applicants replace own pending business documents" ON storage.objects;
+UPDATE storage.buckets SET public=false WHERE id='studio-business-documents';
+
 -- Remove previously collected identity/document fields from claim records.
 UPDATE public.studio_owner_applications SET
   business_registration_number=NULL,business_name=NULL,representative_name=NULL,
@@ -123,7 +130,11 @@ END $$;
 REVOKE ALL ON FUNCTION public.submit_studio_owner_application_light(uuid,text,text,text) FROM public,anon;
 GRANT EXECUTE ON FUNCTION public.submit_studio_owner_application_light(uuid,text,text,text) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application(uuid,text,text,text,text,text) FROM authenticated;
-REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application_secure(uuid,text,text,text,text,text,text,text) FROM authenticated;
+DO $ BEGIN
+ IF to_regprocedure('public.submit_studio_owner_application_secure(uuid,text,text,text,text,text,text,text)') IS NOT NULL THEN
+  EXECUTE 'REVOKE EXECUTE ON FUNCTION public.submit_studio_owner_application_secure(uuid,text,text,text,text,text,text,text) FROM authenticated';
+ END IF;
+END $;
 
 -- Manual approval creates a user-to-studio permission link. Multiple approved managers per studio are supported.
 CREATE OR REPLACE FUNCTION public.admin_review_studio_owner_application(p_application_id uuid,p_decision text,p_note text DEFAULT NULL)
@@ -202,8 +213,8 @@ BEGIN
    v_new:=CASE WHEN v_new IS NULL THEN NULL ELSE v_new-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','id'] END;
   ELSIF TG_TABLE_NAME='studio_public_schedules' THEN
    v_fields:=ARRAY['schedule_text','image_urls','is_active','expires_at'];
-   v_old:=CASE WHEN v_old IS NULL THEN NULL ELSE v_old-v_fields-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at'] END;
-   v_new:=CASE WHEN v_new IS NULL THEN NULL ELSE v_new-v_fields-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at'] END;
+   v_old:=CASE WHEN v_old IS NULL THEN NULL ELSE v_old-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','id'] END;
+   v_new:=CASE WHEN v_new IS NULL THEN NULL ELSE v_new-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','id'] END;
   ELSE
    v_fields:=ARRAY['title','body','is_active'];
    v_old:=CASE WHEN v_old IS NULL THEN NULL ELSE v_old-ARRAY['created_by','studio_id','created_at','updated_at','id'] END;
