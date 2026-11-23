@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'supabase/functions/**'
+      - 'supabase/config.toml'
       - '.github/workflows/deploy-supabase-workers.yml'
 
 permissions:
