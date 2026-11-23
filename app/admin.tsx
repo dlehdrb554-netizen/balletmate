@@ -155,6 +155,7 @@ export default function Admin() {
   const [studioListFilter,setStudioListFilter]=useState<"all"|"has_photo"|"missing_photo"|"missing_website"|"active"|"inactive">("all");
   const [selectedPhotoStudioIds,setSelectedPhotoStudioIds]=useState<string[]>([]);
   const [form,setForm]=useState({...blank});
+  const [studioPhotoSlotCount,setStudioPhotoSlotCount]=useState(2);
   const [editing,setEditing]=useState<string|null>(null);
   const [csvText,setCsvText]=useState("");
   const [importing,setImporting]=useState(false);
