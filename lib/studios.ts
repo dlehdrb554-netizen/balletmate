@@ -98,8 +98,8 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
   if(/퀸스/.test(term)){variants.add(term.replace(/퀸스/g,"퀸즈"));variants.add(term.replace(/퀸스/g,"Queens"));variants.add("퀸즈발레");variants.add("퀸즈");}
   if(/퀸즈/.test(term)){variants.add(term.replace(/퀸즈/g,"퀸스"));variants.add(term.replace(/퀸즈/g,"Queens"));variants.add("퀸스발레");}
   if(/더블유|\bW\b|wballet/i.test(term)){variants.add(term.replace(/더블유/gi,"W"));variants.add(term.replace(/\bW\b/gi,"더블유"));variants.add("W발레");variants.add("더블유발레");variants.add("wballet");}
-  const searchQuery=(table:"studio_map_search_app"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(100);
-  const runSearch=async(needle:string)=>{let result=await searchQuery("studio_map_search_app",needle);if(result.error)result=await searchQuery("studios",needle);if(result.error)throw result.error;return (result.data||[]) as any[];};
+  const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(100);
+  const runSearch=async(needle:string)=>{let result=await searchQuery("studio_map_search_app_with_source",needle);if(result.error)result=await searchQuery("studios",needle);if(result.error)throw result.error;return (result.data||[]) as any[];};
   const results=new Map<string,any>();
   for(const variant of variants){const v=variant.trim();if(v.length<2)continue;const patterns=[`name.ilike.%${v}%`,`address.ilike.%${v}%`,`district.ilike.%${v}%`];const cv=compact(v);if(cv.length>=2&&cv!==v)patterns.push(`name.ilike.%${cv}%`,`address.ilike.%${cv}%`);const rows=await runSearch(patterns.join(","));rows.forEach(row=>results.set(row.id,row));}
   if(!results.size){for(const token of term.split(/\s+/).filter(token=>token.length>=2).slice(0,3)){const rows=await runSearch([`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`].join(","));rows.forEach(row=>results.set(row.id,row));}}
