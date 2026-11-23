@@ -94,20 +94,33 @@ Deno.serve(async(req)=>{
  let existingKakaoChecks=0,existingKakaoBlogs=0;
  let backfillCandidateCount=0,backfillSelectedCount=0;
  let backfillQueryError:string|null=null,backfillUpdateErrors:string[]=[];
- const {data:backfillCandidates,error:backfillError}=await db.from("studios")
-  .select("id,name,source_url,kakao_place_blog_attempted_at")
-  .eq("is_active",true)
-  .is("kakao_place_blog_checked_at",null)
-  .or("source_url.like.http://place.map.kakao.com/%,source_url.like.https://place.map.kakao.com/%")
-  .order("kakao_place_blog_attempted_at",{ascending:true,nullsFirst:true})
-  .limit(100);
  const retryBefore=Date.now()-24*60*60*1000;
- backfillCandidateCount=(backfillCandidates||[]).length;
- const backfillRows=(backfillCandidates||[])
-  .filter((studio)=>!studio.kakao_place_blog_attempted_at||new Date(studio.kakao_place_blog_attempted_at).getTime()<retryBefore)
-  .slice(0,6);
+ const sourceFilter="source_url.like.http://place.map.kakao.com/%,source_url.like.https://place.map.kakao.com/%";
+ const {data:unattemptedRows,error:unattemptedError}=await db.from("studios")
+  .select("id,name,source_url,kakao_place_blog_attempted_at")
+  .eq("is_active",true).is("kakao_place_blog_checked_at",null)
+  .is("kakao_place_blog_attempted_at",null)
+  .or(sourceFilter)
+  .order("created_at",{ascending:true})
+  .limit(6);
+ let backfillRows=unattemptedRows||[];
+ if(unattemptedError)backfillQueryError="미처리 대상 조회 실패: "+unattemptedError.message;
+ if(backfillRows.length<6&&!backfillQueryError){
+  const remaining=6-backfillRows.length;
+  const {data:retryRows,error:retryError}=await db.from("studios")
+   .select("id,name,source_url,kakao_place_blog_attempted_at")
+   .eq("is_active",true).is("kakao_place_blog_checked_at",null)
+   .lt("kakao_place_blog_attempted_at",new Date(retryBefore).toISOString())
+   .or(sourceFilter)
+   .order("kakao_place_blog_attempted_at",{ascending:true})
+   .limit(remaining);
+  if(retryError)backfillQueryError="재시도 대상 조회 실패: "+retryError.message;
+  else backfillRows=[...backfillRows,...(retryRows||[])];
+ }
+ backfillCandidateCount=backfillRows.length;
  backfillSelectedCount=backfillRows.length;
- if(backfillError){backfillQueryError=backfillError.message;console.error("Kakao blog backfill target query failed:",backfillError.message);}
+ const backfillCandidates=backfillRows;
+ if(backfillQueryError)console.error("Kakao blog backfill target query failed:",backfillQueryError);
  for(const studio of backfillRows||[]){
   const placeId=String(studio.source_url||"").match(/place\.map\.kakao\.com\/(?:main\/v\/)?(\d+)/i)?.[1];
   if(!placeId)continue;
