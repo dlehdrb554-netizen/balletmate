@@ -351,7 +351,7 @@ Deno.serve(async (req) => {
             .select("studio_id").eq("is_active", true).eq("blogger_url", candidate.blogger_url);
           if (ownerError) throw new Error("블로그 소유 학원 확인 실패: " + ownerError.message);
           const belongsToAnotherStudio = (ownerRows ?? []).some((row: {studio_id:string|null}) => row.studio_id && row.studio_id !== job.studio_id);
-          const shouldAutoApprove = autoApprove && !belongsToAnotherStudio;
+          const shouldAutoApprove = autoApprove && !belongsToAnotherStudio && prior?.review_status !== "rejected";
           const { error: candidateError } = await db.from("studio_blog_account_candidates")
             .upsert({
               studio_id: job.studio_id,
