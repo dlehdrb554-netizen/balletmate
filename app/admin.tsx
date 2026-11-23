@@ -590,7 +590,7 @@ export default function Admin() {
     if(error)Alert.alert(status==="approved"?"사진 승인 실패":"사진 제외 실패",error.message);
     else {
       setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));setPhotoCandidateOffset(value=>Math.max(0,value-1));
-      if(status==="approved"){
+      if(status==="approved"&&!["schedule","price","other"].includes(String(item.material_type||""))&&!["schedule","price","poster","logo"].includes(String(item.auto_classification||""))){
         setRows(current=>current.map(row=>row.id===item.studio_id
           ?{...row,image_urls:[...(row.image_urls||[]),item.image_url].slice(0,30),
             image_source_name:row.image_source_name||item.source_host}
@@ -1548,7 +1548,7 @@ export default function Admin() {
     </View>
     <View style={styles.photoReviewActions}>
       {photoCandidateStatus==="pending"&&<>
-        <Pressable style={styles.photoReviewApprove} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.photoReviewApproveText}>학원 사진에 추가</Text></Pressable>
+        <Pressable style={styles.photoReviewApprove} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.photoReviewApproveText}>대표 사진으로 추가</Text></Pressable>
         <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.photoReviewRejectText}>사진 제외</Text></Pressable>
         <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoCandidateAI(item)}><Text style={styles.photoReviewRejectText}>AI 재분석</Text></Pressable>
       </>}
