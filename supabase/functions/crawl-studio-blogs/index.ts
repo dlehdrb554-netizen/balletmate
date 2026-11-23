@@ -210,12 +210,24 @@ Deno.serve(async (req) => {
         .eq("id", job.source_id)
         .maybeSingle();
       if (sourceError) throw new Error("게시글 관련성 조회 실패: " + sourceError.message);
+      // Resolve official accounts by stable studio_id first. The previous
+      // studio_name-only lookup missed accounts saved with studio_id, causing
+      // their own posts to be rejected by the relevance filter.
       const { data: officialRows, error: officialError } = await db.from("studio_blog_official_accounts")
         .select("blogger_url")
-        .eq("studio_name", String(job.studio_name))
+        .eq("studio_id", job.studio_id)
         .eq("is_active", true);
       if (officialError) throw new Error("공식 블로그 계정 조회 실패: " + officialError.message);
-      const officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
+      let officialAccounts = (officialRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
+      if (!officialAccounts.length) {
+        const { data: legacyRows, error: legacyError } = await db.from("studio_blog_official_accounts")
+          .select("blogger_url")
+          .is("studio_id", null)
+          .eq("studio_name", String(job.studio_name))
+          .eq("is_active", true);
+        if (legacyError) throw new Error("기존 공식 블로그 계정 조회 실패: " + legacyError.message);
+        officialAccounts = (legacyRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
+      }
       // Reject only clearly unrelated snippets before download. Ballet-related third-party
       // posts are fetched so the full body can confirm whether this specific academy is mentioned.
       const sourceTitle = String(source?.title ?? "");
