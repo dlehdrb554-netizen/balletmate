@@ -70,12 +70,12 @@ CREATE OR REPLACE FUNCTION public.is_studio_owner(p_studio_id uuid)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $ballet_fn$
   SELECT EXISTS (
     SELECT 1 FROM public.studio_owners
     WHERE studio_id = p_studio_id AND user_id = auth.uid()
   );
-$$;
+$ballet_fn$;
 REVOKE ALL ON FUNCTION public.is_studio_owner(uuid) FROM public;
 GRANT EXECUTE ON FUNCTION public.is_studio_owner(uuid) TO authenticated;
 
@@ -111,7 +111,7 @@ CREATE OR REPLACE FUNCTION public.submit_studio_owner_application(
 RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $ballet_fn$
 DECLARE
   v_studio public.studios%ROWTYPE;
   v_name_match boolean;
@@ -182,7 +182,7 @@ BEGIN
   END IF;
   RETURN v_id;
 END;
-$$;
+$ballet_fn$;
 REVOKE ALL ON FUNCTION public.submit_studio_owner_application(uuid,text,text,text,text,text) FROM public;
 GRANT EXECUTE ON FUNCTION public.submit_studio_owner_application(uuid,text,text,text,text,text) TO authenticated;
 
@@ -194,7 +194,7 @@ CREATE OR REPLACE FUNCTION public.admin_review_studio_owner_application(
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $ballet_fn$
 DECLARE v_app public.studio_owner_applications%ROWTYPE;
 BEGIN
   IF NOT public.is_balletmate_admin() THEN RAISE EXCEPTION '관리자 권한이 필요합니다.'; END IF;
@@ -225,7 +225,7 @@ BEGIN
       reviewed_by=auth.uid(),reviewed_at=now(),updated_at=now()
   WHERE id=p_application_id;
 END;
-$$;
+$ballet_fn$;
 REVOKE ALL ON FUNCTION public.admin_review_studio_owner_application(uuid,text,text) FROM public;
 GRANT EXECUTE ON FUNCTION public.admin_review_studio_owner_application(uuid,text,text) TO authenticated;
 
@@ -241,7 +241,7 @@ CREATE OR REPLACE FUNCTION public.owner_update_studio_profile(
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $ballet_fn$
 BEGIN
   IF NOT public.is_studio_owner(p_studio_id) THEN
     RAISE EXCEPTION '승인된 학원 관리자만 기본 정보를 수정할 수 있습니다.';
@@ -262,7 +262,7 @@ BEGIN
     updated_at=now()
   WHERE id=p_studio_id;
 END;
-$$;
+$ballet_fn$;
 REVOKE ALL ON FUNCTION public.owner_update_studio_profile(uuid,text,text,text,text,text,text) FROM public;
 GRANT EXECUTE ON FUNCTION public.owner_update_studio_profile(uuid,text,text,text,text,text,text) TO authenticated;
 
@@ -327,7 +327,7 @@ CREATE OR REPLACE FUNCTION public.owner_add_studio_gallery_photo(p_studio_id uui
 RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $ballet_fn$
 DECLARE v_urls text[];
 BEGIN
   IF NOT public.is_studio_owner(p_studio_id) THEN RAISE EXCEPTION '이 학원의 승인된 관리자만 사진을 등록할 수 있습니다.'; END IF;
@@ -340,7 +340,7 @@ BEGIN
   WHERE id=p_studio_id;
   RETURN cardinality(coalesce(v_urls,'{}'::text[]))+1;
 END;
-$$;
+$ballet_fn$;
 REVOKE ALL ON FUNCTION public.owner_add_studio_gallery_photo(uuid,text) FROM public;
 GRANT EXECUTE ON FUNCTION public.owner_add_studio_gallery_photo(uuid,text) TO authenticated;
 
