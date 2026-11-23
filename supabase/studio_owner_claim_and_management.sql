@@ -262,7 +262,7 @@ BEGIN
     updated_at=now()
   WHERE id=p_studio_id;
 END;
-$;
+$$;
 REVOKE ALL ON FUNCTION public.owner_update_studio_profile(uuid,text,text,text,text,text,text) FROM public;
 GRANT EXECUTE ON FUNCTION public.owner_update_studio_profile(uuid,text,text,text,text,text,text) TO authenticated;
 
