@@ -26,7 +26,7 @@ DROP INDEX IF EXISTS public.studio_owner_application_one_pending_per_studio;
 DROP INDEX IF EXISTS public.studio_owner_application_one_pending_per_user_studio;
 DROP INDEX IF EXISTS public.studio_owners_user_id_idx;
 CREATE INDEX IF NOT EXISTS studio_owners_user_id_idx ON public.studio_owners(user_id);
-DROP INDEX IF EXISTS public.studio_owners_business_registration_number_key;
+-- Legacy UNIQUE constraints are removed in the following catalog-driven block.
 
 DO $$
 DECLARE c record;
