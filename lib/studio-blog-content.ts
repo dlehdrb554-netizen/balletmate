@@ -32,10 +32,17 @@ export async function fetchStudioBlogPosts(studioId: string): Promise<StudioBlog
 
   blogRequests += 1;
   const request = (async () => {
-    const { data, error } = await supabase.rpc("get_studio_blog_public_details", {
+    let { data, error } = await supabase.rpc("get_studio_blog_public_details", {
       p_studio_id: studioId,
     });
     if (error) throw error;
+    // If official-account verification is still pending, fall back to successfully
+    // crawled posts linked to this studio. They are public source links, not approved
+    // pricing/schedule data, and remain labelled as blog excerpts in the UI.
+    if (!Array.isArray(data) || data.length === 0) {
+      const fallback = await supabase.rpc("get_studio_blog_collected_details", { p_studio_id: studioId });
+      if (!fallback.error) data = fallback.data;
+    }
     const rows = (Array.isArray(data) ? data : []).map((post:any)=>({
       ...post,
       // Keep the app's retained photo payload small: at most three distinct HTTPS photos per post.
