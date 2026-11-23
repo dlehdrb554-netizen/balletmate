@@ -74,6 +74,7 @@ export default function Home() {
   const [searchMatches,setSearchMatches]=useState<Studio[]>([]);
   const [searchResultsOpen,setSearchResultsOpen]=useState(false);
   const [searchSubmitting,setSearchSubmitting]=useState(false);
+  const areaSearchRequestId=useRef(0);
   const [pendingMapTarget,setPendingMapTarget]=useState<Region|null>(null);
   const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
@@ -459,23 +460,30 @@ export default function Home() {
 
   useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:r.latitude,lng:r.longitude,area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,sourceName:r.source_name||undefined,sourceStatus:r.source_status||undefined,verifiedAt:r.verified_at||undefined,imageUsageNote:r.image_usage_note||undefined,priceEvidenceText:r.price_evidence_text||undefined,scheduleEvidenceText:r.schedule_evidence_text||undefined,detailsSourceUrls:r.details_source_urls||[],kakaoChannelUrl:r.kakao_channel_url||undefined,detailsCheckedAt:r.details_checked_at||undefined,detailsStatus:r.details_status||undefined,classDurations:r.class_durations||[]}));setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted){setStudios([]);setBackendState("error");}});return()=>{mounted=false;};},[searchedRegion]);
   const searchArea=async()=>{
+    const requestId=++areaSearchRequestId.current;
     const target=region;
+    const queryAtStart=search.trim();
     setSearchedRegion(target);setAreaLocked(true);setMapMoved(false);setSelected(null);
     setSearchSubmitting(true);
     try{
       // A viewport search must query Kakao Local around the map center as well as
       // the studios already stored in Supabase; a DB-only bounds read misses new places.
-      const term=search.trim().length>=2?search.trim():"발레";
+      const term=queryAtStart.length>=2?queryAtStart:"발레";
       const rows=await searchStudiosByKakao(term,target);
+      if(requestId!==areaSearchRequestId.current)return;
       const mapped:Studio[]=rows.map(r=>({id:r.id,name:r.name,lat:Number(r.latitude),lng:Number(r.longitude),area:r.district||"지역 정보 없음",address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,sourceName:r.source_name||undefined,sourceStatus:r.source_status||undefined,verifiedAt:r.verified_at||undefined,imageUsageNote:r.image_usage_note||undefined,priceEvidenceText:r.price_evidence_text||undefined,scheduleEvidenceText:r.schedule_evidence_text||undefined,detailsSourceUrls:r.details_source_urls||[],kakaoChannelUrl:r.kakao_channel_url||undefined,detailsCheckedAt:r.details_checked_at||undefined,detailsStatus:r.details_status||undefined,classDurations:r.class_durations||[]}));
       setGlobalSearchStudios(mapped);
       if(mapped.length)setBackendState("connected");
       else if(!studios.length)setBackendState("empty");
       if(!mapped.length)Alert.alert("검색 결과 없음","현재 지도 범위에서 검색어와 일치하는 발레 학원을 찾지 못했습니다. 지도를 조금 이동하거나 검색어를 바꿔 주세요.");
     }catch(error:any){
-      console.warn("Viewport Kakao search failed:",error);
-      Alert.alert("지도 검색 실패",error?.message||"현재 지역의 학원 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-    }finally{setSearchSubmitting(false);}
+      if(requestId===areaSearchRequestId.current){
+        console.warn("Viewport Kakao search failed:",error);
+        Alert.alert("지도 검색 실패",error?.message||"현재 지역의 학원 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+    }finally{
+      if(requestId===areaSearchRequestId.current)setSearchSubmitting(false);
+    }
   };
   useEffect(()=>{
     if(view!=="map"||!pendingMapTarget)return;
@@ -587,14 +595,14 @@ export default function Home() {
       <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>setMenuOpen(true)} accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/account")} accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
-      <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={value=>{setSearch(value);setGlobalSearchStudios([]);setSearchMatches([]);}} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={submitSearch}/>{!!search&&<Pressable onPress={()=>setSearch("")}><Text style={styles.clear}>×</Text></Pressable>}</View><Pressable style={[styles.searchSubmitButton,searchSubmitting&&{opacity:0.6}]} onPress={submitSearch} disabled={searchSubmitting}><Ionicons name={searchSubmitting?"hourglass-outline":"search"} size={19} color="#fff"/></Pressable>
+      <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={value=>{areaSearchRequestId.current++;setSearchSubmitting(false);setSearch(value);setGlobalSearchStudios([]);setSearchMatches([]);}} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={submitSearch}/>{!!search&&<Pressable onPress={()=>{areaSearchRequestId.current++;setSearchSubmitting(false);setSearch("");setGlobalSearchStudios([]);setSearchMatches([]);}}><Text style={styles.clear}>×</Text></Pressable>}</View><Pressable style={[styles.searchSubmitButton,searchSubmitting&&{opacity:0.6}]} onPress={submitSearch} disabled={searchSubmitting}><Ionicons name={searchSubmitting?"hourglass-outline":"search"} size={19} color="#fff"/></Pressable>
       <Pressable style={styles.filterButton} onPress={()=>setFilterOpen(true)}><Ionicons name="options-outline" size={21} color={COLORS.ink} />{activeFilters>0&&<View style={styles.filterCount}><Text style={styles.filterCountText}>{activeFilters}</Text></View>}</Pressable>
     </View>
     {!!search.trim()&&search.trim().length>=2&&<Text style={styles.searchHint}>{classSearchLoading?"수업명 검색 중…":"학원명·지역·태그·등록 수업명 검색"}</Text>}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow:0,flexShrink:0}} contentContainerStyle={[styles.quickFilters,{alignItems:"center"}]}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/><Chip label="쿠폰" active={coupon} onPress={()=>setCoupon(!coupon)}/><Chip label="초급" active={level==="초급"} onPress={()=>setLevel(level==="초급"?null:"초급")}/><Chip label="전체" onPress={resetFilters}/></ScrollView>
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
-        <KakaoMap ref={map} initialRegion={region} markers={results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng}))} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={(next)=>{setRegion(next);setMapMoved(true);}} onMarkerPress={(id)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);}} />
+        <KakaoMap ref={map} initialRegion={region} markers={results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng}))} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={(next)=>{areaSearchRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);}} onMarkerPress={(id)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);}} />
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":"이 지역에서 재검색"}</Text></View></Pressable>}
         <Pressable style={styles.locateButton} onPress={locate}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
         <Pressable style={styles.mapCount} onPress={()=>{if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}</Text>곳{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
