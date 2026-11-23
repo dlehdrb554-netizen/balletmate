@@ -1470,7 +1470,7 @@ export default function Admin() {
       </View>
     </View>
     <View style={styles.photoReviewActions}>
-      <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoCandidateAI(item)}><Text style={styles.photoReviewRejectText}>AI 재분석 및 자동 처리</Text></Pressable>
+      {photoCandidateStatus==="pending"&&<Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoCandidateAI(item)}><Text style={styles.photoReviewRejectText}>AI 재분석 및 자동 처리</Text></Pressable>}
     </View>
   </View>)}
   {!photoCandidateRows.length&&!photoReviewBusy&&<Text style={styles.hint}>검토 대기 사진이 없습니다. 학원 관리에서 공식 홈페이지 사진 수집을 실행하면 후보가 여기에 표시됩니다.</Text>}{photoCandidateOffset<photoCandidateTotal&&<Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={loadMorePhotoCandidates}><Text style={styles.secondaryText}>다음 사진 12장</Text></Pressable>}
