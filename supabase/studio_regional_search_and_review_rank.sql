@@ -43,7 +43,7 @@ LANGUAGE sql SECURITY DEFINER SET search_path=public AS $ballet$
    AND NOT EXISTS(SELECT 1 FROM auth.users u WHERE u.id=f.user_id AND coalesce(u.raw_app_meta_data->>'role','') IN ('admin','balletmate_admin'))) AS favorite_count
  FROM public.studios s LEFT JOIN public.studio_detail_view_events v ON v.studio_id=s.id
   AND v.created_at>now()-interval '7 days'
-  AND NOT EXISTS(SELECT 1 FROM public.studio_owners o WHERE o.user_id=v.user_id AND o.status='approved')
+  AND NOT EXISTS(SELECT 1 FROM public.studio_owners o WHERE o.user_id=v.user_id)
   AND NOT EXISTS(SELECT 1 FROM public.admin_users a WHERE a.user_id=v.user_id)
   AND NOT EXISTS(SELECT 1 FROM auth.users u WHERE u.id=v.user_id AND coalesce(u.raw_app_meta_data->>'role','') IN ('admin','balletmate_admin'))
  WHERE coalesce(s.is_active,true) AND (coalesce(p_region,'전체')='전체' OR coalesce(s.district,'지역 정보 없음')=p_region)
