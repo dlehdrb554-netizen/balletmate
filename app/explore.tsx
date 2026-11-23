@@ -648,8 +648,9 @@ export default function Home() {
           </View>
           <FlatList data={searchMatches} keyExtractor={item=>item.id} style={{marginTop:12}} contentContainerStyle={{paddingBottom:8}} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
             renderItem={({item,index})=><Pressable style={styles.searchResultRow} onPress={()=>{
-              const next={latitude:item.lat,longitude:item.lng,latitudeDelta:0.018,longitudeDelta:0.018};
-              setGlobalSearchStudios(searchMatches);setSearchResultsOpen(false);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(item);setPendingMapTarget(next);setView("map");
+              // A selected search result should jump directly to that studio, not first to a broad area.
+              const next={latitude:item.lat,longitude:item.lng,latitudeDelta:0.009,longitudeDelta:0.009};
+              setGlobalSearchStudios(searchMatches);setSearchResultsOpen(false);setSelected(item);setAreaLocked(false);setMapMoved(false);setSearchedRegion(next);setRegion(next);setPendingMapTarget(next);setView("map");
             }}>
               <View style={styles.searchResultNumber}><Text style={styles.searchResultNumberText}>{index+1}</Text></View>
               <View style={{flex:1,minWidth:0}}>
