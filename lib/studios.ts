@@ -49,7 +49,12 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
     ? [bounds.latitude.toFixed(4), bounds.longitude.toFixed(4), bounds.latitudeDelta.toFixed(3), bounds.longitudeDelta.toFixed(3)].join(":")
     : "all";
   const cached = studioCache.get(key);
-  if (cached && Date.now() - cached.savedAt < CACHE_MS) return cached.rows;
+  if (cached && Date.now() - cached.savedAt < CACHE_MS) {
+    // Refresh insertion order so frequently revisited areas stay in the bounded cache.
+    studioCache.delete(key);
+    studioCache.set(key, cached);
+    return cached.rows;
+  }
   if (networkSearches >= MAX_NETWORK_SEARCHES_PER_APP_SESSION) throw new Error("이번 앱 실행 중 지도 검색 한도(40회)에 도달했습니다. 잠시 후 앱을 다시 실행해 주세요.");
   networkSearches += 1;
 
@@ -79,6 +84,12 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
     rows=(result.data??[]).map((row:any)=>({...row,days:[...new Set([...(row.days||[]),...(row.search_days||[])])],time_slots:[...new Set([...(row.time_slots||[]),...(row.search_time_slots||[])])],levels:[...new Set([...(row.levels||[]),...(row.search_levels||[])])],price_per_class:row.price_per_class??row.search_price??null,adult_classes:!!row.adult_classes||!!row.search_adult,kids_classes:!!row.kids_classes||!!row.search_kids,class_durations:row.search_class_durations||[]})) as StudioRecord[];
   }
   studioCache.set(key, { savedAt: Date.now(), rows });
+  // Keep memory bounded when users explore many different map viewports.
+  while (studioCache.size > 30) {
+    const oldestKey = studioCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    studioCache.delete(oldestKey);
+  }
   return rows;
 }
 
@@ -137,11 +148,17 @@ export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
   const existing = inFlightStudioSearches.get(key);
   if (existing) return existing;
 
-  const request = fetchStudiosInternal(bounds).finally(() => {
-    if (inFlightStudioSearches.get(key) === request) {
-      inFlightStudioSearches.delete(key);
-    }
-  });
+  const request = fetchStudiosInternal(bounds)
+    .catch((error) => {
+      // A transient network/DB failure should not consume the user's session quota.
+      networkSearches = Math.max(0, networkSearches - 1);
+      throw error;
+    })
+    .finally(() => {
+      if (inFlightStudioSearches.get(key) === request) {
+        inFlightStudioSearches.delete(key);
+      }
+    });
   inFlightStudioSearches.set(key, request);
   return request;
 }
