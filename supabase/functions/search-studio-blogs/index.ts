@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
           .select("address").eq("id", job.studio_id).maybeSingle();
         if (studioLocationError) throw new Error("학원 주소 조회 실패: " + studioLocationError.message);
         const addressText = String(studioLocation?.address ?? "");
-        const locationParts = addressText.split(/[\\s,]+/)
+        const locationParts = addressText.split(/[\s,]+/)
           .map((value) => normalize(value).replace(/(특별자치도|광역시|특별시|자치시|도|시|구|군)$/g, ""))
           .filter((value) => value.length >= 2 && !/^(대한민국|한국)$/.test(value));
         const locationTokens = [...new Set(locationParts.flatMap((value) =>
