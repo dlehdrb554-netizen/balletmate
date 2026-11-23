@@ -112,7 +112,7 @@ BEGIN
   WHERE id=p_candidate_id AND review_status='pending' FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'photo candidate not found or already reviewed'; END IF;
 
-  IF p_status='approved' AND COALESCE(candidate.material_type,'')='' THEN
+  IF p_status='approved' AND COALESCE(candidate.material_type,'')='' AND COALESCE(candidate.auto_classification,'') NOT IN ('schedule','price','poster','logo') THEN
     SELECT COALESCE(image_urls,ARRAY[]::text[]) INTO current_images
     FROM public.studios WHERE id=candidate.studio_id FOR UPDATE;
     IF current_images IS NULL THEN current_images:=ARRAY[]::text[]; END IF;
@@ -125,12 +125,12 @@ BEGIN
         updated_at=now()
       WHERE id=candidate.studio_id;
     END IF;
-  ELSIF p_status='approved' AND candidate.material_type='schedule' THEN
+  ELSIF p_status='approved' AND (candidate.material_type='schedule' OR candidate.auto_classification='schedule') THEN
     UPDATE public.studio_public_schedules
     SET image_urls=CASE WHEN candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[]))
       THEN COALESCE(image_urls,ARRAY[]::text[]) ELSE array_append(COALESCE(image_urls,ARRAY[]::text[]),candidate.image_url) END
     WHERE id=(SELECT id FROM public.studio_public_schedules WHERE studio_id=candidate.studio_id AND is_active=true ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1);
-  ELSIF p_status='approved' AND candidate.material_type='price' THEN
+  ELSIF p_status='approved' AND (candidate.material_type='price' OR candidate.auto_classification='price') THEN
     UPDATE public.studio_public_prices
     SET image_urls=CASE WHEN candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[]))
       THEN COALESCE(image_urls,ARRAY[]::text[]) ELSE array_append(COALESCE(image_urls,ARRAY[]::text[]),candidate.image_url) END
