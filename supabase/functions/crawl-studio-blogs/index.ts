@@ -257,7 +257,27 @@ Deno.serve(async (req) => {
         if (legacyError) throw new Error("기존 공식 블로그 계정 조회 실패: " + legacyError.message);
         officialAccounts = (legacyRows ?? []).map((row: { blogger_url: string }) => row.blogger_url);
       }
-      // Reject only clearly unrelated snippets before download. Ballet-related third-party
+      // A verified account registered to another academy must never be crawled
+      // into this academy, even if its post text happens to mention ballet.
+      const sourceAccountKey = blogAccountKey(String(source?.blogger_url ?? ""));
+      if (sourceAccountKey) {
+        const { data: accountOwners, error: ownerError } = await db.from("studio_blog_official_accounts")
+          .select("studio_id").eq("is_active", true).eq("blogger_url", String(source?.blogger_url ?? ""));
+        if (ownerError) throw new Error("공식 블로그 소속 확인 실패: " + ownerError.message);
+        const belongsElsewhere = (accountOwners ?? []).some((owner: { studio_id: string | null }) =>
+          !!owner.studio_id && owner.studio_id !== job.studio_id);
+        if (belongsElsewhere) {
+          const { error: rejectOwnerError } = await db.from("studio_blog_post_crawl_queue").update({
+            status: "rejected",
+            last_error: "다른 학원에 등록된 공식 블로그 계정의 게시물이므로 연결 제외",
+            updated_at: new Date().toISOString(),
+          }).eq("source_id", job.source_id);
+          if (rejectOwnerError) throw new Error("타 학원 공식 계정 게시물 제외 실패: " + rejectOwnerError.message);
+          results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "다른 학원에 등록된 공식 블로그 계정" });
+          continue;
+        }
+      }
+      // Reject only clearly unrelated snippets. Ballet-related third-party
       // posts are fetched so the full body can confirm whether this specific academy is mentioned.
       const sourceTitle = String(source?.title ?? "");
       const sourceDescription = String(source?.description ?? "");
