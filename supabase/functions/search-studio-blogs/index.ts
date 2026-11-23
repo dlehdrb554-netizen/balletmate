@@ -97,8 +97,11 @@ const branchConsistent = (
 };
 const nameMatches = (studioName: string, text: string): boolean => {
   const normalizedText = normalize(text);
-  const aliases = academyAliases(studioName).filter((alias) => alias.length >= 4);
+  const aliases = academyAliases(studioName).filter((alias) => alias.length >= 3);
   return aliases.some((alias) => {
+    if (/^[가-힣]{3}$/.test(alias)) {
+      return new RegExp("(^|[^가-힣])" + alias + "([^가-힣]|$)").test(text);
+    }
     let index = normalizedText.indexOf(alias);
     while (index !== -1) {
       const before = normalizedText[index - 1] || "";
