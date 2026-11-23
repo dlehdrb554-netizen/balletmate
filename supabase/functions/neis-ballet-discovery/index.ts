@@ -71,7 +71,6 @@ Deno.serve(async (req) => {
           academy_name: academyName,
           academy_type: clean(row.ACA_INSTI_SC_NM),
           academy_phone: clean(row.FA_TELNO),
-          academy_phone: clean(row.TELNO) || clean(row.PHONE) || clean(row.TEL),
           district_name: clean(row.ADMST_ZONE_NM),
           registration_status: clean(row.REG_STTUS_NM),
           field_name: clean(row.REALM_SC_NM),
