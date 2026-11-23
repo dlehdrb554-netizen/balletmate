@@ -19,7 +19,7 @@ ALTER TABLE public.studio_detail_view_events ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.studio_detail_view_events FROM anon,authenticated;
 
 CREATE OR REPLACE FUNCTION public.record_studio_detail_view(p_studio_id uuid)
-RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_inserted integer;
 BEGIN
  IF auth.uid() IS NULL OR NOT EXISTS(SELECT 1 FROM public.studios WHERE id=p_studio_id AND coalesce(is_active,true)) THEN RETURN false; END IF;
@@ -29,7 +29,7 @@ BEGIN
  ON CONFLICT(user_id,studio_id,event_date) DO NOTHING;
  GET DIAGNOSTICS v_inserted=ROW_COUNT;
  RETURN v_inserted>0;
-END; $;
+END; $$;
 REVOKE ALL ON FUNCTION public.record_studio_detail_view(uuid) FROM public,anon;
 GRANT EXECUTE ON FUNCTION public.record_studio_detail_view(uuid) TO authenticated;
 
