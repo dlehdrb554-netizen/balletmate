@@ -128,7 +128,8 @@ evaluated AS (
           position(e.alias_norm IN e.blogger_name_norm) > 0
           AND (
             left(e.alias_norm, 1) !~ '[a-z0-9]'
-            OR substring(e.blogger_name_norm FROM position(e.alias_norm IN e.blogger_name_norm) - 1 FOR 1) !~ '[a-z0-9]'
+            OR position(e.alias_norm IN e.blogger_name_norm) = 1
+            OR substring(e.blogger_name_norm FROM (position(e.alias_norm IN e.blogger_name_norm) - 1) FOR 1) !~ '[a-z0-9]'
           )
           AND (
             right(e.alias_norm, 1) !~ '[a-z0-9]'
@@ -141,6 +142,22 @@ evaluated AS (
           WHERE d.candidate_id = e.candidate_id
             AND position(e.alias_norm IN regexp_replace(lower(d.title || ' ' || d.description),
               '[^a-z0-9가-힣]', '', 'g')) > 0
+            AND (
+              left(e.alias_norm, 1) !~ '[a-z0-9]'
+              OR position(e.alias_norm IN regexp_replace(lower(d.title || ' ' || d.description),
+                '[^a-z0-9가-힣]', '', 'g')) = 1
+              OR substring(regexp_replace(lower(d.title || ' ' || d.description),
+                '[^a-z0-9가-힣]', '', 'g') FROM
+                (position(e.alias_norm IN regexp_replace(lower(d.title || ' ' || d.description),
+                  '[^a-z0-9가-힣]', '', 'g')) - 1) FOR 1) !~ '[a-z0-9]'
+            )
+            AND (
+              right(e.alias_norm, 1) !~ '[a-z0-9]'
+              OR substring(regexp_replace(lower(d.title || ' ' || d.description),
+                '[^a-z0-9가-힣]', '', 'g') FROM
+                (position(e.alias_norm IN regexp_replace(lower(d.title || ' ' || d.description),
+                  '[^a-z0-9가-힣]', '', 'g')) + length(e.alias_norm)) FOR 1) !~ '[a-z0-9]'
+            )
         ) >= 2
       )
     ) AS identity_evidence,
