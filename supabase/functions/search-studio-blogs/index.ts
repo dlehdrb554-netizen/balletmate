@@ -262,38 +262,42 @@ Deno.serve(async (req) => {
         // post text, Naver profile ID and repeated appearances contribute confidence.
         // Candidates are never public until an administrator approves them.
         const alias = academyAlias(String(job.studio_name));
-        const aliasTokens = String(job.studio_name).split(/[\s·ㆍ()[\\]_-]+/)
-          .map((token) => normalize(token)).filter((token) => token.length >= 2 &&
-            !/(발레|학원|스튜디오|아카데미|센터|무용|키즈|성인|교습소)$/.test(token));
+        const { data: studioLocation, error: studioLocationError } = await db.from("studios")
+          .select("address").eq("id", job.studio_id).maybeSingle();
+        if (studioLocationError) throw new Error("학원 주소 조회 실패: " + studioLocationError.message);
+        const addressText = String(studioLocation?.address ?? "");
+        const locationTokens = [...new Set((addressText.match(/(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[^\\s,]+/g) ?? [])
+          .map((value) => normalize(value)).filter((value) => value.length >= 2))];
+        const hasLocationEvidence = (value: string) => locationTokens.some((token) => normalize(value).includes(token));
         const accountCandidates = new Map<string, {
           blogger_url: string; blogger_name: string | null; samples: Array<{title:string;post_url:string}>;
-          score: number; matchCount: number;
+          directName: boolean; directPostCount: number; locationPostCount: number; balletPostCount: number; matchCount: number;
         }>();
         for (const item of items as Array<Record<string, unknown>>) {
           const bloggerUrl = cleanText(item.bloggerlink);
           const canonicalUrl = canonicalBlogUrl(bloggerUrl);
           const title = cleanText(item.title);
           const description = cleanText(item.description);
-          if (!canonicalUrl || !title || alias.length < 2) continue;
+          if (!canonicalUrl || !title || alias.length < 3) continue;
           const bloggerName = cleanText(item.bloggername);
           const accountKey = blogAccountKey(bloggerUrl);
-          const postText = normalize(title + " " + description);
+          if (knownAccounts.some((account) => blogAccountKey(account) === accountKey)) continue;
+          const postText = title + " " + description;
+          const postNorm = normalize(postText);
           const bloggerNorm = normalize(bloggerName);
           const directName = bloggerNorm.includes(alias);
-          const directPost = postText.includes(alias);
-          const tokenHits = aliasTokens.filter((token) => postText.includes(token) || bloggerNorm.includes(token)).length;
-          const balletIntent = /(발레|바레|시간표|스케줄|수강료|가격|수업|클래스|레슨|모집|파드되|작품반)/i.test(title + " " + description);
-          const profileBallet = /(ballet|balletstudio|balletacademy|barre)/i.test(accountKey + " " + bloggerName);
-          const queryNameSearch = normalize(query).includes(alias);
-          const score = directName ? 95 : directPost ? 88 : tokenHits >= 2 ? 78 :
-            profileBallet && (queryNameSearch || balletIntent) ? 68 :
-            tokenHits === 1 && balletIntent ? 55 : 0;
-          if (score < 45) continue;
-          if (knownAccounts.some((account) => blogAccountKey(account) === accountKey)) continue;
+          const directPost = postNorm.includes(alias);
+          const balletIntent = /(발레|바레|발레핏|파드되|토슈즈|바가노바|바워크|포인트슈즈|시간표|스케줄|수강료|수업|클래스|레슨|모집)/i.test(postText);
+          // Generic ballet keywords, profile IDs, and single incidental mentions are not ownership evidence.
+          if (!directName && !directPost) continue;
           const existing = accountCandidates.get(accountKey) || {
-            blogger_url: canonicalUrl, blogger_name: bloggerName || null, samples: [], score: 0, matchCount: 0,
+            blogger_url: canonicalUrl, blogger_name: bloggerName || null, samples: [],
+            directName: false, directPostCount: 0, locationPostCount: 0, balletPostCount: 0, matchCount: 0,
           };
-          existing.score = Math.max(existing.score, score);
+          existing.directName ||= directName;
+          if (directPost && balletIntent) existing.directPostCount++;
+          if (balletIntent) existing.balletPostCount++;
+          if (balletIntent && hasLocationEvidence(postText)) existing.locationPostCount++;
           existing.matchCount++;
           if (!existing.blogger_name && bloggerName) existing.blogger_name = bloggerName;
           const postUrl = cleanText(item.link);
@@ -304,6 +308,12 @@ Deno.serve(async (req) => {
           accountCandidates.set(accountKey, existing);
         }
         for (const candidate of accountCandidates.values()) {
+          const score = candidate.directName && candidate.balletPostCount >= 2 ? 94 :
+            candidate.directName && candidate.balletPostCount >= 1 && (locationTokens.length === 0 || candidate.locationPostCount >= 1) ? 82 :
+            candidate.directPostCount >= 3 && (locationTokens.length === 0 || candidate.locationPostCount >= 2) ? 88 :
+            candidate.directPostCount >= 2 && candidate.locationPostCount >= 1 ? 78 :
+            candidate.directPostCount >= 1 && candidate.locationPostCount >= 1 ? 62 : 0;
+          if (score < 60) continue;
           const { data: prior, error: priorError } = await db.from("studio_blog_account_candidates")
             .select("id,matched_post_count,sample_posts,review_status,match_score")
             .eq("studio_id", job.studio_id)
@@ -326,7 +336,7 @@ Deno.serve(async (req) => {
               blogger_name: candidate.blogger_name,
               matched_post_count: Math.max(candidate.matchCount, Number(sourceCount ?? 0), Number(prior?.matched_post_count ?? 0)),
               sample_posts: mergedSamples,
-              match_score: Math.max(candidate.score, Number(prior?.match_score ?? 0)),
+              match_score: score,
               last_seen_at: new Date().toISOString(),
             }, { onConflict: "studio_id,blogger_url" });
           if (candidateError) throw new Error("공식 블로그 후보 저장 실패: " + candidateError.message);
