@@ -92,12 +92,17 @@ Deno.serve(async(req)=>{
  // Backfill existing studios that already have a Kakao Place URL. Keep this
  // independent from new regional discovery and process only a small batch.
  let existingKakaoChecks=0,existingKakaoBlogs=0;
- const {data:backfillRows,error:backfillError}=await db.from("studios")
+ const {data:backfillCandidates,error:backfillError}=await db.from("studios")
   .select("id,name,source_url,kakao_place_blog_attempted_at")
   .eq("is_active",true)
-   .is("kakao_place_blog_checked_at",null)
-   .or("and(source_url.like.http://place.map.kakao.com/%,kakao_place_blog_attempted_at.is.null),and(source_url.like.https://place.map.kakao.com/%,kakao_place_blog_attempted_at.is.null),and(source_url.like.http://place.map.kakao.com/%,kakao_place_blog_attempted_at.lt."+new Date(Date.now()-24*60*60*1000).toISOString()+"),and(source_url.like.https://place.map.kakao.com/%,kakao_place_blog_attempted_at.lt."+new Date(Date.now()-24*60*60*1000).toISOString()+")")
-   .order("kakao_place_blog_attempted_at",{ascending:true,nullsFirst:true}).limit(6);
+  .is("kakao_place_blog_checked_at",null)
+  .or("source_url.like.http://place.map.kakao.com/%,source_url.like.https://place.map.kakao.com/%")
+  .order("kakao_place_blog_attempted_at",{ascending:true,nullsFirst:true})
+  .limit(100);
+ const retryBefore=Date.now()-24*60*60*1000;
+ const backfillRows=(backfillCandidates||[])
+  .filter((studio)=>!studio.kakao_place_blog_attempted_at||new Date(studio.kakao_place_blog_attempted_at).getTime()<retryBefore)
+  .slice(0,6);
  if(backfillError)console.error("Kakao blog backfill target query failed:",backfillError.message);
  for(const studio of backfillRows||[]){
   const placeId=String(studio.source_url||"").match(/place\.map\.kakao\.com\/(?:main\/v\/)?(\d+)/i)?.[1];
