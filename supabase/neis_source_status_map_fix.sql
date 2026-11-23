@@ -42,7 +42,10 @@ BEGIN
   END IF;
 
   IF NEW.kakao_status = 'matched' AND NULLIF(NEW.kakao_place_url, '') IS NOT NULL THEN
-    target_status := 'both';
+    SELECT CASE WHEN s.source_url = NEW.kakao_place_url THEN 'both' ELSE 'kakao_only' END
+    INTO target_status
+    FROM public.studios s
+    WHERE s.id = NEW.matched_studio_id;
   ELSE
     -- A Kakao URL on the studio row is not proof that this NEIS candidate
     -- was verified against that Kakao place. Keep it Kakao-only until the
