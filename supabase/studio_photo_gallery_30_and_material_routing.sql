@@ -51,7 +51,7 @@ BEGIN
       THEN COALESCE(image_urls,ARRAY[]::text[]) ELSE array_append(COALESCE(image_urls,ARRAY[]::text[]),candidate.image_url) END
     WHERE id=(SELECT id FROM public.studio_public_schedules
       WHERE studio_id=candidate.studio_id AND is_active=true
-      ORDER BY published_at DESC NULLS LAST, id DESC LIMIT 1);
+      ORDER BY published_at DESC NULLS LAST, id DESC LIMIT 1)\n      AND (candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[])) OR cardinality(COALESCE(image_urls,ARRAY[]::text[]))<8);
   ELSIF p_category = 'price' THEN
     UPDATE public.studio_public_prices
     SET image_urls=CASE WHEN candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[]))
@@ -129,12 +129,12 @@ BEGIN
     UPDATE public.studio_public_schedules
     SET image_urls=CASE WHEN candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[]))
       THEN COALESCE(image_urls,ARRAY[]::text[]) ELSE array_append(COALESCE(image_urls,ARRAY[]::text[]),candidate.image_url) END
-    WHERE id=(SELECT id FROM public.studio_public_schedules WHERE studio_id=candidate.studio_id AND is_active=true ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1);
+    WHERE id=(SELECT id FROM public.studio_public_schedules WHERE studio_id=candidate.studio_id AND is_active=true ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1)\n      AND (candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[])) OR cardinality(COALESCE(image_urls,ARRAY[]::text[]))<8);
   ELSIF p_status='approved' AND (candidate.material_type='price' OR candidate.auto_classification='price') THEN
     UPDATE public.studio_public_prices
     SET image_urls=CASE WHEN candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[]))
       THEN COALESCE(image_urls,ARRAY[]::text[]) ELSE array_append(COALESCE(image_urls,ARRAY[]::text[]),candidate.image_url) END
-    WHERE id=(SELECT id FROM public.studio_public_prices WHERE studio_id=candidate.studio_id AND is_active=true ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1);
+    WHERE id=(SELECT id FROM public.studio_public_prices WHERE studio_id=candidate.studio_id AND is_active=true ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1)\n      AND (rec.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[])) OR cardinality(COALESCE(image_urls,ARRAY[]::text[]))<8);
   END IF;
 
   UPDATE public.studio_photo_candidates SET review_status=p_status,reviewed_at=now(),reviewed_by=auth.uid()
