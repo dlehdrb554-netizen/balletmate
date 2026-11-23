@@ -54,7 +54,7 @@ export default function StudioManager(){
   ]);
   setOwner(!!ownerResult.data);
   setApplication(appResult.data||null);
-  if(appResult.data){setBusinessNo(appResult.data.business_registration_number||"");setBusinessName(appResult.data.business_name||studioName);setRepresentative(appResult.data.representative_name||"");setBusinessAddress(appResult.data.business_address||"");setDocumentPath(appResult.data.document_path||"");}
+  if(appResult.data){setBusinessNo(appResult.data.business_registration_number||"");setBusinessName(appResult.data.business_name||studioName);setRepresentative(appResult.data.representative_name||"");setBusinessAddress(appResult.data.business_address||"");setContactPhone(appResult.data.contact_phone||"");setBlogUrl(appResult.data.blog_url||"");setBlogVerificationCode(appResult.data.verification_code||"");}
   setGalleryCount((studioResult.data?.image_urls||[]).length);
   if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
   if(ownerResult.data){
@@ -85,42 +85,25 @@ export default function StudioManager(){
   finally{setSaving(false);}
  };
 
- const chooseCertificate=async()=>{
-  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],quality:0.9});
-  if(result.canceled||!result.assets?.[0]||!supabase||!session)return;
-  setSaving(true);
-  try{
-   const asset=result.assets[0];
-   const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1800}}],{compress:0.88,format:ImageManipulator.SaveFormat.JPEG});
-   const bytes=await (await fetch(optimized.uri)).arrayBuffer();
-   const path=session.user.id+"/"+studioId+"/"+Date.now()+"-business-registration.jpg";
-   const {error}=await supabase.storage.from("studio-business-documents").upload(path,bytes,{contentType:"image/jpeg",upsert:true});
-   if(error)throw error;
-   setDocumentPath(path);
-   Alert.alert("서류 업로드 완료","사업자등록증 사진을 안전한 비공개 저장소에 올렸습니다.");
-  }catch(e:any){Alert.alert("업로드 실패",e.message||"사업자등록증을 업로드하지 못했습니다.");}
-  finally{setSaving(false);}
- };
-
  const submitApplication=async()=>{
   if(!supabase||!session)return;
-  if(!/^\d{3}-?\d{2}-?\d{5}$/.test(businessNo.replace(/\s/g,""))||!businessName.trim()||!representative.trim()||!businessAddress.trim()||!documentPath){
-   Alert.alert("신청 정보 확인","사업자등록번호, 상호, 대표자, 사업장 주소와 사업자등록증 사진을 모두 입력해 주세요.");return;
+  if(!/^\d{3}-?\d{2}-?\d{5}$/.test(businessNo.replace(/\s/g,""))||!businessName.trim()||!representative.trim()||!businessAddress.trim()||!contactPhone.trim()||!/^https?:\/\/(m\.)?blog\.naver\.com\//i.test(blogUrl)||!blogVerificationCode.trim()){
+   Alert.alert("신청 정보 확인","사업자번호, 상호, 대표자, 주소, 연락처, 네이버 블로그 주소와 인증 코드를 모두 입력해 주세요.");return;
   }
   setSaving(true);
   try{
-   const {data,error}=await supabase.rpc("submit_studio_owner_application",{
+   const {data,error}=await supabase.rpc("submit_studio_owner_application_secure",{
     p_studio_id:studioId,p_business_registration_number:businessNo,
     p_business_name:businessName.trim(),p_representative_name:representative.trim(),
-    p_business_address:businessAddress.trim(),p_document_path:documentPath
+    p_business_address:businessAddress.trim(),p_contact_phone:contactPhone.trim(),
+    p_blog_url:blogUrl.trim(),p_verification_code:blogVerificationCode.trim()
    });
    if(error)throw error;
-   Alert.alert("관리 권한 신청 완료","사업자 정보 자동 대조를 마쳤습니다. 최종 권한은 운영자 서류 심사 후 활성화됩니다.");
+   Alert.alert("관리 권한 신청 완료","사업자등록증은 저장하지 않습니다. 운영자가 블로그 인증 코드와 연락처, 운영 관계를 확인한 뒤 승인합니다.");
    await load();
   }catch(e:any){Alert.alert("신청 실패",e.message||"관리 권한 신청을 제출하지 못했습니다.");}
   finally{setSaving(false);}
  };
-
  const pickImages=async(multiple=true,maxCount=8)=>{
   const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:multiple,quality:0.9,selectionLimit:maxCount});
   if(result.canceled||!result.assets?.length||!supabase||!session)return [] as string[];
@@ -230,14 +213,12 @@ export default function StudioManager(){
   :application&&application.status!=="needs_info"?
    <View style={s.card}><Text style={s.cardTitle}>관리 권한 신청 상태</Text><Text style={s.status}>{application.status==="pending"?"운영자 심사 대기":application.status==="needs_info"?"추가 서류 확인 필요":application.status==="approved"?"승인 완료":"반려"}</Text>{application.is_transfer_request&&<Text style={s.body}>기존 관리자가 등록된 학원으로, 기존 관리자 변경 심사로 접수되었습니다. 운영자 승인 전까지 기존 권한은 유지됩니다.</Text>}<Text style={s.body}>자동 대조 결과: {application.auto_match_status==="match"?"학원명·주소 일치":"운영자 확인 필요"}</Text>{application.review_note&&<Text style={s.body}>운영자 메모: {application.review_note}</Text>}{application.status==="rejected"&&button("다시 신청하기",()=>setApplication(null))}</View>
   :<View style={s.card}>
-    <Text style={s.cardTitle}>{application?.status==="needs_info"?"추가 정보 제출":"학원 관리자 권한 신청"}</Text>{application?.status==="needs_info"&&<Text style={s.body}>운영자가 추가 확인을 요청했습니다. 보완한 정보와 서류를 다시 제출해 주세요. {application.review_note||""}</Text>}<Text style={s.body}>사업자등록증을 제출하면 입력한 상호·주소와 학원 등록 정보를 자동 대조하고, 사업자번호 중복 여부를 확인합니다. 자동 대조는 참고 결과이며, 서류 원본과 실제 운영 관계는 운영자가 최종 심사합니다.</Text>
+    <Text style={s.cardTitle}>{application?.status==="needs_info"?"추가 정보 제출":"학원 관리자 권한 신청"}</Text>{application?.status==="needs_info"&&<Text style={s.body}>운영자가 추가 확인을 요청했습니다. 보완한 정보와 서류를 다시 제출해 주세요. {application.review_note||""}</Text>}<Text style={s.body}>사업자등록증 등 민감 서류는 수집하거나 저장하지 않습니다. 운영자가 전화로 연락처를 확인하고, 네이버 블로그에 인증 문구가 게시됐는지 확인한 뒤 최종 승인합니다.</Text>
     {field("사업자등록번호 *",businessNo,setBusinessNo,"000-00-00000","number-pad")}
-    {field("사업자등록증 상호 *",businessName,setBusinessName,"등록증에 표시된 상호")}
-    {field("대표자명 *",representative,setRepresentative,"대표자 성명")}
-    {field("사업장 주소 *",businessAddress,setBusinessAddress,"사업자등록증에 표시된 주소")}
-    {button(documentPath?"사업자등록증 업로드 완료 · 다시 선택":"사업자등록증 사진 업로드 *",chooseCertificate,saving)}
-    {!!documentPath&&<Text style={s.body}>비공개 저장소에 업로드됨 · {documentPath.split("/").pop()}</Text>}
-    {button(application?.status==="needs_info"?"보완 정보 다시 제출":"운영자 심사 신청",submitApplication,saving||!documentPath)}
+    {field("상호 *",businessName,setBusinessName,"학원 상호")}{field("대표자명 *",representative,setRepresentative,"대표자 성명")}{field("사업장 주소 *",businessAddress,setBusinessAddress,"학원 주소")}
+    {field("연락처 *",contactPhone,setContactPhone,"운영자가 확인 전화할 번호","phone-pad")}{field("공식 네이버 블로그 URL *",blogUrl,setBlogUrl,"https://blog.naver.com/아이디")}
+    <View style={{backgroundColor:C.pale,borderRadius:10,padding:11,marginTop:10}}><Text style={s.body}>아래 인증 문구를 공식 블로그의 새 게시물 본문에 그대로 올려 주세요. 확인 후 게시물은 삭제해도 됩니다.</Text><Text style={{fontSize:15,fontWeight:"900",color:C.purple,marginTop:6}}>{blogVerificationCode||"인증 코드를 생성하세요"}</Text><Pressable onPress={()=>setBlogVerificationCode("BALLET-"+Math.random().toString(36).slice(2,8).toUpperCase())} style={{marginTop:8}}><Text style={s.buttonText}>인증 코드 새로 만들기</Text></Pressable></View>
+    {button(application?.status==="needs_info"?"보완 정보 다시 제출":"운영자 심사 신청",submitApplication,saving)}
    </View>}
  </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
