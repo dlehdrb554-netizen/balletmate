@@ -252,6 +252,7 @@ SELECT
   different_admin_area_mentioned,
   owned_by_another_studio,
   reassessment_decision,
+  count(*) OVER (PARTITION BY reassessment_decision) AS decision_bucket_count,
   evidence_text
 FROM decisions
 ORDER BY
@@ -261,7 +262,7 @@ ORDER BY
   unique_post_count DESC,
   candidate_id;
 
--- Separate distribution summary, intentionally standalone for easy SQL Editor use.
+-- Separate pending/approved status summary, intentionally standalone for easy SQL Editor use.
 SELECT
   review_status,
   count(*) AS candidate_count,
