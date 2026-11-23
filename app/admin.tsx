@@ -645,7 +645,7 @@ export default function Admin() {
             }
           }
           setRows(current=>current.map(row=>row.id===studioId?{...row,image_urls:(row.image_urls||[]).filter(url=>url!==imageUrl)}:row));
-          setForm(current=>({...current,image_urls:current.image_urls.split(/[\\n,]+/).map(value=>value.trim()).filter(value=>value&&value!==imageUrl).join("\\n")}));
+          setForm(current=>({...current,image_urls:parseStudioImageUrls(current.image_urls).filter(value=>value!==imageUrl).join("\n")}));
           Alert.alert("삭제 완료","학원 갤러리에서 사진을 제거했습니다."+storageDeleteWarning);
         }
         setBusy(false);
@@ -1248,7 +1248,7 @@ export default function Admin() {
     if(!form.name.trim()||!form.latitude.trim()||!form.longitude.trim()){Alert.alert("필수 정보","학원명과 위도/경도를 입력하세요.");return;}
     if(form.website_url.trim()&&!/^https?:\/\//i.test(form.website_url.trim())){Alert.alert("홈페이지 주소","공식 홈페이지는 http:// 또는 https:// 주소로 입력하세요.");return;}
     if(form.source_url.trim()&&!/^https?:\/\//i.test(form.source_url.trim())){Alert.alert("출처 주소","출처 URL은 http:// 또는 https:// 주소로 입력하세요.");return;}
-    const imageUrls=form.image_urls.split(/[\n,]+/).map(v=>v.trim()).filter(Boolean);
+    const imageUrls=parseStudioImageUrls(form.image_urls);
     if(imageUrls.length>10||imageUrls.some(v=>!/^https:\/\//i.test(v))){Alert.alert("사진 주소 확인","사진은 HTTPS 주소로 최대 10개까지 입력할 수 있습니다.");return;}
     const verifiedAt=form.verified_at.trim()?new Date(form.verified_at.trim()):null;
     if(verifiedAt&&!Number.isFinite(verifiedAt.getTime())){Alert.alert("확인 날짜","확인 날짜는 YYYY-MM-DD 형식으로 입력하세요.");return;}
