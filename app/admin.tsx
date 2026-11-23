@@ -129,6 +129,8 @@ export default function Admin() {
   const [photoAiTestBusy,setPhotoAiTestBusy]=useState(false);
   const [photoCandidateTotal,setPhotoCandidateTotal]=useState(0);
   const [photoCandidateOffset,setPhotoCandidateOffset]=useState(0);
+  const [selectedPhotoCandidateIds,setSelectedPhotoCandidateIds]=useState<number[]>([]);
+  const [photoToolsOpen,setPhotoToolsOpen]=useState(false);
   const [photoCandidateStatus,setPhotoCandidateStatus]=useState<"pending"|"rejected"|"approved">("pending");
   const [failedPhotoCandidateIds,setFailedPhotoCandidateIds]=useState<number[]>([]);
   const [photoFaceResults,setPhotoFaceResults]=useState<Record<number,{status:FaceScanState;count:number;error?:string}>>({});
@@ -454,6 +456,26 @@ export default function Admin() {
     if(error)Alert.alert("추가 사진 조회 실패",error.message);
     else {setPhotoCandidateRows(data||[]);setPhotoCandidateOffset(start+(data||[]).length);}
     setPhotoReviewBusy(false);
+  };
+  const togglePhotoCandidateSelection=(id:number)=>{
+    setSelectedPhotoCandidateIds(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
+  };
+  const classifySelectedPhotoCandidates=async(category:"ballet_class"|"schedule"|"price"|"poster"|"unrelated")=>{
+    if(!supabase||photoReviewBusy||!selectedPhotoCandidateIds.length)return;
+    const targets=photoCandidateRows.filter(item=>selectedPhotoCandidateIds.includes(Number(item.id)));
+    if(!targets.length){setSelectedPhotoCandidateIds([]);return;}
+    setPhotoReviewBusy(true);
+    let completed=0;const failures:number[]=[];
+    for(const item of targets){
+      const {error}=await supabase.rpc("admin_manual_classify_studio_photo_candidate",{p_candidate_id:Number(item.id),p_category:category});
+      if(error)failures.push(Number(item.id));else completed++;
+    }
+    const completedIds=targets.filter(item=>!failures.includes(Number(item.id))).map(item=>Number(item.id));
+    setPhotoCandidateRows(current=>current.filter(item=>!completedIds.includes(Number(item.id))));
+    setPhotoCandidateTotal(value=>Math.max(0,value-completed));
+    setSelectedPhotoCandidateIds(failures);
+    setPhotoReviewBusy(false);
+    Alert.alert("일괄 판정 완료",completed+"장 처리"+(failures.length?" · 실패 "+failures.length+"장 (선택 상태로 남겼습니다)":""));
   };
   const manuallyClassifyPhotoCandidate=async(item:any,category:"ballet_class"|"schedule"|"price"|"poster"|"logo"|"portrait"|"unrelated"|"unknown")=>{
     if(!supabase||photoReviewBusy)return;
@@ -1473,14 +1495,16 @@ export default function Admin() {
   </View>
   <Text style={styles.hint}>{photoCandidateStatus==="pending"?"검수 대기":photoCandidateStatus==="rejected"?"AI 제외":"승인됨"} {photoCandidateTotal.toLocaleString("ko-KR")}건 · 불러온 {photoCandidateRows.length}건 · 현재 필터 {photoFilteredCandidates.length}건</Text>
   <Text style={styles.hint}>AI가 사진 내용을 분류해 발레 관련 사진·시간표·가격표·포스터·로고는 검수 없이 자동 연계합니다. 얼굴이 보이는 인물 사진·무관 이미지·판단 불가 또는 신뢰도 60% 미만은 자동 제외합니다. OCR은 하지 않습니다.</Text>
-  <View style={styles.photoFilterRow}>{([{key:"pending",label:"검수 대기"},{key:"rejected",label:"AI 제외"},{key:"approved",label:"승인됨"}] as const).map(option=><Pressable key={option.key} style={[styles.photoFilterButton,photoCandidateStatus===option.key&&styles.photoFilterButtonActive]} onPress={()=>{setPhotoCandidateStatus(option.key);setPhotoMaterialFilter("all");setPhotoAutoFilter("all");setPhotoCandidateRows([]);setPhotoCandidateTotal(0);setPhotoCandidateOffset(0);}}><Text style={[styles.photoFilterText,photoCandidateStatus===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><View style={styles.photoFilterRow}><Pressable style={styles.secondary} disabled={photoAiTestBusy||photoAutoScanBusy||photoReviewBusy} onPress={testPhotoAIConnection}><Text style={styles.secondaryText}>{photoAiTestBusy?"AI 연결 확인 중…":"Cloudflare AI 연결 테스트"}</Text></Pressable><Pressable style={styles.secondary} disabled={photoAutoScanBusy||photoReviewBusy||photoAiTestBusy} onPress={runPhotoAutoScan}><Text style={styles.secondaryText}>{photoAutoScanBusy?"워커 실행 중…":"자동 분류 워커 1회 실행"}</Text></Pressable></View>
+  <View style={styles.photoFilterRow}>{([{key:"pending",label:"검수 대기"},{key:"rejected",label:"AI 제외"},{key:"approved",label:"승인됨"}] as const).map(option=><Pressable key={option.key} style={[styles.photoFilterButton,photoCandidateStatus===option.key&&styles.photoFilterButtonActive]} onPress={()=>{setPhotoCandidateStatus(option.key);setSelectedPhotoCandidateIds([]);setPhotoMaterialFilter("all");setPhotoAutoFilter("all");setPhotoCandidateRows([]);setPhotoCandidateTotal(0);setPhotoCandidateOffset(0);}}><Text style={[styles.photoFilterText,photoCandidateStatus===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><Pressable onPress={()=>setPhotoToolsOpen(value=>!value)} style={{alignSelf:"flex-start",paddingVertical:5}}><Text style={styles.refresh}>{photoToolsOpen?"운영 도구 접기":"AI 운영 도구 펼치기"}　⌄</Text></Pressable>{photoToolsOpen&&<View style={[styles.photoFilterRow,{backgroundColor:"#F8F6FB",padding:8,borderRadius:10}]}><Pressable style={styles.secondary} disabled={photoAiTestBusy||photoAutoScanBusy||photoReviewBusy} onPress={testPhotoAIConnection}><Text style={styles.secondaryText}>{photoAiTestBusy?"AI 연결 확인 중…":"AI 연결 테스트"}</Text></Pressable><Pressable style={styles.secondary} disabled={photoAutoScanBusy||photoReviewBusy||photoAiTestBusy} onPress={runPhotoAutoScan}><Text style={styles.secondaryText}>{photoAutoScanBusy?"워커 실행 중…":"자동 분류 실행"}</Text></Pressable></View>}
   <View style={styles.photoFilterRow}>{([{key:"unclassified",label:"자료 미분류"},{key:"price",label:"가격"},{key:"schedule",label:"시간표"},{key:"other",label:"기타"},{key:"all",label:"전체"}] as {key:typeof photoMaterialFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoMaterialFilter(option.key)} style={[styles.photoFilterButton,photoMaterialFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoMaterialFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View><View style={styles.photoFilterRow}>{([{key:"priority",label:"발레 우선"},{key:"ballet",label:"AI 공개 대상"},{key:"excluded",label:"AI 자동 제외"},{key:"suspect",label:"의심/보류"},{key:"all",label:"전체"}] as {key:PhotoAutoFilter;label:string}[]).map(option=><Pressable key={option.key} onPress={()=>setPhotoAutoFilter(option.key)} style={[styles.photoFilterButton,photoAutoFilter===option.key&&styles.photoFilterButtonActive]}><Text style={[styles.photoFilterText,photoAutoFilter===option.key&&styles.photoFilterTextActive]}>{option.label}</Text></Pressable>)}</View>
   {photoAutoFilter==="priority"&&<Text style={styles.hint}>AI 자동 분류 결과를 우선 표시합니다. 자동 처리 실패 사진은 재시도 대상입니다.</Text>}
   {photoAutoFilter==="suspect"&&<Text style={styles.hint}>AI가 인물·무관·판단 불가로 분류한 제외 사진입니다.</Text>}
   {photoAutoFilter==="ballet"&&<Text style={styles.hint}>AI가 공개 대상으로 분류한 발레 관련 사진·자료 후보입니다.</Text>}{photoAutoFilter==="excluded"&&<Text style={styles.hint}>AI가 인물·무관·판단 불가 또는 신뢰도 부족으로 제외하는 유형입니다.</Text>}{photoAutoFilter==="all"&&<Text style={styles.hint}>AI 분류와 관계없이 불러온 후보 전체를 표시합니다.</Text>}
+  <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:8,marginBottom:6}}><Text style={styles.hint}>사진을 선택한 뒤 아래 판정 버튼을 누르세요 · 선택 {selectedPhotoCandidateIds.length}장</Text><Pressable onPress={()=>setSelectedPhotoCandidateIds(photoFilteredCandidates.map(item=>Number(item.id)))}><Text style={styles.refresh}>현재 결과 전체 선택</Text></Pressable></View>{selectedPhotoCandidateIds.length>0&&<View style={{backgroundColor:"#F2ECFF",borderRadius:12,padding:10,marginBottom:10,gap:8}}><View style={{flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:c.ink}}>선택한 {selectedPhotoCandidateIds.length}장 일괄 판정</Text><Pressable onPress={()=>setSelectedPhotoCandidateIds([])}><Text style={styles.refresh}>선택 해제</Text></Pressable></View><View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>{([{key:"ballet_class",label:"발레 사진"},{key:"schedule",label:"시간표"},{key:"price",label:"가격표"},{key:"poster",label:"포스터·로고"},{key:"unrelated",label:"제외"}] as const).map(option=><Pressable key={option.key} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifySelectedPhotoCandidates(option.key)} style={{backgroundColor:"#FFFFFF",borderRadius:8,paddingHorizontal:11,paddingVertical:8,borderWidth:1,borderColor:"#DCD2F0"}}><Text style={{fontSize:11,fontWeight:"700",color:c.purple}}>{option.label}</Text></Pressable>)}</View></View>}
   {photoReviewBusy&&<ActivityIndicator color={c.purple}/>}
-  {photoFilteredCandidates.map(item=><View key={"photo-candidate-"+item.id} style={styles.photoReviewCard}>
+  {photoFilteredCandidates.map(item=><View key={"photo-candidate-"+item.id} style={[styles.photoReviewCard,selectedPhotoCandidateIds.includes(Number(item.id))&&{borderColor:c.purple,borderWidth:2}]}>
     
+    <Pressable onPress={()=>togglePhotoCandidateSelection(Number(item.id))} style={{position:"absolute",top:7,left:7,zIndex:3,backgroundColor:"#FFFFFF",borderRadius:7,padding:4}}><Ionicons name={selectedPhotoCandidateIds.includes(Number(item.id))?"checkbox":"square-outline"} size={23} color={c.purple}/></Pressable>
     {failedPhotoCandidateIds.includes(Number(item.id))
       ? <View style={styles.photoReviewImageFallback}><Ionicons name="image-outline" size={20} color={c.muted}/><Text style={styles.compactSecondary}>미리보기 차단</Text></View>
       : <Image source={{uri:item.image_url,headers:{"Referer":item.source_page_url||"https://blog.naver.com/"}}} style={styles.photoReviewImage} resizeMode="cover" onError={()=>setFailedPhotoCandidateIds(ids=>ids.includes(Number(item.id))?ids:[...ids,Number(item.id)])}/>}
@@ -1495,7 +1519,7 @@ export default function Admin() {
       </View>
     </View>
     <View style={styles.photoReviewActions}>
-      {photoCandidateStatus==="pending"&&<Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoCandidateAI(item)}><Text style={styles.photoReviewRejectText}>AI 재분석 및 자동 처리</Text></Pressable>}
+      {photoCandidateStatus==="pending"&&<Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoCandidateAI(item)}><Text style={styles.photoReviewRejectText}>AI 재분석</Text></Pressable>}
     </View>
   </View>)}
   {!photoCandidateRows.length&&!photoReviewBusy&&<Text style={styles.hint}>검토 대기 사진이 없습니다. 학원 관리에서 공식 홈페이지 사진 수집을 실행하면 후보가 여기에 표시됩니다.</Text>}{photoCandidateOffset<photoCandidateTotal&&<Pressable style={styles.secondary} disabled={photoReviewBusy} onPress={loadMorePhotoCandidates}><Text style={styles.secondaryText}>다음 사진 12장</Text></Pressable>}
