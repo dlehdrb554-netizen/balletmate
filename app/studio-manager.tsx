@@ -19,14 +19,11 @@ export default function StudioManager(){
  const [saving,setSaving]=useState(false);
  const [owner,setOwner]=useState(false);
  const [application,setApplication]=useState<any>(null);
- const [businessNo,setBusinessNo]=useState("");
- const [businessName,setBusinessName]=useState(studioName);
- const [representative,setRepresentative]=useState("");
- const [businessAddress,setBusinessAddress]=useState("");
+ const [verificationMethod,setVerificationMethod]=useState<"blog"|"phone"|"manual">("blog");
  const [contactPhone,setContactPhone]=useState("");
+ const [studioPublicPhone,setStudioPublicPhone]=useState("");
  const [blogUrl,setBlogUrl]=useState("");
  const [blogVerificationCode,setBlogVerificationCode]=useState("");
- const [documentPath,setDocumentPath]=useState("");
  const [galleryCount,setGalleryCount]=useState(0);
  const [profileName,setProfileName]=useState(studioName);
  const [profileDistrict,setProfileDistrict]=useState("");
@@ -52,7 +49,7 @@ export default function StudioManager(){
   if(!current){setOwner(false);setApplication(null);setLoading(false);return;}
   const [ownerResult,appResult,studioResult]=await Promise.all([
    supabase.from("studio_owners").select("studio_id").eq("studio_id",studioId).eq("user_id",current.user.id).maybeSingle(),
-   supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,is_transfer_request,business_registration_number,business_name,representative_name,business_address,document_path,contact_phone,blog_url,verification_code").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+   supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,is_transfer_request,business_name,contact_phone,blog_url,verification_code,verification_method").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
    supabase.from("studios").select("image_urls,name,district,address,phone,website_url,description").eq("id",studioId).maybeSingle()
   ]);
   setOwner(!!ownerResult.data);
@@ -89,20 +86,23 @@ export default function StudioManager(){
  };
 
  const submitApplication=async()=>{
-  if(!supabase||!session)return;
-  if(!/^\d{3}-?\d{2}-?\d{5}$/.test(businessNo.replace(/\s/g,""))||!businessName.trim()||!representative.trim()||!businessAddress.trim()||!contactPhone.trim()||!/^https?:\/\/(m\.)?blog\.naver\.com\//i.test(blogUrl)||!blogVerificationCode.trim()){
-   Alert.alert("신청 정보 확인","사업자번호, 상호, 대표자, 주소, 연락처, 네이버 블로그 주소와 인증 코드를 모두 입력해 주세요.");return;
+  if(!supabase||!session){Alert.alert("로그인 필요","로그인 후 신청해 주세요.");return;}
+  if(verificationMethod==="blog"&&(!/^https?:\\/\\/(m\\.)?blog\\.naver\\.com\\//i.test(blogUrl)||!blogVerificationCode.trim())){
+   Alert.alert("블로그 인증 정보 확인","공식 네이버 블로그 주소와 인증 코드를 입력해 주세요.");return;
+  }
+  if(verificationMethod==="phone"&&!contactPhone.trim()&&!studioPublicPhone.trim()){
+   Alert.alert("전화 확인 정보","학원에 공개된 전화번호가 없으면 확인 가능한 연락처를 입력해 주세요.");return;
   }
   setSaving(true);
   try{
-   const {data,error}=await supabase.rpc("submit_studio_owner_application_secure",{
-    p_studio_id:studioId,p_business_registration_number:businessNo,
-    p_business_name:businessName.trim(),p_representative_name:representative.trim(),
-    p_business_address:businessAddress.trim(),p_contact_phone:contactPhone.trim(),
-    p_blog_url:blogUrl.trim(),p_verification_code:blogVerificationCode.trim()
+   const {data,error}=await supabase.rpc("submit_studio_owner_application_light",{
+    p_studio_id:studioId,p_verification_method:verificationMethod,
+    p_contact_phone:contactPhone.trim()||studioPublicPhone.trim(),
+    p_blog_url:verificationMethod==="blog"?blogUrl.trim():"",
+    p_verification_code:verificationMethod==="blog"?blogVerificationCode.trim():""
    });
    if(error)throw error;
-   Alert.alert("관리 권한 신청 완료","사업자등록증은 저장하지 않습니다. 운영자가 블로그 인증 코드와 연락처, 운영 관계를 확인한 뒤 승인합니다.");
+   Alert.alert("관리 권한 신청 완료","개인 민감정보와 서류는 수집하지 않습니다. 운영자가 선택한 방법으로 운영 관계를 확인 후 승인합니다.");
    await load();
   }catch(e:any){Alert.alert("신청 실패",e.message||"관리 권한 신청을 제출하지 못했습니다.");}
   finally{setSaving(false);}
@@ -216,12 +216,19 @@ export default function StudioManager(){
   :application&&application.status!=="needs_info"?
    <View style={s.card}><Text style={s.cardTitle}>관리 권한 신청 상태</Text><Text style={s.status}>{application.status==="pending"?"운영자 심사 대기":application.status==="needs_info"?"추가 서류 확인 필요":application.status==="approved"?"승인 완료":"반려"}</Text>{application.is_transfer_request&&<Text style={s.body}>기존 관리자가 등록된 학원으로, 기존 관리자 변경 심사로 접수되었습니다. 운영자 승인 전까지 기존 권한은 유지됩니다.</Text>}<Text style={s.body}>자동 대조 결과: {application.auto_match_status==="match"?"학원명·주소 일치":"운영자 확인 필요"}</Text>{application.review_note&&<Text style={s.body}>운영자 메모: {application.review_note}</Text>}{application.status==="rejected"&&button("다시 신청하기",()=>setApplication(null))}</View>
   :<View style={s.card}>
-    <Text style={s.cardTitle}>{application?.status==="needs_info"?"추가 정보 제출":"학원 관리자 권한 신청"}</Text>{application?.status==="needs_info"&&<Text style={s.body}>운영자가 추가 확인을 요청했습니다. 보완한 정보와 서류를 다시 제출해 주세요. {application.review_note||""}</Text>}<Text style={s.body}>사업자등록증 등 민감 서류는 수집하거나 저장하지 않습니다. 운영자가 전화로 연락처를 확인하고, 네이버 블로그에 인증 문구가 게시됐는지 확인한 뒤 최종 승인합니다.</Text>
-    {field("사업자등록번호 *",businessNo,setBusinessNo,"000-00-00000","number-pad")}
-    {field("상호 *",businessName,setBusinessName,"학원 상호")}{field("대표자명 *",representative,setRepresentative,"대표자 성명")}{field("사업장 주소 *",businessAddress,setBusinessAddress,"학원 주소")}
-    {field("연락처 *",contactPhone,setContactPhone,"운영자가 확인 전화할 번호","phone-pad")}{field("공식 네이버 블로그 URL *",blogUrl,setBlogUrl,"https://blog.naver.com/아이디")}
-    <View style={{backgroundColor:C.pale,borderRadius:10,padding:11,marginTop:10}}><Text style={s.body}>아래 인증 문구를 공식 블로그의 새 게시물 본문에 그대로 올려 주세요. 확인 후 게시물은 삭제해도 됩니다.</Text><Text style={{fontSize:15,fontWeight:"900",color:C.purple,marginTop:6}}>{blogVerificationCode||"인증 코드를 생성하세요"}</Text><Pressable onPress={()=>setBlogVerificationCode("BALLET-"+Math.random().toString(36).slice(2,8).toUpperCase())} style={{marginTop:8}}><Text style={s.buttonText}>인증 코드 새로 만들기</Text></Pressable></View>
-    {button(application?.status==="needs_info"?"보완 정보 다시 제출":"운영자 심사 신청",submitApplication,saving)}
+    <Text style={s.cardTitle}>{application?.status==="needs_info"?"추가 확인 정보 제출":"학원 관리자 권한 신청"}</Text>{application?.status==="needs_info"&&<Text style={s.body}>운영자가 확인을 요청했습니다. 다시 제출해 주세요. {application.review_note||""}</Text>}
+    <Text style={s.body}>이메일 또는 소셜 로그인 계정으로 신청하고 아래 방법 중 하나로 운영 관계를 확인합니다. 사업자번호·대표자·주소·등록증은 수집하지 않습니다. 확인 후 운영자 승인을 받습니다.</Text>
+    <View style={{flexDirection:"row",gap:7,marginTop:10,flexWrap:"wrap"}}>
+      {([{value:"blog",label:"공식 블로그 인증"},{value:"phone",label:"학원 전화 확인"},{value:"manual",label:"운영자 직접 확인"}] as const).map(option=><Pressable key={option.value} onPress={()=>setVerificationMethod(option.value)} style={{paddingHorizontal:11,paddingVertical:9,borderRadius:10,backgroundColor:verificationMethod===option.value?C.purple:"#F2F0F6"}}><Text style={{fontSize:11,fontWeight:"800",color:verificationMethod===option.value?"#fff":C.ink}}>{option.label}</Text></Pressable>)}
+    </View>
+    {verificationMethod==="blog"&&<>
+      {field("공식 네이버 블로그 URL *",blogUrl,setBlogUrl,"https://blog.naver.com/아이디")}
+      <View style={{backgroundColor:C.pale,borderRadius:10,padding:11,marginTop:10}}><Text style={s.body}>공식 블로그 새 게시물에 인증 문구를 올려 주세요. 확인 후 게시물은 삭제해도 됩니다.</Text><Text style={{fontSize:15,fontWeight:"900",color:C.purple,marginTop:6}}>{blogVerificationCode||"인증 코드를 생성하세요"}</Text><Pressable onPress={()=>setBlogVerificationCode("BALLET-"+Math.random().toString(36).slice(2,8).toUpperCase())} style={{marginTop:8}}><Text style={s.buttonText}>인증 코드 생성</Text></Pressable></View>
+    </>}
+    {verificationMethod==="phone"&&<>{studioPublicPhone?<Text style={s.body}>등록된 공개 전화번호: {studioPublicPhone} (운영자가 직접 전화 확인)</Text>:field("확인 가능한 전화번호 *",contactPhone,setContactPhone,"전화 확인에 사용할 번호","phone-pad")}</>}
+    {verificationMethod==="manual"&&<Text style={s.body}>운영자가 공개 연락처, 공식 채널 또는 기타 자료로 운영 관계를 확인합니다. 필요 시 신청 계정으로 추가 안내합니다.</Text>}
+    {button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving)}
+   </View>
    </View>}
  </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
