@@ -3,38 +3,6 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-function isBlockedWesebPhotoSource(raw: string): boolean {
-  try {
-    const url = new URL(raw);
-    const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    return host === "weseb.com" &&
-      url.pathname.toLowerCase() === "/sjb/m.php" &&
-      url.searchParams.get("board")?.toLowerCase() === "apartment" &&
-      url.searchParams.get("command")?.toLowerCase() === "body" &&
-      url.searchParams.get("no") === "16737";
-  } catch { return false; }
-}
-function isBlockedSchool24PhotoSource(raw: string): boolean {
-  try {
-    const url = new URL(raw);
-    const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    return host === "school24.kr" && url.pathname.toLowerCase().replace(/\/$/, "") === "/academy/a/j10-3000069628";
-  } catch { return false; }
-}
-function isNeisHost(hostname: string): boolean { const host=hostname.toLowerCase().replace(/\\.$/,""); return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr"); }
-
-function blogAccountKey(raw: string | null | undefined): string {
-  try {
-    const url = new URL(String(raw ?? ""));
-    if (!["blog.naver.com", "m.blog.naver.com"].includes(url.hostname.toLowerCase())) return "";
-    const queryId = url.searchParams.get("blogId") || url.searchParams.get("blogid");
-    if (queryId) return queryId.trim().toLowerCase();
-    return url.pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
-  } catch {
-    return "";
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST 요청만 허용됩니다." }, 405);
   const secret = Deno.env.get("CRAWL_WORKER_SECRET");
