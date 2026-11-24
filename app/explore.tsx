@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
-import { fetchStudios, fetchStudioById, searchStudiosByName, searchStudiosByKakao, StudioRecord } from "../lib/studios";
+import { fetchStudios, fetchStudioById, searchStudiosByName, searchStudiosByKakao, isExcludedStudioSearchResult, StudioRecord } from "../lib/studios";
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
 import { searchStudiosByClassFilters, searchStudioIdsByClassName } from "../lib/class-search";
 import { fetchCouponsForStudio, StudioCoupon } from "../lib/coupons";
@@ -394,7 +394,7 @@ export default function Home() {
     let matchingClassIds=classSearchIds;
     if(!mapped.length&&supabase&&query.length>=2){try{matchingClassIds=await searchStudioIdsByClassName(query);if(requestId!==searchSubmitRequestId.current)return;setClassSearchIds(matchingClassIds);}catch{}}
     if(requestId!==searchSubmitRequestId.current)return;
-    const matching=[...new Map([...mapped,...studios.filter(studio=>studio.name.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.area.toLowerCase().includes(q))].map(studio=>[studio.id,studio])).values()];
+    const matching=[...new Map([...mapped,...studios.filter(studio=>studio.name.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.area.toLowerCase().includes(q))].filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
     if(matching.length){
       setAreaLocked(false);
       const ordered=matching.sort((a,b)=>a.name.localeCompare(b.name,"ko")||String(a.address||a.area).localeCompare(String(b.address||b.area),"ko"));
