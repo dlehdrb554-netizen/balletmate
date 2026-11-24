@@ -196,7 +196,16 @@ Deno.serve(async (req) => {
         .from("studio_blog_official_accounts").select("id")
         .eq("studio_id", job.studio_id).eq("is_active", true).limit(1);
       if (registeredOfficialError) throw new Error("기등록 공식 블로그 확인 실패: " + registeredOfficialError.message);
-      if (registeredOfficialRows?.length) {
+      let hasRegisteredOfficialBlog = Boolean(registeredOfficialRows?.length);
+      if (!hasRegisteredOfficialBlog) {
+        const { data: legacyOfficialRows, error: legacyOfficialError } = await db
+          .from("studio_blog_official_accounts").select("id")
+          .is("studio_id", null).eq("studio_name", String(job.studio_name))
+          .eq("is_active", true).limit(1);
+        if (legacyOfficialError) throw new Error("기존 공식 블로그 확인 실패: " + legacyOfficialError.message);
+        hasRegisteredOfficialBlog = Boolean(legacyOfficialRows?.length);
+      }
+      if (hasRegisteredOfficialBlog) {
         const { error: skipError } = await db.from("studio_blog_search_queue")
           .update({ status: "completed", last_error: null, updated_at: new Date().toISOString() })
           .eq("studio_id", job.studio_id);
