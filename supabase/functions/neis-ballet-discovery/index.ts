@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
           tuition_public: clean(row.THCC_OTHBC_YN),
           dormitory: clean(row.BRHS_ACA_YN),
           capacity: clean(row.TOFOR_SMTOT) || clean(row.DTM_RCPTN_ABLTY_NMPR_SMTOT) || null,
-          raw_data: row,
+          raw_data: {}, // Store only the explicitly mapped fields above; avoid duplicating the full source record.
           source_updated_at: clean(row.LOAD_DTM) || null,
           is_open: rowOpen,
           eligible: eligibilityResult.eligible,
