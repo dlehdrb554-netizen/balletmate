@@ -1,13 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
-import * as ImagePicker from "expo-image-picker";
-import * as ImageManipulator from "expo-image-manipulator";
 
-import * as FileSystem from "expo-file-system/legacy";
-import { useFaceDetection } from "@infinitered/react-native-mlkit-face-detection";
 import { parseScheduleEvidence } from "../lib/schedule-structure";
 import AdminCommunityReports from "../components/AdminCommunityReports";
 
@@ -44,50 +40,6 @@ const normalizeNaverBlogProfileUrl=(value:string):string|null=>{
   return match?"https://blog.naver.com/"+match[1]:null;
 };
 
-type PhotoAutoFilter="priority"|"suspect"|"ballet"|"excluded"|"all";
-const classifyPhotoCandidate=(item:any)=>{
-  const source=String(item?.image_url||"")+" "+String(item?.source_page_url||"")+" "+String(item?.source_host||"");
-  const suspectPatterns=[
-    /\b(logo|icon|avatar|profile|banner|thumb|thumbnail|sns|badge|button|sprite|qr|qrcode)\b/i,
-    /(logo|아이콘|프로필|배너|썸네일|홍보물|포스터|qr)/i,
-    /\.(svg|gif)(?:[?#]|$)/i
-  ];
-  const reasons:string[]=[];
-  if(suspectPatterns.some(pattern=>pattern.test(source)))reasons.push("아이콘·배너·홍보물 의심");
-  if(/(face|people|person|student|kids|child|portrait|selfie|수강생|학생|아이들|인물|얼굴)/i.test(source))reasons.push("인물 사진 의심");
-  if(/\b(ad|ads|promo|event|coupon|promotion)\b|할인|이벤트/i.test(source))reasons.push("광고 이미지 의심");
-  return {suspect:reasons.length>0,reasons,priority:reasons.length===0};
-};
-
-type FaceScanState="checking"|"faces"|"clear"|"error";
-function PhotoFaceScanner({item,onResult}:{item:any;onResult:(id:number,state:FaceScanState,count:number,error?:string)=>void}){
-  const detector=useFaceDetection();
-  useEffect(()=>{
-    let cancelled=false;
-    const scan=async()=>{
-      onResult(Number(item.id),"checking",0);
-      let localUri:string|undefined;
-      try{
-        const cacheDir=FileSystem.cacheDirectory;
-        if(!cacheDir)throw new Error("앱 캐시 폴더를 사용할 수 없습니다.");
-        const target=cacheDir+"balletmate-face-check-"+String(item.id)+".jpg";
-        const download=await FileSystem.downloadAsync(item.image_url,target,{headers:{Referer:item.source_page_url||"https://blog.naver.com/"}});
-        localUri=download.uri;
-        if(cancelled)return;
-        const result=await detector.detectFaces(localUri);
-        const count=Array.isArray(result?.faces)?result.faces.length:0;
-        if(!cancelled)onResult(Number(item.id),count>0?"faces":"clear",count);
-      }catch(error:any){
-        if(!cancelled)onResult(Number(item.id),"error",0,String(error?.message||error));
-      }finally{
-        if(localUri)await FileSystem.deleteAsync(localUri,{idempotent:true}).catch(()=>{});
-      }
-    };
-    scan();
-    return ()=>{cancelled=true;};
-  },[item.id,item.image_url,item.source_page_url]);
-  return null;
-}
 function parseCsv(text:string): string[][] {
   const rows:string[][]=[]; let row:string[]=[]; let cell=""; let quoted=false;
   for(let i=0;i<text.length;i++){
@@ -149,19 +101,6 @@ export default function Admin() {
   const [ownerApplications,setOwnerApplications]=useState<any[]>([]);
   const [ownerReviewBusy,setOwnerReviewBusy]=useState(false);
   const [failedStudioThumbIds,setFailedStudioThumbIds]=useState<string[]>([]);
-  const [photoCandidateRows,setPhotoCandidateRows]=useState<any[]>([]);
-  const [photoReviewBusy,setPhotoReviewBusy]=useState(false);
-  const [photoAutoScanBusy,setPhotoAutoScanBusy]=useState(false);
-  const [photoAiTestBusy,setPhotoAiTestBusy]=useState(false);
-  const [photoCandidateTotal,setPhotoCandidateTotal]=useState(0);
-  const [photoCandidateOffset,setPhotoCandidateOffset]=useState(0);
-  const [selectedPhotoCandidateIds,setSelectedPhotoCandidateIds]=useState<number[]>([]);
-  const [photoToolsOpen,setPhotoToolsOpen]=useState(false);
-  const [photoCandidateStatus,setPhotoCandidateStatus]=useState<"pending"|"rejected"|"approved">("pending");
-  const [failedPhotoCandidateIds,setFailedPhotoCandidateIds]=useState<number[]>([]);
-  const [photoFaceResults,setPhotoFaceResults]=useState<Record<number,{status:FaceScanState;count:number;error?:string}>>({});
-  const [photoAutoFilter,setPhotoAutoFilter]=useState<PhotoAutoFilter>("priority");
-  const [photoMaterialFilter,setPhotoMaterialFilter]=useState<"all"|"unclassified"|"price"|"schedule"|"other">("unclassified");
   const [studioSearch,setStudioSearch]=useState("");
   const photoFilteredCandidates=photoCandidateRows.filter(item=>{const heuristics=classifyPhotoCandidate(item);const face=photoFaceResults[Number(item.id)];const suspect=heuristics.suspect||face?.status==="faces";const ai=item.auto_classification;const autoOk=photoAutoFilter==="all"||(photoAutoFilter==="suspect"?suspect||!!ai&&ai!=="ballet_class":photoAutoFilter==="ballet"?!!ai&&["ballet_class","schedule","price","poster","logo"].includes(ai)&&Number(item.auto_confidence||0)>=0.60:photoAutoFilter==="excluded"?!!ai&&(["portrait","unrelated","unknown"].includes(ai)||Number(item.auto_confidence||0)<0.60):ai?ai==="ballet_class"||ai==="unknown":!suspect);const materialOk=photoMaterialFilter==="all"||(photoMaterialFilter==="unclassified"?!item.material_type:item.material_type===photoMaterialFilter);return autoOk&&materialOk;});
   const [studioAppliedSearch,setStudioAppliedSearch]=useState("");
@@ -555,297 +494,6 @@ export default function Admin() {
     return {data:all,error:null};
   };
 
-  const loadPhotoCandidates=useCallback(async()=>{
-    if(!supabase||!authorized)return;
-    setPhotoReviewBusy(true);
-    const {data,error,count}=await supabase.from("studio_photo_candidates")
-      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type,auto_classification,auto_confidence,auto_reason,auto_classified_at",{count:"exact"})
-      .eq("review_status",photoCandidateStatus).not("source_host","ilike","%neis.go.kr").not("source_host","ilike","%schoolinfo.go.kr").not("source_page_url","ilike","%weseb.com/SJB/m.php%").not("source_page_url","ilike","%school24.kr/academy/a/J10-3000069628%").order("created_at",{ascending:false}).order("id",{ascending:false}).range(0,11);
-    if(error){
-      Alert.alert("사진 검토 자료 조회 실패",error.message+"\n사진 검토 SQL이 적용됐는지 확인해 주세요.");
-      setPhotoCandidateRows([]);
-    }else {const filtered=(data||[]).filter((item:any)=>!isNeisPhotoSource(item)&&!isSchool24PhotoSource(item));setPhotoCandidateRows(filtered);setPhotoCandidateTotal(Math.max(0,(count??(data||[]).length)-((data||[]).length-filtered.length)));setPhotoCandidateOffset((data||[]).length);}
-    setPhotoReviewBusy(false);
-  },[authorized,photoCandidateStatus]);
-
-  const loadMorePhotoCandidates=async()=>{
-    if(!supabase||photoReviewBusy||photoCandidateOffset>=photoCandidateTotal)return;
-    setPhotoReviewBusy(true);
-    const start=photoCandidateOffset;
-    const {data,error}=await supabase.from("studio_photo_candidates")
-      .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type,auto_classification,auto_confidence,auto_reason,auto_classified_at")
-      .eq("review_status",photoCandidateStatus).not("source_host","ilike","%neis.go.kr").not("source_host","ilike","%schoolinfo.go.kr").not("source_page_url","ilike","%weseb.com/SJB/m.php%").not("source_page_url","ilike","%school24.kr/academy/a/J10-3000069628%").order("created_at",{ascending:false}).order("id",{ascending:false}).range(start,start+11);
-    if(error)Alert.alert("추가 사진 조회 실패",error.message);
-    else {const filtered=(data||[]).filter((item:any)=>!isNeisPhotoSource(item)&&!isSchool24PhotoSource(item));setPhotoCandidateRows(current=>[...current,...filtered]);setPhotoCandidateOffset(start+(data||[]).length);}
-    setPhotoReviewBusy(false);
-  };
-  const togglePhotoCandidateSelection=(id:number)=>{
-    setSelectedPhotoCandidateIds(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
-  };
-  const classifySelectedPhotoCandidates=async(category:"ballet_class"|"schedule"|"price"|"poster"|"unrelated")=>{
-    if(!supabase||photoReviewBusy||!selectedPhotoCandidateIds.length)return;
-    const targets=photoCandidateRows.filter(item=>selectedPhotoCandidateIds.includes(Number(item.id)));
-    if(!targets.length){setSelectedPhotoCandidateIds([]);return;}
-    setPhotoReviewBusy(true);
-    let completed=0;const failures:Array<{id:number;message:string}>=[];
-    try{
-      for(const item of targets){
-        try{
-          const {error}=await supabase.rpc("admin_manual_classify_studio_photo_candidate",{p_candidate_id:Number(item.id),p_category:category});
-          if(error)failures.push({id:Number(item.id),message:error.message});else completed++;
-        }catch(error:any){failures.push({id:Number(item.id),message:String(error?.message||error||"요청 실패")});}
-      }
-      const failedIds=failures.map(item=>item.id);
-      const completedById=new Map(targets.filter(item=>!failedIds.includes(Number(item.id))).map(item=>[Number(item.id),item]));
-      setPhotoCandidateRows(current=>current.map(row=>{
-        const target=completedById.get(Number(row.id));
-        return target?{...row,auto_classification:category,auto_confidence:1,auto_reason:"관리자 수동 분류 · 권리 확인 전 공개 보류",material_type:category==="schedule"?"schedule":category==="price"?"price":["poster"].includes(category)?"other":null}:row;
-      }));
-      setSelectedPhotoCandidateIds(failedIds);
-      const detail=failures.slice(0,3).map(item=>"사진 #"+item.id+": "+item.message).join("\n");
-      Alert.alert("분류 저장 결과",completed+"장 분류 저장 · 사진은 권리 확인 및 공개 승인 전까지 대기"+(failures.length?"\n실패 "+failures.length+"장\n"+detail:""));
-    }finally{setPhotoReviewBusy(false);}
-  };
-  const manuallyClassifyPhotoCandidate=async(item:any,category:"ballet_class"|"schedule"|"price"|"poster"|"logo"|"portrait"|"unrelated"|"unknown")=>{
-    if(!supabase||photoReviewBusy)return;
-    const materialType=category==="schedule"?"schedule":category==="price"?"price":["poster","logo"].includes(category)?"other":null;
-    setPhotoReviewBusy(true);
-    const {error}=await supabase.rpc("admin_manual_classify_studio_photo_candidate",{p_candidate_id:Number(item.id),p_category:category});
-    if(error)Alert.alert("수동 분류 실패",error.message+"\n저작권 확인 SQL을 적용했는지 확인하세요.");
-    else {setPhotoCandidateRows(current=>current.map(row=>Number(row.id)===Number(item.id)?{...row,auto_classification:category,auto_confidence:1,auto_reason:"관리자 수동 분류 · 권리 확인 전 공개 보류",material_type:materialType}:row));Alert.alert("분류 저장 완료","분류만 저장했습니다. 사진은 권리 확인 및 별도 공개 승인 전까지 대기합니다.");}
-    setPhotoReviewBusy(false);
-  };
-  const classifyPhotoCandidateAI=async(item:any,quiet=false)=>{
-    if(!supabase)return false;
-    if(!quiet)setPhotoAutoScanBusy(true);
-    try{
-      const {data,error}=await supabase.functions.invoke("classify-studio-photo",{body:{candidateId:item.id}});
-      let functionErrorBody:any=null;
-      if(error?.context){
-        try{functionErrorBody=await error.context.clone().json();}catch{
-          try{functionErrorBody={detail:await error.context.clone().text()};}catch{}
-        }
-      }
-      if(error||data?.error){
-        const payload=data||functionErrorBody||{};
-        const detail=[
-          payload?.error||error?.message||"분류에 실패했습니다.",
-          payload?.status?"HTTP "+payload.status:"",
-          payload?.detail||payload?.message||""
-        ].filter(Boolean).join("\n");
-        if(!quiet)Alert.alert("이미지 자동 분류 실패",detail);
-        return false;
-      }
-      setPhotoCandidateRows(current=>current.map(row=>row.id===item.id?{
-        ...row,auto_classification:data.category,auto_confidence:data.confidence,
-        auto_reason:data.reason,material_type:data.materialType,
-        auto_classified_at:new Date().toISOString()
-      }:row));
-      return true;
-    }catch(error:any){
-      if(!quiet)Alert.alert("이미지 자동 분류 실패",String(error?.message||error));
-      return false;
-    }finally{
-      if(!quiet)setPhotoAutoScanBusy(false);
-    }
-  };
-  const testPhotoAIConnection=async()=>{
-    if(!supabase||photoAiTestBusy)return;
-    setPhotoAiTestBusy(true);
-    try{
-      const {data,error}=await supabase.functions.invoke("classify-studio-photo",{body:{action:"connection_test"}});
-      let functionErrorBody:any=null;
-      if(error?.context){
-        try{functionErrorBody=await error.context.clone().json();}catch{
-          try{functionErrorBody={detail:await error.context.clone().text()};}catch{}
-        }
-      }
-      const failure=data?.ok!==true||!!error;
-      if(failure){
-        const payload=data||functionErrorBody||{};
-        const detail=[payload?.error||error?.message||"연결 테스트 실패",payload?.stage?"단계: "+payload.stage:"",payload?.status?"Cloudflare HTTP "+payload.status:"",payload?.detail||payload?.message||""].filter(Boolean).join("\n");
-        Alert.alert("Cloudflare AI 연결 실패",detail);
-      }else{
-        Alert.alert("Cloudflare AI 연결 성공","모델: "+data.model+"\nMeta 라이선스 요청: "+(data.licenseAccepted?"성공":"응답 확인 필요")+"\n이미지 추론: "+data.inference+"\n\n모델 응답:\n"+data.response+"\n\n테스트는 샘플 이미지로 진행했으며 기존 사진 후보와 학원 데이터는 변경하지 않았습니다.");
-      }
-    }catch(error:any){Alert.alert("연결 테스트 오류",String(error?.message||error));}
-    finally{setPhotoAiTestBusy(false);}
-  };
-
-  const runPhotoAutoScan=async()=>{
-    if(!supabase||photoAutoScanBusy)return;
-    setPhotoAutoScanBusy(true);
-    try{
-      const {data,error}=await supabase.functions.invoke("crawl-studio-worker",{body:{action:"vision_tick"}});
-      if(error||data?.error){
-        Alert.alert("자동 분류 실행 실패",data?.error||error?.message||"워커 호출에 실패했습니다.");
-        return;
-      }
-      await loadPhotoCandidates();
-      const neurons=data?.cloudflareNeuronsToday;
-      const message=data?.visionPauseReason
-        ? "자동 분류가 안전 기준에 따라 중지됐습니다.\\n"+data.visionPauseReason
-        : "워커 1회 실행 완료\\n처리 성공: "+(data?.visionProcessed??0)+"장\\n실패: "+(data?.visionFailed??0)+"장\\n대기 사진: "+(data?.visionPendingCandidates??"확인 불가")+"장\\n오늘 처리: "+(data?.visionProcessedToday??0)+"/"+(data?.visionDailyLimit??400)+"장\\nCloudflare Neurons: "+(neurons==null?"조회 불가":Math.round(neurons).toLocaleString("ko-KR"))+" / "+(data?.cloudflareNeuronPauseThreshold??6000);
-      Alert.alert("사진 자동 분류 상태",message);
-    }catch(error:any){Alert.alert("자동 분류 실행 오류",String(error?.message||error));}
-    finally{setPhotoAutoScanBusy(false);}
-  };
-  const classifyPhotoMaterial=async(item:any,type:"price"|"schedule"|"other")=>{
-    if(!supabase)return;
-    setPhotoReviewBusy(true);
-    const {error}=await supabase.from("studio_photo_candidates").update({material_type:type}).eq("id",item.id);
-    if(error)Alert.alert("자료 분류 실패",error.message+"\\nSQL migration이 적용되었는지 확인해 주세요.");
-    else setPhotoCandidateRows(current=>current.map(row=>row.id===item.id?{...row,material_type:type}:row));
-    setPhotoReviewBusy(false);
-  };
-
-  const reviewPhotoCandidate=async(item:any,status:"approved"|"rejected")=>{
-    if(!supabase)return;
-    const client=supabase;
-    const executeReview=async()=>{
-      setPhotoReviewBusy(true);
-      if(status==="approved"){
-        const {data:userData,error:userError}=await client.auth.getUser();
-        if(userError||!userData.user){
-          Alert.alert("권리 확인 실패",userError?.message||"관리자 계정을 확인할 수 없습니다.");
-          setPhotoReviewBusy(false);return;
-        }
-        const {error:rightsError}=await client.from("studio_photo_candidates").update({
-          rights_review_status:"verified",
-          rights_basis:"관리자 확인: 권리자의 사용 허락 또는 권리자가 직접 제공한 증빙 확인",
-          rights_verified_at:new Date().toISOString(),
-          rights_verified_by:userData.user.id
-        }).eq("id",item.id).eq("review_status","pending");
-        if(rightsError){
-          Alert.alert("권리 확인 저장 실패",rightsError.message+"\n저작권 확인 SQL을 먼저 적용해 주세요.");
-          setPhotoReviewBusy(false);return;
-        }
-      }
-      const {error}=await client.rpc("admin_review_studio_photo_candidate",{
-        p_candidate_id:item.id,p_status:status
-      });
-      if(error)Alert.alert(status==="approved"?"사진 승인 실패":"사진 제외 실패",error.message);
-      else {
-        setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));setPhotoCandidateOffset(value=>Math.max(0,value-1));
-        if(status==="approved"&&!["schedule","price"].includes(String(item.material_type||""))&&!["schedule","price","poster"].includes(String(item.auto_classification||""))){
-          const refreshed=await client.from("studios").select(studioColumns).eq("id",item.studio_id).maybeSingle();
-          if(!refreshed.error&&refreshed.data){
-            const studio=refreshed.data as StudioRow;
-            setRows(current=>current.some(row=>row.id===studio.id)
-              ?current.map(row=>row.id===studio.id?studio:row)
-              :[studio,...current]);
-          }else{
-            setRows(current=>current.map(row=>row.id===item.studio_id
-              ?{...row,image_urls:[...(row.image_urls||[]),item.image_url].filter((url,index,all)=>all.indexOf(url)===index).slice(0,30),
-                image_source_name:row.image_source_name||item.source_host}
-              :row));
-          }
-        }
-      }
-      setPhotoReviewBusy(false);
-    };
-    if(status==="approved"){
-      Alert.alert(
-        "사진 사용 권리 확인",
-        "이 사진의 저작권자 또는 정당한 권리자로부터 발레메이트 내 공개·이용에 대한 명시적 허락을 받았거나, 권리자가 직접 제공한 자료임을 증빙으로 확인했습니까?\n\n공식 블로그에 게시되어 있다는 사실이나 AI 분류 결과만으로는 승인할 수 없습니다.",
-        [{text:"취소",style:"cancel"},{text:"권리 확인 후 승인",onPress:()=>{void executeReview();}}],
-      );
-    }else{
-      await executeReview();
-    }
-  };
-  const deletePhotoCandidate=async(item:any)=>{
-    if(!supabase)return;
-    const isApproved=photoCandidateStatus==="approved";
-    Alert.alert("사진 후보 삭제",isApproved?"승인된 사진을 학원 갤러리에서도 제거하고 검토 이력을 삭제할까요?":"이 사진 후보를 검토 대기열에서 영구 삭제할까요?",[
-      {text:"취소",style:"cancel"},
-      {text:"삭제",style:"destructive",onPress:async()=>{
-        setPhotoReviewBusy(true);
-        let galleryError:any=null;
-        if(isApproved){
-          const removed=await supabase!.rpc("admin_remove_studio_gallery_photo",{p_studio_id:item.studio_id,p_image_url:item.image_url});
-          galleryError=removed.error;
-        }
-        if(galleryError)Alert.alert("학원 갤러리 사진 삭제 실패",galleryError.message);
-        else{
-          const {error}=await supabase!.rpc("admin_delete_studio_photo_candidate",{p_candidate_id:item.id});
-          if(error)Alert.alert("사진 검토 기록 삭제 실패",error.message);
-          else{
-            setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));
-            setPhotoCandidateTotal(value=>Math.max(0,value-1));
-            if(isApproved)setRows(current=>current.map(row=>row.id===item.studio_id?{...row,image_urls:(row.image_urls||[]).filter((url:string)=>url!==item.image_url)}:row));
-          }
-        }
-        setPhotoReviewBusy(false);
-      }}
-    ]);
-  };
-  const deleteSelectedPhotoCandidates=()=>{
-    if(!supabase||photoReviewBusy||!selectedPhotoCandidateIds.length)return;
-    const targets=photoCandidateRows.filter(item=>selectedPhotoCandidateIds.includes(Number(item.id)));
-    if(!targets.length){setSelectedPhotoCandidateIds([]);return;}
-    const isApproved=photoCandidateStatus==="approved";
-    Alert.alert("사진 후보 일괄 영구 삭제","선택한 "+targets.length+"장을 "+(isApproved?"학원 갤러리에서도 제거하고 ":"")+"검토 이력에서 영구 삭제할까요? 원본 블로그 게시물은 삭제되지 않습니다.",[
-      {text:"취소",style:"cancel"},
-      {text:"선택 사진 삭제",style:"destructive",onPress:async()=>{
-        setPhotoReviewBusy(true);
-        let completed=0;const failures:number[]=[];const removedByStudio=new Map<string,string[]>();
-        for(const item of targets){
-          if(isApproved){
-            const removed=await supabase!.rpc("admin_remove_studio_gallery_photo",{p_studio_id:item.studio_id,p_image_url:item.image_url});
-            if(removed.error){failures.push(Number(item.id));continue;}
-          }
-          const result=await supabase!.rpc("admin_delete_studio_photo_candidate",{p_candidate_id:Number(item.id)});
-          if(result.error){failures.push(Number(item.id));continue;}
-          completed++;
-          if(isApproved){const urls=removedByStudio.get(item.studio_id)||[];urls.push(item.image_url);removedByStudio.set(item.studio_id,urls);}
-        }
-        const completedIds=targets.filter(item=>!failures.includes(Number(item.id))).map(item=>Number(item.id));
-        setPhotoCandidateRows(current=>current.filter(item=>!completedIds.includes(Number(item.id))));
-        setPhotoCandidateTotal(value=>Math.max(0,value-completed));
-        setPhotoCandidateOffset(value=>Math.max(0,value-completed));
-        setSelectedPhotoCandidateIds(failures);
-        if(isApproved&&removedByStudio.size)setRows(current=>current.map(row=>removedByStudio.has(row.id)?{...row,image_urls:(row.image_urls||[]).filter(url=>!removedByStudio.get(row.id)!.includes(url))}:row));
-        setPhotoReviewBusy(false);
-        Alert.alert("일괄 삭제 결과",completed+"장 삭제 완료"+(failures.length?" · "+failures.length+"장 실패 (실패 항목은 선택 상태로 남겼습니다)":""));
-      }}
-    ]);
-  };
-  const setRepresentativeStudioPhoto=(index:number)=>{
-    const urls=parseStudioImageUrls(form.image_urls);
-    if(index<0||index>=urls.length||index===0)return;
-    const next=[urls[index],...urls.filter((_,i)=>i!==index)];
-    setForm(current=>({...current,image_urls:next.join("\n")}));
-    Alert.alert("대표 이미지 변경","선택한 사진을 대표 이미지로 지정했습니다. 학원 정보 수정 저장을 눌러 적용하세요.");
-  };
-  const removeStudioGalleryPhoto=async(studioId:string,imageUrl:string)=>{
-    if(!supabase)return;
-    Alert.alert("학원 사진 삭제","이 사진을 학원 상세 갤러리에서 영구 제거할까요?",[
-      {text:"취소",style:"cancel"},
-      {text:"사진 삭제",style:"destructive",onPress:async()=>{
-        setBusy(true);
-        const {error}=await supabase!.rpc("admin_remove_studio_gallery_photo",{p_studio_id:studioId,p_image_url:imageUrl});
-        if(error)Alert.alert("사진 삭제 실패",error.message);
-        else {
-          let storageDeleteWarning="";
-          const marker="/storage/v1/object/public/studio-photos/";
-          const markerIndex=imageUrl.indexOf(marker);
-          if(markerIndex>=0){
-            const objectPath=decodeURIComponent(imageUrl.slice(markerIndex+marker.length).split("?")[0]);
-            if(objectPath){
-              const {error:storageError}=await supabase!.storage.from("studio-photos").remove([objectPath]);
-              if(storageError)storageDeleteWarning=" 갤러리에서는 제거했지만 저장소 파일 삭제는 실패했습니다: "+storageError.message;
-            }
-          }
-          setRows(current=>current.map(row=>row.id===studioId?{...row,image_urls:(row.image_urls||[]).filter(url=>url!==imageUrl)}:row));
-          setForm(current=>({...current,image_urls:parseStudioImageUrls(current.image_urls).filter(value=>value!==imageUrl).join("\n")}));
-          Alert.alert("삭제 완료","학원 갤러리에서 사진을 제거했습니다."+storageDeleteWarning);
-        }
-        setBusy(false);
-      }}
-    ]);
-  };
-
   const loadOwnerApplications=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setOwnerReviewBusy(true);
@@ -1032,11 +680,9 @@ export default function Admin() {
 
   useEffect(()=>{
     if(adminTab==="overview"){loadDashboard();loadReports();}
-    else if(adminTab==="review"){loadPhotoCandidates();loadBlogCandidates(true);}
-    else if(adminTab==="publish"){loadEvidence();loadScheduleClassCandidates();}
     else if(adminTab==="studios")load();
     else if(adminTab==="owners")loadOwnerApplications();
-  },[adminTab,loadDashboard,loadReports,loadEvidence,loadPhotoCandidates,loadBlogCandidates,loadScheduleClassCandidates,load,loadOwnerApplications]);
+  },[adminTab,loadDashboard,loadReports,load,loadOwnerApplications]);
 
   const generateScheduleClassCandidate=async(item:EvidenceCandidate)=>{
     if(!supabase||item.review_status!=="verified"||item.candidate_type!=="schedule")return;
