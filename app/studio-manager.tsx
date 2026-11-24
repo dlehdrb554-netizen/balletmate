@@ -78,7 +78,7 @@ export default function StudioManager(){
  const saveProfile=async()=>{
   if(!supabase||!owner)return;
   if(profileWebsite.trim()&&!/^https:\/\//i.test(profileWebsite.trim())){Alert.alert("대표 홈페이지 주소","HTTPS 주소를 입력해 주세요.");return;}
-  try{const host=new URL(profileWebsite.trim()).hostname.toLowerCase().replace(/^www\\./,"");if(["neis.go.kr","schoolinfo.go.kr","place.map.kakao.com","kakao.com"].some(domain=>host===domain||host.endsWith("."+domain))){Alert.alert("대표 홈페이지 주소","일반 홈페이지, 네이버 블로그 또는 인스타그램 주소만 등록할 수 있습니다. NEIS·카카오 장소 주소는 사용할 수 없습니다.");return;}}catch{if(profileWebsite.trim()){Alert.alert("대표 홈페이지 주소","올바른 HTTPS URL을 입력해 주세요.");return;}}
+  try{const host=new URL(profileWebsite.trim()).hostname.toLowerCase().replace("www.","");if(["neis.go.kr","schoolinfo.go.kr","place.map.kakao.com","kakao.com"].some(domain=>host===domain||host.endsWith("."+domain))){Alert.alert("대표 홈페이지 주소","일반 홈페이지, 네이버 블로그 또는 인스타그램 주소만 등록할 수 있습니다. NEIS·카카오 장소 주소는 사용할 수 없습니다.");return;}}catch{if(profileWebsite.trim()){Alert.alert("대표 홈페이지 주소","올바른 HTTPS URL을 입력해 주세요.");return;}}
   setSaving(true);
   try{
    const {error}=await supabase.rpc("owner_update_studio_profile",{
