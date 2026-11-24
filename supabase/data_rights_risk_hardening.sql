@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Copyright/permission gate for externally sourced academy photos.
 -- Safe to run repeatedly. Existing user-uploaded photos are not touched.
 ALTER TABLE public.studio_photo_candidates
@@ -112,7 +114,7 @@ BEGIN
   IF NOT public.is_balletmate_admin() THEN
     RAISE EXCEPTION 'admin access required' USING ERRCODE='42501';
   END IF;
-  IF p_status NOT IN ('approved','rejected') THEN
+  IF p_status IS NULL OR p_status NOT IN ('approved','rejected') THEN
     RAISE EXCEPTION 'invalid review status';
   END IF;
   SELECT * INTO candidate
@@ -172,7 +174,7 @@ BEGIN
   IF NOT public.is_balletmate_admin() THEN
     RAISE EXCEPTION 'admin access required' USING ERRCODE='42501';
   END IF;
-  IF p_category NOT IN ('ballet_class','schedule','price','poster','logo','portrait','unrelated','unknown') THEN
+  IF p_category IS NULL OR p_category NOT IN ('ballet_class','schedule','price','poster','logo','portrait','unrelated','unknown') THEN
     RAISE EXCEPTION 'invalid photo category';
   END IF;
   SELECT * INTO candidate
@@ -194,3 +196,5 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_manual_classify_studio_photo_candidate(bigint,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_manual_classify_studio_photo_candidate(bigint,text) TO authenticated;
+
+COMMIT;
