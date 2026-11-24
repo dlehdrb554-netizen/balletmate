@@ -65,6 +65,23 @@ jobs:
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
         run: ./gradlew assembleRelease --no-daemon --stacktrace --info
 
+      - name: Smoke test app launch on Android 16 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            adb install -r android/app/build/outputs/apk/release/app-release.apk
+            adb shell monkey -p com.dlehdrb554.balletmate 1
+            sleep 20
+            adb shell pidof com.dlehdrb554.balletmate >/dev/null
+            if adb logcat -d -s AndroidRuntime:E | grep -q "FATAL EXCEPTION"; then
+              adb logcat -d -s AndroidRuntime:E
+              exit 1
+            fi
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
