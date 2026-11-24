@@ -40,7 +40,7 @@ function buildHtml(initialRegion: MapRegion) {
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
-  var map=null, markers={}, currentMarker=null, pending=[], currentSelected=null;
+  var map=null, markers={}, markerMeta={}, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null;
   var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
@@ -63,18 +63,22 @@ function buildHtml(initialRegion: MapRegion) {
         marker.setMap(map);
         kakao.maps.event.addListener(marker,'click',function(){post({type:'marker',id:item.id});});
         markers[item.id]=marker;
+        markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,selected:item.id===selectedId};
       }else{
-        markers[item.id].setPosition(pos);
-        markers[item.id].setImage(pinImage(item.id===selectedId));
-        markers[item.id].setTitle(item.name);
+        var marker=markers[item.id], meta=markerMeta[item.id]||{};
+        if(meta.latitude!==item.latitude||meta.longitude!==item.longitude)marker.setPosition(pos);
+        if(meta.selected!==(item.id===selectedId))marker.setImage(pinImage(item.id===selectedId));
+        if(meta.name!==item.name)marker.setTitle(item.name);
+        markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,selected:item.id===selectedId};
       }
     });
-    Object.keys(markers).forEach(function(id){if(!keep[id]){markers[id].setMap(null);delete markers[id];}});
+    Object.keys(markers).forEach(function(id){if(!keep[id]){markers[id].setMap(null);delete markers[id];delete markerMeta[id];}});
     if(location && location.latitude!=null && location.longitude!=null){
       var here=new kakao.maps.LatLng(location.latitude,location.longitude);
       if(!currentMarker){var locationSvg='<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="#ffffff" stroke="#3478F6" stroke-width="3"/><circle cx="18" cy="18" r="7" fill="#3478F6"/><circle cx="18" cy="18" r="3" fill="#ffffff"/></svg>';currentMarker=new kakao.maps.Marker({position:here,image:new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(locationSvg),new kakao.maps.Size(36,36),{offset:new kakao.maps.Point(18,18)}),zIndex:1000});currentMarker.setMap(map);}
-      else currentMarker.setPosition(here);
-    }else if(currentMarker){currentMarker.setMap(null);currentMarker=null;}
+      else if(!currentLocationMeta||currentLocationMeta.latitude!==location.latitude||currentLocationMeta.longitude!==location.longitude)currentMarker.setPosition(here);
+      currentLocationMeta={latitude:location.latitude,longitude:location.longitude};
+    }else if(currentMarker){currentMarker.setMap(null);currentMarker=null;currentLocationMeta=null;}
   }
   function moveTo(region,duration){
     if(!map||!region)return;
