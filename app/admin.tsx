@@ -262,8 +262,8 @@ export default function Admin() {
   const searchStudiosServer=async()=>{
     const client=supabase;
     if(!client||busy)return;
-    const term=studioSearch.trim().replace(/[%,_(),]/g," ").replace(/\\s+/g," ").trim();
-    const compact=term.replace(/\\s+/g,"");
+    const term=studioSearch.trim().replace(/[%,_(),]/g," ").replace(/\s+/g," ").trim();
+    const compact=term.replace(/\s+/g,"");
     setStudioAppliedSearch(term);setStudioSearch(term);
     setBusy(true);
     try{
@@ -368,10 +368,10 @@ export default function Admin() {
     Alert.alert("학원 정보 변경 이력",summary);
   };
   const filteredStudioRows=useMemo(()=>rows.filter(row=>{
-    const q=studioSearch.trim().toLowerCase().replace(/\\s+/g,"");
+    const q=studioSearch.trim().toLowerCase().replace(/\s+/g,"");
     const initials=(value:string)=>value.split("").map(char=>{const code=char.charCodeAt(0)-44032;if(code<0||code>11171)return char;return "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"[Math.floor(code/588)]||char;}).join("");
     const fields=[row.name,row.district||"",row.address||"",row.phone||""];
-    if(q&&!fields.some(value=>value.toLowerCase().replace(/\\s+/g,"").includes(q)||initials(value.replace(/\\s+/g,"")).includes(q)))return false;
+    if(q&&!fields.some(value=>value.toLowerCase().replace(/\s+/g,"").includes(q)||initials(value.replace(/\s+/g,"")).includes(q)))return false;
     if(studioListFilter==="missing_website"&&!!row.website_url)return false;
     if(studioListFilter==="active"&&!row.is_active)return false;
     if(studioListFilter==="inactive"&&row.is_active)return false;
