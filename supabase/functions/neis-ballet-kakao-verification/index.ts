@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
 const norm=(v:unknown)=>String(v??"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");
 const generic=/^(발레|학원|스튜디오|아카데미|무용|교습소|센터|키즈|성인)$/;
-const tokens=(v:string)=>v.split(/[\\s·ㆍ()_./-]+/).map(norm).filter(x=>x.length>=2&&!generic.test(x));
+const tokens=(v:string)=>v.split(/[\s·ㆍ()_./-]+/).map(norm).filter(x=>x.length>=2&&!generic.test(x));
 function dice(a:string,b:string):number{
  if(a===b)return 1;if(a.length<2||b.length<2)return 0;
  const grams=(s:string)=>{const out=new Set<string>();for(let i=0;i<s.length-1;i++)out.add(s.slice(i,i+2));return out;};
