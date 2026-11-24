@@ -111,6 +111,7 @@ export default function Home() {
   const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
   const [detailCanonicalLoading,setDetailCanonicalLoading]=useState(false);
   const [detailCanonicalError,setDetailCanonicalError]=useState<string|null>(null);
+  const [detailContentError,setDetailContentError]=useState<string|null>(null);
   const [failedStudioImageUrls,setFailedStudioImageUrls]=useState<string[]>([]);
   const [reportOpen,setReportOpen]=useState(false);
   const [reportCategory,setReportCategory]=useState("기타");
@@ -201,7 +202,7 @@ export default function Home() {
     let active=true;
     setBlogLoading(true);
     fetchStudioBlogPosts(studioId).then(rows=>{if(active)setStudioBlogPosts(rows);})
-      .catch(error=>{console.warn("Studio blog content unavailable:",error);if(active)setStudioBlogPosts([]);})
+      .catch(error=>{console.warn("Studio blog content unavailable:",error);if(active){setStudioBlogPosts([]);setDetailContentError("블로그 자료를 불러오지 못했습니다.");}})
       .finally(()=>{if(active)setBlogLoading(false);});
     return()=>{active=false;};
   },[detailStudio?.id]);
@@ -682,6 +683,7 @@ export default function Home() {
     setDetailExpanded(false);
     detailDragY.setValue(0);
     setDetailStudio(s);
+    setDetailContentError(null);
     setDetailCanonicalError(null);
     setDetailCanonicalLoading(!!supabaseConfigured);
     setStudioClasses([]);
@@ -716,9 +718,9 @@ export default function Home() {
         .catch(error=>{console.warn("Studio classes unavailable:",error);if(requestId===detailRequestId.current)setStudioClasses([]);})
         .finally(()=>{if(requestId===detailRequestId.current)setClassesLoading(false);});
       retryDetailRequest(()=>fetchStudioPublicPrices(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicPrices(rows);})
-        .catch(error=>{console.warn("Approved studio prices unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicPrices([]);});
+        .catch(error=>{console.warn("Approved studio prices unavailable:",error);if(requestId===detailRequestId.current){setStudioPublicPrices([]);setDetailContentError("가격표 자료를 불러오지 못했습니다.");}});
       retryDetailRequest(()=>fetchStudioPublicSchedules(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicSchedules(rows);})
-        .catch(error=>{console.warn("Approved studio schedules unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicSchedules([]);});
+        .catch(error=>{console.warn("Approved studio schedules unavailable:",error);if(requestId===detailRequestId.current){setStudioPublicSchedules([]);setDetailContentError("시간표 자료를 불러오지 못했습니다.");}});
       retryDetailRequest(()=>fetchCouponsForStudio(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioCoupons(rows);})
         .catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});
     }
@@ -733,7 +735,7 @@ export default function Home() {
   const cleanScheduleDisplay=(value:string)=>{
     return String(value||"").replace(/\\s*(오픈\\s*예정|개강\\s*예정|모집\\s*예정|모집\\s*중|신설\\s*예정)\\s*$/g,"").trim();
   };
-  const hasEvidencePhotos=(sourceUrl:string,storedImages:string[]|null|undefined)=>evidencePhotosForSource(storedImages).length>0;
+  const hasEvidencePhotos=(storedImages:string[]|null|undefined)=>evidencePhotosForSource(storedImages).length>0;
   const evidencePhotoGallery=(key:string,sourceUrl:string,storedImages:string[]|null|undefined)=>{
     const photos=evidencePhotosForSource(sourceUrl,storedImages);
     if(!photos.length)return null;
@@ -744,11 +746,11 @@ export default function Home() {
         <Text style={styles.photoCredit}>{index+1} / {photos.length}장</Text>
       </View>
       <View style={{height:250,borderRadius:9,overflow:"hidden",backgroundColor:"#F0EDF6",justifyContent:"center",alignItems:"center"}}>
-        <Image source={{uri:photos[index]}} style={{width:"100%",height:"100%"}} resizeMode="contain" onError={()=>console.warn("Evidence photo failed to load",photos[index])}/>
+        {failedStudioImageUrls.includes(photos[index])?<Text style={styles.filterHint}>이미지를 불러올 수 없습니다.</Text>:<Image source={{uri:photos[index]}} style={{width:"100%",height:"100%"}} resizeMode="contain" onError={()=>setFailedStudioImageUrls(current=>current.includes(photos[index])?current:[...current,photos[index]])}/>}
       </View>
       {photos.length>0&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,paddingTop:9}}>
         {photos.map((url,i)=><Pressable key={url} onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:i}))} style={{width:72,height:72,borderRadius:8,overflow:"hidden",borderWidth:i===index?2:1,borderColor:i===index?COLORS.purple:"#DCD6E8",backgroundColor:"#F0EDF6"}}>
-          <Image source={{uri:url}} style={{width:"100%",height:"100%"}} resizeMode="cover" onError={()=>console.warn("Evidence thumbnail failed to load",url)}/>
+          {failedStudioImageUrls.includes(url)?<View style={{flex:1,alignItems:"center",justifyContent:"center"}}><Text style={{fontSize:9,color:COLORS.muted}}>오류</Text></View>:<Image source={{uri:url}} style={{width:"100%",height:"100%"}} resizeMode="cover" onError={()=>setFailedStudioImageUrls(current=>current.includes(url)?current:[...current,url])}/>}
         </Pressable>)}
       </ScrollView>}
       {photos.length>1&&<View style={{flexDirection:"row",justifyContent:"space-between",marginTop:8}}>
@@ -875,7 +877,7 @@ export default function Home() {
 <View style={styles.modalShade}><Animated.View style={[styles.modal,{height:detailExpanded?"92%":"65%",maxHeight:"94%",paddingBottom:24,transform:[{translateY:detailDragY}]}]}>
 <View style={styles.dragHeader}><View style={styles.dragGestureZone} {...detailPan.panHandlers}><View style={styles.dragHandle}/></View><View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세 정보</Text><View style={{flexDirection:"row",alignItems:"center",gap:14}}><Pressable onPress={()=>setDetailExpanded(v=>!v)}><Text style={styles.expandText}>{detailExpanded?"접기":"펼치기"}</Text></Pressable><Pressable onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}><Text style={styles.dismissText}>×</Text></Pressable></View></View><Text style={styles.dragHint}>위아래로 끌어 창 크기 조절 · 아래로 길게 끌면 닫기</Text></View>
 <View style={{flexDirection:"row",gap:5,marginTop:8,marginBottom:8}}>{([{id:"home",label:"홈"},{id:"notices",label:"소식"},{id:"blog",label:"블로그"},{id:"reviews",label:"리뷰"},{id:"photos",label:"사진"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailTab(tab.id)} style={{flex:1,paddingVertical:10,borderRadius:10,backgroundColor:detailTab===tab.id?COLORS.pale:"#F8F7FA",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:detailTab===tab.id?COLORS.purple:COLORS.muted}}>{tab.label}</Text></Pressable>)}</View>
-{detailCanonicalLoading&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,paddingVertical:8}}><ActivityIndicator size="small" color={COLORS.purple}/><Text style={styles.photoCredit}>학원 정보 동기화 중…</Text></View>}
+{!!detailContentError&&<View style={{marginHorizontal:12,marginBottom:8,padding:9,borderRadius:9,backgroundColor:"#FFF8E8"}}><Text style={{fontSize:11,color:"#8B641B"}}>{detailContentError}</Text></View>}{detailCanonicalLoading&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,paddingVertical:8}}><ActivityIndicator size="small" color={COLORS.purple}/><Text style={styles.photoCredit}>학원 정보 동기화 중…</Text></View>}
 {!!detailCanonicalError&&<View style={{marginHorizontal:12,marginBottom:8,padding:10,borderRadius:10,backgroundColor:"#FFF1F0",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{flex:1,fontSize:12,color:"#A53A35"}}>일부 상세 정보 갱신 실패</Text><Pressable disabled={detailCanonicalLoading} onPress={()=>retryCanonicalDetail(detailStudio!.id,detailRequestId.current)} style={{paddingHorizontal:10,paddingVertical:6,backgroundColor:"#FCE1DE",borderRadius:8}}><Text style={{fontSize:12,fontWeight:"800",color:"#A53A35"}}>재시도</Text></Pressable></View>}
 <View style={{flex:1}}>{detailStudio&&<>
 {detailTab==="home"&&<ScrollView key={detailTab} style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}><View style={{marginTop:10}}>{studioCard(detailStudio,true)}</View>
@@ -893,12 +895,12 @@ export default function Home() {
             </View>
             {detailInfoTab==="price"&&<View>
               <Text style={styles.sectionTitle}>가격표 이미지</Text>
-              {studioPublicPrices.filter(item=>evidencePhotosForSource(item.image_urls).length>0).map(item=><View key={"public-price-"+item.id}>{evidencePhotoGallery("price-"+item.id,item.source_url||"",item.image_urls)}</View>)}
-              {!studioPublicPrices.some(item=>evidencePhotosForSource(item.source_url||"",item.image_urls).length>0)&&<Text style={styles.filterHint}>등록된 가격표 이미지가 없습니다.</Text>}
+              {studioPublicPrices.filter(item=>evidencePhotosForSource(item.image_urls).length>0).map(item=><View key={"public-price-"+item.id}>{evidencePhotoGallery("price-"+item.id,item.image_urls)}</View>)}
+              {!studioPublicPrices.some(item=>evidencePhotosForSource(item.image_urls).length>0)&&<Text style={styles.filterHint}>등록된 가격표 이미지가 없습니다.</Text>}
             </View>}
             {detailInfoTab==="schedule"&&<View>
               <Text style={styles.sectionTitle}>시간표 이미지</Text>
-              {studioPublicSchedules.filter(item=>evidencePhotosForSource(item.source_url||"",item.image_urls).length>0).map(item=><View key={"public-schedule-"+item.id}>{evidencePhotoGallery("schedule-"+item.id,item.source_url||"",item.image_urls)}</View>)}
+              {studioPublicSchedules.filter(item=>evidencePhotosForSource(item.source_url||"",item.image_urls).length>0).map(item=><View key={"public-schedule-"+item.id}>{evidencePhotoGallery("schedule-"+item.id,item.image_urls)}</View>)}
               {!studioPublicSchedules.some(item=>evidencePhotosForSource(item.source_url||"",item.image_urls).length>0)&&<Text style={styles.filterHint}>등록된 시간표 이미지가 없습니다.</Text>}
             </View>}
           </View>
@@ -925,7 +927,7 @@ export default function Home() {
 <View style={styles.classBlock}><Text style={styles.classTitle}>이 학원에 대한 리뷰</Text><Text style={styles.photoCredit}>{studioReviews.length?"평균 별점 "+(studioReviews.reduce((sum,row)=>sum+Number(row.rating),0)/studioReviews.length).toFixed(1)+" · 리뷰 "+studioReviews.length+"개":"첫 리뷰를 남겨주세요."}</Text><Text style={styles.classMeta}>내 별점</Text><View style={{flexDirection:"row",gap:8,marginVertical:8}}>{[1,2,3,4,5].map(value=><Pressable key={value} onPress={()=>setReviewRating(value)}><Text style={{fontSize:28,color:value<=reviewRating?"#F2B544":"#D8D4E1"}}>★</Text></Pressable>)}</View><TextInput value={reviewText} onChangeText={setReviewText} placeholder="수업 분위기, 강사님, 시설 등에 대한 경험을 작성해 주세요." placeholderTextColor="#A5A1B0" multiline maxLength={1000} textAlignVertical="top" style={styles.reportInput}/>{reviewText.trim().length>0&&reviewText.trim().length<5&&<Text style={{fontSize:11,color:"#B66B77",marginTop:-9,marginBottom:10}}>리뷰는 5자 이상 입력해 주세요. ({reviewText.trim().length}/5자)</Text>}<Pressable disabled={reviewSubmitting||reviewText.trim().length<5} style={[styles.applyButton,{opacity:reviewSubmitting||reviewText.trim().length<5?0.5:1}]} onPress={async()=>{if(!supabase){Alert.alert("리뷰","로그인이 필요한 기능입니다.");return;}setReviewSubmitting(true);try{const {data:{session}}=await supabase.auth.getSession();if(!session){Alert.alert("로그인 필요","리뷰 작성은 로그인 후 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);return;}const {error}=await supabase.from("studio_reviews").upsert({studio_id:detailStudio!.id,user_id:session.user.id,rating:reviewRating,content:reviewText.trim(),updated_at:new Date().toISOString()},{onConflict:"studio_id,user_id"});if(error)throw error;setReviewText("");const {data,error:loadError}=await supabase.from("studio_reviews").select("id,studio_id,user_id,rating,content,created_at,updated_at").eq("studio_id",detailStudio!.id).order("created_at",{ascending:false}).limit(100);if(loadError)throw loadError;setStudioReviews(data||[]);Alert.alert("리뷰 등록 완료","학원 리뷰가 등록되었습니다.");}catch(error:any){Alert.alert("리뷰 등록 실패",error?.message||"잠시 후 다시 시도해 주세요.");}finally{setReviewSubmitting(false);}}}><Text style={styles.applyText}>{reviewSubmitting?"등록 중…":"리뷰 등록 / 수정"}</Text></Pressable></View>
 {reviewsLoading?<ActivityIndicator color={COLORS.purple} style={{margin:20}}/>:<FlatList data={studioReviews} keyExtractor={item=>String(item.id)} initialNumToRender={5} maxToRenderPerBatch={5} windowSize={5} removeClippedSubviews ListEmptyComponent={<Text style={styles.filterHint}>아직 등록된 리뷰가 없습니다.</Text>} renderItem={({item})=><View style={styles.classBlock}><Text style={styles.classTitle}>{"★".repeat(Number(item.rating))}{"☆".repeat(5-Number(item.rating))}</Text><Text style={styles.photoCredit}>{item.user_id===reviewUserId?"내 리뷰":"방문자 리뷰"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{item.content}</Text></View>}/>}
 </View>}
-{detailTab==="photos"&&<View style={{flex:1}}><Text style={styles.photoCredit}>학원 관리자가 등록한 사진만 표시합니다.</Text><FlatList data={detailPhotoItems.slice(0,36)} keyExtractor={item=>item.key} numColumns={3} initialNumToRender={6} maxToRenderPerBatch={6} windowSize={5} removeClippedSubviews columnWrapperStyle={{gap:7,marginBottom:7}} ListEmptyComponent={<Text style={styles.filterHint}>등록된 사진이 없습니다.</Text>} renderItem={({item})=><Pressable style={{flex:1}} onPress={()=>{if(item.url)Linking.openURL(item.url).catch(()=>Alert.alert("원문 연결","사진 출처를 열 수 없습니다."));}}><Image source={{uri:item.uri}} style={{flex:1,height:108,borderRadius:9,backgroundColor:"#F3F0F5"}} resizeMode="cover" onError={()=>setFailedStudioImageUrls(current=>current.includes(item.uri)?current:[...current,item.uri])}/>{failedStudioImageUrls.includes(item.uri)&&<View style={{height:108,alignItems:"center",justifyContent:"center",backgroundColor:"#F3F0F5"}}><Text style={styles.filterHint}>이미지 없음</Text></View>}</Pressable>}/></View>}
+{detailTab==="photos"&&<View style={{flex:1}}><Text style={styles.photoCredit}>학원 관리자가 등록한 사진만 표시합니다.</Text><FlatList data={detailPhotoItems.slice(0,36)} keyExtractor={item=>item.key} numColumns={3} initialNumToRender={6} maxToRenderPerBatch={6} windowSize={5} removeClippedSubviews columnWrapperStyle={{gap:7,marginBottom:7}} ListEmptyComponent={<Text style={styles.filterHint}>등록된 사진이 없습니다.</Text>} renderItem={({item})=><Pressable style={{flex:1}} onPress={()=>{if(item.url)Linking.openURL(item.url).catch(()=>Alert.alert("원문 연결","사진 출처를 열 수 없습니다."));}}>{failedStudioImageUrls.includes(item.uri)?<View style={{height:108,alignItems:"center",justifyContent:"center",backgroundColor:"#F3F0F5"}}><Text style={styles.filterHint}>이미지 없음</Text></View>:<Image source={{uri:item.uri}} style={{flex:1,height:108,borderRadius:9,backgroundColor:"#F3F0F5"}} resizeMode="cover" onError={()=>setFailedStudioImageUrls(current=>current.includes(item.uri)?current:[...current,item.uri])}/>}</Pressable>}/></View>}
 </>}</View>
 </Animated.View></View></Modal><Modal visible={reportOpen} transparent animationType="slide" onRequestClose={()=>setReportOpen(false)}>
       <View style={styles.modalShade}><View style={styles.modal}>
