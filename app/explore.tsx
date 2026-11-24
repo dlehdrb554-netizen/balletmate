@@ -21,7 +21,7 @@ type Studio = {
   id: string; name: string; lat: number; lng: number; area: string;
   tags: string[]; price: number | null; coupon: boolean; adult: boolean; kids: boolean;
   level: string[]; days: string[]; time: string; duration: number; rating: number;
-  description: string; address?: string; phone?: string; websiteUrl?: string; sourceUrl?: string; sourceName?: string; sourceStatus?: string; verifiedAt?: string; kakaoChannelUrl?:string; classDurations?: number[];
+  description: string; address?: string; phone?: string; websiteUrl?: string; sourceUrl?: string; sourceName?: string; sourceStatus?: string; verifiedAt?: string; classDurations?: number[];
 };
 const cleanPublicText=(value:string|null|undefined)=>String(value||"").replace(/<[^>]*>/g," ").replace(/&nbsp;|&#160;/gi," ").replace(/&amp;/gi,"&").split(" ").filter(Boolean).join(" ");
 const mapStudioRecord = (r: StudioRecord): Studio => ({
