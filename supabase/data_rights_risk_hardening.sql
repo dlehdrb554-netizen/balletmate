@@ -41,15 +41,15 @@ WHERE EXISTS (
 
 UPDATE public.studio_public_prices p
 SET image_urls = COALESCE((
-  SELECT jsonb_agg(value)
-  FROM jsonb_array_elements_text(COALESCE(p.image_urls,'[]'::jsonb)) AS value
+  SELECT array_agg(value)
+  FROM unnest(COALESCE(p.image_urls,ARRAY[]::text[])) AS value
   WHERE NOT EXISTS (
     SELECT 1 FROM public.studio_photo_candidates c
     WHERE c.studio_id=p.studio_id AND c.image_url=value
       AND c.review_status='approved' AND c.reviewed_by IS NULL
       AND c.auto_classified_at IS NOT NULL
   )
-), '[]'::jsonb)
+), ARRAY[]::text[])
 WHERE EXISTS (
   SELECT 1 FROM public.studio_photo_candidates c
   WHERE c.studio_id=p.studio_id AND c.review_status='approved'
