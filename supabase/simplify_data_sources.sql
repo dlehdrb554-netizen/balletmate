@@ -13,6 +13,8 @@ BEGIN
       'balletmate-studio-website-info','balletmate-naver-blog-post-crawl'
     )
     OR jobname LIKE 'balletmate-naver-blog%'
+    OR command ILIKE '%/functions/v1/crawl-studio%'
+    OR command ILIKE '%/functions/v1/search-studio-blogs%'
   LOOP
     PERFORM cron.unschedule(j.jobid);
   END LOOP;
@@ -47,4 +49,6 @@ CHECK (
   website_url !~* '^https?://([^/]*\.)?(neis\.go\.kr|schoolinfo\.go\.kr|place\.map\.kakao\.com)(/|$)'
 );
 
+-- Storage object bytes are not deleted by this database migration. Empty the studio-photos bucket
+-- in Supabase Dashboard > Storage after running this script.
 COMMIT;
