@@ -465,11 +465,9 @@ Deno.serve(async (req) => {
             .select("id", { count: "exact", head: true })
             .eq("studio_id", job.studio_id).eq("is_active", true);
           if (activeCountError) throw new Error("공식 블로그 등록 개수 확인 실패: " + activeCountError.message);
-          const shouldAutoApprove = score >= 90 && identityEvidence &&
-            operationPostCount >= 2 && branchSafe && branchEvidence && locationReady &&
-            !locationConflict && !belongsToAnotherStudio && !priorRejected &&
-            (Number(activeCount ?? 0) < 5 || (ownerRows ?? []).some((row: {studio_id:string|null;blogger_url:string}) =>
-              row.studio_id === job.studio_id && blogAccountKey(row.blogger_url) === accountKey));
+          // Name/location similarity is not proof of blog ownership or a license to reuse content.
+          // Official blog accounts must be explicitly reviewed and approved by an administrator.
+          const shouldAutoApprove = false;
           const { error: candidateError } = await db.from("studio_blog_account_candidates")
             .upsert({
               studio_id: job.studio_id,
