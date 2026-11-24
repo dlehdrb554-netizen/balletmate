@@ -172,10 +172,13 @@ export default function Home() {
     const studioId=detailStudio?.id;
     if(!client||!studioId||detailTab!=="notices")return;
     let active=true;
-    client.from("studio_owner_notices").select("id,title,body,created_at")
-      .eq("studio_id",studioId).eq("is_active",true).order("created_at",{ascending:false}).limit(10)
-      .then(({data,error})=>{if(active)setStudioOwnerNotices(error?[]:(data||[]));})
-      .catch(()=>{if(active)setStudioOwnerNotices([]);});
+    void (async()=>{
+      try{
+        const {data,error}=await client.from("studio_owner_notices").select("id,title,body,created_at")
+          .eq("studio_id",studioId).eq("is_active",true).order("created_at",{ascending:false}).limit(10);
+        if(active)setStudioOwnerNotices(error?[]:(data||[]));
+      }catch{if(active)setStudioOwnerNotices([]);}
+    })();
     return()=>{active=false;};
   },[detailStudio?.id,detailTab]);
   useEffect(()=>{
