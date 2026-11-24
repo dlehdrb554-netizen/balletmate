@@ -6,7 +6,7 @@ BEGIN;
 CREATE TEMP TABLE _school24_blocked_photo_urls ON COMMIT DROP AS
 SELECT DISTINCT image_url
 FROM public.studio_photo_candidates
-WHERE lower(coalesce(source_page_url,'')) ~ '^https?://(www\\.)?school24\\.kr/academy/a/j10-3000069628/?([?#]|$)';
+WHERE lower(coalesce(source_page_url,'')) ~ '^https?://(www\.)?school24\.kr/academy/a/j10-3000069628/?([?#]|$)';
 
 UPDATE public.studios AS s
 SET image_urls = ARRAY(
@@ -51,10 +51,10 @@ WHERE EXISTS (
 );
 
 DELETE FROM public.studio_photo_candidates
-WHERE lower(coalesce(source_page_url,'')) ~ '^https?://(www\\.)?school24\\.kr/academy/a/j10-3000069628/?([?#]|$)';
+WHERE lower(coalesce(source_page_url,'')) ~ '^https?://(www\.)?school24\.kr/academy/a/j10-3000069628/?([?#]|$)';
 
 COMMIT;
 
 SELECT count(*) AS remaining_school24_candidates
 FROM public.studio_photo_candidates
-WHERE lower(coalesce(source_page_url,'')) ~ '^https?://(www\\.)?school24\\.kr/academy/a/j10-3000069628/?([?#]|$)';
+WHERE lower(coalesce(source_page_url,'')) ~ '^https?://(www\.)?school24\.kr/academy/a/j10-3000069628/?([?#]|$)';
