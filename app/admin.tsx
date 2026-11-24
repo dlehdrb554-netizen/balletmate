@@ -28,6 +28,11 @@ const isSchool24PhotoSource=(item:any)=>{try{const url=new URL(String(item?.sour
 const isNeisPhotoSource=(item:any)=>{const host=String(item?.source_host||(()=>{try{return new URL(item?.source_page_url||"").hostname}catch{return ""}})()).toLowerCase();return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr");};
 const c = {ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",white:"#FFFFFF",bg:"#FBF9FF"};
 const normalizeScheduleKey=(value:string)=>String(value||"").toLowerCase().replace(/[\s·,，、|/]+/g,"").trim();
+const normalizeNaverBlogProfileUrl=(value:string):string|null=>{
+  const input=String(value||"").trim();
+  const match=input.match(/^https?:\\/\\/(?:www\\.)?(?:m\\.)?blog\\.naver\\.com\\/([A-Za-z0-9._-]+)\\/?(?:[?#].*)?$/i);
+  return match?"https://blog.naver.com/"+match[1]:null;
+};
 
 type PhotoAutoFilter="priority"|"suspect"|"ballet"|"excluded"|"all";
 const classifyPhotoCandidate=(item:any)=>{
@@ -297,10 +302,12 @@ export default function Admin() {
   };
   const saveOfficialBlogAccounts=async()=>{
     if(!supabase||!officialBlogStudio)return;
-    const urls=[...new Set(officialBlogUrls.split(/[\r\n,]+/).map(value=>value.trim()).filter(Boolean))];
+    const rawUrls=officialBlogUrls.split(/[\\r\\n,]+/).map(value=>value.trim()).filter(Boolean);
+    const normalizedUrls=rawUrls.map(normalizeNaverBlogProfileUrl);
+    const invalidUrlIndex=normalizedUrls.findIndex(value=>!value);
+    if(invalidUrlIndex>=0){Alert.alert("블로그 주소 확인","네이버 블로그 프로필 주소를 입력해 주세요. 모바일 주소와 추적 파라미터는 자동 정리됩니다. 예: https://blog.naver.com/blogid");return;}
+    const urls=[...new Set(normalizedUrls.filter((value):value is string=>!!value))];
     if(urls.length>5){Alert.alert("등록 한도","학원별 공식 블로그는 최대 5개까지 등록할 수 있습니다.");return;}
-    const invalidUrl=urls.find(url=>!/^https:\/\/(m\.)?blog\.naver\.com\/[A-Za-z0-9._-]+\/?$/i.test(url));
-    if(invalidUrl){Alert.alert("블로그 주소 확인","네이버 블로그 주소를 입력해 주세요. 예: https://blog.naver.com/blogid");return;}
     setOfficialBlogBusy(true);
     const {data,error}=await supabase.rpc("admin_set_studio_official_blog_accounts",{p_studio_id:officialBlogStudio.id,p_blogger_urls:urls});
     if(error)Alert.alert("공식 블로그 저장 실패",error.message);
