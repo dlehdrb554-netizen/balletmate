@@ -1,10 +1,6 @@
 project_id = "ykxvcqgdvifogahbbbwr"
 
-[functions.crawl-studio]
-verify_jwt = false
 
-[functions.crawl-studio-worker]
-verify_jwt = false
 
 [functions.studio-discovery-worker]
 verify_jwt = false
@@ -12,11 +8,7 @@ verify_jwt = false
 [functions.neis-ballet-discovery]
 verify_jwt = false
 
-[functions.search-studio-blogs]
-verify_jwt = false
 
-[functions.crawl-studio-blogs]
-verify_jwt = false
 
 [functions.search-studios-kakao]
 verify_jwt = false
