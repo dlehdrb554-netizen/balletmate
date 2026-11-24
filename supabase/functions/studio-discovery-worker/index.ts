@@ -5,6 +5,20 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레","발레교습소","발레아카데미","무용학원","ballet studio","ballet academy"];
 const MAX_PAGES_PER_TERM=3, PAGE_SIZE=15;
 
+function kakaoDistrict(address: string | null | undefined): string {
+ const parts=String(address||"").trim().split(/\s+/).filter(Boolean);
+ if(parts.length<2)return "기타";
+ const first=parts[0].replace(/특별자치시|특별자치도|특별시|광역시|자치시|자치도/g,"");
+ const metro=new Set(["서울","부산","대구","인천","광주","대전","울산"]);
+ if(metro.has(first)){
+  const second=parts[1];
+  return /구$|군$/.test(second)?first+" "+second:first;
+ }
+ if(first==="세종")return "세종";
+ if(parts.length>=3&&/(구|군)$/.test(parts[2]))return parts[1]+" "+parts[2];
+ return parts[1];
+}
+
 Deno.serve(async(req)=>{
  if(req.method!=="POST")return json({error:"POST only"},405);
  const secret=Deno.env.get("CRAWL_WORKER_SECRET");
@@ -37,7 +51,7 @@ Deno.serve(async(req)=>{
      if(seen.has(identity)){duplicateCount++;continue;}seen.add(identity);resultCount++;
      const {data,error}=await db.rpc("register_discovered_studio",{
       p_name:name,p_latitude:lat,p_longitude:lng,p_address:item.road_address_name||item.address_name||null,
-      p_phone:item.phone||null,p_place_url:item.place_url||null,p_region:region.region_name
+      p_phone:item.phone||null,p_place_url:item.place_url||null,p_region:kakaoDistrict(item.road_address_name||item.address_name)
      });
      if(error){regionHasError=true;errors.push(name+": "+error.message.slice(0,160));}
      else if(data?.[0]?.inserted)insertedCount++;else duplicateCount++;
