@@ -21,6 +21,13 @@ function isPrivateHost(hostname: string): boolean {
     (a === 198 && (b === 18 || b === 19));
 }
 function isNeisHost(hostname: string): boolean { const host=hostname.toLowerCase().replace(/\\.$/,""); return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr"); }
+function attr(tag: string, name: string): string | null {
+  const pattern = /([^\\s=]+)\\s*=\\s*(?:"([^"]*)"|'([^']*)')/g;
+  for (const match of tag.matchAll(pattern)) {
+    if (match[1].toLowerCase() === name.toLowerCase()) return match[2] ?? match[3] ?? null;
+  }
+  return null;
+}
 function decodeHtml(value: string): string {
   return value.replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
@@ -44,7 +51,7 @@ function relevantLinks(html: string, base: URL): string[] {
     const label = visibleText(tag.replace(/<a\b[^>]*>/i, "").replace(/<\/a>/i, "")).slice(0, 100);
     try {
       const url = new URL(href, base);
-      if (url.protocol !== "https:" || url.hostname !== base.hostname || url.username || url.password || (isBlockedWesebPhotoSource(url.toString()) || isBlockedSchool24PhotoSource(url.toString()))) continue;
+      if (url.protocol !== "https:" || url.hostname !== base.hostname || url.username || url.password) continue;
       if (url.pathname === base.pathname && !url.search) continue;
       if (/login|logout|member|privacy|terms|sns|share|javascript:/i.test(url.href)) continue;
       const clue = (url.pathname + " " + label).toLowerCase();
