@@ -26,8 +26,8 @@ ALTER TABLE public.studio_public_prices
 ALTER TABLE public.studio_public_schedules
   ADD COLUMN IF NOT EXISTS image_urls text[] NOT NULL DEFAULT '{}';
 
--- Remove only photos that were published solely by the old AI auto-approval path.
--- Admin-reviewed photos (reviewed_by is not null) are preserved.
+-- Retract previously published Naver-blog photos until explicit reuse permission is re-confirmed.
+-- User-uploaded and official-website photos are not bulk-removed by this cleanup.
 UPDATE public.studios s
 SET image_urls = COALESCE((
   SELECT array_agg(item.image_url)
@@ -35,7 +35,7 @@ SET image_urls = COALESCE((
   WHERE NOT EXISTS (
     SELECT 1 FROM public.studio_photo_candidates c
     WHERE c.studio_id=s.id AND c.image_url=item.image_url
-      AND c.review_status='approved' AND c.reviewed_by IS NULL
+      AND c.review_status='approved' AND c.source_host IN ('blog.naver.com','m.blog.naver.com')
       AND c.auto_classified_at IS NOT NULL
   )
 ), ARRAY[]::text[]),
@@ -43,7 +43,7 @@ updated_at=now()
 WHERE EXISTS (
   SELECT 1 FROM public.studio_photo_candidates c
   WHERE c.studio_id=s.id AND c.review_status='approved'
-    AND c.reviewed_by IS NULL AND c.auto_classified_at IS NOT NULL
+    AND c.source_host IN ('blog.naver.com','m.blog.naver.com') AND c.auto_classified_at IS NOT NULL
 );
 
 UPDATE public.studio_public_prices p
@@ -53,14 +53,14 @@ SET image_urls = COALESCE((
   WHERE NOT EXISTS (
     SELECT 1 FROM public.studio_photo_candidates c
     WHERE c.studio_id=p.studio_id AND c.image_url=item.image_url
-      AND c.review_status='approved' AND c.reviewed_by IS NULL
+      AND c.review_status='approved' AND c.source_host IN ('blog.naver.com','m.blog.naver.com')
       AND c.auto_classified_at IS NOT NULL
   )
 ), ARRAY[]::text[])
 WHERE EXISTS (
   SELECT 1 FROM public.studio_photo_candidates c
   WHERE c.studio_id=p.studio_id AND c.review_status='approved'
-    AND c.reviewed_by IS NULL AND c.auto_classified_at IS NOT NULL
+    AND c.source_host IN ('blog.naver.com','m.blog.naver.com') AND c.auto_classified_at IS NOT NULL
 );
 
 UPDATE public.studio_public_schedules p
@@ -70,14 +70,14 @@ SET image_urls = COALESCE((
   WHERE NOT EXISTS (
     SELECT 1 FROM public.studio_photo_candidates c
     WHERE c.studio_id=p.studio_id AND c.image_url=value
-      AND c.review_status='approved' AND c.reviewed_by IS NULL
+      AND c.review_status='approved' AND c.source_host IN ('blog.naver.com','m.blog.naver.com')
       AND c.auto_classified_at IS NOT NULL
   )
 ), ARRAY[]::text[])
 WHERE EXISTS (
   SELECT 1 FROM public.studio_photo_candidates c
   WHERE c.studio_id=p.studio_id AND c.review_status='approved'
-    AND c.reviewed_by IS NULL AND c.auto_classified_at IS NOT NULL
+    AND c.source_host IN ('blog.naver.com','m.blog.naver.com') AND c.auto_classified_at IS NOT NULL
 );
 
 UPDATE public.studio_photo_candidates
@@ -90,7 +90,7 @@ SET review_status='pending',
     rights_verified_by=NULL,
     auto_reason=concat_ws(' · ', NULLIF(auto_reason,''), '기존 AI 자동 공개 취소: 저작권 확인 필요')
 WHERE review_status='approved'
-  AND reviewed_by IS NULL
+  AND source_host IN ('blog.naver.com','m.blog.naver.com')
   AND auto_classified_at IS NOT NULL;
 
 -- Keep only explicitly mapped NEIS fields; the individual columns above remain intact.
