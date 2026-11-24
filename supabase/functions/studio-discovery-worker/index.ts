@@ -1,48 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
-const normalize=(value:string)=>value.toLowerCase().replace(/[^a-z0-9가-힣]/g,"");
-function canonicalKakaoNaverBlog(raw:string):string|null{
- try{const u=new URL(raw);const host=u.hostname.toLowerCase().replace(/^www\./,"");if(!["blog.naver.com","m.blog.naver.com"].includes(host))return null;const account=u.pathname.split("/").filter(Boolean)[0]||u.searchParams.get("blogId")||u.searchParams.get("blogid");return account&&!/^(postview|postlist)$/i.test(account)?"https://blog.naver.com/"+account:null;}catch{return null;}
-}
-function collectNaverBlogUrls(value:unknown,found:Set<string>,depth=0):void{
- if(depth>9||value==null)return;
- if(typeof value==="string"){const decoded=value.replace(/\\\//g,"/").replace(/\\u0026/gi,"&").replace(/&amp;/g,"&");const matches=decoded.match(/https?:\/\/(?:m\.)?blog\.naver\.com\/[A-Za-z0-9._-]+(?:\?[^\s"\x27<>]*)?/gi)||[];for(const match of matches){const url=canonicalKakaoNaverBlog(match);if(url)found.add(url);}const direct=canonicalKakaoNaverBlog(decoded.trim());if(direct)found.add(direct);return;}
- if(Array.isArray(value)){for(const item of value)collectNaverBlogUrls(item,found,depth+1);return;}
- if(typeof value==="object"){for(const [key,item] of Object.entries(value as Record<string,unknown>)){if(/homepage|home.?page|blog|url|site|link|sns/i.test(key)||depth<3)collectNaverBlogUrls(item,found,depth+1);}}
-}
-function findKakaoPlaceWebsite(value:unknown,key="",depth=0):string|null{
- if(depth>10||value==null)return null;
- if(typeof value==="string"&&/(homepage|home.?page|website|official.?site|siteurl|homepageurl|websiteurl)/i.test(key)){
-  const candidates=value.match(/https?:\/\/[^\s"'<>]+/gi)||[value.trim()];
-  const excluded=["blog.naver.com","instagram.com","facebook.com","youtube.com","tiktok.com","kakao.com","place.map.kakao.com","naver.com","linktr.ee"];
-  for(const candidate of candidates){try{const url=new URL(candidate.replace(/[),.;]+$/,""));const host=url.hostname.toLowerCase().replace(/^www\./,"");if(["http:","https:"].includes(url.protocol)&&!excluded.some(domain=>host===domain||host.endsWith("."+domain)))return url.toString();}catch{}}
-  return null;
- }
- if(Array.isArray(value)){for(const item of value){const found=findKakaoPlaceWebsite(item,key,depth+1);if(found)return found;}return null;}
- if(typeof value==="object"){for(const [childKey,item] of Object.entries(value as Record<string,unknown>)){const found=findKakaoPlaceWebsite(item,childKey,depth+1);if(found)return found;}}
- return null;
-}
-function findKakaoPlaceChannel(value:unknown,depth=0):string|null{
- if(depth>10||value==null)return null;
- if(typeof value==="string"){
-  const decoded=value.replace(/\\\//g,"/").replace(/\\u0026/gi,"&").replace(/&amp;/g,"&");
-  const match=decoded.match(/https?:\/\/(?:pf\.)?kakao\.com\/_[A-Za-z0-9]+/i);
-  return match?match[0].replace(/[),.;]+$/,""):null;
- }
- if(Array.isArray(value)){for(const item of value){const found=findKakaoPlaceChannel(item,depth+1);if(found)return found;}return null;}
- if(typeof value==="object"){for(const [key,item] of Object.entries(value as Record<string,unknown>)){if(/channel|kakao|plus.?friend|sns|url|link|homepage|site/i.test(key)||depth<3){const found=findKakaoPlaceChannel(item,depth+1);if(found)return found;}}}
- return null;
-}
-// Official-link enrichment is intentionally disabled: no undocumented Kakao Place HTML endpoints are requested.
-async function findKakaoPlaceOfficialLinks(_placeId:string):Promise<{blog:string|null;channel:string|null;website:string|null;checked:boolean}>{
- // Do not scrape undocumented Kakao Place web endpoints. Use only Kakao's documented Local API;
- // official links can be entered or verified by an academy owner/admin.
- return {blog:null,channel:null,website:null,checked:false};
-}
 const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레","발레교습소","발레아카데미","무용학원","ballet studio","ballet academy"];
-const MAX_PAGES_PER_TERM=3;
-const PAGE_SIZE=15;
+const MAX_PAGES_PER_TERM=3, PAGE_SIZE=15;
 
 Deno.serve(async(req)=>{
  if(req.method!=="POST")return json({error:"POST only"},405);
@@ -51,150 +11,45 @@ Deno.serve(async(req)=>{
  const url=Deno.env.get("SUPABASE_URL"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),kakaoKey=Deno.env.get("KAKAO_REST_API_KEY");
  if(!url||!serviceKey||!kakaoKey)return json({error:"SUPABASE or KAKAO_REST_API_KEY secret missing"},500);
  const db=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
- // Only NEIS-eligible matched studios receive automated detail enrichment.
- // Other Kakao discoveries remain map-only.
- const {data:neisLinkedRows,error:neisLinkedError}=await db.from("neis_ballet_academy_candidates")
-  .select("matched_studio_id").eq("eligible",true).eq("is_open",true).eq("review_status","matched").not("matched_studio_id","is",null);
- const neisLinkedStudioIds=[...new Set((neisLinkedRows||[]).map((r:any)=>r.matched_studio_id).filter(Boolean))];
- if(neisLinkedError)console.error("NEIS enrichment eligibility lookup failed; enrichment disabled:",neisLinkedError.message);
- const canEnrichStudio=(studioId:string)=>!neisLinkedError&&neisLinkedStudioIds.includes(studioId);
- // Backfill existing studios that already have a Kakao Place URL. Keep this
- // independent from new regional discovery and process only a small batch.
- let existingKakaoChecks=0,existingKakaoBlogs=0;
- let backfillCandidateCount=0,backfillSelectedCount=0;
- let backfillQueryError:string|null=null,backfillUpdateErrors:string[]=[];
- const retryBefore=Date.now()-24*60*60*1000;
- const sourceFilter="source_url.like.http://place.map.kakao.com/%,source_url.like.https://place.map.kakao.com/%";
- const {data:unattemptedRows,error:unattemptedError}=await db.from("studios")
-  .select("id,name,source_url,kakao_place_blog_attempted_at,website_url")
-  .eq("is_active",true).is("kakao_place_blog_checked_at",null)
-  .is("kakao_place_blog_attempted_at",null)
-  .or(sourceFilter)
-  .order("created_at",{ascending:true})
-   .in("id",neisLinkedStudioIds).limit(6);
- let backfillRows=unattemptedRows||[];
- if(unattemptedError)backfillQueryError="미처리 대상 조회 실패: "+unattemptedError.message;
- if(backfillRows.length<6&&!backfillQueryError){
-  const remaining=6-backfillRows.length;
-  const {data:retryRows,error:retryError}=await db.from("studios")
-   .select("id,name,source_url,kakao_place_blog_attempted_at,website_url")
-   .eq("is_active",true).is("kakao_place_blog_checked_at",null)
-   .lt("kakao_place_blog_attempted_at",new Date(retryBefore).toISOString())
-   .or(sourceFilter)
-   .order("kakao_place_blog_attempted_at",{ascending:true})
-    .in("id",neisLinkedStudioIds).limit(remaining);
-  if(retryError)backfillQueryError="재시도 대상 조회 실패: "+retryError.message;
-  else backfillRows=[...backfillRows,...(retryRows||[])];
- }
- backfillCandidateCount=backfillRows.length;
- backfillSelectedCount=backfillRows.length;
- const backfillCandidates=backfillRows;
- if(backfillQueryError)console.error("Kakao blog backfill target query failed:",backfillQueryError);
- for(const studio of backfillRows||[]){
-  const placeId=String(studio.source_url||"").match(/place\.map\.kakao\.com\/(?:main\/v\/)?(\d+)/i)?.[1];
-  if(!placeId)continue;
-  existingKakaoChecks++;
-  const attemptedAt=new Date().toISOString();
-  const {error:attemptUpdateError}=await db.from("studios").update({kakao_place_blog_attempted_at:attemptedAt,updated_at:attemptedAt}).eq("id",studio.id);
-  if(attemptUpdateError)backfillUpdateErrors.push(String(studio.name)+": attempted_at 저장 실패: "+attemptUpdateError.message);
-  const links=await findKakaoPlaceOfficialLinks(placeId);
-  if(links.checked){
-   const checkedAt=new Date().toISOString();
-   const {error:checkedUpdateError}=await db.from("studios").update({kakao_place_blog_checked_at:checkedAt,updated_at:checkedAt}).eq("id",studio.id);
-   if(checkedUpdateError)backfillUpdateErrors.push(String(studio.name)+": checked_at 저장 실패: "+checkedUpdateError.message);
-  }
-  if(links.website&&!studio.website_url){
-   const {error:websiteError}=await db.from("studios").update({website_url:links.website,updated_at:new Date().toISOString()}).eq("id",studio.id).is("website_url",null);
-   if(websiteError)backfillUpdateErrors.push(String(studio.name)+": 카카오 공식 사이트 저장 실패: "+websiteError.message);
-  }
-  if(links.blog){
-   const {error:seedError}=await db.from("studio_blog_account_candidates").upsert({
-    studio_id:studio.id,studio_name:String(studio.name||""),blogger_url:links.blog,
-    blogger_name:"카카오 장소 등록 블로그",matched_post_count:1,sample_posts:[],
-    match_score:98,last_seen_at:new Date().toISOString()
-   },{onConflict:"studio_id,blogger_url"});
-   if(seedError)console.error("Kakao blog backfill candidate save failed:",seedError.message);
-   else{
-    existingKakaoBlogs++;
-    const {error:queueError}=await db.from("studio_blog_search_queue").upsert({
-     studio_id:studio.id,status:"pending",attempts:0,last_error:null,updated_at:new Date().toISOString()
-    },{onConflict:"studio_id"});
-    if(queueError)console.error("Kakao blog backfill search enqueue failed:",queueError.message);
-   }
-  }
- }
  const {data:regions,error:regionError}=await db.rpc("next_studio_discovery_region");
  if(regionError||!regions?.length)return json({error:"지역 배정 실패: "+(regionError?.message||"empty")},500);
  const region=regions[0];
- let resultCount=0,insertedCount=0,duplicateCount=0,requestCount=0,kakaoDetailChecks=0,kakaoBlogCandidates=0,kakaoChannelCandidates=0;
- let homepageSearches=0,homepagesFound=0; // Naver-wide homepage search intentionally disabled.
- const errors:string[]=[];
- const addError=(message:string)=>{const normalized=message.trim();if(normalized&&!errors.includes(normalized))errors.push(normalized);};
- let regionHasError=false;
+ let resultCount=0,insertedCount=0,duplicateCount=0,requestCount=0;
+ const errors:string[]=[];let regionHasError=false;
  const seen=new Set<string>();
- // Prioritize legacy studios so homepage discovery is not starved by regional place searches.
- // Homepage discovery outside Kakao Place is intentionally disabled; missing links stay blank.
  for(const term of SEARCH_TERMS){
   for(let page=1;page<=MAX_PAGES_PER_TERM;page++){
    const api=new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
-   api.searchParams.set("query",term);
-   api.searchParams.set("x",String(region.longitude));
-   api.searchParams.set("y",String(region.latitude));
-   api.searchParams.set("radius",String(region.radius_m));
-   api.searchParams.set("page",String(page));
-   api.searchParams.set("size",String(PAGE_SIZE));
-   api.searchParams.set("sort","distance");
+   api.searchParams.set("query",term);api.searchParams.set("x",String(region.longitude));api.searchParams.set("y",String(region.latitude));
+   api.searchParams.set("radius",String(region.radius_m));api.searchParams.set("page",String(page));api.searchParams.set("size",String(PAGE_SIZE));api.searchParams.set("sort","distance");
    try{
     requestCount++;
     const response=await fetch(api.toString(),{headers:{Authorization:"KakaoAK "+kakaoKey},signal:AbortSignal.timeout(8000)});
-    if(!response.ok){regionHasError=true;addError(term+" HTTP "+response.status);break;}
+    if(!response.ok){regionHasError=true;errors.push(term+" HTTP "+response.status);break;}
     const payload=await response.json(),docs=payload?.documents??[];
     for(const item of docs){
      const name=String(item.place_name||"").trim(),category=String(item.category_name||"");
-     // Strict ballet-only discovery; block therapy and wellness businesses.
-     const excludedBusiness=/(테라피|therapy|마사지|massag|스파|spa|요가|yoga|필라테스|pilates|체형관리|교정|에스테틱|피부관리|힐링|wellness|뷰티|beauty)/i;
-     if(!name||excludedBusiness.test(name+" "+category)||!/(발레|ballet)/i.test(name))continue;
-     const lat=Number(item.y),lng=Number(item.x);
-     if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
+     const excluded=/(테라피|therapy|마사지|massag|스파|spa|요가|yoga|필라테스|pilates|체형관리|교정|에스테틱|피부관리|힐링|wellness|뷰티|beauty)/i;
+     if(!name||excluded.test(name+" "+category)||!/(발레|ballet)/i.test(name))continue;
+     const lat=Number(item.y),lng=Number(item.x);if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
      const identity=String(item.id||[name,lat.toFixed(5),lng.toFixed(5)].join("|"));
-     if(seen.has(identity)){duplicateCount++;continue;}
-     seen.add(identity);
-     resultCount++;
-     const address=item.road_address_name||item.address_name||null;
-     const {data,error}=await db.rpc("register_discovered_studio",{p_name:name,p_latitude:lat,p_longitude:lng,p_address:address,p_phone:item.phone||null,p_place_url:item.place_url||null,p_region:region.region_name});
-     if(error){regionHasError=true;addError(error.message.slice(0,160));}
-     else {if(data?.[0]?.inserted)insertedCount++;else duplicateCount++;const studioId=data?.[0]?.studio_id;
-      if(studioId&&item.id&&kakaoDetailChecks<35&&canEnrichStudio(studioId)){
-       kakaoDetailChecks++;
-       const officialLinks=await findKakaoPlaceOfficialLinks(String(item.id));
-       if(officialLinks.blog){
-        const {error:seedError}=await db.from("studio_blog_account_candidates").upsert({
-         studio_id:studioId,studio_name:name,blogger_url:officialLinks.blog,blogger_name:"카카오 장소 등록 블로그",
-         matched_post_count:1,sample_posts:[],match_score:98,last_seen_at:new Date().toISOString()
-        },{onConflict:"studio_id,blogger_url"});
-        if(seedError)addError("카카오 등록 블로그 후보 저장 실패: "+seedError.message.slice(0,120));
-        else kakaoBlogCandidates++;
-       }
-       if(officialLinks.channel){
-        const {error:channelError}=await db.from("studios").update({kakao_channel_url:officialLinks.channel,updated_at:new Date().toISOString()}).eq("id",studioId);
-        if(channelError)addError("카카오톡 채널 후보 저장 실패("+name+"): "+channelError.message.slice(0,100));else kakaoChannelCandidates++;
-       }
-        if(officialLinks.website){const {error:websiteError}=await db.from("studios").update({website_url:officialLinks.website,updated_at:new Date().toISOString()}).eq("id",studioId).is("website_url",null);if(websiteError)addError("카카오 공식 홈페이지 저장 실패("+name+"): "+websiteError.message.slice(0,100));}
-      }
+     if(seen.has(identity)){duplicateCount++;continue;}seen.add(identity);resultCount++;
+     const {data,error}=await db.rpc("register_discovered_studio",{
+      p_name:name,p_latitude:lat,p_longitude:lng,p_address:item.road_address_name||item.address_name||null,
+      p_phone:item.phone||null,p_place_url:item.place_url||null,p_region:region.region_name
+     });
+     if(error){regionHasError=true;errors.push(name+": "+error.message.slice(0,160));}
+     else if(data?.[0]?.inserted)insertedCount++;else duplicateCount++;
     }
-     }
     if(payload?.meta?.is_end||docs.length<PAGE_SIZE)break;
-   }catch(e){regionHasError=true;addError(term+": "+(e instanceof Error?e.message:"request failed"));break;}
+   }catch(e){regionHasError=true;errors.push(term+": "+(e instanceof Error?e.message:"request failed"));break;}
   }
  }
- if(regionHasError){
-  const {error:retryError}=await db.rpc("retry_studio_discovery_region",{p_region_name:region.region_name});
-  if(retryError)addError("지역 재시도 예약 실패: "+retryError.message.slice(0,120));
- }
+ if(regionHasError){const {error}=await db.rpc("retry_studio_discovery_region",{p_region_name:region.region_name});if(error)errors.push("지역 재시도 예약 실패: "+error.message.slice(0,120));}
  const {error:logError}=await db.from("studio_discovery_runs").insert({
-  region_name:region.region_name,result_count:resultCount,inserted_count:insertedCount,
-  duplicate_count:duplicateCount,homepage_search_count:homepageSearches,
-  homepage_found_count:homepagesFound,error:errors.join(" | ").slice(0,1000)||null
+  region_name:region.region_name,result_count:resultCount,inserted_count:insertedCount,duplicate_count:duplicateCount,
+  homepage_search_count:0,homepage_found_count:0,error:errors.join(" | ").slice(0,1000)||null
  });
- return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,kakaoDetailChecks,kakaoBlogCandidates,kakaoChannelCandidates,existingKakaoChecks,existingKakaoBlogs,backfillCandidateCount,backfillSelectedCount,backfillQueryError,backfillUpdateErrors,backfillSample:(backfillCandidates||[]).slice(0,5).map((s)=>({id:s.id,name:s.name,source_url:s.source_url,attempted_at:s.kakao_place_blog_attempted_at})),homepageSearches,homepagesFound,errors,logSaved:!logError,logError:logError?.message});
+ return json({region:region.region_name,searchTerms:SEARCH_TERMS,requestCount,resultCount,insertedCount,duplicateCount,errors,logSaved:!logError,logError:logError?.message,
+  sources:["Kakao Local API"],note:"NEIS 매칭은 별도 작업으로 처리합니다. 홈페이지 URL은 관리자/학원 운영자가 직접 등록합니다."});
 });
