@@ -121,10 +121,10 @@ export default function Home() {
   const [studioPublicPrices,setStudioPublicPrices]=useState<StudioPublicPrice[]>([]);
   const [studioPublicSchedules,setStudioPublicSchedules]=useState<StudioPublicSchedule[]>([]);
   const [studioOwnerNotices,setStudioOwnerNotices]=useState<any[]>([]);
-  const [evidencePhotoIndexes,setEvidencePhotoIndexes]=useState<Record<string,number>>({});
   const [studioCoupons,setStudioCoupons]=useState<StudioCoupon[]>([]);
   const detailRequestId=useRef(0);
   const [detailExpanded,setDetailExpanded]=useState(false);
+  const [detailContentError,setDetailContentError]=useState<string|null>(null);
   const [detailTab,setDetailTab]=useState<"home"|"notices"|"reviews">("home");
   const [detailInfoTab,setDetailInfoTab]=useState<"price"|"schedule">("price");
   const [studioReviews,setStudioReviews]=useState<any[]>([]);
@@ -678,8 +678,6 @@ export default function Home() {
     setDetailCanonicalError(null);
     setDetailCanonicalLoading(!!supabaseConfigured);
     setStudioClasses([]);
-    setStudioBlogPosts([]);
-    setBlogLoading(false);
     setStudioPublicPrices([]);
     setStudioPublicSchedules([]);
     setStudioOwnerNotices([]);
