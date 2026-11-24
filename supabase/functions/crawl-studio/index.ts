@@ -23,7 +23,7 @@ function isPrivateHost(hostname: string): boolean {
 function isBlockedWesebPhotoSource(raw: string): boolean {
   try {
     const url = new URL(raw);
-    const host = url.hostname.toLowerCase().replace(/^www\\./, "");
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
     return host === "weseb.com" &&
       url.pathname.toLowerCase() === "/sjb/m.php" &&
       url.searchParams.get("board")?.toLowerCase() === "apartment" &&
