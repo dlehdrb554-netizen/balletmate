@@ -85,6 +85,7 @@ export default function Home() {
   const [selectedListRegion,setSelectedListRegion]=useState("전체");
   const [rankMode,setRankMode]=useState<"views"|"favorites">("views");
   const [regionPickerOpen,setRegionPickerOpen]=useState(false);
+  const [regionProvince,setRegionProvince]=useState("전체");
   const [regionCity,setRegionCity]=useState("전체");
   const [directoryAreas,setDirectoryAreas]=useState<string[]>(DATA.map(studio=>studio.area));
   const [popularViewRank,setPopularViewRank]=useState<any[]>([]);
@@ -331,15 +332,23 @@ export default function Home() {
   const handleMapRegionChange=useCallback((next:Region)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);},[]);
   const handleMapMarkerPress=useCallback((id:string)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);},[results]);
   const allListAreas=[...new Set([...directoryAreas,...studios.map(studio=>studio.area)].filter(area=>area&&area!=="지역 정보 없음"))].sort((a,b)=>a.localeCompare(b,"ko"));
-  const cityLabels=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원","충북","충남","전북","전남","경북","경남","제주","고양시","성남시","수원시","용인시","화성시","부천시","안양시","안산시","의정부시","남양주시","파주시","김포시","광명시","하남시","평택시","시흥시","광주시","양주시","구리시","군포시","오산시","이천시","포천시","춘천시","원주시","강릉시","청주시","천안시","아산시","전주시","익산시","군산시","목포시","여수시","순천시","포항시","경주시","구미시","창원시","김해시","진주시","거제시"];
-  const seoulDistricts=["강남구","강동구","강북구","강서구","관악구","광진구","구로구","금천구","노원구","도봉구","동대문구","동작구","마포구","서대문구","서초구","성동구","성북구","송파구","양천구","영등포구","용산구","은평구","종로구","중구","중랑구"];
-  const cityOfArea=(area:string)=>{const parts=area.trim().split(" ").filter(Boolean);const first=parts[0]||"";return cityLabels.includes(first)?first:(seoulDistricts.includes(first)?"서울":"기타");};
-  const districtOfArea=(area:string)=>{const parts=area.trim().split(" ").filter(Boolean);return cityLabels.includes(parts[0])?parts.slice(1).join(" "):area;};
-  const listCities=["전체",...new Set(allListAreas.map(cityOfArea))].sort((a,b)=>a==="전체"?-1:b==="전체"?1:a.localeCompare(b,"ko"));
+  const PROVINCES=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원도","충청북도","충청남도","전라북도","전라남도","경상북도","경상남도","제주도"];
+  const CITY_PROVINCE:Record<string,string>={"고양시":"경기","성남시":"경기","수원시":"경기","용인시":"경기","화성시":"경기","부천시":"경기","안양시":"경기","안산시":"경기","의정부시":"경기","남양주시":"경기","파주시":"경기","김포시":"경기","광명시":"경기","하남시":"경기","평택시":"경기","시흥시":"경기","광주시":"경기","양주시":"경기","구리시":"경기","군포시":"경기","오산시":"경기","이천시":"경기","포천시":"경기","춘천시":"강원도","원주시":"강원도","강릉시":"강원도","청주시":"충청북도","천안시":"충청남도","아산시":"충청남도","전주시":"전라북도","익산시":"전라북도","군산시":"전라북도","목포시":"전라남도","여수시":"전라남도","순천시":"전라남도","포항시":"경상북도","경주시":"경상북도","구미시":"경상북도","창원시":"경상남도","김해시":"경상남도","진주시":"경상남도","거제시":"경상남도"};
+  const PROVINCE_ALIASES:Record<string,string>={"서울특별시":"서울","경기도":"경기","강원":"강원도","강원특별자치도":"강원도","충북":"충청북도","충남":"충청남도","전북":"전라북도","전남":"전라남도","경북":"경상북도","경남":"경상남도","제주":"제주도","제주특별자치도":"제주도","부산광역시":"부산","대구광역시":"대구","인천광역시":"인천","광주광역시":"광주","대전광역시":"대전","울산광역시":"울산","세종특별자치시":"세종"};
+  const parseArea=(area:string)=>{
+    const parts=area.trim().split(/\\s+/).filter(Boolean),first=parts[0]||"",normalized=PROVINCE_ALIASES[first]||first;
+    const explicitProvince=PROVINCES.includes(normalized);
+    const city=explicitProvince?(parts[1]||normalized):first;
+    const province=explicitProvince?normalized:(CITY_PROVINCE[city]||(["서울","부산","대구","인천","광주","대전","울산","세종"].includes(city)?city:"기타"));
+    const detail=explicitProvince?parts.slice(2).join(" "):parts.slice(1).join(" ");
+    return {province,city,detail:detail||area};
+  };
+  const listProvinces=["전체",...PROVINCES.filter(province=>allListAreas.some(area=>parseArea(area).province===province))];
+  const listCities=["전체",...new Set(allListAreas.filter(area=>regionProvince==="전체"||parseArea(area).province===regionProvince).map(area=>parseArea(area).city))].sort((a,b)=>a.localeCompare(b,"ko"));
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active)setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
-  const listDistricts=allListAreas.filter(area=>regionCity==="전체"||cityOfArea(area)===regionCity);
+  const listDistricts=allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity));
   const listRows=useMemo(()=>{
-    const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?studio.area===selectedListRegion:(regionCity==="전체"||cityOfArea(studio.area)===regionCity));
+    const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?studio.area===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
     return [...rows].sort((a,b)=>{
       if(listSort==="price"){
         if(a.price===null&&b.price===null)return a.name.localeCompare(b.name,"ko");
@@ -349,7 +358,7 @@ export default function Home() {
       }
       return distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng);
     });
-  },[view,favoriteStudios,results,listSort,searchedRegion,selectedListRegion,regionCity]);
+  },[view,favoriteStudios,results,listSort,searchedRegion,selectedListRegion,regionProvince,regionCity]);
   useEffect(()=>{
     if(view!=="list"||!supabase)return;
     let active=true;setRankLoading(true);
@@ -358,11 +367,11 @@ export default function Home() {
       supabase.rpc("get_studio_favorite_rank",{p_region:selectedListRegion})
     ]).then(([viewsRes,favoritesRes])=>{
       if(!active)return;
-      setPopularViewRank(viewsRes.error?[]:(viewsRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"||regionCity==="전체"||cityOfArea(studios.find(studio=>studio.id===r.studio_id)?.area||"")===regionCity));
+      setPopularViewRank(viewsRes.error?[]:(viewsRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"||((regionProvince==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").province===regionProvince)&&(regionCity==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").city===regionCity))));
       setFavoriteRank(favoritesRes.error?[]:(favoritesRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"||regionCity==="전체"||cityOfArea(studios.find(studio=>studio.id===r.studio_id)?.area||"")===regionCity));
     }).finally(()=>{if(active)setRankLoading(false);});
     return()=>{active=false;};
-  },[view,selectedListRegion,regionCity,studios]);
+  },[view,selectedListRegion,regionProvince,regionCity,studios]);
   const rankItems=rankMode==="views"?popularViewRank.filter((r:any)=>Number(r.view_count)>10):favoriteRank;
   const REGIONAL_SEARCH:Record<string,{latitude:number;longitude:number}> = {
     "화곡":{latitude:37.5416,longitude:126.8466},"화곡동":{latitude:37.5416,longitude:126.8466},"화곡역":{latitude:37.5423,longitude:126.8403},
@@ -770,7 +779,7 @@ export default function Home() {
       </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Pressable onPress={()=>setListSort("distance")} style={[styles.listSortChip,listSort==="distance"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="distance"&&styles.listSortChipTextActive]}>거리순</Text></Pressable><Pressable onPress={()=>setListSort("price")} style={[styles.listSortChip,listSort==="price"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="price"&&styles.listSortChipTextActive]}>가격 낮은순</Text></Pressable></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}>
   <Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted,marginBottom:6}}>지역 선택</Text>
   <Pressable onPress={()=>setRegionPickerOpen(true)} style={{paddingHorizontal:12,paddingVertical:10,borderRadius:10,borderWidth:1,borderColor:COLORS.line,backgroundColor:COLORS.white,flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}>
-    <Text style={{fontSize:12,fontWeight:"800",color:COLORS.ink}}>{selectedListRegion==="전체"?(regionCity==="전체"?"전체 지역":regionCity):selectedListRegion}</Text><Text style={{color:COLORS.purple,fontWeight:"900"}}>지역/구 선택⌄</Text>
+    <Text style={{fontSize:12,fontWeight:"800",color:COLORS.ink}}>{selectedListRegion!=="전체"?selectedListRegion:(regionCity!=="전체"?regionCity:regionProvince!=="전체"?regionProvince:"전체 지역")}</Text><Text style={{color:COLORS.purple,fontWeight:"900"}}>지역/구 선택⌄</Text>
   </Pressable>
   <View style={{flexDirection:"row",gap:7,marginTop:10}}>
     {([{key:"views",label:"많이 본 학원"},{key:"favorites",label:"즐겨찾기"}] as const).map(opt=><Pressable key={opt.key} onPress={()=>setRankMode(opt.key)} style={{flex:1,paddingVertical:9,borderRadius:10,backgroundColor:rankMode===opt.key?COLORS.purple:"#F2F0F6",alignItems:"center"}}><Text style={{fontSize:11,fontWeight:"900",color:rankMode===opt.key?"#fff":COLORS.ink}}>{opt.label}</Text></Pressable>)}
@@ -857,7 +866,7 @@ export default function Home() {
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
-    <Modal visible={regionPickerOpen} transparent animationType="fade" onRequestClose={()=>setRegionPickerOpen(false)}><View style={styles.modalShade}><View style={[styles.modal,{maxHeight:"78%"}]}><View style={styles.modalHead}><Text style={styles.modalTitle}>지역 선택</Text><Pressable onPress={()=>setRegionPickerOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View><Text style={styles.photoCredit}>시/도 → 구·군 순서로 선택해 주세요.</Text><Text style={styles.sectionTitle}>시/도</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={{flexDirection:"row",gap:7}}>{listCities.map(city=><Pressable key={city} onPress={()=>{setRegionCity(city);setSelectedListRegion("전체");}} style={{paddingHorizontal:11,paddingVertical:8,borderRadius:9,backgroundColor:regionCity===city?COLORS.purple:"#F2F0F6"}}><Text style={{fontSize:12,fontWeight:"800",color:regionCity===city?"#fff":COLORS.ink}}>{city}</Text></Pressable>)}</View></ScrollView><Text style={styles.sectionTitle}>구·군</Text><ScrollView style={{maxHeight:280}}><Pressable onPress={()=>{setSelectedListRegion("전체");setRegionPickerOpen(false);}} style={{padding:11,borderBottomWidth:1,borderBottomColor:COLORS.line}}><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>전체 지역</Text></Pressable>{listDistricts.map(area=><Pressable key={area} onPress={()=>{setSelectedListRegion(area);setRegionPickerOpen(false);}} style={{padding:11,borderBottomWidth:1,borderBottomColor:COLORS.line}}><Text style={{fontSize:13,fontWeight:"700",color:COLORS.ink}}>{districtOfArea(area)}</Text><Text style={styles.photoCredit}>{area}</Text></Pressable>)}</ScrollView><Pressable style={styles.applyButton} onPress={()=>setRegionPickerOpen(false)}><Text style={styles.applyText}>닫기</Text></Pressable></View></View></Modal>
+    <Modal visible={regionPickerOpen} transparent animationType="fade" onRequestClose={()=>setRegionPickerOpen(false)}><View style={styles.modalShade}><View style={[styles.modal,{maxHeight:"86%"}]}><View style={styles.modalHead}><Text style={styles.modalTitle}>지역 선택</Text><Pressable onPress={()=>setRegionPickerOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View><Text style={styles.photoCredit}>시·도 → 시 → 상세 구·군 순서로 선택해 주세요.</Text><Text style={styles.sectionTitle}>1. 시·도</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={{flexDirection:"row",gap:7}}>{listProvinces.map(province=><Pressable key={province} onPress={()=>{setRegionProvince(province);setRegionCity("전체");setSelectedListRegion("전체");}} style={{paddingHorizontal:11,paddingVertical:8,borderRadius:9,backgroundColor:regionProvince===province?COLORS.purple:"#F2F0F6"}}><Text style={{fontSize:12,fontWeight:"800",color:regionProvince===province?"#fff":COLORS.ink}}>{province}</Text></Pressable>)}</View></ScrollView><Text style={styles.sectionTitle}>2. 시</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}><View style={{flexDirection:"row",gap:7}}>{listCities.map(city=><Pressable key={city} onPress={()=>{setRegionCity(city);setSelectedListRegion("전체");}} style={{paddingHorizontal:11,paddingVertical:8,borderRadius:9,backgroundColor:regionCity===city?COLORS.purple:"#F2F0F6"}}><Text style={{fontSize:12,fontWeight:"800",color:regionCity===city?"#fff":COLORS.ink}}>{city}</Text></Pressable>)}</View></ScrollView><Text style={styles.sectionTitle}>3. 상세 구·군</Text><ScrollView style={{maxHeight:260}}><Pressable onPress={()=>{setSelectedListRegion("전체");setRegionPickerOpen(false);}} style={{padding:11,borderBottomWidth:1,borderBottomColor:COLORS.line}}><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>선택한 시 전체</Text></Pressable>{listDistricts.map(area=><Pressable key={area} onPress={()=>{setSelectedListRegion(area);setRegionPickerOpen(false);}} style={{padding:11,borderBottomWidth:1,borderBottomColor:COLORS.line}}><Text style={{fontSize:13,fontWeight:"700",color:COLORS.ink}}>{parseArea(area).detail}</Text><Text style={styles.photoCredit}>{area}</Text></Pressable>)}</ScrollView><Pressable style={styles.applyButton} onPress={()=>setRegionPickerOpen(false)}><Text style={styles.applyText}>닫기</Text></Pressable></View></View></Modal>
 <Modal visible={!!detailStudio} animationType="slide" transparent onRequestClose={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}>
 <View style={styles.modalShade}><Animated.View style={[styles.modal,{height:detailExpanded?"92%":"65%",maxHeight:"94%",paddingBottom:24,transform:[{translateY:detailDragY}]}]}>
 <View style={styles.dragHeader}><View style={styles.dragGestureZone} {...detailPan.panHandlers}><View style={styles.dragHandle}/></View><View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세 정보</Text><View style={{flexDirection:"row",alignItems:"center",gap:14}}><Pressable onPress={()=>setDetailExpanded(v=>!v)}><Text style={styles.expandText}>{detailExpanded?"접기":"펼치기"}</Text></Pressable><Pressable onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}><Text style={styles.dismissText}>×</Text></Pressable></View></View><Text style={styles.dragHint}>위아래로 끌어 창 크기 조절 · 아래로 길게 끌면 닫기</Text></View>
