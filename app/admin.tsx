@@ -169,6 +169,8 @@ export default function Admin() {
   const [blogCandidateTotal,setBlogCandidateTotal]=useState(0);
   const [blogCandidateOffset,setBlogCandidateOffset]=useState(0);
   const [blogCandidateBusy,setBlogCandidateBusy]=useState(false);
+  const blogCandidateBusyRef=useRef(false);
+  const blogCandidateOffsetRef=useRef(0);
   const [blogCandidateActionId,setBlogCandidateActionId]=useState<number|null>(null);
   const [blogCandidateError,setBlogCandidateError]=useState<string|null>(null);
   const [classRows,setClassRows]=useState<any[]>([]);
@@ -372,14 +374,20 @@ export default function Admin() {
   };
 
   const loadBlogCandidates=useCallback(async(reset=true)=>{
-    if(!supabase||!authorized||blogCandidateBusy)return;
-    setBlogCandidateBusy(true);setBlogCandidateError(null);
-    const start=reset?0:blogCandidateOffset;
+    if(!supabase||!authorized||blogCandidateBusyRef.current)return;
+    blogCandidateBusyRef.current=true;setBlogCandidateBusy(true);setBlogCandidateError(null);
+    const start=reset?0:blogCandidateOffsetRef.current;
     const {data,error}=await supabase.rpc("admin_list_all_studio_blog_account_candidates",{p_limit:100,p_offset:start});
-    if(error){setBlogCandidateError(error.message);if(reset){setBlogCandidates([]);setBlogCandidateTotal(0);setBlogCandidateOffset(0);}}
-    else{const page=Array.isArray(data)?data:[];setBlogCandidates(current=>reset?page:[...current,...page]);setBlogCandidateTotal(Number(page[0]?.total_count||0));setBlogCandidateOffset(start+page.length);}
-    setBlogCandidateBusy(false);
-  },[authorized,blogCandidateBusy,blogCandidateOffset]);
+    if(error){setBlogCandidateError(error.message);if(reset){blogCandidateOffsetRef.current=0;setBlogCandidates([]);setBlogCandidateTotal(0);setBlogCandidateOffset(0);}}
+    else{
+      const page=Array.isArray(data)?data:[];
+      setBlogCandidates(current=>reset?page:[...current,...page]);
+      setBlogCandidateTotal(Number(page[0]?.total_count||0));
+      blogCandidateOffsetRef.current=start+page.length;
+      setBlogCandidateOffset(start+page.length);
+    }
+    blogCandidateBusyRef.current=false;setBlogCandidateBusy(false);
+  },[authorized]);
   const reviewAllBlogCandidate=async(candidateId:number,status:"approved"|"rejected")=>{
     if(!supabase||blogCandidateActionId!==null)return;
     setBlogCandidateActionId(candidateId);
