@@ -14,6 +14,13 @@ function isBlockedWesebPhotoSource(raw: string): boolean {
       url.searchParams.get("no") === "16737";
   } catch { return false; }
 }
+function isBlockedSchool24PhotoSource(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    return host === "school24.kr" && url.pathname.toLowerCase().replace(/\/$/, "") === "/academy/a/j10-3000069628";
+  } catch { return false; }
+}
 function isNeisHost(hostname: string): boolean { const host=hostname.toLowerCase().replace(/\\.$/,""); return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr"); }
 
 function blogAccountKey(raw: string | null | undefined): string {
@@ -206,11 +213,11 @@ Deno.serve(async (req) => {
     for (const candidate of candidates || []) {
       let candidateHost="";
       try { candidateHost=new URL(String(candidate.source_page_url||"")).hostname.toLowerCase(); } catch { /* invalid source is rejected below */ }
-      if (isNeisHost(candidateHost) || isBlockedWesebPhotoSource(String(candidate.source_page_url||""))) {
+      if (isNeisHost(candidateHost) || (isBlockedWesebPhotoSource(String(candidate.source_page_url||"")) || isBlockedSchool24PhotoSource(String(candidate.source_page_url||"")))) {
         await adminClient.from("studio_photo_candidates").update({
           review_status: "rejected",
           auto_reason: isBlockedWesebPhotoSource(String(candidate.source_page_url||""))
-            ? "사용자 지정 제외 출처: 웨셉 아파트 게시물"
+            ? (isBlockedWesebPhotoSource(String(candidate.source_page_url||"")) ? "사용자 지정 제외 출처: 웨셉 아파트 게시물" : "사용자 지정 제외 출처: School24 학원 페이지")
             : "NEIS·학교정보 공공 포털 화면 이미지는 학원 사진 자료에서 제외",
           auto_classified_at: new Date().toISOString(),
         }).eq("id", candidate.id).eq("review_status", "pending");
