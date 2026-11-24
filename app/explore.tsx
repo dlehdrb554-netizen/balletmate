@@ -238,7 +238,7 @@ export default function Home() {
           if(active)setReviewVerified(!verificationError&&!!verification?.verified_at);
         }else if(active)setReviewVerified(false);
         const {data,error}=await client.from("studio_reviews")
-          .select("id,studio_id,user_id,rating,content,created_at,updated_at")
+          .select("id,studio_id,user_id,rating,content,created_at,updated_at,verified_at")
           .eq("studio_id",studioId).order("created_at",{ascending:false}).limit(100);
         if(!active)return;
         if(error)throw error;
