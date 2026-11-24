@@ -445,11 +445,26 @@ CREATE VIEW public.studio_public_schedules_app WITH (security_invoker=true) AS
 GRANT SELECT ON public.studio_public_prices_app,public.studio_public_schedules_app TO anon,authenticated;
 
 DROP POLICY IF EXISTS "owners manage own public prices" ON public.studio_public_prices;
-CREATE POLICY "owners manage own public prices" ON public.studio_public_prices FOR ALL TO authenticated
+DROP POLICY IF EXISTS "owners insert own public prices" ON public.studio_public_prices;
+DROP POLICY IF EXISTS "owners update own public prices" ON public.studio_public_prices;
+DROP POLICY IF EXISTS "owners delete own public prices" ON public.studio_public_prices;
+CREATE POLICY "owners insert own public prices" ON public.studio_public_prices FOR INSERT TO authenticated
+ WITH CHECK(public.is_studio_owner(studio_id) AND published_by=auth.uid());
+CREATE POLICY "owners update own public prices" ON public.studio_public_prices FOR UPDATE TO authenticated
  USING(public.is_studio_owner(studio_id)) WITH CHECK(public.is_studio_owner(studio_id));
+CREATE POLICY "owners delete own public prices" ON public.studio_public_prices FOR DELETE TO authenticated
+ USING(public.is_studio_owner(studio_id));
+
 DROP POLICY IF EXISTS "owners manage own public schedules" ON public.studio_public_schedules;
-CREATE POLICY "owners manage own public schedules" ON public.studio_public_schedules FOR ALL TO authenticated
+DROP POLICY IF EXISTS "owners insert own public schedules" ON public.studio_public_schedules;
+DROP POLICY IF EXISTS "owners update own public schedules" ON public.studio_public_schedules;
+DROP POLICY IF EXISTS "owners delete own public schedules" ON public.studio_public_schedules;
+CREATE POLICY "owners insert own public schedules" ON public.studio_public_schedules FOR INSERT TO authenticated
+ WITH CHECK(public.is_studio_owner(studio_id) AND published_by=auth.uid());
+CREATE POLICY "owners update own public schedules" ON public.studio_public_schedules FOR UPDATE TO authenticated
  USING(public.is_studio_owner(studio_id)) WITH CHECK(public.is_studio_owner(studio_id));
+CREATE POLICY "owners delete own public schedules" ON public.studio_public_schedules FOR DELETE TO authenticated
+ USING(public.is_studio_owner(studio_id));
 
 -- Remove photo, blog-text, timetable-evidence and secondary-link columns.
 -- Keep source_url/source_name as Kakao Place provenance and website_url as the one homepage field.
@@ -496,7 +511,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path=public
-AS $
+AS $ballet_admin_stats$
 DECLARE result jsonb;
 BEGIN
  IF NOT public.is_balletmate_admin() THEN
