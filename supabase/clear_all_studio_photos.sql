@@ -18,12 +18,11 @@ UPDATE public.studios
 SET image_urls=ARRAY[]::text[],
     image_source_name=NULL,
     image_checked_at=NULL,
-    image_usage_note=NULL,
     updated_at=now()
 WHERE COALESCE(cardinality(image_urls),0)>0
    OR image_source_name IS NOT NULL
    OR image_checked_at IS NOT NULL
-   OR image_usage_note IS NOT NULL;
+;
 
 -- Remove photos attached to published price and timetable materials.
 UPDATE public.studio_public_prices
