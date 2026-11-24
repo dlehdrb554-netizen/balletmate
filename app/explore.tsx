@@ -93,6 +93,8 @@ export default function Home() {
   const [menuOpen,setMenuOpen]=useState(false);
   const [filterOpen,setFilterOpen]=useState(false);
   const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
+  const [detailCanonicalLoading,setDetailCanonicalLoading]=useState(false);
+  const [detailCanonicalError,setDetailCanonicalError]=useState<string|null>(null);
   const [reportOpen,setReportOpen]=useState(false);
   const [reportCategory,setReportCategory]=useState("기타");
   const [reportDescription,setReportDescription]=useState("");
@@ -595,7 +597,80 @@ export default function Home() {
     setMapSettingsOpen(true);
   };
 
-  const openDetail=async(s:Studio)=>{if(supabase)supabase.rpc("record_studio_detail_view",{p_studio_id:s.id}).then(({error})=>{if(error)console.warn("Studio view metric unavailable:",error.message);});const requestId=++detailRequestId.current;setDetailTab("home");setDetailExpanded(false);detailDragY.setValue(0);setDetailStudio(s);setStudioClasses([]);setStudioBlogPosts([]);setStudioPublicPrices([]);setStudioPublicSchedules([]);setStudioOwnerNotices([]);setStudioCoupons([]);if(supabaseConfigured){setClassesLoading(true);setBlogLoading(true);supabase?.from("studio_owner_notices").select("id,title,body,created_at").eq("studio_id",s.id).eq("is_active",true).order("created_at",{ascending:false}).limit(10).then(({data,error})=>{if(requestId===detailRequestId.current)setStudioOwnerNotices(error?[]:(data||[]));});fetchStudioById(s.id).then(row=>{if(requestId===detailRequestId.current&&row)setDetailStudio(mapStudioRecord(row));}).catch(error=>console.warn("Canonical studio detail lookup failed:",error));fetchClassesForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioClasses(rows);}).catch(error=>{console.warn("Studio classes unavailable:",error);if(requestId===detailRequestId.current)setStudioClasses([]);}).finally(()=>{if(requestId===detailRequestId.current)setClassesLoading(false);});fetchStudioBlogPosts(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioBlogPosts(rows);}).catch(error=>{console.warn("Studio blog content unavailable:",error);if(requestId===detailRequestId.current)setStudioBlogPosts([]);}).finally(()=>{if(requestId===detailRequestId.current)setBlogLoading(false);});fetchStudioPublicPrices(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicPrices(rows);}).catch(error=>{console.warn("Approved studio prices unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicPrices([]);});fetchStudioPublicSchedules(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicSchedules(rows);}).catch(error=>{console.warn("Approved studio schedules unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicSchedules([]);});fetchCouponsForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioCoupons(rows);}).catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});}else{setBlogLoading(false);}};
+  const retryCanonicalDetail=async(studioId:string,requestId:number)=>{
+    if(!supabaseConfigured)return;
+    setDetailCanonicalLoading(true);
+    setDetailCanonicalError(null);
+    try{
+      const row=await fetchStudioById(studioId);
+      if(requestId!==detailRequestId.current)return;
+      if(row)setDetailStudio(mapStudioRecord(row));
+      else setDetailCanonicalError("학원 정보를 찾지 못했습니다. 다시 시도해 주세요.");
+    }catch(error:any){
+      if(requestId===detailRequestId.current){
+        setDetailCanonicalError(error?.message||"학원 정보를 불러오지 못했습니다.");
+        console.warn("Canonical studio detail retry failed:",error);
+      }
+    }finally{
+      if(requestId===detailRequestId.current)setDetailCanonicalLoading(false);
+    }
+  };
+  const openDetail=async(s:Studio)=>{
+    if(supabase)supabase.rpc("record_studio_detail_view",{p_studio_id:s.id}).then(({error})=>{if(error)console.warn("Studio view metric unavailable:",error.message);});
+    const requestId=++detailRequestId.current;
+    setDetailTab("home");
+    setDetailExpanded(false);
+    detailDragY.setValue(0);
+    setDetailStudio(s);
+    setDetailCanonicalError(null);
+    setDetailCanonicalLoading(!!supabaseConfigured);
+    setStudioClasses([]);
+    setStudioBlogPosts([]);
+    setStudioPublicPrices([]);
+    setStudioPublicSchedules([]);
+    setStudioOwnerNotices([]);
+    setStudioCoupons([]);
+    if(supabaseConfigured){
+      setClassesLoading(true);
+      setBlogLoading(true);
+      supabase?.from("studio_owner_notices").select("id,title,body,created_at")
+        .eq("studio_id",s.id).eq("is_active",true).order("created_at",{ascending:false}).limit(10)
+        .then(({data,error})=>{if(requestId===detailRequestId.current)setStudioOwnerNotices(error?[]:(data||[]));});
+      (async()=>{
+        let lastError:any=null;
+        for(let attempt=0;attempt<2;attempt++){
+          try{
+            const row=await fetchStudioById(s.id);
+            if(requestId!==detailRequestId.current)return;
+            if(row){setDetailStudio(mapStudioRecord(row));setDetailCanonicalError(null);}
+            else setDetailCanonicalError("학원 정보를 찾지 못했습니다. 다시 시도해 주세요.");
+            return;
+          }catch(error:any){
+            lastError=error;
+            if(attempt===0)await new Promise(resolve=>setTimeout(resolve,450));
+          }
+        }
+        if(requestId===detailRequestId.current){
+          setDetailCanonicalError(lastError?.message||"학원 정보를 불러오지 못했습니다.");
+          console.warn("Canonical studio detail lookup failed:",lastError);
+        }
+      })().finally(()=>{if(requestId===detailRequestId.current)setDetailCanonicalLoading(false);});
+      fetchClassesForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioClasses(rows);})
+        .catch(error=>{console.warn("Studio classes unavailable:",error);if(requestId===detailRequestId.current)setStudioClasses([]);})
+        .finally(()=>{if(requestId===detailRequestId.current)setClassesLoading(false);});
+      fetchStudioBlogPosts(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioBlogPosts(rows);})
+        .catch(error=>{console.warn("Studio blog content unavailable:",error);if(requestId===detailRequestId.current)setStudioBlogPosts([]);})
+        .finally(()=>{if(requestId===detailRequestId.current)setBlogLoading(false);});
+      fetchStudioPublicPrices(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicPrices(rows);})
+        .catch(error=>{console.warn("Approved studio prices unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicPrices([]);});
+      fetchStudioPublicSchedules(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicSchedules(rows);})
+        .catch(error=>{console.warn("Approved studio schedules unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicSchedules([]);});
+      fetchCouponsForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioCoupons(rows);})
+        .catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});
+    }else{
+      setBlogLoading(false);
+    }
+  };
   const detailPhotoItems = detailStudio ? [...new Set((detailStudio.imageUrls||[]).filter(uri=>uri.toLowerCase().startsWith("https://")))].slice(0,30).map((uri,index)=>({uri,key:"registered-"+index,url:null,label:"학원 등록 사진"})) : [];
   const representativeStudioImage = detailPhotoItems[0] || null;
   const evidencePhotosForSource=(_sourceUrl:string,storedImages:string[]|null|undefined)=>{
@@ -740,6 +815,8 @@ export default function Home() {
 <View style={styles.modalShade}><Animated.View style={[styles.modal,{height:detailExpanded?"92%":"65%",maxHeight:"94%",paddingBottom:24,transform:[{translateY:detailDragY}]}]}>
 <View style={styles.dragHeader}><View style={styles.dragGestureZone} {...detailPan.panHandlers}><View style={styles.dragHandle}/></View><View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세 정보</Text><View style={{flexDirection:"row",alignItems:"center",gap:14}}><Pressable onPress={()=>setDetailExpanded(v=>!v)}><Text style={styles.expandText}>{detailExpanded?"접기":"펼치기"}</Text></Pressable><Pressable onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}><Text style={styles.dismissText}>×</Text></Pressable></View></View><Text style={styles.dragHint}>위아래로 끌어 창 크기 조절 · 아래로 길게 끌면 닫기</Text></View>
 <View style={{flexDirection:"row",gap:5,marginTop:8,marginBottom:8}}>{([{id:"home",label:"홈"},{id:"notices",label:"소식"},{id:"blog",label:"블로그"},{id:"reviews",label:"리뷰"},{id:"photos",label:"사진"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailTab(tab.id)} style={{flex:1,paddingVertical:10,borderRadius:10,backgroundColor:detailTab===tab.id?COLORS.pale:"#F8F7FA",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:detailTab===tab.id?COLORS.purple:COLORS.muted}}>{tab.label}</Text></Pressable>)}</View>
+{detailCanonicalLoading&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,paddingVertical:8}}><ActivityIndicator size="small" color={COLORS.purple}/><Text style={styles.photoCredit}>학원 정보 동기화 중…</Text></View>}
+{!!detailCanonicalError&&<View style={{marginHorizontal:12,marginBottom:8,padding:10,borderRadius:10,backgroundColor:"#FFF1F0",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{flex:1,fontSize:12,color:"#A53A35"}}>일부 상세 정보 갱신 실패</Text><Pressable disabled={detailCanonicalLoading} onPress={()=>retryCanonicalDetail(detailStudio!.id,detailRequestId.current)} style={{paddingHorizontal:10,paddingVertical:6,backgroundColor:"#FCE1DE",borderRadius:8}}><Text style={{fontSize:12,fontWeight:"800",color:"#A53A35"}}>재시도</Text></Pressable></View>}
 <View style={{flex:1}}>{detailStudio&&<>
 {detailTab==="home"&&<ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}><View style={{marginTop:10}}>{studioCard(detailStudio,true)}</View>
           <View style={{marginHorizontal:14,marginTop:10,padding:13,borderRadius:13,backgroundColor:"#FFF9E9",borderWidth:1,borderColor:"#F0E3C1"}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{fontSize:13,fontWeight:"900",color:"#72551A"}}>학원 공지사항</Text><Pressable onPress={()=>setDetailTab("notices")}><Text style={styles.photoSourceLink}>전체 보기 ›</Text></Pressable></View>{studioOwnerNotices.length?studioOwnerNotices.slice(0,2).map(item=><View key={"owner-notice-"+item.id} style={{borderTopWidth:1,borderTopColor:"#EFE4CA",paddingTop:8,marginTop:7}}><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>{cleanPublicText(item.title)}</Text><Text numberOfLines={3} style={{fontSize:12,lineHeight:18,color:"#625E70",marginTop:4}}>{cleanPublicText(item.body)}</Text><Text style={{fontSize:10,color:COLORS.muted,marginTop:5}}>{new Date(item.created_at).toLocaleDateString("ko-KR")}</Text></View>):<Text style={{fontSize:11,color:"#81798D",marginTop:7}}>등록된 공지사항이 없습니다.</Text>}</View>
