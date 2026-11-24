@@ -139,7 +139,6 @@ Deno.serve(async (req) => {
   });
   const pages=branchPages.length?branchPages:[discoveredPages[0]];
 
-  const imageCandidates: Array<{url:string;sourceUrl:string}> = [];
   const priceEvidence: string[] = [];
   const scheduleEvidence: string[] = [];
   const detailSources: string[] = [];
