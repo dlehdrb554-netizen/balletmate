@@ -100,6 +100,29 @@ BEGIN
 END;
 $$;
 
+DO $region_normalizer_tests$
+BEGIN
+ IF public.normalize_studio_district('서울특별시 강남구 테헤란로 123',NULL)<>'서울시 강남구' THEN
+  RAISE EXCEPTION 'Region test failed: Seoul metro';
+ END IF;
+ IF public.normalize_studio_district('경기도 고양시 일산동구 중앙로',NULL)<>'경기도 고양시 일산동구' THEN
+  RAISE EXCEPTION 'Region test failed: Gyeonggi city/district';
+ END IF;
+ IF public.normalize_studio_district('제주특별자치도 제주시 연동',NULL)<>'제주도 제주시' THEN
+  RAISE EXCEPTION 'Region test failed: Jeju city';
+ END IF;
+ IF public.normalize_studio_district('부산광역시 해운대구 센텀로',NULL)<>'부산시 해운대구' THEN
+  RAISE EXCEPTION 'Region test failed: Busan metro';
+ END IF;
+ IF public.normalize_studio_district(NULL,'서울 강남')<>'서울시 강남구' THEN
+  RAISE EXCEPTION 'Region test failed: Seoul discovery label';
+ END IF;
+ IF public.normalize_studio_district(NULL,'경기 수원')<>'경기도 수원시' THEN
+  RAISE EXCEPTION 'Region test failed: Gyeonggi discovery label';
+ END IF;
+END;
+$region_normalizer_tests$;
+
 CREATE OR REPLACE FUNCTION public.normalize_studio_district_before_write()
 RETURNS trigger
 LANGUAGE plpgsql
