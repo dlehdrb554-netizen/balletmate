@@ -41,31 +41,6 @@ async function fetchBlog(url: URL): Promise<{ html: string; finalUrl: string } |
     return { html: (await response.text()).slice(0, 2_000_000), finalUrl: final.toString() };
   } catch { return null; }
 }
-function extractImages(html: string, base: string): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const tag of html.match(/<img\b[^>]*>/gi) ?? []) {
-    for (const key of ["data-lazy-src", "data-src", "src"]) {
-      const raw = attr(tag, key);
-      if (!raw) continue;
-      try {
-        const u = new URL(raw, base);
-        if (u.protocol !== "https:" || !/(^|\.)pstatic\.net$|(^|\.)naver\.net$/i.test(u.hostname) ||
-            /\.(svg|gif)(\?|$)/i.test(u.pathname) || /(profile|emoticon|sticker|icon)/i.test(u.pathname)) continue;
-        // Naver often serves one image with different resize query strings.
-        // Deduplicate by stable path while preserving the first usable URL.
-        const stableKey = u.origin + u.pathname;
-        if (!seen.has(stableKey)) {
-          seen.add(stableKey);
-          out.push(u.toString());
-        }
-      } catch { /* Ignore invalid image URLs. */ }
-      break;
-    }
-    if (out.length >= 6) break;
-  }
-  return out;
-}
 function normalize(value: string): string { return value.toLowerCase().replace(/[^a-z0-9가-힣]/g, ""); }
 function academyAliases(studioName: string): string[] {
   const full = normalize(studioName);
@@ -348,29 +323,9 @@ Deno.serve(async (req) => {
         results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "본문에서 학원 관련성 미확인" });
         continue;
       }
-      // Photos are collected only from an academy's verified official Naver blog.
-      // Third-party posts may still contribute text/evidence, but never enter the
-      // photo candidate queue or consume Cloudflare Vision capacity.
-      const images = officialMatch ? extractImages(html, pageUrl) : [];
-      let photoCandidateWarning: string | null = null;
-      if (images.length) {
-        const photoCandidates = images.map((image_url) => ({
-          studio_id: job.studio_id,
-          studio_name: String(job.studio_name),
-          image_url,
-          source_page_url: postUrl.toString(),
-          source_host: postUrl.hostname,
-          review_status: "pending",
-        }));
-        const { error: photoError } = await db.from("studio_photo_candidates")
-          .upsert(photoCandidates, { onConflict: "studio_id,image_url", ignoreDuplicates: true });
-        if (photoError) photoCandidateWarning = photoError.message;
-        else photoCandidateWarning = "공식 블로그 사진 " + images.length + "장 Vision 대기열 등록";
-      }
-      // Registered official blogs are an image source only. Do not extract
-      // price/schedule evidence or retain post text for this workflow.
-      const prices = officialMatch ? [] : evidence(textBody, "price");
-      const schedules = officialMatch ? [] : evidence(textBody, "schedule");
+      // Blog posts are used only for text evidence; no image URLs or image files are collected.
+      const prices = evidence(textBody, "price");
+      const schedules = evidence(textBody, "schedule");
       const evidenceCandidates = [
         ...candidateRows(prices, "price", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url), post_date: source.post_date ? String(source.post_date) : null }),
         ...candidateRows(schedules, "schedule", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url), post_date: source.post_date ? String(source.post_date) : null }),
@@ -386,7 +341,7 @@ Deno.serve(async (req) => {
       const status = textBody.length > 80 ? "success" : "partial";
       const { error: saveError } = await db.from("studio_blog_post_contents").upsert({
         source_id: job.source_id, studio_id: job.studio_id, post_url: job.post_url,
-        body_text: officialMatch ? null : (textBody || null), image_urls: images, price_evidence: prices,
+        body_text: textBody || null, image_urls: [], price_evidence: prices,
         schedule_evidence: schedules, crawl_status: status, checked_at: new Date().toISOString(),
       }, { onConflict: "source_id" });
       if (saveError) throw new Error("본문 저장 실패: " + saveError.message);
@@ -394,7 +349,7 @@ Deno.serve(async (req) => {
         .update({ status: "completed", last_error: null, updated_at: new Date().toISOString() })
         .eq("source_id", job.source_id);
       if (doneError) throw new Error("완료 상태 저장 실패: " + doneError.message);
-      results.push({ sourceId: job.source_id, studio: job.studio_name, textLength: textBody.length, images: images.length, priceEvidence: prices.length, scheduleEvidence: schedules.length, status, ...(candidateWarning ? { candidateWarning } : {}), ...(photoCandidateWarning ? { photoCandidateWarning } : {}) });
+      results.push({ sourceId: job.source_id, studio: job.studio_name, textLength: textBody.length, priceEvidence: prices.length, scheduleEvidence: schedules.length, status, ...(candidateWarning ? { candidateWarning } : {}), ...(photoCandidateWarning ? { photoCandidateWarning } : {}) });
     } catch (e) {
       const message = e instanceof Error ? e.message : "알 수 없는 오류";
       const terminal = Number(job.attempts) >= 4;
@@ -404,5 +359,5 @@ Deno.serve(async (req) => {
       results.push({ sourceId: job.source_id, studio: job.studio_name, status: terminal ? "failed" : "retry", error: message });
     }
   }
-  return json({ processed: jobs.length, results, note: "공개 네이버 블로그 본문과 이미지 URL 메타데이터만 수집합니다. 가격·시간표는 근거 문장으로 저장하며 학원 공식 정보로 자동 확정하지 않습니다." });
+  return json({ processed: jobs.length, results, note: "등록된 공식 블로그 게시물의 텍스트 근거만 처리합니다. 이미지와 이미지 URL은 수집·저장하지 않습니다." });
 });
