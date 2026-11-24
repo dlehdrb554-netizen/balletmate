@@ -249,6 +249,7 @@ export default function Home() {
     const studioId=detailStudio?.id;
     if(!client||!studioId||detailTab!=="reviews")return;
     let active=true;
+    setReviewVerified(false);
     setReviewsLoading(true);
     (async()=>{
       try{
