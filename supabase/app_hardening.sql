@@ -333,6 +333,7 @@ CREATE POLICY "members delete own community photos"
 DROP TRIGGER IF EXISTS studios_enqueue_image_crawl ON public.studios;
 DROP FUNCTION IF EXISTS public.enqueue_studio_image_crawl();
 DROP FUNCTION IF EXISTS public.claim_studio_image_crawl_queue(integer);
+DROP FUNCTION IF EXISTS public.owner_set_studio_primary_photo(uuid,text);
 DROP TABLE IF EXISTS public.studio_image_crawl_queue CASCADE;
 DROP VIEW IF EXISTS public.studio_information_freshness_app CASCADE;
 DROP TABLE IF EXISTS public.studio_photo_candidates CASCADE;
