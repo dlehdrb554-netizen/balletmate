@@ -39,11 +39,6 @@ async function findKakaoPlaceOfficialLinks(_placeId:string):Promise<{blog:string
  // official links can be entered or verified by an academy owner/admin.
  return {blog:null,channel:null,website:null,checked:false};
 }
-async function findKakaoPlaceBlog(placeId:string):Promise<string|null>{
- const found=new Set<string>();const headers={"User-Agent":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36","Referer":"https://place.map.kakao.com/"+placeId};
- for(const endpoint of ["https://place.map.kakao.com/main/v/"+encodeURIComponent(placeId),"https://place.map.kakao.com/"+encodeURIComponent(placeId)]){try{const response=await fetch(endpoint,{headers,signal:AbortSignal.timeout(6000)});if(!response.ok)continue;const body=await response.text();try{collectNaverBlogUrls(JSON.parse(body),found);}catch{collectNaverBlogUrls(body,found);}if(found.size)return [...found][0];}catch{/* best effort */}}
- return null;
-}
 const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레","발레교습소","발레아카데미","무용학원","ballet studio","ballet academy"];
 const MAX_PAGES_PER_TERM=3;
 const PAGE_SIZE=15;
