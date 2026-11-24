@@ -702,13 +702,22 @@ export default function Home() {
     const photos=evidencePhotosForSource(sourceUrl,storedImages);
     if(!photos.length)return null;
     const index=Math.min(evidencePhotoIndexes[key]||0,photos.length-1);
-    return <View style={{marginTop:10,borderRadius:12,overflow:"hidden",backgroundColor:"#F8F6FB"}}>
-      <Image source={{uri:photos[index]}} style={{width:"100%",height:260,backgroundColor:"#F8F6FB"}} resizeMode="contain"/>
-      {photos.length>1&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:10,paddingVertical:7}}>
-        <Text style={styles.photoCredit}>사진 {index+1} / {photos.length}</Text>
-        <Pressable onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:(index+1)%photos.length}))} style={{paddingHorizontal:12,paddingVertical:6,borderRadius:16,backgroundColor:"#EEEAFB",flexDirection:"row",alignItems:"center",gap:4}}>
-          <Text style={{fontSize:11,color:COLORS.purple,fontWeight:"800"}}>다음 사진</Text><Ionicons name="chevron-forward" size={15} color={COLORS.purple}/>
-        </Pressable>
+    return <View style={{marginTop:12,padding:10,borderRadius:12,borderWidth:1,borderColor:"#E5DFF3",backgroundColor:"#FBFAFE"}}>
+      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <Text style={{fontSize:13,fontWeight:"800",color:"#40365D"}}>자료 사진</Text>
+        <Text style={styles.photoCredit}>{index+1} / {photos.length}장</Text>
+      </View>
+      <View style={{height:250,borderRadius:9,overflow:"hidden",backgroundColor:"#F0EDF6",justifyContent:"center",alignItems:"center"}}>
+        <Image source={{uri:photos[index]}} style={{width:"100%",height:"100%"}} resizeMode="contain" onError={()=>console.warn("Evidence photo failed to load",photos[index])}/>
+      </View>
+      {photos.length>1&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,paddingTop:9}}>
+        {photos.map((url,i)=><Pressable key={url} onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:i}))} style={{width:72,height:72,borderRadius:8,overflow:"hidden",borderWidth:i===index?2:1,borderColor:i===index?COLORS.purple:"#DCD6E8",backgroundColor:"#F0EDF6"}}>
+          <Image source={{uri:url}} style={{width:"100%",height:"100%"}} resizeMode="cover" onError={()=>console.warn("Evidence thumbnail failed to load",url)}/>
+        </Pressable>)}
+      </ScrollView>}
+      {photos.length>1&&<View style={{flexDirection:"row",justifyContent:"space-between",marginTop:8}}>
+        <Pressable onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:(index+photos.length-1)%photos.length}))} style={{paddingHorizontal:12,paddingVertical:7,borderRadius:16,backgroundColor:"#EEEAFB"}}><Text style={{fontSize:12,color:COLORS.purple,fontWeight:"800"}}>‹ 이전 사진</Text></Pressable>
+        <Pressable onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:(index+1)%photos.length}))} style={{paddingHorizontal:12,paddingVertical:7,borderRadius:16,backgroundColor:"#EEEAFB"}}><Text style={{fontSize:12,color:COLORS.purple,fontWeight:"800"}}>다음 사진 ›</Text></Pressable>
       </View>}
     </View>;
   };
