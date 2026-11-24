@@ -1790,7 +1790,7 @@ export default function Admin() {
       ["블로그 검색",dashboard.blog_search?.pending??0,"대기 · 진행 "+(dashboard.blog_search?.processing??0)+" · 실패 "+(dashboard.blog_search?.failed??0)],
       ["게시글 수집",dashboard.blog_posts?.pending??0,"대기 · 진행 "+(dashboard.blog_posts?.processing??0)+" · 실패 "+(dashboard.blog_posts?.failed??0)],
       ["사진 미확보 학원",dashboard.photos?.missing??0,"사진이 등록되지 않은 활성 학원"],
-      ["사진 수집 대기",dashboard.image_queue?.pending??0,"진행 "+(dashboard.image_queue?.processing??0)+" · 실패 "+(dashboard.image_queue?.failed??0)],
+      ["홈페이지 정보 확인 대기",dashboard.image_queue?.pending??0,"진행 "+(dashboard.image_queue?.processing??0)+" · 실패 "+(dashboard.image_queue?.failed??0)],
       ["장기 정체",Number(dashboard.blog_search?.stalled||0)+Number(dashboard.blog_posts?.stalled||0)+Number(dashboard.image_queue?.stalled||0),"검색·게시글·사진 20분 이상"],
       ["사용자 제보",dashboard.reports?.pending??0,"학원 정보 검토 요청"],
       ["근거 검수",dashboard.evidence?.pending??0,"가격 "+(dashboard.evidence?.pending_price??0)+" · 시간표 "+(dashboard.evidence?.pending_schedule??0)],
