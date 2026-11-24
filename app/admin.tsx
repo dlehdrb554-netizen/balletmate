@@ -30,7 +30,7 @@ const c = {ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#
 const normalizeScheduleKey=(value:string)=>String(value||"").toLowerCase().replace(/[\s·,，、|/]+/g,"").trim();
 const normalizeNaverBlogProfileUrl=(value:string):string|null=>{
   const input=String(value||"").trim();
-  const match=input.match(/^https?:\\/\\/(?:www\\.)?(?:m\\.)?blog\\.naver\\.com\\/([A-Za-z0-9._-]+)\\/?(?:[?#].*)?$/i);
+  const match=input.match(/^https?:\/\/(?:www\.)?(?:m\.)?blog\.naver\.com\/([A-Za-z0-9._-]+)\/?(?:[?#].*)?$/i);
   return match?"https://blog.naver.com/"+match[1]:null;
 };
 
@@ -302,7 +302,7 @@ export default function Admin() {
   };
   const saveOfficialBlogAccounts=async()=>{
     if(!supabase||!officialBlogStudio)return;
-    const rawUrls=officialBlogUrls.split(/[\\r\\n,]+/).map(value=>value.trim()).filter(Boolean);
+    const rawUrls=officialBlogUrls.split(/[\r\n,]+/).map(value=>value.trim()).filter(Boolean);
     const normalizedUrls=rawUrls.map(normalizeNaverBlogProfileUrl);
     const invalidUrlIndex=normalizedUrls.findIndex(value=>!value);
     if(invalidUrlIndex>=0){Alert.alert("블로그 주소 확인","네이버 블로그 프로필 주소를 입력해 주세요. 모바일 주소와 추적 파라미터는 자동 정리됩니다. 예: https://blog.naver.com/blogid");return;}
