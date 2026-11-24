@@ -14,18 +14,21 @@ Run these in Supabase SQL Editor, in this order:
    - Refreshes owner registration, single homepage field validation, owner notices and owner-only publishing policies.
 4. `studio_owner_privacy_minimal_claims.sql`
    - Refreshes owner edit history and audit triggers without photo columns.
-5. `app_hardening.sql`
+5. `studio_reviews.sql`
+   - Enables reviews for all signed-in members; attendance verification is an optional trust badge.
+   - Applies per-user rate limits, duplicate-report protection and automatic hiding after three independent reports.
+6. `app_hardening.sql`
    - Drops old photo/blog/evidence tables, functions, columns and storage policies.
    - Normalizes region into province → city → district and runs built-in region assertions.
-   - Restricts reviews to verified students and resets owner/admin write RLS policies.
+   - Preserves open review posting and resets owner/admin write RLS policies.
    - Enables community post photo attachments.
-6. `fix_studio_delete_audit_fk_v2.sql`
+7. `fix_studio_delete_audit_fk_v2.sql`
    - Keeps academy deletion and owner edit history compatible with the new schema.
-7. `studio_discovery.sql`
+8. `studio_discovery.sql`
    - Applies the 123-region Seoul → Gyeonggi → Incheon → other discovery order and the branch-safe registration/retry RPCs.
-8. `crawl_scheduler.sql`
+9. `crawl_scheduler.sql`
    - Schedules Kakao discovery; NEIS discovery and name-only verification use their own schedules.
-9. `retire_neis_only_geocoding.sql`
+10. `retire_neis_only_geocoding.sql`
    - Removes the obsolete NEIS-address geocoding cron job without deleting historical candidate data.
 
 After SQL:
