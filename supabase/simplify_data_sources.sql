@@ -27,6 +27,7 @@ UPDATE public.studio_blog_official_accounts SET is_active=false WHERE is_active=
 -- Clear queues and crawled post/text evidence; do not delete manually maintained
 -- classes/class_sessions or the NEIS/Kakao academy records.
 UPDATE public.studios SET image_urls=ARRAY[]::text[], image_source_name=NULL, updated_at=now() WHERE COALESCE(cardinality(image_urls),0)>0 OR image_source_name IS NOT NULL;
+UPDATE public.studios SET price_evidence_text=NULL, schedule_evidence_text=NULL, details_source_urls=ARRAY[]::text[], details_checked_at=NULL, details_status=NULL WHERE price_evidence_text IS NOT NULL OR schedule_evidence_text IS NOT NULL OR cardinality(details_source_urls)>0 OR details_checked_at IS NOT NULL OR details_status IS NOT NULL;
 DELETE FROM public.studio_photo_candidates;
 DELETE FROM public.studio_blog_post_crawl_queue;
 DELETE FROM public.studio_blog_search_queue;
