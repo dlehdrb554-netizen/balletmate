@@ -128,25 +128,27 @@ export default function Community(){
  };
 
  const reportContent=(contentType:"post"|"comment",contentId:string,targetUserId:string)=>{
-  if(!userId||!supabase){requireLogin();return;}
+  const client=supabase;
+  if(!userId||!client){requireLogin();return;}
   if(targetUserId===userId){Alert.alert("신고 불가","본인이 작성한 콘텐츠는 신고할 수 없습니다.");return;}
   const reasons=["스팸/광고","욕설/괴롭힘","부적절한 콘텐츠","개인정보 노출","허위 정보","기타"];
   Alert.alert("콘텐츠 신고","신고 사유를 선택해 주세요.",[
    {text:"취소",style:"cancel"},
    ...reasons.map(reason=>({text:reason,onPress:async()=>{
-    const {error}=await supabase.from("community_reports").insert({reporter_id:userId,target_user_id:targetUserId,content_type:contentType,content_id:contentId,reason,details:""});
+    const {error}=await client.from("community_reports").insert({reporter_id:userId,target_user_id:targetUserId,content_type:contentType,content_id:contentId,reason,details:""});
     if(error){Alert.alert("신고 실패",error.code==="23505"?"이미 신고한 콘텐츠입니다.":error.message);return;}
     Alert.alert("신고 접수","신고가 접수되었습니다. 운영자가 검토하겠습니다.");
    }}))
   ]);
  };
  const blockUser=(targetUserId:string,targetName:string)=>{
-  if(!userId||!supabase){requireLogin();return;}
+  const client=supabase;
+  if(!userId||!client){requireLogin();return;}
   if(targetUserId===userId)return;
   Alert.alert("사용자 차단",targetName+" 회원의 게시글과 댓글을 내 화면에서 숨길까요?",[
    {text:"취소",style:"cancel"},
    {text:"차단",style:"destructive",onPress:async()=>{
-    const {error}=await supabase.from("community_user_blocks").insert({blocker_id:userId,blocked_user_id:targetUserId});
+    const {error}=await client.from("community_user_blocks").insert({blocker_id:userId,blocked_user_id:targetUserId});
     if(error&&error.code!=="23505"){Alert.alert("차단 실패",error.message);return;}
     setBlockedUserIds(current=>current.includes(targetUserId)?current:[...current,targetUserId]);
     if(selected?.author_id===targetUserId){commentRequestId.current++;setSelected(null);setComments([]);}
