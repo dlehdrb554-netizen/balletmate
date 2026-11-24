@@ -4,11 +4,8 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pres
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 
-import { parseScheduleEvidence } from "../lib/schedule-structure";
 import AdminCommunityReports from "../components/AdminCommunityReports";
 
-
-type EvidenceCandidate = {id:number;studio_id:string;studio_name:string;source_id:number;source_title:string|null;source_url:string;source_post_date?:string|null;candidate_type:"price"|"schedule";candidate_value:string;normalized_value:string|null;price_period?:string|null;price_frequency_per_week?:number|null;evidence_text:string;confidence:number;review_status:"pending"|"verified"|"rejected";created_at:string};
 
 type StudioRow = {
   id:string; name:string; latitude:number; longitude:number; district:string|null;
@@ -20,7 +17,6 @@ type StudioRow = {
 const blank = {name:"",latitude:"",longitude:"",district:"",address:"",phone:"",website_url:"",source_url:"",source_name:"",verified_at:"",price_per_class:"",adult_classes:true,kids_classes:false,is_active:false};
 const STUDIO_PAGE_SIZE = 20;
 const c = {ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",white:"#FFFFFF",bg:"#FBF9FF"};
-const normalizeScheduleKey=(value:string)=>String(value||"").toLowerCase().replace(/[\s·,，、|/]+/g,"").trim();
 const isValidStudioHomepageUrl=(value:string):boolean=>{
   if(!value.trim())return true;
   try{
@@ -81,7 +77,7 @@ const dedupeStudioRows=(input:any[])=>{
 };
 
 export default function Admin() {
-  const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios"|"owners"|"community">("overview");
+  const [adminTab,setAdminTab]=useState<"overview"|"studios"|"owners"|"community">("overview");
   const [adminScrollRef]=useState<{current:ScrollView|null}>({current:null});
   const [studioEditPanelY]=useState<{current:number}>({current:0});
   const [studioActionId,setStudioActionId]=useState<string|null>(null);
@@ -109,33 +105,6 @@ export default function Admin() {
   const [classEditing,setClassEditing]=useState<string|null>(null);
   const [classBusy,setClassBusy]=useState(false);
   const [classForm,setClassForm]=useState({title:"",audience:"adult" as "adult"|"kids"|"all",level:"",class_type:"",duration_minutes:"60",price:"",sessions:""});
-  const [evidenceRows,setEvidenceRows]=useState<EvidenceCandidate[]>([]);
-  const [totalEvidencePending,setTotalEvidencePending]=useState(0);
-  const [selectedEvidenceIds,setSelectedEvidenceIds]=useState<number[]>([]);
-  const [selectedScheduleIds,setSelectedScheduleIds]=useState<number[]>([]);
-  const [selectedPriceIds,setSelectedPriceIds]=useState<number[]>([]);
-  const [expandedScheduleCandidateId,setExpandedScheduleCandidateId]=useState<number|null>(null);
-  const [expandedPublicScheduleStudioId,setExpandedPublicScheduleStudioId]=useState<string|null>(null);
-  const [verifiedPriceRows,setVerifiedPriceRows]=useState<EvidenceCandidate[]>([]);
-  const [verifiedScheduleRows,setVerifiedScheduleRows]=useState<EvidenceCandidate[]>([]);
-  const [activePublicSchedules,setActivePublicSchedules]=useState<any[]>([]);
-  const [publishedScheduleCandidateIds,setPublishedScheduleCandidateIds]=useState<number[]>([]);
-  const [publishedCandidateIds,setPublishedCandidateIds]=useState<number[]>([]);
-  const [activePublicPrices,setActivePublicPrices]=useState<any[]>([]);
-  const [verifiedPriceTotal,setVerifiedPriceTotal]=useState(0);
-  const [verifiedScheduleTotal,setVerifiedScheduleTotal]=useState(0);
-  const [publicPriceTotal,setPublicPriceTotal]=useState(0);
-  const [publicScheduleTotal,setPublicScheduleTotal]=useState(0);
-  const [verifiedPriceOffset,setVerifiedPriceOffset]=useState(0);
-  const [verifiedScheduleOffset,setVerifiedScheduleOffset]=useState(0);
-  const [publicPriceOffset,setPublicPriceOffset]=useState(0);
-  const [publicScheduleOffset,setPublicScheduleOffset]=useState(0);
-  const [evidenceBusy,setEvidenceBusy]=useState(false);
-  const [scheduleClassCandidates,setScheduleClassCandidates]=useState<any[]>([]);
-  const [scheduleClassCandidateTotal,setScheduleClassCandidateTotal]=useState(0);
-  const [scheduleClassCandidateOffset,setScheduleClassCandidateOffset]=useState(0);
-  const [candidateTitles,setCandidateTitles]=useState<Record<number,string>>({});
-  const [candidateSessions,setCandidateSessions]=useState<Record<number,string>>({});
   const [dashboard,setDashboard]=useState<any>(null);
   const [dashboardBusy,setDashboardBusy]=useState(false);
   const [dashboardError,setDashboardError]=useState<string|null>(null);
@@ -147,21 +116,6 @@ export default function Admin() {
   const [reportsBusy,setReportsBusy]=useState(false);
   const [reportsError,setReportsError]=useState<string|null>(null);
   const [reportEditingId,setReportEditingId]=useState<number|null>(null);
-  const publicPendingScheduleRows=useMemo(()=>{
-    const seen=new Set<string>();
-    return verifiedScheduleRows.filter(item=>!publishedScheduleCandidateIds.includes(item.id)).filter(item=>{
-      const key=normalizeScheduleKey(item.normalized_value||item.candidate_value||"");
-      const identity=key?item.studio_id+"|"+key:"id|"+item.id;
-      if(seen.has(identity))return false;
-      seen.add(identity);return true;
-    });
-  },[verifiedScheduleRows,publishedScheduleCandidateIds]);
-  const publicPendingPriceRows=useMemo(
-    ()=>verifiedPriceRows.filter(item=>!publishedCandidateIds.includes(item.id)),
-    [verifiedPriceRows,publishedCandidateIds]
-  );
-
-
   const checkAdmin=useCallback(async(s:any)=>{
     if(!s){setAuthorized(false);setChecking(false);return;}
     setChecking(true);
