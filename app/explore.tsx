@@ -114,6 +114,7 @@ export default function Home() {
   const detailRequestId=useRef(0);
   const [detailExpanded,setDetailExpanded]=useState(false);
   const [detailTab,setDetailTab]=useState<"home"|"notices"|"blog"|"reviews"|"photos">("home");
+  const [detailInfoTab,setDetailInfoTab]=useState<"price"|"schedule">("price");
   const [studioReviews,setStudioReviews]=useState<any[]>([]);
   const [reviewsLoading,setReviewsLoading]=useState(false);
   const [reviewRating,setReviewRating]=useState(5);
@@ -628,6 +629,7 @@ export default function Home() {
     if(supabase)supabase.rpc("record_studio_detail_view",{p_studio_id:s.id}).then(({error})=>{if(error)console.warn("Studio view metric unavailable:",error.message);});
     const requestId=++detailRequestId.current;
     setDetailTab("home");
+    setDetailInfoTab("price");
     setDetailExpanded(false);
     detailDragY.setValue(0);
     setDetailStudio(s);
@@ -852,14 +854,23 @@ export default function Home() {
             :<View style={styles.photoEmpty}><Text style={styles.filterHint}>확인된 대표 이미지가 아직 없습니다.</Text>{detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}</View>}
           
           
-          {studioPublicPrices.length>0&&<Text style={styles.sectionTitle}>공개 가격 자료</Text>}
-          {studioPublicPrices.length?studioPublicPrices.map(price=><View key={"public-price-"+price.id} style={styles.classBlock}><Text style={styles.classTitle}>₩{price.amount_krw.toLocaleString("ko-KR")} · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Text style={styles.photoCredit}>{price.source_post_date?"관리자 검증 · 원문 게시일 "+new Date(price.source_post_date).toLocaleDateString("ko-KR"):"학원 관리자 직접 등록"} · 공개 {new Date(price.published_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{price.evidence_text||"학원 관리자 직접 등록"}</Text>{evidencePhotoGallery("price-"+price.id,price.source_url||"",price.image_urls)}{!!price.source_url&&<Pressable onPress={()=>Linking.openURL(price.source_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>가격 근거 원문 확인 ›</Text></Pressable>}</View>) :null}
-          {studioPublicSchedules.length>0&&<Text style={styles.sectionTitle}>공개 시간표 자료</Text>}
-          {studioPublicSchedules.length?studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{cleanScheduleDisplay(item.schedule_text)}</Text>{evidencePhotoGallery("schedule-"+item.id,item.source_url||"",item.image_urls)}</View>) :null}
-          {studioPublicPrices.length===0&&studioPublicSchedules.length===0&&<Text style={styles.filterHint}>{studioBlogPosts.some(post=>(post.price_evidence?.length||0)>0||(post.schedule_evidence?.length||0)>0)?"블로그에서 가격·시간표 관련 문구를 수집했지만 아직 관리자 검증 전입니다. 위 게시글의 원문을 확인해 주세요.":"가격 및 시간표 공개 자료가 없습니다. 학원에 직접 문의해 주세요."}</Text>}
-          <Text style={styles.sectionTitle}>가격 및 수업 시간표</Text>
-          <View style={styles.infoRow}><Text style={styles.infoLabel}>대표 수강료</Text><Text style={styles.infoValue}>{detailStudio.price!==null?"₩"+detailStudio.price.toLocaleString()+" / 회":studioPublicPrices.length?"₩"+studioPublicPrices[0].amount_krw.toLocaleString("ko-KR")+" · "+studioPublicPrices[0].price_period+(studioPublicPrices[0].frequency_per_week?" · 주 "+studioPublicPrices[0].frequency_per_week+"회":""):"가격 미등록 · 학원 문의"}</Text></View>
-          {supabaseConfigured&&<>{classesLoading?<ActivityIndicator color={COLORS.purple} style={{marginVertical:12}}/>:studioClasses.length?studioClasses.map(cls=><View key={cls.id} style={styles.classBlock}><Text style={styles.classTitle}>{cls.title}</Text><Text style={styles.classMeta}>{cls.audience==="adult"?"성인":cls.audience==="kids"?"키즈":"전체"} · {cls.level||"수준 미표기"} · {cls.duration_minutes||"-"}분 · {cls.price!=null?"₩"+cls.price.toLocaleString():"가격 문의"}</Text>{cls.class_sessions?.length?cls.class_sessions.map((session,i)=><Text key={i} style={styles.sessionText}>{["일","월","화","수","목","금","토"][session.weekday]}요일 {session.start_time.slice(0,5)}{session.end_time?("–"+session.end_time.slice(0,5)):""}{session.note?(" · "+session.note):""}</Text>):<Text style={styles.sessionText}>등록된 시간표가 없습니다.</Text>}</View>):<Text style={styles.filterHint}>등록된 수업 및 시간표가 없습니다. 확인된 정보가 등록되면 여기에 표시됩니다.</Text>}</>}
+          <View style={{marginTop:10}}>
+            <View style={{flexDirection:"row",gap:8,marginBottom:10}}>
+              {([{id:"price",label:"가격 정보"},{id:"schedule",label:"시간표"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailInfoTab(tab.id)} style={{flex:1,paddingVertical:10,borderRadius:10,borderWidth:1,borderColor:detailInfoTab===tab.id?COLORS.purple:COLORS.line,backgroundColor:detailInfoTab===tab.id?COLORS.pale:"#FFFFFF",alignItems:"center"}}><Text style={{fontSize:13,fontWeight:"800",color:detailInfoTab===tab.id?COLORS.purple:COLORS.muted}}>{tab.label}</Text></Pressable>)}
+            </View>
+            {detailInfoTab==="price"&&<View>
+              {studioPublicPrices.length>0&&<Text style={styles.sectionTitle}>공개 가격 자료</Text>}
+              {studioPublicPrices.length?studioPublicPrices.map(price=><View key={"public-price-"+price.id} style={styles.classBlock}><Text style={styles.classTitle}>₩{price.amount_krw.toLocaleString("ko-KR")} · {price.price_period}{price.frequency_per_week?" · 주 "+price.frequency_per_week+"회":""}</Text><Text style={styles.photoCredit}>{price.source_post_date?"관리자 검증 · 원문 게시일 "+new Date(price.source_post_date).toLocaleDateString("ko-KR"):"학원 관리자 직접 등록"} · 공개 {new Date(price.published_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{price.evidence_text||"학원 관리자 직접 등록"}</Text>{evidencePhotoGallery("price-"+price.id,price.source_url||"",price.image_urls)}{!!price.source_url&&<Pressable onPress={()=>Linking.openURL(price.source_url).catch(()=>Alert.alert("원문 연결","게시글을 열 수 없습니다."))}><Text style={styles.photoSourceLink}>가격 근거 원문 확인 ›</Text></Pressable>}</View>) : <Text style={styles.filterHint}>공개 가격 자료가 없습니다. 학원에 직접 문의해 주세요.</Text>}
+              <View style={styles.infoRow}><Text style={styles.infoLabel}>대표 수강료</Text><Text style={styles.infoValue}>{detailStudio.price!==null?"₩"+detailStudio.price.toLocaleString()+" / 회":studioPublicPrices.length?"₩"+studioPublicPrices[0].amount_krw.toLocaleString("ko-KR")+" · "+studioPublicPrices[0].price_period+(studioPublicPrices[0].frequency_per_week?" · 주 "+studioPublicPrices[0].frequency_per_week+"회":""):"가격 미등록 · 학원 문의"}</Text></View>
+              {!!detailStudio.priceEvidenceText&&<View style={styles.classBlock}><Text style={styles.classTitle}>가격 관련 공개 문구</Text><Text style={styles.sessionText}>{detailStudio.priceEvidenceText}</Text></View>}
+            </View>}
+            {detailInfoTab==="schedule"&&<View>
+              {studioPublicSchedules.length>0&&<Text style={styles.sectionTitle}>공개 시간표 자료</Text>}
+              {studioPublicSchedules.length?studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{cleanScheduleDisplay(item.schedule_text)}</Text>{evidencePhotoGallery("schedule-"+item.id,item.source_url||"",item.image_urls)}</View>):<Text style={styles.filterHint}>공개 시간표 자료가 없습니다.</Text>}
+              {!!detailStudio.scheduleEvidenceText&&<View style={styles.classBlock}><Text style={styles.classTitle}>시간표 관련 공개 문구</Text><Text style={styles.sessionText}>{detailStudio.scheduleEvidenceText}</Text></View>}
+              {supabaseConfigured&&<>{classesLoading?<ActivityIndicator color={COLORS.purple} style={{marginVertical:12}}/>:studioClasses.length?studioClasses.map(cls=><View key={cls.id} style={styles.classBlock}><Text style={styles.classTitle}>{cls.title}</Text><Text style={styles.classMeta}>{cls.audience==="adult"?"성인":cls.audience==="kids"?"키즈":"전체"} · {cls.level||"수준 미표기"} · {cls.duration_minutes||"-"}분 · {cls.price!=null?"₩"+cls.price.toLocaleString():"가격 문의"}</Text>{cls.class_sessions?.length?cls.class_sessions.map((session,i)=><Text key={i} style={styles.sessionText}>{["일","월","화","수","목","금","토"][session.weekday]}요일 {session.start_time.slice(0,5)}{session.end_time?("–"+session.end_time.slice(0,5)):""}{session.note?(" · "+session.note):""}</Text>):<Text style={styles.sessionText}>등록된 시간표가 없습니다.</Text>}</View>):<Text style={styles.filterHint}>등록된 수업 및 시간표가 없습니다.</Text>}</>}
+            </View>}
+          </View>
           {detailStudio.address&&<View style={styles.infoRow}><Text style={styles.infoLabel}>주소</Text><Text style={styles.infoValue}>{detailStudio.address}</Text></View>}
           {(detailStudio.address||detailStudio.lat)&&<Pressable style={styles.detailBtn} onPress={()=>requestDirections(detailStudio)}><Text style={styles.detailBtnText}>길찾기 열기 · {mapProvider==="kakao"?"카카오맵":mapProvider==="google"?"구글 지도":"앱 선택"}</Text></Pressable>}
           <View style={styles.infoRow}><Text style={styles.infoLabel}>수업 대상</Text><Text style={styles.infoValue}>{[detailStudio.adult?"성인":null,detailStudio.kids?"키즈":null].filter(Boolean).join(" · ")||"미등록"}</Text></View>
