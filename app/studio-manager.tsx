@@ -169,11 +169,7 @@ export default function StudioManager(){
   if(!supabase||!owner||!scheduleText.trim()){Alert.alert("시간표 입력","시간표 설명을 입력해 주세요.");return;}
   setSaving(true);
   try{
-    const {error}=await supabase.from("studio_public_schedules").insert({
-    candidate_id:null,studio_id:studioId,schedule_text:scheduleText.trim(),
-    evidence_text:null,source_title:"원장님 직접 등록",source_url:null,source_post_date:null,
-    published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true
-   });
+    const {error}=await supabase.from("studio_public_schedules").insert({studio_id:studioId,schedule_text:scheduleText.trim(),published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
    if(error)throw error;
    setScheduleText("");Alert.alert("시간표 등록 완료","학원 상세 페이지에 시간표가 공개됩니다.");await load();
   }catch(e:any){Alert.alert("시간표 등록 실패",e.message||"시간표를 저장하지 못했습니다.");}
@@ -187,11 +183,7 @@ export default function StudioManager(){
   try{
    const frequency=priceFrequency.trim()?Number(priceFrequency):null;
    if(frequency!==null&&(!Number.isInteger(frequency)||frequency<1||frequency>14))throw new Error("주당 횟수는 1~14회로 입력해 주세요.");
-   const {error}=await supabase.from("studio_public_prices").insert({
-    candidate_id:null,studio_id:studioId,amount_krw:amount,price_period:pricePeriod.trim(),
-    frequency_per_week:frequency,evidence_text:null,source_title:"원장님 직접 등록",
-    source_url:null,source_post_date:null,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true,image_urls:[]
-   });
+   const {error}=await supabase.from("studio_public_prices").insert({studio_id:studioId,amount_krw:amount,price_period:pricePeriod.trim(),frequency_per_week:frequency,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
    if(error)throw error;
    setPriceAmount("");setPriceFrequency("");Alert.alert("가격 등록 완료","학원 상세 페이지에 가격 정보가 공개됩니다.");await load();
   }catch(e:any){Alert.alert("가격 등록 실패",e.message||"가격을 저장하지 못했습니다.");}
@@ -258,7 +250,7 @@ export default function StudioManager(){
     </View>
     <View style={s.card}><Text style={s.cardTitle}>수강 인증 코드</Text><Text style={s.body}>실제 수강을 완료한 회원에게만 코드를 전달해 주세요. 회원은 이 코드를 입력해야 학원 리뷰를 작성할 수 있습니다. 코드는 72시간 후 만료되고 한 번만 사용할 수 있습니다.</Text>{!!reviewCode&&<Text selectable style={{fontSize:22,fontWeight:"900",letterSpacing:2,color:C.purple,marginTop:10}}>{reviewCode}</Text>}{button(reviewCodeBusy?"발급 중…":"수강 인증 코드 발급",issueReviewCode,reviewCodeBusy)}</View>
     <View style={s.card}><Text style={s.cardTitle}>공지사항 관리</Text>{notices.length?notices.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.body}</Text>{button(item.is_active?"공지 숨기기":"공지 다시 공개",()=>toggleNotice(item),saving)}</View>):<Text style={s.body}>등록한 공지사항이 없습니다.</Text>}</View>
-    <View style={s.card}><Text style={s.cardTitle}>최근 수정 이력</Text>{editHistory.length?editHistory.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.entity==="studios"?"학원 기본 정보":item.entity==="studio_public_prices"?"가격표":item.entity==="studio_public_schedules"?"시간표":"공지사항"} · {item.action==="insert"?"등록":item.action==="delete"?"삭제":"수정"}</Text><Text style={s.body}>{new Date(item.created_at).toLocaleString("ko-KR")} · {(item.changed_fields||[]).map((field:string)=>(({name:"학원명",district:"지역",address:"주소",phone:"전화번호",website_url:"홈페이지",description:"소개",image_urls:"사진",schedule_text:"시간표",amount_krw:"가격",price_period:"가격 기간",frequency_per_week:"주당 횟수",title:"공지 제목",body:"공지 내용",is_active:"공개 상태",expires_at:"만료일"} as Record<string,string>)[field]||field)).join(", ")||"변경 내용"}</Text></View>):<Text style={s.body}>수정 이력이 없습니다.</Text>}</View>
+    <View style={s.card}><Text style={s.cardTitle}>최근 수정 이력</Text>{editHistory.length?editHistory.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.entity==="studios"?"학원 기본 정보":item.entity==="studio_public_prices"?"가격표":item.entity==="studio_public_schedules"?"시간표":"공지사항"} · {item.action==="insert"?"등록":item.action==="delete"?"삭제":"수정"}</Text><Text style={s.body}>{new Date(item.created_at).toLocaleString("ko-KR")} · {(item.changed_fields||[]).map((field:string)=>(({name:"학원명",district:"지역",address:"주소",phone:"전화번호",website_url:"홈페이지",description:"소개",schedule_text:"시간표",amount_krw:"가격",price_period:"가격 기간",frequency_per_week:"주당 횟수",title:"공지 제목",body:"공지 내용",is_active:"공개 상태",expires_at:"만료일"} as Record<string,string>)[field]||field)).join(", ")||"변경 내용"}</Text></View>):<Text style={s.body}>수정 이력이 없습니다.</Text>}</View>
    </>
   :application&&application.status!=="needs_info"?
    <View style={s.card}><Text style={s.cardTitle}>관리 권한 신청 상태</Text><Text style={s.status}>{application.status==="pending"?"운영자 심사 대기":application.status==="needs_info"?"추가 확인 요청":application.status==="approved"?"승인 완료":"반려"}</Text><Text style={s.body}>운영 관계 확인 후 운영자가 권한을 승인합니다.</Text>{application.review_note&&<Text style={s.body}>운영자 메모: {application.review_note}</Text>}{application.status==="rejected"&&button("다시 신청하기",()=>setApplication(null))}</View>
