@@ -19,6 +19,11 @@ BEGIN
   END IF;
 END $$;
 
+ALTER TABLE public.studio_public_prices
+  ADD COLUMN IF NOT EXISTS image_urls text[] NOT NULL DEFAULT '{}';
+ALTER TABLE public.studio_public_schedules
+  ADD COLUMN IF NOT EXISTS image_urls text[] NOT NULL DEFAULT '{}';
+
 -- Remove only photos that were published solely by the old AI auto-approval path.
 -- Admin-reviewed photos (reviewed_by is not null) are preserved.
 UPDATE public.studios s
@@ -148,3 +153,44 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_review_studio_photo_candidate(bigint,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_review_studio_photo_candidate(bigint,text) TO authenticated;
+
+
+-- Manual AI/category classification is advisory only; it must not publish photos.
+CREATE OR REPLACE FUNCTION public.admin_manual_classify_studio_photo_candidate(
+  p_candidate_id bigint,
+  p_category text
+)
+RETURNS TABLE(candidate_id bigint, review_status text, material_type text)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=public
+AS $$
+DECLARE
+  candidate public.studio_photo_candidates%ROWTYPE;
+  next_material text;
+BEGIN
+  IF NOT public.is_balletmate_admin() THEN
+    RAISE EXCEPTION 'admin access required' USING ERRCODE='42501';
+  END IF;
+  IF p_category NOT IN ('ballet_class','schedule','price','poster','logo','portrait','unrelated','unknown') THEN
+    RAISE EXCEPTION 'invalid photo category';
+  END IF;
+  SELECT * INTO candidate
+  FROM public.studio_photo_candidates
+  WHERE id=p_candidate_id AND review_status='pending'
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'pending photo candidate not found'; END IF;
+  next_material:=CASE WHEN p_category='schedule' THEN 'schedule'
+    WHEN p_category='price' THEN 'price'
+    WHEN p_category IN ('poster','logo') THEN 'other' ELSE NULL END;
+  UPDATE public.studio_photo_candidates
+  SET auto_classification=p_category,auto_confidence=1,
+      auto_reason='관리자 수동 분류 · 권리 확인 전 공개 보류',
+      auto_classified_at=now(),material_type=next_material,
+      review_status='pending',reviewed_at=NULL,reviewed_by=NULL
+  WHERE id=candidate.id;
+  RETURN QUERY SELECT candidate.id,'pending'::text,next_material;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.admin_manual_classify_studio_photo_candidate(bigint,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.admin_manual_classify_studio_photo_candidate(bigint,text) TO authenticated;
