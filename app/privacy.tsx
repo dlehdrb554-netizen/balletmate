@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
@@ -18,7 +18,8 @@ export default function Privacy(){
  return <SafeAreaView style={s.safe}><View style={s.header}><Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable><Text style={s.title}>개인정보처리방침</Text></View><ScrollView contentContainerStyle={s.body}>
   <View style={s.notice}><Text style={s.noticeText}>출시 전 초안 · 운영자 정보, 문의처, 국외 이전 및 보유기간을 확정한 뒤 공개해야 합니다.</Text></View>
   <Text style={s.intro}>발레메이트는 이용자의 개인정보를 보호하기 위해 아래와 같이 처리합니다.</Text>
+  <Pressable style={s.external} onPress={()=>Linking.openURL("https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/delete-account")}><Text style={s.externalText}>외부 계정 삭제 요청 페이지 열기 ↗</Text></Pressable>
   {sections.map(([title,body])=><View key={title} style={s.section}><Text style={s.heading}>{title}</Text><Text style={s.text}>{body}</Text></View>)}
  </ScrollView></SafeAreaView>;
 }
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:"#FAF9FC"},header:{padding:16,borderBottomWidth:1,borderColor:"#EAE7F0"},back:{fontSize:12,color:"#7661D8",fontWeight:"800"},title:{fontSize:20,fontWeight:"900",color:"#252238",marginTop:12},body:{padding:18,paddingBottom:36},notice:{backgroundColor:"#FFF4E5",borderRadius:12,padding:12},noticeText:{fontSize:12,lineHeight:18,color:"#8A4B08",fontWeight:"800"},intro:{fontSize:13,lineHeight:21,color:"#4E4A5C",marginTop:18,marginBottom:4},section:{marginTop:18},heading:{fontSize:14,fontWeight:"900",color:"#252238",marginBottom:7},text:{fontSize:12,lineHeight:20,color:"#625E70"}});
+const s=StyleSheet.create({safe:{flex:1,backgroundColor:"#FAF9FC"},header:{padding:16,borderBottomWidth:1,borderColor:"#EAE7F0"},back:{fontSize:12,color:"#7661D8",fontWeight:"800"},title:{fontSize:20,fontWeight:"900",color:"#252238",marginTop:12},body:{padding:18,paddingBottom:36},notice:{backgroundColor:"#FFF4E5",borderRadius:12,padding:12},noticeText:{fontSize:12,lineHeight:18,color:"#8A4B08",fontWeight:"800"},intro:{fontSize:13,lineHeight:21,color:"#4E4A5C",marginTop:18,marginBottom:4},external:{marginTop:14,padding:12,borderRadius:10,backgroundColor:"#F3F0FF"},externalText:{fontSize:12,color:"#653BB7",fontWeight:"900"},section:{marginTop:18},heading:{fontSize:14,fontWeight:"900",color:"#252238",marginBottom:7},text:{fontSize:12,lineHeight:20,color:"#625E70"}});
