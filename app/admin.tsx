@@ -500,15 +500,6 @@ export default function Admin() {
     finally{setBusy(false);}
   },[authorized]);
 
-  const loadAllPhotoStudios=async()=>{
-    if(!supabase||busy)return;setBusy(true);
-    try{const result=await readAllRows(()=>supabase!.from("studios").select(studioColumns).order("name").order("id"));if(result.error)throw result.error;
-      // Keep all database records here: duplicate-name/nearby branches are still separate photo-managed academies.
-      setRows((result.data||[]) as StudioRow[]);setStudioDbOffset((result.data||[]).length);setStudioHasMore(false);setStudioVisibleLimit(10000);setSelectedPhotoStudioIds([]);}
-    catch(error:any){Alert.alert("사진 보유 학원 조회 실패",error?.message||"전체 학원 목록을 조회하지 못했습니다.");}
-    finally{setBusy(false);}
-  };
-
   const loadMoreStudios=async()=>{
     if(!supabase||busy||!studioHasMore)return;
     setBusy(true);
@@ -1172,56 +1163,6 @@ export default function Admin() {
     setEvidenceBusy(false);
   };
 
-  const uploadMaterialPhotos=async(kind:"price"|"schedule",record:any)=>{
-    if(!supabase)return;
-    const existing=Array.isArray(record.image_urls)?record.image_urls:[];
-    if(existing.length>=8){Alert.alert("사진 등록 한도","가격·시간표 자료는 한 묶음에 최대 8장까지 등록할 수 있습니다.");return;}
-    const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if(!permission.granted){Alert.alert("사진 권한","사진 보관함 접근 권한을 허용해 주세요.");return;}
-    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:8-existing.length,quality:1});
-    if(picked.canceled||!picked.assets?.length)return;
-    setEvidenceBusy(true);
-    const uploadedPaths:string[]=[];
-    try{
-      const urls:string[]=[];
-      for(let i=0;i<picked.assets.length;i++){
-        const asset=picked.assets[i];
-        if((asset.fileSize||0)>15*1024*1024)throw new Error("원본 사진은 한 장당 15MB 이하여야 합니다.");
-        const sourceWidth=asset.width||2000,sourceHeight=asset.height||2400;
-        const scale=Math.min(1,2000/sourceWidth,2400/sourceHeight);
-        const targetWidth=Math.max(1,Math.round(sourceWidth*scale)),targetHeight=Math.max(1,Math.round(sourceHeight*scale));
-        const resized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:targetWidth,height:targetHeight}}],{compress:0.88,format:ImageManipulator.SaveFormat.JPEG});
-        try{
-          let response=await fetch(resized.uri);
-          if(!response.ok)throw new Error("최적화 사진을 읽지 못했습니다.");
-          let bytes=await response.arrayBuffer();
-          if(bytes.byteLength>1500*1024){
-            const compact=await ImageManipulator.manipulateAsync(resized.uri,[],{compress:0.72,format:ImageManipulator.SaveFormat.JPEG});
-            try{response=await fetch(compact.uri);if(!response.ok)throw new Error("압축 사진을 읽지 못했습니다.");bytes=await response.arrayBuffer();}
-            finally{await FileSystem.deleteAsync(compact.uri,{idempotent:true}).catch(()=>{});}
-          }
-          if(bytes.byteLength>1800*1024)throw new Error("최적화 후에도 사진이 1.8MB를 초과합니다. 해상도가 더 낮은 사진을 선택해 주세요.");
-          const path="materials/"+record.studio_id+"/"+kind+"/"+record.id+"/"+Date.now()+"_"+i+".jpg";
-          const {error:uploadError}=await supabase.storage.from("studio-photos").upload(path,bytes,{contentType:"image/jpeg",cacheControl:"31536000",upsert:false});
-          if(uploadError)throw uploadError;
-          uploadedPaths.push(path);
-          urls.push(supabase.storage.from("studio-photos").getPublicUrl(path).data.publicUrl);
-        }finally{await FileSystem.deleteAsync(resized.uri,{idempotent:true}).catch(()=>{});}
-      }
-      const next=[...existing,...urls];
-      const result=kind==="price"
-        ? await supabase.from("studio_public_prices").update({image_urls:next}).eq("id",record.id)
-        : await supabase.from("studio_public_schedules").update({image_urls:next}).eq("id",record.id);
-      if(result.error)throw result.error;
-      if(kind==="price")setActivePublicPrices(rows=>rows.map(row=>row.id===record.id?{...row,image_urls:next}:row));
-      else setActivePublicSchedules(rows=>rows.map(row=>row.id===record.id?{...row,image_urls:next}:row));
-      Alert.alert("사진 등록 완료","최적화한 사진 "+urls.length+"장을 자료에 연결했습니다.");
-    }catch(error:any){
-      if(uploadedPaths.length)await supabase.storage.from("studio-photos").remove(uploadedPaths);
-      Alert.alert("사진 등록 실패",error?.message||"사진을 저장하지 못했습니다.");
-    }finally{setEvidenceBusy(false);}
-  };
-
   const deactivatePublicPrice=async(price:any)=>{
     if(!supabase)return;
     Alert.alert("가격 공개 중단","이 가격을 앱에서 더 이상 표시하지 않을까요?",[
@@ -1733,8 +1674,7 @@ export default function Admin() {
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원 · 화면 {visibleStudioRows.length}/{filteredStudioRows.length} · 조회 {rows.length}개</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Pressable style={[styles.secondary,{marginBottom:10}]} disabled={busy} onPress={cleanupUnrelatedStudios}><Text style={styles.secondaryText}>발레 무관 업체 자동 삭제</Text></Pressable>
       <TextInput style={styles.input} value={studioSearch} onChangeText={value=>{setStudioSearch(value);setStudioVisibleLimit(100);}} placeholder="학원명·지역·주소·전화 검색" autoCapitalize="none"/><View style={styles.buttons}><Pressable style={styles.button} disabled={busy} onPress={searchStudiosServer}><Text style={styles.buttonText}>전체 학원 검색</Text></Pressable><Pressable style={styles.secondary} disabled={busy} onPress={()=>{setStudioSearch("");setStudioAppliedSearch("");load();}}><Text style={styles.secondaryText}>초기화</Text></Pressable></View>
       <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"missing_website",label:"홈페이지 없음"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>{setStudioListFilter(option.key);setStudioVisibleLimit(100);}}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
-            {studioListFilter==="has_photo"&&<View style={[styles.row,{justifyContent:"space-between",flexWrap:"wrap"}]}><Text style={styles.rowMeta}>{busy?"사진 학원 전체 조회 중…":"전체 사진 보유 "+rows.filter(row=>(row.image_urls||[]).length>0).length+"개 · 검색 결과 "+filteredStudioRows.length+"개"} · 선택 {selectedPhotoStudioIds.length}개</Text><View style={{flexDirection:"row",gap:6,flexWrap:"wrap",alignItems:"center"}}><Pressable style={styles.compactButton} onPress={selectFilteredPhotoStudios}><Text style={styles.compactButtonText} numberOfLines={1}>전체 선택</Text></Pressable><Pressable style={styles.compactButton} onPress={()=>setSelectedPhotoStudioIds([])}><Text style={styles.compactButtonText} numberOfLines={1}>선택 해제</Text></Pressable><Pressable style={[styles.compactButton,{borderColor:"#E6C5C9"}]} disabled={busy||!selectedPhotoStudioIds.length} onPress={bulkDeleteStudioPhotos}><Text style={[styles.compactButtonText,{color:"#B94C58"}]} numberOfLines={1}>선택 사진 삭제</Text></Pressable></View></View>}
-      {visibleStudioRows.map(r=><View key={r.id} style={[styles.row,studioListFilter==="has_photo"&&selectedPhotoStudioIds.includes(r.id)&&{backgroundColor:"#F2ECFF",borderColor:c.purple,borderWidth:1,borderRadius:12}]}>{studioListFilter==="has_photo"&&<Pressable onPress={()=>togglePhotoStudioSelection(r.id)} style={{paddingRight:6,paddingVertical:8}}><Ionicons name={selectedPhotoStudioIds.includes(r.id)?"checkbox":"square-outline"} size={26} color={selectedPhotoStudioIds.includes(r.id)?c.purple:c.muted}/></Pressable>}<View style={{flex:1,minWidth:0}}><Text style={styles.rowName} numberOfLines={1}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><View style={{flexDirection:"row",flexWrap:"wrap",gap:6,alignItems:"center"}}><Pressable style={styles.manageButton} onPress={()=>setStudioActionId(current=>current===r.id?null:r.id)}><Text style={styles.manageButtonText}>{studioActionId===r.id?"닫기":"관리"}</Text></Pressable></View>{studioActionId===r.id&&<View style={styles.studioActionMenu}><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);startEdit(r);}}><Text style={styles.manageButtonText}>정보 수정</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);setClassStudio(r);resetClass();}}><Text style={styles.manageButtonText}>수업 관리</Text></Pressable>{String(r.source_name||"").includes("홈페이지 검색 후보")&&<Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);deleteHomepageCandidate(r);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>후보 홈페이지 삭제</Text></Pressable>}<Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);remove(r.id,r.name);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View>}</View>)}
+            {visibleStudioRows.map(r=><View key={r.id} style={styles.row}><View style={{flex:1,minWidth:0}}><Text style={styles.rowName} numberOfLines={1}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><View style={{flexDirection:"row",flexWrap:"wrap",gap:6,alignItems:"center"}}><Pressable style={styles.manageButton} onPress={()=>setStudioActionId(current=>current===r.id?null:r.id)}><Text style={styles.manageButtonText}>{studioActionId===r.id?"닫기":"관리"}</Text></Pressable></View>{studioActionId===r.id&&<View style={styles.studioActionMenu}><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);startEdit(r);}}><Text style={styles.manageButtonText}>정보 수정</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);setClassStudio(r);resetClass();}}><Text style={styles.manageButtonText}>수업 관리</Text></Pressable>{String(r.source_name||"").includes("홈페이지 검색 후보")&&<Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);deleteHomepageCandidate(r);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>후보 홈페이지 삭제</Text></Pressable>}<Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);remove(r.id,r.name);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View>}</View>)}
       {visibleStudioRows.length<filteredStudioRows.length&&<Pressable style={styles.secondary} onPress={()=>setStudioVisibleLimit(limit=>limit+100)}><Text style={styles.secondaryText}>학원 100개 더 보기 ({visibleStudioRows.length}/{filteredStudioRows.length})</Text></Pressable>}
       {studioHasMore&&<Pressable style={styles.secondary} disabled={busy} onPress={loadMoreStudios}><Text style={styles.secondaryText}>{busy?"조회 중…":"다음 학원 20개 불러오기"}</Text></Pressable>}
       {!rows.length&&!busy&&<Text style={styles.hint}>등록된 학원이 없습니다.</Text>}{rows.length>0&&!visibleStudioRows.length&&<Text style={styles.hint}>검색/필터 조건에 맞는 학원이 없습니다.</Text>}
