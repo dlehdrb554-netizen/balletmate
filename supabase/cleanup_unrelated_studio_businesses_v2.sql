@@ -35,7 +35,7 @@ BEGIN
         -- Korean: medical, fitness, beauty, lodging, retail, vehicle,
         -- food/service, and clearly non-ballet education/sports businesses.
         s.name ~* '(병원|의원|산부인과|내과|외과|치과|한의원|약국|피부과|성형외과|안과|이비인후과|정형외과|비뇨기과|소아과|정신건강의학과|동물병원|보건소|헬스장|피트니스센터|휘트니스센터|크로스핏|요가원|필라테스|미용실|헤어샵|네일샵|속눈썹|마사지샵|안마원|사우나|찜질방|목욕탕|호텔|모텔|펜션|게스트하우스|자동차정비|카센터|세차장|주유소|부동산중개|공인중개사|세탁소|철물점|휴대폰매장|휴대폰대리점|PC방|노래방|당구장|스크린골프|골프연습장|태권도장|합기도장|검도관|유도관|주짓수|복싱|킥복싱|레슬링|축구교실|풋살|야구교실|농구교실|배드민턴|탁구장|수영장|수영교실|스케이트|클라이밍|음악학원|피아노학원|미술학원|영어학원|수학학원|보습학원|독서실|스터디카페|어린이집|유치원|자동차학원|운전학원|요리학원|바리스타학원|애견미용|동물훈련|꽃집|카페|음식점|식당|분식|치킨|피자|편의점|마트|슈퍼마켓)'
-        OR s.name ~* '\\m(hospital|clinic|pharmacy|gym|fitness|crossfit|yoga|pilates|hair salon|nail salon|massage|hotel|motel|car wash|auto repair|taekwondo|boxing|jiu.?jitsu|soccer|swimming|piano academy|art academy|english academy|math academy|kindergarten|daycare)\\M'
+        OR s.name ~* '\m(hospital|clinic|pharmacy|gym|fitness|crossfit|yoga|pilates|hair salon|nail salon|massage|hotel|motel|car wash|auto repair|taekwondo|boxing|jiu.?jitsu|soccer|swimming|piano academy|art academy|english academy|math academy|kindergarten|daycare)\M'
       )
       -- Do not delete ballet-related names or tags, including ballet fitness.
       AND COALESCE(s.name, '') !~* '(발레|발렛|ballet)'
@@ -85,7 +85,7 @@ FROM public.studios s
 WHERE
   (
     s.name ~* '(병원|의원|산부인과|내과|외과|치과|한의원|약국|피부과|성형외과|안과|이비인후과|정형외과|비뇨기과|소아과|정신건강의학과|동물병원|보건소|헬스장|피트니스센터|휘트니스센터|크로스핏|요가원|필라테스|미용실|헤어샵|네일샵|속눈썹|마사지샵|안마원|사우나|찜질방|목욕탕|호텔|모텔|펜션|게스트하우스|자동차정비|카센터|세차장|주유소|부동산중개|공인중개사|세탁소|철물점|휴대폰매장|휴대폰대리점|PC방|노래방|당구장|스크린골프|골프연습장|태권도장|합기도장|검도관|유도관|주짓수|복싱|킥복싱|레슬링|축구교실|풋살|야구교실|농구교실|배드민턴|탁구장|수영장|수영교실|스케이트|클라이밍|음악학원|피아노학원|미술학원|영어학원|수학학원|보습학원|독서실|스터디카페|어린이집|유치원|자동차학원|운전학원|요리학원|바리스타학원|애견미용|동물훈련|꽃집|카페|음식점|식당|분식|치킨|피자|편의점|마트|슈퍼마켓)'
-    OR s.name ~* '\\m(hospital|clinic|pharmacy|gym|fitness|crossfit|yoga|pilates|hair salon|nail salon|massage|hotel|motel|car wash|auto repair|taekwondo|boxing|jiu.?jitsu|soccer|swimming|piano academy|art academy|english academy|math academy|kindergarten|daycare)\\M'
+    OR s.name ~* '\m(hospital|clinic|pharmacy|gym|fitness|crossfit|yoga|pilates|hair salon|nail salon|massage|hotel|motel|car wash|auto repair|taekwondo|boxing|jiu.?jitsu|soccer|swimming|piano academy|art academy|english academy|math academy|kindergarten|daycare)\M'
   )
   AND COALESCE(s.name, '') !~* '(발레|발렛|ballet)'
   AND NOT EXISTS (
