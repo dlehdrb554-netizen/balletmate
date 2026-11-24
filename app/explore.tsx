@@ -101,6 +101,7 @@ export default function Home() {
   const [regionProvince,setRegionProvince]=useState("전체");
   const [regionCity,setRegionCity]=useState("전체");
   const [directoryAreas,setDirectoryAreas]=useState<string[]>(DATA.map(studio=>studio.area));
+  const [directoryStudios,setDirectoryStudios]=useState<Studio[]>([]);
   const [popularViewRank,setPopularViewRank]=useState<any[]>([]);
   const [favoriteRank,setFavoriteRank]=useState<any[]>([]);
   const [rankLoading,setRankLoading]=useState(false);
@@ -346,7 +347,7 @@ export default function Home() {
   const allListAreas=useMemo(()=>[...new Set([...directoryAreas,...studios.map(studio=>studio.area)].filter(area=>area&&area!=="지역 정보 없음"))].sort((a,b)=>a.localeCompare(b,"ko")),[directoryAreas,studios]);
   const listProvinces=["전체",...PROVINCES];
   const listCities=useMemo(()=>["전체",...new Set(allListAreas.filter(area=>regionProvince==="전체"||parseArea(area).province===regionProvince).map(area=>parseArea(area).city))].sort((a,b)=>a.localeCompare(b,"ko")),[allListAreas,regionProvince]);
-  useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active)setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
+  useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active){setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);setDirectoryStudios(rows.map(mapStudioRecord));}}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
   const listDistricts=useMemo(()=>allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity)),[allListAreas,regionProvince,regionCity]);
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?studio.area===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
@@ -501,6 +502,7 @@ export default function Home() {
     }
   },[compareIds,compareCache,compareReady]);
   const favoriteSyncUser=useRef<string|null>(null);
+  useEffect(()=>{if(!favoritesReady||!directoryStudios.length)return;setFavoriteStudios(current=>{const byId=new Map([...current,...directoryStudios].map(studio=>[studio.id,studio]));const next=favoriteIds.map(id=>byId.get(id)).filter((studio):studio is Studio=>!!studio);if(!favoriteSyncUser.current)guestFavoritesRef.current={ids:favoriteIds,studios:next};return next;});},[directoryStudios,favoriteIds,favoritesReady]);
   useEffect(()=>{
     const client=supabase;
     if(!client||!favoritesReady)return;
@@ -552,6 +554,7 @@ export default function Home() {
     const queryAtStart=search.trim();
     setSearchedRegion(target);setAreaLocked(true);setMapMoved(false);setSelected(null);
     setSearchSubmitting(true);
+    setClassSearchIds([]);setClassSearchLoading(false);
     try{
       // A viewport search must query Kakao Local around the map center as well as
       // the studios already stored in Supabase; a DB-only bounds read misses new places.
