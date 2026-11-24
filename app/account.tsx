@@ -142,6 +142,7 @@ export default function Account(){
       <View style={s.avatar}><MaterialCommunityIcons name="human-female-dance" size={30} color={C.purple} /></View>
       <Text style={s.name}>{display||"회원"}</Text>
       <Text style={s.sub}>{adminRole===true?"관리자 계정 · 관리자 권한 확인됨":adminRole===false?"일반 회원 계정":"계정 권한 확인 중"}</Text>
+{adminRole===true&&<Pressable style={s.primary} onPress={()=>router.push("/admin")}><Text style={s.primaryText}>관리자 페이지</Text></Pressable>}
       <View style={s.connectedBox}>
        <Text style={s.connectedTitle}>소셜 계정 연결</Text>
        <Pressable style={s.googleButton} disabled={!!loadingProvider||connected("google")} onPress={()=>linkSocial("google")}>
