@@ -180,6 +180,58 @@ Deno.serve(async (req) => {
     if (Number.isFinite(Number(body?.batchSize))) batchSize = Math.max(1, Math.min(2, Math.floor(Number(body.batchSize))));
   } catch { /* Use the safe default batch size. */ }
 
+  // Independent image-discovery pass: registered official blogs are not in
+  // the academy-discovery queue, but their RSS feeds are checked every run.
+  const { data: activeOfficialAccounts, error: activeOfficialError } = await db
+    .from("studio_blog_official_accounts")
+    .select("studio_id,studio_name,blogger_url")
+    .eq("is_active", true);
+  if (activeOfficialError) return json({ error: "공식 블로그 이미지 검색 대상 조회 실패: " + activeOfficialError.message }, 500);
+  let officialImagePostsQueued = 0;
+  const officialScanErrors: string[] = [];
+  const scanTargets: Array<{ studio_id: string; studio_name: string; blogger_url: string }> = [];
+  for (const account of activeOfficialAccounts ?? []) {
+    let studioId = account.studio_id as string | null;
+    if (!studioId) {
+      const { data: legacyStudio, error: legacyStudioError } = await db.from("studios")
+        .select("id,name").eq("name", String(account.studio_name)).maybeSingle();
+      if (legacyStudioError) {
+        officialScanErrors.push(String(account.blogger_url) + ": " + legacyStudioError.message);
+        continue;
+      }
+      studioId = legacyStudio?.id ?? null;
+    }
+    if (studioId) scanTargets.push({ studio_id: studioId, studio_name: String(account.studio_name), blogger_url: String(account.blogger_url) });
+  }
+  for (let offset = 0; offset < scanTargets.length; offset += 5) {
+    await Promise.all(scanTargets.slice(offset, offset + 5).map(async (target) => {
+      const accountId = blogAccountKey(target.blogger_url);
+      if (!accountId) return;
+      try {
+        const response = await fetch("https://rss.blog.naver.com/" + encodeURIComponent(accountId) + ".xml", {
+          headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000),
+        });
+        if (!response.ok) throw new Error("RSS HTTP " + response.status);
+        const posts = parseNaverRss(await response.text(), target.blogger_url);
+        const rows = posts.map((post) => ({
+          studio_id: target.studio_id,
+          search_query: "OFFICIAL_BLOG_IMAGE_RSS:" + accountId,
+          ...post,
+          collected_at: new Date().toISOString(),
+        }));
+        if (rows.length) {
+          const { data, error } = await db.from("studio_blog_sources")
+            .upsert(rows, { onConflict: "studio_id,post_url", ignoreDuplicates: true })
+            .select("id");
+          if (error) throw new Error(error.message);
+          officialImagePostsQueued += data?.length ?? 0;
+        }
+      } catch (error) {
+        officialScanErrors.push(accountId + ": " + (error instanceof Error ? error.message : "RSS scan failed"));
+      }
+    }));
+  }
+
   const { data: jobs, error: claimError } = await db.rpc("claim_studio_blog_search_jobs", { p_limit: batchSize });
   if (claimError) return json({ error: "검색 대기열 조회 실패: " + claimError.message }, 500);
   if (!jobs?.length) return json({ processed: 0, message: "검색 대기 중인 학원이 없습니다." });
@@ -462,6 +514,8 @@ Deno.serve(async (req) => {
     processed: jobs.length,
     completed: results.filter((item) => item.status === "completed").length,
     results,
-    note: "검색 결과의 제목·요약·원문 URL만 저장합니다. 블로그 게시물 본문과 사진은 별도 수집·검증 단계에서 처리해야 합니다.",
+    officialImagePostsQueued,
+    officialImageScanErrors: officialScanErrors,
+    note: "등록된 공식 블로그는 별도 RSS 검색으로 새 게시물만 이미지 수집 대기열에 넣고, 미등록 학원만 블로그 발굴을 진행합니다.",
   });
 });
