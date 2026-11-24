@@ -103,6 +103,29 @@ export default function Account(){
   const {error}=await supabase.auth.signOut();
   if(error)Alert.alert("로그아웃 실패",error.message);
  };
+ const deleteAccount=()=>{
+  if(!supabase)return;
+  Alert.alert(
+   "회원 탈퇴",
+   "계정을 영구 삭제합니다. 연결된 회원 프로필과 즐겨찾기 등 계정 데이터도 삭제되며 되돌릴 수 없습니다. 계속할까요?",
+   [
+    {text:"취소",style:"cancel"},
+    {text:"영구 탈퇴",style:"destructive",onPress:async()=>{
+     setLoading(true);
+     try{
+      const {data,error}=await supabase.functions.invoke("delete-account",{body:{confirm:true}});
+      if(error)throw error;
+      if(!data?.success)throw new Error(data?.error||"계정 삭제 결과를 확인할 수 없습니다.");
+      await supabase.auth.signOut({scope:"local"});
+      setSession(null);
+      Alert.alert("탈퇴 완료","회원 계정 삭제가 완료되었습니다.");
+     }catch(error:any){
+      Alert.alert("탈퇴 실패",error?.message||"계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+     }finally{setLoading(false);}
+    }}
+   ]
+  );
+ };
  const identities=(session?.user?.identities||[]) as Array<{provider?:string}>;
  const connected=(provider:string)=>identities.some(identity=>identity.provider===provider);
 
@@ -127,7 +150,8 @@ export default function Account(){
         <Text style={s.kakaoText}>{connected("kakao")?"✓ Kakao 연결됨":loadingProvider==="kakao"?"연결 중…":"카카오 계정 연결"}</Text>
        </Pressable>
       </View>
-      <Pressable style={s.primary} onPress={logout}><Text style={s.primaryText}>로그아웃</Text></Pressable>
+      <Pressable style={s.primary} disabled={loading} onPress={logout}><Text style={s.primaryText}>로그아웃</Text></Pressable>
+      <Pressable style={s.deleteAccount} disabled={loading} onPress={deleteAccount}><Text style={s.deleteAccountText}>{loading?"처리 중…":"회원 탈퇴"}</Text></Pressable>
      </View>
      :
      <View style={s.card}>
@@ -158,6 +182,11 @@ export default function Account(){
       }
      </View>
     }
+    <View style={s.legalLinks}>
+     <Pressable onPress={()=>router.push("/privacy")}><Text style={s.legalLink}>개인정보처리방침</Text></Pressable>
+     <Text style={s.note}>·</Text>
+     <Pressable onPress={()=>router.push("/terms")}><Text style={s.legalLink}>서비스 이용약관</Text></Pressable>
+    </View>
     <View style={s.info}>
      <Text style={s.infoTitle}>계정 사용 안내</Text>
      <Text style={s.note}>• 로그인하면 찜 목록을 기기 간 동기화할 수 있습니다.</Text>
@@ -187,5 +216,7 @@ const s=StyleSheet.create({
  avatar:{height:58,width:58,borderRadius:19,backgroundColor:C.pale,alignItems:"center",justifyContent:"center",alignSelf:"center"},
  name:{fontSize:20,color:C.ink,fontWeight:"900",textAlign:"center",marginTop:12},
  connectedBox:{backgroundColor:C.pale,padding:12,borderRadius:14,marginTop:20},connectedTitle:{fontSize:13,fontWeight:"900",color:C.purple,marginBottom:4},
- info:{backgroundColor:C.pale,padding:13,borderRadius:14,marginTop:18},infoTitle:{fontWeight:"900",color:C.purple,marginBottom:6}
+ info:{backgroundColor:C.pale,padding:13,borderRadius:14,marginTop:18},infoTitle:{fontWeight:"900",color:C.purple,marginBottom:6},
+ deleteAccount:{alignItems:"center",paddingVertical:14,marginTop:8},deleteAccountText:{fontSize:12,color:"#B33A45",fontWeight:"800"},
+ legalLinks:{flexDirection:"row",justifyContent:"center",alignItems:"center",gap:10,marginTop:20},legalLink:{fontSize:12,color:C.purple,fontWeight:"800"}
 });
