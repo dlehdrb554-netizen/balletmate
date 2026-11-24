@@ -1184,15 +1184,15 @@ export default function Admin() {
       {text:"취소",style:"cancel"},
       {text:""+eligible.length+"개 영구 삭제",style:"destructive",onPress:async()=>{
         setEvidenceBusy(true);
-        let deleted=0;let failed=0;let lastError="";
+        let deleted=0;let failed=0;let lastError="";const deletedIds:number[]=[];
         for(const item of eligible){
           const {error}=await supabase!.rpc("admin_delete_verified_evidence_candidate",{p_candidate_id:item.id,p_candidate_type:"schedule"});
-          if(error){failed++;lastError=error.message;}else deleted++;
+          if(error){failed++;lastError=error.message;}else {deleted++;deletedIds.push(item.id);}
         }
         if(deleted){
-          const deletedIds=new Set(eligible.filter(item=>!failed).map(item=>item.id));
-          setVerifiedScheduleRows(current=>current.filter(row=>!deletedIds.has(row.id)));
-          setSelectedScheduleIds(current=>current.filter(id=>!deletedIds.has(id)));
+          const deletedIdSet=new Set(deletedIds);
+          setVerifiedScheduleRows(current=>current.filter(row=>!deletedIdSet.has(row.id)));
+          setSelectedScheduleIds(current=>current.filter(id=>!deletedIdSet.has(id)));
           setVerifiedScheduleTotal(total=>Math.max(0,total-deleted));
         }
         setEvidenceBusy(false);
