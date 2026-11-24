@@ -169,7 +169,7 @@ COMMENT ON TABLE public.studio_owners IS 'Per-studio manager permissions. One ac
 -- Owner-edit audit log (captures public fields only; no identity documents or private claims).
 CREATE TABLE IF NOT EXISTS public.studio_owner_edit_history (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
- studio_id uuid NOT NULL REFERENCES public.studios(id) ON DELETE CASCADE,
+ studio_id uuid REFERENCES public.studios(id) ON DELETE SET NULL,
  actor_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
  entity text NOT NULL,
  entity_id text,
@@ -179,6 +179,15 @@ CREATE TABLE IF NOT EXISTS public.studio_owner_edit_history (
  after_snapshot jsonb,
  created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE public.studio_owner_edit_history ALTER COLUMN studio_id DROP NOT NULL;
+DO $history_fk$
+DECLARE v_constraint record;
+BEGIN
+ FOR v_constraint IN SELECT c.conname FROM pg_constraint c JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=ANY(c.conkey)
+  WHERE c.conrelid='public.studio_owner_edit_history'::regclass AND c.contype='f' AND c.confrelid='public.studios'::regclass AND a.attname='studio_id'
+ LOOP EXECUTE format('ALTER TABLE public.studio_owner_edit_history DROP CONSTRAINT %I',v_constraint.conname); END LOOP;
+END $history_fk$;
+ALTER TABLE public.studio_owner_edit_history ADD CONSTRAINT studio_owner_edit_history_studio_id_fkey FOREIGN KEY(studio_id) REFERENCES public.studios(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS studio_owner_edit_history_studio_time_idx
  ON public.studio_owner_edit_history(studio_id,created_at DESC);
 ALTER TABLE public.studio_owner_edit_history ENABLE ROW LEVEL SECURITY;
@@ -194,6 +203,7 @@ DECLARE
  v_old jsonb;v_new jsonb;v_studio_id uuid;v_entity_id text;v_action text;
  v_fields text[];
 BEGIN
+ IF TG_OP='DELETE' AND pg_trigger_depth()>1 THEN RETURN OLD; END IF;
  v_action:=lower(TG_OP);
  IF TG_TABLE_NAME='studios' THEN
   IF TG_OP='DELETE' THEN
