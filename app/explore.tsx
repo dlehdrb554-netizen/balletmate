@@ -732,7 +732,7 @@ export default function Home() {
       <View style={{height:250,borderRadius:9,overflow:"hidden",backgroundColor:"#F0EDF6",justifyContent:"center",alignItems:"center"}}>
         <Image source={{uri:photos[index]}} style={{width:"100%",height:"100%"}} resizeMode="contain" onError={()=>console.warn("Evidence photo failed to load",photos[index])}/>
       </View>
-      {photos.length>1&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,paddingTop:9}}>
+      {photos.length>0&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,paddingTop:9}}>
         {photos.map((url,i)=><Pressable key={url} onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:i}))} style={{width:72,height:72,borderRadius:8,overflow:"hidden",borderWidth:i===index?2:1,borderColor:i===index?COLORS.purple:"#DCD6E8",backgroundColor:"#F0EDF6"}}>
           <Image source={{uri:url}} style={{width:"100%",height:"100%"}} resizeMode="cover" onError={()=>console.warn("Evidence thumbnail failed to load",url)}/>
         </Pressable>)}
