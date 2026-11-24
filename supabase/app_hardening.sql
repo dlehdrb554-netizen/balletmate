@@ -8,87 +8,95 @@ CREATE OR REPLACE FUNCTION public.normalize_studio_district(p_address text, p_fa
 RETURNS text
 LANGUAGE plpgsql
 IMMUTABLE
-SET search_path = public
+SET search_path=public
 AS $$
 DECLARE
-  v_input text;
-  v_tokens text[];
-  v_first text;
-  v_province text;
-  v_city text;
-  v_district text;
-  v_i integer;
-  v_used_fallback boolean := false;
+ v_input text;
+ v_tokens text[];
+ v_first text;
+ v_province text;
+ v_city text;
+ v_district text;
+ v_i integer;
+ v_used_fallback boolean:=false;
 BEGIN
-  v_input := nullif(trim(regexp_replace(coalesce(p_address,''), '[[:space:]]+', ' ', 'g')), '');
-  IF v_input IS NULL THEN
-    v_input := nullif(trim(regexp_replace(coalesce(p_fallback,''), '[[:space:]]+', ' ', 'g')), '');
-    v_used_fallback := true;
-  END IF;
-  IF v_input IS NULL THEN RETURN NULL; END IF;
-  v_tokens := regexp_split_to_array(v_input, '[[:space:]]+');
-  v_first := v_tokens[1];
+ v_input:=nullif(trim(regexp_replace(coalesce(p_address,''),'[[:space:]]+',' ','g')),'');
+ v_tokens:=CASE WHEN v_input IS NULL THEN ARRAY[]::text[] ELSE regexp_split_to_array(v_input,'[[:space:]]+') END;
+ v_first:=coalesce(v_tokens[1],'');
+ v_province:=CASE
+  WHEN v_first IN ('서울','서울시','서울특별시') THEN '서울시'
+  WHEN v_first IN ('부산','부산시','부산광역시') THEN '부산시'
+  WHEN v_first IN ('대구','대구시','대구광역시') THEN '대구시'
+  WHEN v_first IN ('인천','인천시','인천광역시') THEN '인천시'
+  WHEN v_first IN ('광주','광주시','광주광역시') THEN '광주시'
+  WHEN v_first IN ('대전','대전시','대전광역시') THEN '대전시'
+  WHEN v_first IN ('울산','울산시','울산광역시') THEN '울산시'
+  WHEN v_first IN ('세종','세종시','세종특별자치시') THEN '세종시'
+  WHEN v_first IN ('경기','경기도') THEN '경기도'
+  WHEN v_first IN ('강원','강원도','강원특별자치도') THEN '강원도'
+  WHEN v_first IN ('충북','충청북도') THEN '충청북도'
+  WHEN v_first IN ('충남','충청남도') THEN '충청남도'
+  WHEN v_first IN ('전북','전라북도','전북특별자치도') THEN '전라북도'
+  WHEN v_first IN ('전남','전라남도') THEN '전라남도'
+  WHEN v_first IN ('경북','경상북도') THEN '경상북도'
+  WHEN v_first IN ('경남','경상남도') THEN '경상남도'
+  WHEN v_first IN ('제주','제주도','제주특별자치도') THEN '제주도'
+  ELSE NULL END;
 
-  v_province := CASE
-    WHEN v_first IN ('서울','서울시','서울특별시') THEN '서울'
-    WHEN v_first IN ('부산','부산시','부산광역시') THEN '부산'
-    WHEN v_first IN ('대구','대구시','대구광역시') THEN '대구'
-    WHEN v_first IN ('인천','인천시','인천광역시') THEN '인천'
-    WHEN v_first IN ('광주','광주시','광주광역시') THEN '광주'
-    WHEN v_first IN ('대전','대전시','대전광역시') THEN '대전'
-    WHEN v_first IN ('울산','울산시','울산광역시') THEN '울산'
-    WHEN v_first IN ('세종','세종시','세종특별자치시') THEN '세종'
-    WHEN v_first IN ('경기','경기도') THEN '경기'
-    WHEN v_first IN ('강원','강원도','강원특별자치도') THEN '강원도'
-    WHEN v_first IN ('충북','충청북도') THEN '충청북도'
-    WHEN v_first IN ('충남','충청남도') THEN '충청남도'
-    WHEN v_first IN ('전북','전라북도','전북특별자치도') THEN '전라북도'
-    WHEN v_first IN ('전남','전라남도') THEN '전라남도'
-    WHEN v_first IN ('경북','경상북도') THEN '경상북도'
-    WHEN v_first IN ('경남','경상남도') THEN '경상남도'
-    WHEN v_first IN ('제주','제주도','제주특별자치도') THEN '제주도'
-    ELSE NULL
-  END;
-  IF v_province IS NULL THEN RETURN NULL; END IF;
+ IF v_province IS NULL THEN
+  v_input:=nullif(trim(regexp_replace(coalesce(p_fallback,''),'[[:space:]]+',' ','g')),'');
+  v_used_fallback:=true;
+  v_tokens:=CASE WHEN v_input IS NULL THEN ARRAY[]::text[] ELSE regexp_split_to_array(v_input,'[[:space:]]+') END;
+  v_first:=coalesce(v_tokens[1],'');
+  v_province:=CASE
+   WHEN v_first IN ('서울','서울시','서울특별시') THEN '서울시'
+   WHEN v_first IN ('부산','부산시','부산광역시') THEN '부산시'
+   WHEN v_first IN ('대구','대구시','대구광역시') THEN '대구시'
+   WHEN v_first IN ('인천','인천시','인천광역시') THEN '인천시'
+   WHEN v_first IN ('광주','광주시','광주광역시') THEN '광주시'
+   WHEN v_first IN ('대전','대전시','대전광역시') THEN '대전시'
+   WHEN v_first IN ('울산','울산시','울산광역시') THEN '울산시'
+   WHEN v_first IN ('세종','세종시','세종특별자치시') THEN '세종시'
+   WHEN v_first IN ('경기','경기도') THEN '경기도'
+   WHEN v_first IN ('강원','강원도','강원특별자치도') THEN '강원도'
+   WHEN v_first IN ('충북','충청북도') THEN '충청북도'
+   WHEN v_first IN ('충남','충청남도') THEN '충청남도'
+   WHEN v_first IN ('전북','전라북도','전북특별자치도') THEN '전라북도'
+   WHEN v_first IN ('전남','전라남도') THEN '전라남도'
+   WHEN v_first IN ('경북','경상북도') THEN '경상북도'
+   WHEN v_first IN ('경남','경상남도') THEN '경상남도'
+   WHEN v_first IN ('제주','제주도','제주특별자치도') THEN '제주도'
+   ELSE NULL END;
+ END IF;
+ IF v_province IS NULL THEN RETURN NULL; END IF;
 
-  IF v_province IN ('서울','부산','대구','인천','광주','대전','울산') THEN
-    FOR v_i IN 2..coalesce(array_length(v_tokens,1),1) LOOP
-      IF v_tokens[v_i] ~ '(구|군)$' THEN
-        v_district := v_tokens[v_i];
-        EXIT;
-      END IF;
-    END LOOP;
-    -- Discovery-grid labels such as "서울 강남" are used only when no address exists.
-    IF v_district IS NULL AND v_used_fallback AND array_length(v_tokens,1)=2
-       AND v_tokens[2] !~ '(시|도|구|군)$' THEN
-      v_district := v_tokens[2] || '구';
-    END IF;
-    RETURN CASE WHEN v_district IS NULL THEN v_province ELSE v_province || ' ' || v_district END;
-  END IF;
-
-  IF v_province='세종' THEN RETURN '세종'; END IF;
-
+ IF v_province IN ('서울시','부산시','대구시','인천시','광주시','대전시','울산시') THEN
   FOR v_i IN 2..coalesce(array_length(v_tokens,1),1) LOOP
-    IF v_tokens[v_i] ~ '(시|군)$' THEN
-      v_city := v_tokens[v_i];
-      EXIT;
-    END IF;
+   IF v_tokens[v_i] ~ '(구|군)$' THEN v_district:=v_tokens[v_i]; EXIT; END IF;
   END LOOP;
-  IF v_province='제주도' AND v_city IS NULL THEN
-    FOR v_i IN 2..coalesce(array_length(v_tokens,1),1) LOOP
-      IF v_tokens[v_i] IN ('제주','제주시') THEN v_city:='제주시'; EXIT; END IF;
-      IF v_tokens[v_i] IN ('서귀포','서귀포시') THEN v_city:='서귀포시'; EXIT; END IF;
-    END LOOP;
-  END IF;
-  IF v_city IS NULL THEN RETURN v_province; END IF;
+  IF v_district IS NULL AND v_used_fallback AND array_length(v_tokens,1)=2
+     AND v_tokens[2] !~ '(시|도|구|군)$' THEN v_district:=v_tokens[2]||'구'; END IF;
+  RETURN CASE WHEN v_district IS NULL THEN v_province ELSE v_province||' '||v_district END;
+ END IF;
+ IF v_province='세종시' THEN RETURN '세종시'; END IF;
 
+ FOR v_i IN 2..coalesce(array_length(v_tokens,1),1) LOOP
+  IF v_tokens[v_i] ~ '(시|군)$' THEN v_city:=v_tokens[v_i]; EXIT; END IF;
+ END LOOP;
+ IF v_province='제주도' AND v_city IS NULL THEN
   FOR v_i IN 2..coalesce(array_length(v_tokens,1),1) LOOP
-    IF v_tokens[v_i] ~ '(구|군)$' AND v_tokens[v_i]<>v_city THEN
-      v_district := v_tokens[v_i];
-      EXIT;
-    END IF;
+   IF v_tokens[v_i] IN ('제주','제주시') THEN v_city:='제주시'; EXIT; END IF;
+   IF v_tokens[v_i] IN ('서귀포','서귀포시') THEN v_city:='서귀포시'; EXIT; END IF;
   END LOOP;
-  RETURN v_province || ' ' || v_city || CASE WHEN v_district IS NULL THEN '' ELSE ' ' || v_district END;
+ END IF;
+ IF v_city IS NULL AND v_used_fallback AND array_length(v_tokens,1)>=2
+    AND v_tokens[2] !~ '(구|군|도|시)$' THEN v_city:=v_tokens[2]||'시'; END IF;
+ IF v_city IS NULL THEN RETURN v_province; END IF;
+
+ FOR v_i IN 2..coalesce(array_length(v_tokens,1),1) LOOP
+  IF v_tokens[v_i] ~ '(구|군)$' AND v_tokens[v_i]<>v_city THEN v_district:=v_tokens[v_i]; EXIT; END IF;
+ END LOOP;
+ RETURN v_province||' '||v_city||CASE WHEN v_district IS NULL THEN '' ELSE ' '||v_district END;
 END;
 $$;
 
