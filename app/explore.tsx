@@ -172,7 +172,6 @@ export default function Home() {
     const studioId=detailStudio?.id;
     if(!client||!studioId||detailTab!=="notices")return;
     let active=true;
-    setFreshnessLoading(false);
     client.from("studio_owner_notices").select("id,title,body,created_at")
       .eq("studio_id",studioId).eq("is_active",true).order("created_at",{ascending:false}).limit(10)
       .then(({data,error})=>{if(active)setStudioOwnerNotices(error?[]:(data||[]));})
@@ -670,6 +669,7 @@ export default function Home() {
     setDetailCanonicalLoading(!!supabaseConfigured);
     setStudioClasses([]);
     setStudioBlogPosts([]);
+    setBlogLoading(false);
     setStudioPublicPrices([]);
     setStudioPublicSchedules([]);
     setStudioOwnerNotices([]);
