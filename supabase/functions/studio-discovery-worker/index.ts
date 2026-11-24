@@ -34,21 +34,10 @@ function findKakaoPlaceChannel(value:unknown,depth=0):string|null{
  if(typeof value==="object"){for(const [key,item] of Object.entries(value as Record<string,unknown>)){if(/channel|kakao|plus.?friend|sns|url|link|homepage|site/i.test(key)||depth<3){const found=findKakaoPlaceChannel(item,depth+1);if(found)return found;}}}
  return null;
 }
-async function findKakaoPlaceOfficialLinks(placeId:string):Promise<{blog:string|null;channel:string|null;website:string|null;checked:boolean}>{
- const headers={"User-Agent":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36","Referer":"https://place.map.kakao.com/"+placeId};
- let blog:string|null=null,channel:string|null=null,website:string|null=null,checked=false;
- for(const endpoint of ["https://place.map.kakao.com/main/v/"+encodeURIComponent(placeId),"https://place.map.kakao.com/"+encodeURIComponent(placeId)]){
-  try{
-   const response=await fetch(endpoint,{headers,signal:AbortSignal.timeout(6000)});if(!response.ok)continue;checked=true;
-   const body=await response.text();let payload:unknown=body;
-   try{payload=JSON.parse(body);}catch{}
-   if(!blog){const found=new Set<string>();collectNaverBlogUrls(payload,found);blog=[...found][0]||null;}
-   if(!channel)channel=findKakaoPlaceChannel(payload);
-   if(!website)website=findKakaoPlaceWebsite(payload);
-   if(blog&&channel&&website)break;
-  }catch{/* best effort */}
- }
- return {blog,channel,website,checked};
+async function findKakaoPlaceOfficialLinks(_placeId:string):Promise<{blog:string|null;channel:string|null;website:string|null;checked:boolean}>{
+ // Do not scrape undocumented Kakao Place web endpoints. Use only Kakao's documented Local API;
+ // official links can be entered or verified by an academy owner/admin.
+ return {blog:null,channel:null,website:null,checked:false};
 }
 async function findKakaoPlaceBlog(placeId:string):Promise<string|null>{
  const found=new Set<string>();const headers={"User-Agent":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36","Referer":"https://place.map.kakao.com/"+placeId};
