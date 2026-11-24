@@ -165,6 +165,12 @@ export default function Admin() {
   const [officialBlogUrls,setOfficialBlogUrls]=useState("");
   const [officialBlogBusy,setOfficialBlogBusy]=useState(false);
   const [officialBlogCandidates,setOfficialBlogCandidates]=useState<any[]>([]);
+  const [blogCandidates,setBlogCandidates]=useState<any[]>([]);
+  const [blogCandidateTotal,setBlogCandidateTotal]=useState(0);
+  const [blogCandidateOffset,setBlogCandidateOffset]=useState(0);
+  const [blogCandidateBusy,setBlogCandidateBusy]=useState(false);
+  const [blogCandidateActionId,setBlogCandidateActionId]=useState<number|null>(null);
+  const [blogCandidateError,setBlogCandidateError]=useState<string|null>(null);
   const [classRows,setClassRows]=useState<any[]>([]);
   const [classEditing,setClassEditing]=useState<string|null>(null);
   const [classBusy,setClassBusy]=useState(false);
@@ -363,6 +369,24 @@ export default function Admin() {
     if(!supabase)return;
     const {error}=await supabase.rpc("admin_update_studio_user_report",{p_report_id:id,p_status:status});
     if(error)Alert.alert("상태 변경 실패",error.message);else await loadReports();
+  };
+
+  const loadBlogCandidates=useCallback(async(reset=true)=>{
+    if(!supabase||!authorized||blogCandidateBusy)return;
+    setBlogCandidateBusy(true);setBlogCandidateError(null);
+    const start=reset?0:blogCandidateOffset;
+    const {data,error}=await supabase.rpc("admin_list_all_studio_blog_account_candidates",{p_limit:100,p_offset:start});
+    if(error){setBlogCandidateError(error.message);if(reset){setBlogCandidates([]);setBlogCandidateTotal(0);setBlogCandidateOffset(0);}}
+    else{const page=Array.isArray(data)?data:[];setBlogCandidates(current=>reset?page:[...current,...page]);setBlogCandidateTotal(Number(page[0]?.total_count||0));setBlogCandidateOffset(start+page.length);}
+    setBlogCandidateBusy(false);
+  },[authorized,blogCandidateBusy,blogCandidateOffset]);
+  const reviewAllBlogCandidate=async(candidateId:number,status:"approved"|"rejected")=>{
+    if(!supabase||blogCandidateActionId!==null)return;
+    setBlogCandidateActionId(candidateId);
+    const {error}=await supabase.rpc("admin_review_studio_blog_account_candidate",{p_candidate_id:candidateId,p_status:status});
+    if(error)Alert.alert("후보 처리 실패",error.message);
+    else{setBlogCandidates(current=>current.filter(item=>Number(item.id)!==candidateId));setBlogCandidateTotal(total=>Math.max(0,total-1));if(status==="approved")Alert.alert("공식 계정 승인","공식 블로그로 등록했습니다.");}
+    setBlogCandidateActionId(null);
   };
 
   const loadDashboard=useCallback(async()=>{
@@ -921,11 +945,11 @@ export default function Admin() {
 
   useEffect(()=>{
     if(adminTab==="overview"){loadDashboard();loadReports();}
-    else if(adminTab==="review"){loadPhotoCandidates();}
+    else if(adminTab==="review"){loadPhotoCandidates();loadBlogCandidates(true);}
     else if(adminTab==="publish"){loadEvidence();loadScheduleClassCandidates();}
     else if(adminTab==="studios")load();
     else if(adminTab==="owners")loadOwnerApplications();
-  },[adminTab,loadDashboard,loadReports,loadEvidence,loadPhotoCandidates,loadScheduleClassCandidates,load,loadOwnerApplications]);
+  },[adminTab,loadDashboard,loadReports,loadEvidence,loadPhotoCandidates,loadBlogCandidates,loadScheduleClassCandidates,load,loadOwnerApplications]);
 
   const generateScheduleClassCandidate=async(item:EvidenceCandidate)=>{
     if(!supabase||item.review_status!=="verified"||item.candidate_type!=="schedule")return;
@@ -1709,6 +1733,31 @@ export default function Admin() {
 <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>공개 대기 가격</Text><Pressable onPress={()=>setSelectedPriceIds(publicPendingPriceRows.map(item=>item.id))}><Text style={styles.refresh}>전체 선택</Text></Pressable><Pressable onPress={()=>setSelectedPriceIds([])}><Text style={styles.refresh}>해제</Text></Pressable><Pressable onPress={loadEvidence}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Text style={styles.hint}>전체 {Math.max(0,verifiedPriceTotal-publishedCandidateIds.length).toLocaleString("ko-KR")}건 · 현재 {publicPendingPriceRows.length}건 · 선택 {selectedPriceIds.length}건</Text><Pressable style={styles.button} disabled={evidenceBusy||!selectedPriceIds.length} onPress={publishPriceBatch}><Text style={styles.buttonText}>선택 {selectedPriceIds.length}개 공개</Text></Pressable><View style={styles.compactTableHeader}><Text style={styles.compactNumber}>#</Text><Text style={styles.compactMain}>학원 · 가격</Text><Text style={styles.compactButton}>선택</Text></View>{publicPendingPriceRows.map((item,index)=><View key={"verified-price-"+item.id} style={styles.compactTableRow}><Text style={styles.compactNumber}>{index+1}</Text><Pressable style={styles.compactMain} onPress={()=>Linking.openURL(item.source_url)}><Text style={styles.compactPrimary} numberOfLines={1}>{item.studio_name}</Text><Text style={styles.compactSecondary} numberOfLines={1}>{Number(item.normalized_value||0).toLocaleString("ko-KR")}원 · {item.price_period||"기간 미확인"}</Text></Pressable><View style={{gap:8,alignItems:"center"}}><Pressable onPress={()=>setSelectedPriceIds(ids=>ids.includes(item.id)?ids.filter(id=>id!==item.id):[...ids,item.id])}><Text style={styles.compactButton}>{selectedPriceIds.includes(item.id)?"☑":"□"}</Text></Pressable><Pressable onPress={()=>deletePriceCandidate(item)} disabled={evidenceBusy}><Text style={[styles.compactButton,{color:"#B95764"}]}>삭제</Text></Pressable></View></View>)}{!verifiedPriceRows.length&&!evidenceBusy&&<Text style={styles.hint}>공개 대기 가격이 없습니다.</Text>}{verifiedPriceOffset<verifiedPriceTotal&&<Pressable style={styles.secondary} disabled={evidenceBusy} onPress={()=>loadMoreVerifiedPage("price")}><Text style={styles.secondaryText}>다음 가격 후보 100개</Text></Pressable>}</View>
         </>}
     {adminTab==="review"&&<View style={{gap:12}}>
+<View style={styles.panel}>
+  <View style={styles.listHead}>
+    <Text style={styles.heading}>공식 블로그 계정 후보 ({blogCandidateTotal.toLocaleString("ko-KR")})</Text>
+    <Pressable onPress={()=>loadBlogCandidates(true)} disabled={blogCandidateBusy}><Text style={styles.refresh}>{blogCandidateBusy?"조회 중…":"새로고침"}</Text></Pressable>
+  </View>
+  <Text style={styles.hint}>전체 학원의 미승인 후보를 매칭 점수 높은 순으로 표시합니다. 승인하면 공식 블로그로 등록되고, 거절하면 후보에서 제외됩니다.</Text>
+  {blogCandidateError&&<Text style={styles.errorHint}>후보 조회 실패: {blogCandidateError}</Text>}
+  {blogCandidateBusy&&<ActivityIndicator color={c.purple}/>}
+  {blogCandidates.map((candidate:any,index:number)=><View key={"all-blog-candidate-"+candidate.id} style={styles.evidenceCard}>
+    <View style={styles.listHead}><Text style={styles.evidenceStudio} numberOfLines={2}>#{blogCandidateOffset-blogCandidates.length+index+1} · {candidate.studio_name||"학원명 미확인"}</Text><Text style={styles.evidenceType}>{Number(candidate.match_score||0)}점</Text></View>
+    <Text style={styles.compactSecondary}>{candidate.district||candidate.address||"지역 미확인"} · 게시글 매칭 {Number(candidate.matched_post_count||0)}건</Text>
+    <Text style={styles.evidenceText}>{candidate.blogger_name||"블로그명 미확인"} · {candidate.blogger_url}</Text>
+    <View style={styles.rowActions}>
+      <Pressable onPress={()=>Linking.openURL(candidate.blogger_url).catch(()=>Alert.alert("블로그 확인","주소를 열 수 없습니다."))}><Text style={styles.action}>블로그 확인 ↗</Text></Pressable>
+      {Array.isArray(candidate.sample_posts)&&candidate.sample_posts.slice(0,2).map((post:any,postIndex:number)=><Pressable key={String(post.post_url||postIndex)} disabled={!post.post_url} onPress={()=>post.post_url&&Linking.openURL(post.post_url).catch(()=>Alert.alert("원문 확인","주소를 열 수 없습니다."))}><Text style={styles.action}>게시글 {postIndex+1} ↗</Text></Pressable>)}
+    </View>
+    <Text style={styles.compactSecondary}>최근 발견 {candidate.last_seen_at?new Date(candidate.last_seen_at).toLocaleDateString("ko-KR"):"날짜 미확인"}</Text>
+    <View style={styles.buttons}>
+      <Pressable style={styles.button} disabled={blogCandidateActionId!==null} onPress={()=>reviewAllBlogCandidate(Number(candidate.id),"approved")}><Text style={styles.buttonText}>{blogCandidateActionId===Number(candidate.id)?"처리 중…":"공식 계정 승인"}</Text></Pressable>
+      <Pressable style={styles.secondary} disabled={blogCandidateActionId!==null} onPress={()=>reviewAllBlogCandidate(Number(candidate.id),"rejected")}><Text style={styles.secondaryText}>공식 아님</Text></Pressable>
+    </View>
+  </View>)}
+  {!blogCandidates.length&&!blogCandidateBusy&&!blogCandidateError&&<Text style={styles.hint}>검토할 블로그 계정 후보가 없습니다.</Text>}
+  {blogCandidateOffset<blogCandidateTotal&&<Pressable style={styles.secondary} disabled={blogCandidateBusy} onPress={()=>loadBlogCandidates(false)}><Text style={styles.secondaryText}>다음 후보 100개 ({blogCandidateOffset}/{blogCandidateTotal})</Text></Pressable>}
+</View>
 <View style={styles.panel}>
   <View style={styles.listHead}>
     <Text style={styles.heading}>학원 사진 검토</Text>
