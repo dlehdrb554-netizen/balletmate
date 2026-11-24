@@ -32,11 +32,24 @@ begin
  if coalesce(auth.role(),'')<>'service_role' then raise exception 'service role required' using errcode='42501'; end if;
  if p_name is null or length(trim(p_name))<2 or p_latitude not between 33 and 39 or p_longitude not between 124 and 132 then return query select false,null::uuid;return;end if;
  normalized:=lower(regexp_replace(trim(p_name),'[^a-z0-9가-힣]','','g'));
+ -- Exact Kakao place URL is the strongest identity. Phone numbers are not globally unique
+ -- (a business may reuse one number across branches), so phone/name matches also require proximity.
  select s.id into new_id from public.studios s
- where (p_phone is not null and trim(p_phone)<>'' and regexp_replace(coalesce(s.phone,''),'[^0-9]','','g')=regexp_replace(p_phone,'[^0-9]','','g'))
- or (lower(regexp_replace(trim(s.name),'[^a-z0-9가-힣]','','g'))=normalized and
- (coalesce(s.address,'')=coalesce(p_address,'') or sqrt(power((s.latitude-p_latitude)*111.0,2)+power((s.longitude-p_longitude)*111.0*cos(radians(p_latitude)),2))<=0.30))
- order by s.created_at asc limit 1;
+ where (p_place_url is not null and trim(p_place_url)<>'' and s.source_url=p_place_url)
+ or (
+   s.latitude is not null and s.longitude is not null
+   and sqrt(power((s.latitude-p_latitude)*111.0,2)+power((s.longitude-p_longitude)*111.0*cos(radians(p_latitude)),2))<=0.30
+   and (
+     (p_phone is not null and trim(p_phone)<>'' and
+      regexp_replace(coalesce(s.phone,''),'[^0-9]','','g')<>'' and
+      regexp_replace(s.phone,'[^0-9]','','g')=regexp_replace(p_phone,'[^0-9]','','g'))
+     or lower(regexp_replace(trim(s.name),'[^a-z0-9가-힣]','','g'))=normalized
+   )
+ )
+ order by
+   case when p_place_url is not null and s.source_url=p_place_url then 0 else 1 end,
+   s.created_at asc
+ limit 1;
  if new_id is not null then return query select false,new_id;return;end if;
  insert into public.studios(name,latitude,longitude,district,address,phone,source_url,source_name,verified_at,is_active,adult_classes,kids_classes,updated_at)
  values(trim(p_name),p_latitude,p_longitude,p_region,p_address,nullif(trim(p_phone),''),nullif(p_place_url,''),'Kakao Local Search 자동 발견',now(),true,false,false,now()) returning id into new_id;
