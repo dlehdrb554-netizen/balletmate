@@ -190,6 +190,20 @@ Deno.serve(async (req) => {
     let requestCount = 0;
     const errors: string[] = [];
     try {
+      // Skip every academy that already has an active official blog account.
+      // This check is repeated at execution time so stale queue rows cannot recollect it.
+      const { data: registeredOfficialRows, error: registeredOfficialError } = await db
+        .from("studio_blog_official_accounts").select("id")
+        .eq("studio_id", job.studio_id).eq("is_active", true).limit(1);
+      if (registeredOfficialError) throw new Error("기등록 공식 블로그 확인 실패: " + registeredOfficialError.message);
+      if (registeredOfficialRows?.length) {
+        const { error: skipError } = await db.from("studio_blog_search_queue")
+          .update({ status: "completed", last_error: null, updated_at: new Date().toISOString() })
+          .eq("studio_id", job.studio_id);
+        if (skipError) throw new Error("기등록 학원 검색 제외 처리 실패: " + skipError.message);
+        results.push({ studio: job.studio_name, saved: 0, requestCount: 0, status: "skipped", reason: "Official blog already registered" });
+        continue;
+      }
       // Blog collection is allowed only when the academy has a Kakao Place listing.
       const {data:studioOrigin,error:originError}=await db.from("studios").select("source_url").eq("id",job.studio_id).maybeSingle();
       if(originError)throw new Error("카카오 장소 출처 확인 실패: "+originError.message);
