@@ -513,17 +513,22 @@ export default function Admin() {
     const targets=photoCandidateRows.filter(item=>selectedPhotoCandidateIds.includes(Number(item.id)));
     if(!targets.length){setSelectedPhotoCandidateIds([]);return;}
     setPhotoReviewBusy(true);
-    let completed=0;const failures:number[]=[];
-    for(const item of targets){
-      const {error}=await supabase.rpc("admin_manual_classify_studio_photo_candidate",{p_candidate_id:Number(item.id),p_category:category});
-      if(error)failures.push(Number(item.id));else completed++;
-    }
-    const completedIds=targets.filter(item=>!failures.includes(Number(item.id))).map(item=>Number(item.id));
-    setPhotoCandidateRows(current=>current.filter(item=>!completedIds.includes(Number(item.id))));
-    setPhotoCandidateTotal(value=>Math.max(0,value-completed));
-    setSelectedPhotoCandidateIds(failures);
-    setPhotoReviewBusy(false);
-    Alert.alert("일괄 판정 완료",completed+"장 처리"+(failures.length?" · 실패 "+failures.length+"장 (선택 상태로 남겼습니다)":""));
+    let completed=0;const failures:Array<{id:number;message:string}>=[];
+    try{
+      for(const item of targets){
+        try{
+          const {error}=await supabase.rpc("admin_manual_classify_studio_photo_candidate",{p_candidate_id:Number(item.id),p_category:category});
+          if(error)failures.push({id:Number(item.id),message:error.message});else completed++;
+        }catch(error:any){failures.push({id:Number(item.id),message:String(error?.message||error||"요청 실패")});}
+      }
+      const failedIds=failures.map(item=>item.id);
+      const completedIds=targets.filter(item=>!failedIds.includes(Number(item.id))).map(item=>Number(item.id));
+      setPhotoCandidateRows(current=>current.filter(item=>!completedIds.includes(Number(item.id))));
+      setPhotoCandidateTotal(value=>Math.max(0,value-completed));
+      setSelectedPhotoCandidateIds(failedIds);
+      const detail=failures.slice(0,3).map(item=>"사진 #"+item.id+": "+item.message).join("\n");
+      Alert.alert("일괄 판정 결과",completed+"장 처리"+(failures.length?" · 실패 "+failures.length+"장\n"+detail:""));
+    }finally{setPhotoReviewBusy(false);}
   };
   const manuallyClassifyPhotoCandidate=async(item:any,category:"ballet_class"|"schedule"|"price"|"poster"|"logo"|"portrait"|"unrelated"|"unknown")=>{
     if(!supabase||photoReviewBusy)return;
