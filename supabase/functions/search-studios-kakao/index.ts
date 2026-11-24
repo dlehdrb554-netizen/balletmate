@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
           // must never register unrelated places such as motels or restaurants.
           const categoryText = String(item.category_name ?? "");
           const relevantName = /(발레|무용|댄스|ballet|dance)/i.test(name);
-          const educationCategory = /(교육|학원|교습|무용|댄스|예체능)/.test(categoryText);
+          const educationCategory = /(발레|무용|댄스)/.test(categoryText);
           const excludedCategory = /(숙박|모텔|호텔|음식|카페|주점|미용|병원|부동산)/.test(categoryText);
           if (excludedCategory || (!relevantName && !educationCategory)) continue;
           found.set(id, item);
