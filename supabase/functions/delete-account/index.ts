@@ -57,20 +57,7 @@ Deno.serve(async (req) => {
     if (error) return json({ error: "비공개 사업자 서류를 삭제하지 못했습니다." }, 500);
   }
 
-  const { data: approvals, error: approvalsError } = await adminClient
-    .from("studio_owners").select("studio_id").eq("approved_by", userId);
-  if (approvalsError) return json({ error: "관리자 승인 이력을 확인하지 못했습니다." }, 500);
-  if ((approvals || []).length) {
-    const { data: replacement } = await adminClient.from("admin_users")
-      .select("user_id").neq("user_id", userId).limit(1).maybeSingle();
-    if (!replacement?.user_id) {
-      return json({ error: "다른 관리자에게 승인 이력을 이전해야 탈퇴할 수 있습니다. 운영자에게 문의해 주세요." }, 409);
-    }
-    const { error } = await adminClient.from("studio_owners")
-      .update({ approved_by: replacement.user_id }).eq("approved_by", userId);
-    if (error) return json({ error: "관리자 승인 이력을 이전하지 못했습니다." }, 500);
-  }
-
+  // approved_by becomes NULL through account_deletion_setup.sql (ON DELETE SET NULL).
   const { error: noticesError } = await adminClient.from("studio_owner_notices")
     .delete().eq("created_by", userId);
   if (noticesError) return json({ error: "작성한 학원 공지사항을 정리하지 못했습니다." }, 500);
