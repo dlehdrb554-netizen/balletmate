@@ -125,9 +125,19 @@ BEGIN
  NEW.updated_at:=now();
  SELECT verified_at INTO v_verified_at FROM public.studio_review_verifications
  WHERE studio_id=NEW.studio_id AND user_id=NEW.user_id;
- NEW.verified_at:=v_verified_at;
- NEW.is_hidden:=false;
- NEW.hidden_reason:=NULL;
+ IF TG_OP='INSERT' THEN
+  NEW.verified_at:=v_verified_at;
+  NEW.is_hidden:=false;
+  NEW.hidden_reason:=NULL;
+ ELSIF OLD.user_id=auth.uid() THEN
+  NEW.verified_at:=v_verified_at;
+  NEW.is_hidden:=OLD.is_hidden;
+  NEW.hidden_reason:=OLD.hidden_reason;
+ ELSE
+  -- Admin moderation and report-threshold hiding preserve the existing trust badge
+  -- and the visibility value deliberately set by the authorized moderation path.
+  NEW.verified_at:=OLD.verified_at;
+ END IF;
  RETURN NEW;
 END $$;
 REVOKE ALL ON FUNCTION public.guard_studio_review_abuse() FROM PUBLIC,anon,authenticated;
