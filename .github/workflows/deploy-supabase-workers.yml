@@ -46,6 +46,14 @@ jobs:
 
       - name: Replace photo classifier with disabled endpoint
         run: supabase functions deploy classify-studio-photo --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+      - name: Retire photo and evidence worker
+        run: supabase functions deploy crawl-studio-worker --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+      - name: Retire website text crawler
+        run: supabase functions deploy crawl-studio --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+      - name: Retire Naver blog search
+        run: supabase functions deploy search-studio-blogs --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+      - name: Retire Naver blog post crawler
+        run: supabase functions deploy crawl-studio-blogs --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
       - name: Deploy studio discovery worker
         run: supabase functions deploy studio-discovery-worker --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
@@ -61,17 +69,9 @@ jobs:
       - name: Deploy Kakao studio search
         run: supabase functions deploy search-studios-kakao --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
-      - name: Deploy studio image crawl worker
-        run: supabase functions deploy crawl-studio-worker --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
-      - name: Deploy studio crawler
-        run: supabase functions deploy crawl-studio --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
-      - name: Deploy Naver blog search worker
-        run: supabase functions deploy search-studio-blogs --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
-      - name: Deploy Naver blog post crawler
-        run: supabase functions deploy crawl-studio-blogs --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
       - name: Deploy account deletion endpoint
         run: supabase functions deploy delete-account --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
