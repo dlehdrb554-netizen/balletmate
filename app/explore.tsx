@@ -167,6 +167,28 @@ export default function Home() {
     });
     return ()=>{active=false;};
   },[detailStudio?.id]);
+  useEffect(()=>{
+    const client=supabase;
+    const studioId=detailStudio?.id;
+    if(!client||!studioId||detailTab!=="notices")return;
+    let active=true;
+    setFreshnessLoading(false);
+    client.from("studio_owner_notices").select("id,title,body,created_at")
+      .eq("studio_id",studioId).eq("is_active",true).order("created_at",{ascending:false}).limit(10)
+      .then(({data,error})=>{if(active)setStudioOwnerNotices(error?[]:(data||[]));})
+      .catch(()=>{if(active)setStudioOwnerNotices([]);});
+    return()=>{active=false;};
+  },[detailStudio?.id,detailTab]);
+  useEffect(()=>{
+    const studioId=detailStudio?.id;
+    if(!supabase||!studioId||detailTab!=="blog")return;
+    let active=true;
+    setBlogLoading(true);
+    fetchStudioBlogPosts(studioId).then(rows=>{if(active)setStudioBlogPosts(rows);})
+      .catch(error=>{console.warn("Studio blog content unavailable:",error);if(active)setStudioBlogPosts([]);})
+      .finally(()=>{if(active)setBlogLoading(false);});
+    return()=>{active=false;};
+  },[detailStudio?.id,detailTab]);
   const [compareOpen,setCompareOpen]=useState(false);
   const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
   const [favoriteStudios,setFavoriteStudios]=useState<Studio[]>([]);
@@ -654,14 +676,6 @@ export default function Home() {
     setStudioCoupons([]);
     if(supabaseConfigured){
       setClassesLoading(true);
-      setBlogLoading(true);
-      retryDetailRequest(async()=>{
-        const {data,error}=await supabase!.from("studio_owner_notices").select("id,title,body,created_at")
-          .eq("studio_id",s.id).eq("is_active",true).order("created_at",{ascending:false}).limit(10);
-        if(error)throw error;
-        return data||[];
-      }).then(data=>{if(requestId===detailRequestId.current)setStudioOwnerNotices(data);})
-        .catch(error=>{console.warn("Studio notices unavailable:",error);if(requestId===detailRequestId.current)setStudioOwnerNotices([]);});
       (async()=>{
         let lastError:any=null;
         for(let attempt=0;attempt<1;attempt++){
@@ -684,17 +698,12 @@ export default function Home() {
       retryDetailRequest(()=>fetchClassesForStudio(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioClasses(rows);})
         .catch(error=>{console.warn("Studio classes unavailable:",error);if(requestId===detailRequestId.current)setStudioClasses([]);})
         .finally(()=>{if(requestId===detailRequestId.current)setClassesLoading(false);});
-      retryDetailRequest(()=>fetchStudioBlogPosts(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioBlogPosts(rows);})
-        .catch(error=>{console.warn("Studio blog content unavailable:",error);if(requestId===detailRequestId.current)setStudioBlogPosts([]);})
-        .finally(()=>{if(requestId===detailRequestId.current)setBlogLoading(false);});
       retryDetailRequest(()=>fetchStudioPublicPrices(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicPrices(rows);})
         .catch(error=>{console.warn("Approved studio prices unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicPrices([]);});
       retryDetailRequest(()=>fetchStudioPublicSchedules(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicSchedules(rows);})
         .catch(error=>{console.warn("Approved studio schedules unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicSchedules([]);});
       retryDetailRequest(()=>fetchCouponsForStudio(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioCoupons(rows);})
         .catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});
-    }else{
-      setBlogLoading(false);
     }
   };
   const detailPhotoItems = detailStudio ? [...new Set((detailStudio.imageUrls||[]).filter(uri=>uri.toLowerCase().startsWith("https://")))].slice(0,30).map((uri,index)=>({uri,key:"registered-"+index,url:null,label:"학원 등록 사진"})) : [];
