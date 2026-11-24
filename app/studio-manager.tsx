@@ -67,8 +67,8 @@ export default function StudioManager(){
   if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
   if(ownerResult.data){
    const [scheduleResult,priceResult,noticeResult,historyResult,classResult,couponResult]=await Promise.all([
-    supabase.from("studio_public_schedules").select("id,schedule_text,image_urls,is_active,published_at,candidate_id").eq("studio_id",studioId).is("candidate_id",null).order("published_at",{ascending:false}).limit(20),
-    supabase.from("studio_public_prices").select("id,amount_krw,price_period,image_urls,is_active,published_at,candidate_id").eq("studio_id",studioId).is("candidate_id",null).order("published_at",{ascending:false}).limit(20),
+    supabase.from("studio_public_schedules").select("id,schedule_text,is_active,published_at,candidate_id").eq("studio_id",studioId).is("candidate_id",null).order("published_at",{ascending:false}).limit(20),
+    supabase.from("studio_public_prices").select("id,amount_krw,price_period,is_active,published_at,candidate_id").eq("studio_id",studioId).is("candidate_id",null).order("published_at",{ascending:false}).limit(20),
     supabase.from("studio_owner_notices").select("id,title,body,is_active,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20),
     supabase.from("studio_owner_edit_history").select("id,entity,action,changed_fields,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20)
     ,supabase.from("classes").select("id,title,audience,level,class_type,duration_minutes,price,is_active").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(50)
@@ -172,7 +172,7 @@ export default function StudioManager(){
     const {error}=await supabase.from("studio_public_schedules").insert({
     candidate_id:null,studio_id:studioId,schedule_text:scheduleText.trim(),
     evidence_text:null,source_title:"원장님 직접 등록",source_url:null,source_post_date:null,
-    published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true,image_urls:[]
+    published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true
    });
    if(error)throw error;
    setScheduleText("");Alert.alert("시간표 등록 완료","학원 상세 페이지에 시간표가 공개됩니다.");await load();
