@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     }
 
     const attemptCount = Number(job.attempts || 0) + (ok ? 0 : 1);
-    const nextStatus = ok ? "done" : attemptCount >= 3 ? "failed" : "pending";
+    const nextStatus = ok ? "completed" : attemptCount >= 3 ? "failed" : "pending";
     const nextAt = attemptCount === 1 ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       : attemptCount === 2 ? new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
       : new Date().toISOString();
