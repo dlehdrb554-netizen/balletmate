@@ -106,21 +106,41 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
  */
 export async function searchStudiosByName(query:string):Promise<StudioRecord[]> {
   if(!supabase)return [];
-  const term=query.trim().replace(/[,%()]/g," ").replace(/\s+/g," ").trim();
+  const term=query.trim().replace(/[,%()]/g," ").replace(/\\s+/g," ").trim();
   if(term.length<2)return [];
   const columns="id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,kakao_channel_url,details_checked_at,details_status,source_status";
-  const compact=(value:string)=>value.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
+  const compact=(value:string)=>value.toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
   const variants=new Set<string>([term,compact(term)]);
   if(/퀸스/.test(term)){variants.add(term.replace(/퀸스/g,"퀸즈"));variants.add(term.replace(/퀸스/g,"Queens"));variants.add("퀸즈발레");variants.add("퀸즈");}
   if(/퀸즈/.test(term)){variants.add(term.replace(/퀸즈/g,"퀸스"));variants.add(term.replace(/퀸즈/g,"Queens"));variants.add("퀸스발레");}
-  if(/더블유|\bW\b|wballet/i.test(term)){variants.add(term.replace(/더블유/gi,"W"));variants.add(term.replace(/\bW\b/gi,"더블유"));variants.add("W발레");variants.add("더블유발레");variants.add("wballet");}
+  if(/더블유|\\bW\\b|wballet/i.test(term)){variants.add(term.replace(/더블유/gi,"W"));variants.add(term.replace(/\\bW\\b/gi,"더블유"));variants.add("W발레");variants.add("더블유발레");variants.add("wballet");}
   const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(100);
-  const runSearch=async(needle:string)=>{let result=await searchQuery("studio_map_search_app_with_source",needle);if(result.error)result=await searchQuery("studios",needle);if(result.error)throw result.error;return (result.data||[]) as any[];};
+  const runSearch=async(needle:string)=>{
+    let result=await searchQuery("studio_map_search_app_with_source",needle);
+    if(result.error)result=await searchQuery("studios",needle);
+    if(result.error)throw result.error;
+    return (result.data||[]) as any[];
+  };
+  const uniqueVariants=[...variants].map(value=>value.trim()).filter(value=>value.length>=2).slice(0,6);
+  const patterns=uniqueVariants.flatMap(value=>{
+    const clauses=[`name.ilike.%${value}%`,`address.ilike.%${value}%`,`district.ilike.%${value}%`];
+    const normalized=compact(value);
+    if(normalized.length>=2&&normalized!==value)clauses.push(`name.ilike.%${normalized}%`,`address.ilike.%${normalized}%`);
+    return clauses;
+  });
   const results=new Map<string,any>();
-  const variantQueries=[...variants].map(variant=>variant.trim()).filter(v=>v.length>=2).map(v=>{const patterns=[`name.ilike.%${v}%`,`address.ilike.%${v}%`,`district.ilike.%${v}%`];const cv=compact(v);if(cv.length>=2&&cv!==v)patterns.push(`name.ilike.%${cv}%`,`address.ilike.%${cv}%`);return patterns.join(",");});
-  // Preserve the same query variants while running them in small batches to reduce user wait time without flooding Supabase.
-  for(let i=0;i<variantQueries.length;i+=3){const batch=await Promise.all(variantQueries.slice(i,i+3).map(runSearch));batch.flat().forEach(row=>results.set(row.id,row));}
-  if(!results.size){for(const token of term.split(/\s+/).filter(token=>token.length>=2).slice(0,3)){const rows=await runSearch([`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`].join(","));rows.forEach(row=>results.set(row.id,row));}}
+  if(patterns.length){
+    const rows=await runSearch(patterns.join(","));
+    rows.forEach(row=>results.set(row.id,row));
+  }
+  if(!results.size){
+    const tokens=[...new Set(term.split(/\\s+/).filter(token=>token.length>=2).slice(0,3))];
+    if(tokens.length){
+      const tokenPatterns=tokens.flatMap(token=>[`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`]);
+      const rows=await runSearch(tokenPatterns.join(","));
+      rows.forEach(row=>results.set(row.id,row));
+    }
+  }
   return [...results.values()].filter((row:any)=>!isExcludedStudioSearchResult(row.name)).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
 }
 
