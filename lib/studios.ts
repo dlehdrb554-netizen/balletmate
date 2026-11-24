@@ -41,6 +41,11 @@ export type StudioRecord = {
 const studioCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>();
 const CACHE_MS = 90_000;
 const MAX_NETWORK_SEARCHES_PER_APP_SESSION = 40;
+
+// Prevent unrelated medical, lodging and leisure businesses from database-first search.
+export function isExcludedStudioSearchResult(name: string): boolean {
+  return /(산부인과|여성의원|비뇨기과|피부과|정형외과|내과|외과|안과|치과|이비인후과|소아과|의원|병원|의료원|보건소|약국|한의원|요양원|산후조리원|모텔|호텔|숙박|사우나|찜질방|목욕탕)/i.test(String(name||""));
+}
 let networkSearches = 0;
 
 async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord[]> {
@@ -116,7 +121,7 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
   // Preserve the same query variants while running them in small batches to reduce user wait time without flooding Supabase.
   for(let i=0;i<variantQueries.length;i+=3){const batch=await Promise.all(variantQueries.slice(i,i+3).map(runSearch));batch.flat().forEach(row=>results.set(row.id,row));}
   if(!results.size){for(const token of term.split(/\s+/).filter(token=>token.length>=2).slice(0,3)){const rows=await runSearch([`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`].join(","));rows.forEach(row=>results.set(row.id,row));}}
-  return [...results.values()].map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
+  return [...results.values()].filter((row:any)=>!isExcludedStudioSearchResult(row.name)).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
 }
 
 /**
@@ -138,7 +143,7 @@ export async function searchStudiosByKakao(query: string, bounds?: SearchBounds)
   if (!rows.length && Array.isArray(data?.errors) && data.errors.length) {
     throw new Error(data.errors.join(" · ").slice(0, 240));
   }
-  return rows as StudioRecord[];
+  return rows.filter((row:any)=>!isExcludedStudioSearchResult(row?.name)) as StudioRecord[];
 }
 
 const inFlightStudioSearches = new Map<string, Promise<StudioRecord[]>>();
