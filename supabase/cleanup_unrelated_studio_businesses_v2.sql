@@ -41,7 +41,7 @@ BEGIN
       AND COALESCE(s.name, '') !~* '(발레|발렛|ballet|무용|댄스|dance)'
       AND NOT EXISTS (
         SELECT 1 FROM unnest(COALESCE(s.tags, ARRAY[]::text[])) tag
-        WHERE tag ~* '(발레|ballet)'
+        WHERE tag ~* '(발레|ballet|무용|댄스|dance)'
       )
       -- Never delete a studio with an owner claim/application.
       AND NOT EXISTS (
@@ -90,7 +90,7 @@ WHERE
   AND COALESCE(s.name, '') !~* '(발레|발렛|ballet|무용|댄스|dance)'
   AND NOT EXISTS (
     SELECT 1 FROM unnest(COALESCE(s.tags, ARRAY[]::text[])) tag
-    WHERE tag ~* '(발레|ballet)'
+    WHERE tag ~* '(발레|ballet|무용|댄스|dance)'
   )
   AND NOT EXISTS (SELECT 1 FROM public.studio_owners o WHERE o.studio_id=s.id)
   AND NOT EXISTS (SELECT 1 FROM public.studio_owner_applications a WHERE a.studio_id=s.id)
