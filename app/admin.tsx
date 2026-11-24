@@ -9,6 +9,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import * as FileSystem from "expo-file-system/legacy";
 import { useFaceDetection } from "@infinitered/react-native-mlkit-face-detection";
 import { parseScheduleEvidence } from "../lib/schedule-structure";
+import AdminCommunityReports from "../components/AdminCommunityReports";
 
 type EvidenceCandidate = {id:number;studio_id:string;studio_name:string;source_id:number;source_title:string|null;source_url:string;source_post_date?:string|null;candidate_type:"price"|"schedule";candidate_value:string;normalized_value:string|null;price_period?:string|null;price_frequency_per_week?:number|null;evidence_text:string;confidence:number;review_status:"pending"|"verified"|"rejected";created_at:string};
 
@@ -123,7 +124,7 @@ const dedupeStudioRows=(input:any[])=>{
 };
 
 export default function Admin() {
-  const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios"|"owners">("overview");
+  const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios"|"owners"|"community">("overview");
   const [adminScrollRef]=useState<{current:ScrollView|null}>({current:null});
   const [studioEditPanelY]=useState<{current:number}>({current:0});
   const scrollToOfficialBlogRef=useRef(false);
@@ -1745,7 +1746,8 @@ export default function Admin() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView ref={node=>{adminScrollRef.current=node;}} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length.toLocaleString("ko-KR")}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
-    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"review",label:"사진 검토"},{key:"publish",label:"공개 관리"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
+    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"review",label:"사진 검토"},{key:"publish",label:"공개 관리"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"},{key:"community",label:"커뮤니티 신고"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
+        {adminTab==="community"&&<View style={styles.panel}><AdminCommunityReports /></View>}
         {adminTab==="owners"&&<View style={styles.panel}>
           <View style={styles.listHead}><Text style={styles.heading}>학원 관리자 권한 신청</Text><Pressable onPress={loadOwnerApplications} disabled={ownerReviewBusy}><Text style={styles.refresh}>{ownerReviewBusy?"조회 중…":"새로고침"}</Text></Pressable></View>
           <Text style={styles.hint}>공개 전화번호 확인, 공식 블로그/인스타 인증 코드 또는 직접 확인으로 운영 관계를 확인한 후 승인하세요. 사업자번호·대표자·주소·등록증은 수집하지 않습니다.</Text>
