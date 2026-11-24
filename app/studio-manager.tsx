@@ -77,7 +77,8 @@ export default function StudioManager(){
 
  const saveProfile=async()=>{
   if(!supabase||!owner)return;
-  if(profileWebsite.trim()&&!/^https:\/\//i.test(profileWebsite.trim())){Alert.alert("대표 홈페이지 주소","HTTPS 주소를 입력해 주세요.");return;}\n  try{const host=new URL(profileWebsite.trim()).hostname.toLowerCase().replace(/^www\\./,"");if(["neis.go.kr","schoolinfo.go.kr","place.map.kakao.com","kakao.com"].some(domain=>host===domain||host.endsWith("."+domain))){Alert.alert("대표 홈페이지 주소","일반 홈페이지, 네이버 블로그 또는 인스타그램 주소만 등록할 수 있습니다. NEIS·카카오 장소 주소는 사용할 수 없습니다.");return;}}catch{if(profileWebsite.trim()){Alert.alert("대표 홈페이지 주소","올바른 HTTPS URL을 입력해 주세요.");return;}}
+  if(profileWebsite.trim()&&!/^https:\/\//i.test(profileWebsite.trim())){Alert.alert("대표 홈페이지 주소","HTTPS 주소를 입력해 주세요.");return;}
+  try{const host=new URL(profileWebsite.trim()).hostname.toLowerCase().replace(/^www\\./,"");if(["neis.go.kr","schoolinfo.go.kr","place.map.kakao.com","kakao.com"].some(domain=>host===domain||host.endsWith("."+domain))){Alert.alert("대표 홈페이지 주소","일반 홈페이지, 네이버 블로그 또는 인스타그램 주소만 등록할 수 있습니다. NEIS·카카오 장소 주소는 사용할 수 없습니다.");return;}}catch{if(profileWebsite.trim()){Alert.alert("대표 홈페이지 주소","올바른 HTTPS URL을 입력해 주세요.");return;}}
   setSaving(true);
   try{
    const {error}=await supabase.rpc("owner_update_studio_profile",{
@@ -221,7 +222,7 @@ export default function StudioManager(){
    const {error}=await supabase.from("studio_public_prices").insert({
     candidate_id:null,studio_id:studioId,amount_krw:amount,price_period:pricePeriod.trim(),
     frequency_per_week:frequency,evidence_text:null,source_title:"원장님 직접 등록",
-    source_url:null,source_post_date:null,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true,image_urls:images
+    source_url:null,source_post_date:null,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true,image_urls:[]
    });
    if(error)throw error;
    setPriceAmount("");setPriceFrequency("");Alert.alert("가격 등록 완료","학원 상세 페이지에 가격 정보가 공개됩니다.");await load();
