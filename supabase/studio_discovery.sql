@@ -38,12 +38,15 @@ begin
  where (p_place_url is not null and trim(p_place_url)<>'' and s.source_url=p_place_url)
  or (
    s.latitude is not null and s.longitude is not null
-   and sqrt(power((s.latitude-p_latitude)*111.0,2)+power((s.longitude-p_longitude)*111.0*cos(radians(p_latitude)),2))<=0.30
    and (
-     (p_phone is not null and trim(p_phone)<>'' and
-      regexp_replace(coalesce(s.phone,''),'[^0-9]','','g')<>'' and
-      regexp_replace(s.phone,'[^0-9]','','g')=regexp_replace(p_phone,'[^0-9]','','g'))
-     or lower(regexp_replace(trim(s.name),'[^a-z0-9가-힣]','','g'))=normalized
+     (p_phone is not null and trim(p_phone)<>'' and p_address is not null and trim(p_address)<>''
+      and regexp_replace(coalesce(s.phone,''),'[^0-9]','','g')<>''
+      and regexp_replace(s.phone,'[^0-9]','','g')=regexp_replace(p_phone,'[^0-9]','','g')
+      and lower(regexp_replace(coalesce(s.address,''),'\\s','','g'))=lower(regexp_replace(p_address,'\\s','','g'))
+      and sqrt(power((s.latitude-p_latitude)*111.0,2)+power((s.longitude-p_longitude)*111.0*cos(radians(p_latitude)),2))<=0.10)
+     or (lower(regexp_replace(trim(s.name),'[^a-z0-9가-힣]','','g'))=normalized
+      and (coalesce(s.address,'')=coalesce(p_address,'')
+       or sqrt(power((s.latitude-p_latitude)*111.0,2)+power((s.longitude-p_longitude)*111.0*cos(radians(p_latitude)),2))<=0.05))
    )
  )
  order by
