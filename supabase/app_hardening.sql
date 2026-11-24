@@ -405,7 +405,7 @@ BEGIN
       AND (p.proname ILIKE '%studio_photo%'
         OR p.proname ILIKE '%studio_gallery_photo%'
         OR p.proname ILIKE '%studio_image_crawl%'
-        OR p.proname ILIKE '%blog%'
+        OR p.proname ILIKE '%studio%blog%' OR p.proname ILIKE 'blog_studio%'
         OR p.proname ILIKE '%studio%photo%'
         OR p.proname ILIKE '%studio%image%'
         OR p.proname ILIKE '%studio%evidence%'
