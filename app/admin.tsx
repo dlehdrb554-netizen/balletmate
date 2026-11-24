@@ -500,9 +500,9 @@ export default function Admin() {
     const start=photoCandidateOffset;
     const {data,error}=await supabase.from("studio_photo_candidates")
       .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type,auto_classification,auto_confidence,auto_reason,auto_classified_at")
-      .eq("review_status",photoCandidateStatus).not("source_host","ilike","%neis.go.kr").not("source_host","ilike","%schoolinfo.go.kr").not("source_page_url","ilike","%weseb.com/SJB/m.php%").order("created_at",{ascending:false}).order("id",{ascending:false}).range(start,start+11);
+      .eq("review_status",photoCandidateStatus).not("source_host","ilike","%neis.go.kr").not("source_host","ilike","%schoolinfo.go.kr").not("source_page_url","ilike","%weseb.com/SJB/m.php%").not("source_page_url","ilike","%school24.kr/academy/a/J10-3000069628%").order("created_at",{ascending:false}).order("id",{ascending:false}).range(start,start+11);
     if(error)Alert.alert("추가 사진 조회 실패",error.message);
-    else {const filtered=(data||[]).filter((item:any)=>!isNeisPhotoSource(item));setPhotoCandidateRows(current=>[...current,...filtered]);setPhotoCandidateOffset(start+(data||[]).length);}
+    else {const filtered=(data||[]).filter((item:any)=>!isNeisPhotoSource(item)&&!isSchool24PhotoSource(item));setPhotoCandidateRows(current=>[...current,...filtered]);setPhotoCandidateOffset(start+(data||[]).length);}
     setPhotoReviewBusy(false);
   };
   const togglePhotoCandidateSelection=(id:number)=>{
