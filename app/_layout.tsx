@@ -1,5 +1,4 @@
 import { Stack } from "expo-router";
-import { FaceDetectionProvider } from "@infinitered/react-native-mlkit-face-detection";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { View, Text, Pressable, StyleSheet } from "react-native";
@@ -7,10 +6,8 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <FaceDetectionProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
-      </FaceDetectionProvider>
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
     </SafeAreaProvider>
   );
 }
