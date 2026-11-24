@@ -598,6 +598,14 @@ export default function Home() {
     setMapSettingsOpen(true);
   };
 
+  const retryDetailRequest=async<T,>(task:()=>Promise<T>,attempts=2):Promise<T>=>{
+    let lastError:any=null;
+    for(let attempt=0;attempt<attempts;attempt++){
+      try{return await task();}
+      catch(error:any){lastError=error;if(attempt+1<attempts)await new Promise(resolve=>setTimeout(resolve,400));}
+    }
+    throw lastError;
+  };
   const retryCanonicalDetail=async(studioId:string,requestId:number)=>{
     if(!supabaseConfigured)return;
     setDetailCanonicalLoading(true);
@@ -634,9 +642,13 @@ export default function Home() {
     if(supabaseConfigured){
       setClassesLoading(true);
       setBlogLoading(true);
-      supabase?.from("studio_owner_notices").select("id,title,body,created_at")
-        .eq("studio_id",s.id).eq("is_active",true).order("created_at",{ascending:false}).limit(10)
-        .then(({data,error})=>{if(requestId===detailRequestId.current)setStudioOwnerNotices(error?[]:(data||[]));});
+      retryDetailRequest(async()=>{
+        const {data,error}=await supabase!.from("studio_owner_notices").select("id,title,body,created_at")
+          .eq("studio_id",s.id).eq("is_active",true).order("created_at",{ascending:false}).limit(10);
+        if(error)throw error;
+        return data||[];
+      }).then(data=>{if(requestId===detailRequestId.current)setStudioOwnerNotices(data);})
+        .catch(error=>{console.warn("Studio notices unavailable:",error);if(requestId===detailRequestId.current)setStudioOwnerNotices([]);});
       (async()=>{
         let lastError:any=null;
         for(let attempt=0;attempt<2;attempt++){
@@ -656,17 +668,17 @@ export default function Home() {
           console.warn("Canonical studio detail lookup failed:",lastError);
         }
       })().finally(()=>{if(requestId===detailRequestId.current)setDetailCanonicalLoading(false);});
-      fetchClassesForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioClasses(rows);})
+      retryDetailRequest(()=>fetchClassesForStudio(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioClasses(rows);})
         .catch(error=>{console.warn("Studio classes unavailable:",error);if(requestId===detailRequestId.current)setStudioClasses([]);})
         .finally(()=>{if(requestId===detailRequestId.current)setClassesLoading(false);});
-      fetchStudioBlogPosts(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioBlogPosts(rows);})
+      retryDetailRequest(()=>fetchStudioBlogPosts(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioBlogPosts(rows);})
         .catch(error=>{console.warn("Studio blog content unavailable:",error);if(requestId===detailRequestId.current)setStudioBlogPosts([]);})
         .finally(()=>{if(requestId===detailRequestId.current)setBlogLoading(false);});
-      fetchStudioPublicPrices(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicPrices(rows);})
+      retryDetailRequest(()=>fetchStudioPublicPrices(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicPrices(rows);})
         .catch(error=>{console.warn("Approved studio prices unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicPrices([]);});
-      fetchStudioPublicSchedules(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicSchedules(rows);})
+      retryDetailRequest(()=>fetchStudioPublicSchedules(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicSchedules(rows);})
         .catch(error=>{console.warn("Approved studio schedules unavailable:",error);if(requestId===detailRequestId.current)setStudioPublicSchedules([]);});
-      fetchCouponsForStudio(s.id).then(rows=>{if(requestId===detailRequestId.current)setStudioCoupons(rows);})
+      retryDetailRequest(()=>fetchCouponsForStudio(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioCoupons(rows);})
         .catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});
     }else{
       setBlogLoading(false);
