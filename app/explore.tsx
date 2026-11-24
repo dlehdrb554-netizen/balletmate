@@ -735,8 +735,7 @@ export default function Home() {
   const cleanScheduleDisplay=(value:string)=>{
     return String(value||"").replace(/\\s*(오픈\\s*예정|개강\\s*예정|모집\\s*예정|모집\\s*중|신설\\s*예정)\\s*$/g,"").trim();
   };
-  const hasEvidencePhotos=(storedImages:string[]|null|undefined)=>evidencePhotosForSource(storedImages).length>0;
-  const evidencePhotoGallery=(key:string,sourceUrl:string,storedImages:string[]|null|undefined)=>{
+    const evidencePhotoGallery=(key:string,sourceUrl:string,storedImages:string[]|null|undefined)=>{
     const photos=evidencePhotosForSource(sourceUrl,storedImages);
     if(!photos.length)return null;
     const index=Math.min(evidencePhotoIndexes[key]||0,photos.length-1);
@@ -900,7 +899,7 @@ export default function Home() {
             </View>}
             {detailInfoTab==="schedule"&&<View>
               <Text style={styles.sectionTitle}>시간표 이미지</Text>
-              {studioPublicSchedules.filter(item=>evidencePhotosForSource(item.source_url||"",item.image_urls).length>0).map(item=><View key={"public-schedule-"+item.id}>{evidencePhotoGallery("schedule-"+item.id,item.image_urls)}</View>)}
+              {studioPublicSchedules.filter(item=>evidencePhotosForSource(item.image_urls).length>0).map(item=><View key={"public-schedule-"+item.id}>{evidencePhotoGallery("schedule-"+item.id,item.image_urls)}</View>)}
               {!studioPublicSchedules.some(item=>evidencePhotosForSource(item.source_url||"",item.image_urls).length>0)&&<Text style={styles.filterHint}>등록된 시간표 이미지가 없습니다.</Text>}
             </View>}
           </View>
