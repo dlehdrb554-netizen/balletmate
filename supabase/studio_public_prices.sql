@@ -22,8 +22,6 @@ DROP POLICY IF EXISTS "public read active studio prices" ON public.studio_public
 CREATE POLICY "public read active studio prices" ON public.studio_public_prices FOR SELECT TO anon,authenticated USING(is_active=true AND expires_at>=CURRENT_DATE);
 DROP POLICY IF EXISTS "admins manage studio public prices" ON public.studio_public_prices;
 CREATE POLICY "admins manage studio public prices" ON public.studio_public_prices FOR ALL TO authenticated USING(public.is_balletmate_admin()) WITH CHECK(public.is_balletmate_admin());
-DROP POLICY IF EXISTS "owners manage own public prices" ON public.studio_public_prices;
-CREATE POLICY "owners manage own public prices" ON public.studio_public_prices FOR ALL TO authenticated USING(public.is_studio_owner(studio_id)) WITH CHECK(public.is_studio_owner(studio_id));
 DROP VIEW IF EXISTS public.studio_public_prices_app CASCADE;
 CREATE VIEW public.studio_public_prices_app WITH (security_invoker=true) AS
  SELECT id,studio_id,amount_krw,price_period,frequency_per_week,published_at,expires_at
