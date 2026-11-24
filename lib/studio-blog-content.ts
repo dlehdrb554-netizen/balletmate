@@ -32,16 +32,20 @@ export async function fetchStudioBlogPosts(studioId: string): Promise<StudioBlog
 
   blogRequests += 1;
   const request = (async () => {
-    let { data, error } = await supabase.rpc("get_studio_blog_public_details", {
-      p_studio_id: studioId,
-    });
-    // If official-account verification is pending or the public RPC is unavailable,
-    // fall back to successfully crawled posts linked to this studio.
-    if (error || !Array.isArray(data) || data.length === 0) {
-      const fallback = await supabase.rpc("get_studio_blog_collected_details", { p_studio_id: studioId });
-      if (!fallback.error) { data = fallback.data; error = null; }
+    // Run both sources concurrently: the public RPC may legitimately return no
+    // rows while crawled evidence is still available through the fallback RPC.
+    const [primary, fallback] = await Promise.all([
+      supabase.rpc("get_studio_blog_public_details", { p_studio_id: studioId }),
+      supabase.rpc("get_studio_blog_collected_details", { p_studio_id: studioId }),
+    ]);
+    let data = primary.data;
+    if (primary.error || !Array.isArray(primary.data) || primary.data.length === 0) {
+      if (!fallback.error) data = fallback.data;
+      else {
+        const primaryMessage = primary.error?.message || "공개 블로그 자료가 없습니다.";
+        throw new Error(`블로그 자료 조회 실패 — 공개 자료: ${primaryMessage}; 수집 자료: ${fallback.error.message}`);
+      }
     }
-    if (error) throw error;
     const rows = (Array.isArray(data) ? data : []).map((post:any)=>({
       ...post,
       // Keep the app's retained photo payload small: at most three distinct HTTPS photos per post.
