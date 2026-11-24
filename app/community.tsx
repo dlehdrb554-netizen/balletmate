@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
 type Category="전체"|"학원 추천"|"발레복 추천"|"자유";
-type Post={id:string;author_id:string;author_name:string;category:Exclude<Category,"전체">;title:string;content:string;created_at:string};
+type Post={id:string;author_id:string;author_name:string;category:Exclude<Category,"전체">;title:string;content:string;image_urls:string[];created_at:string};
 type Comment={id:string;post_id:string;author_id:string;author_name:string;content:string;created_at:string};
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",red:"#D04444",green:"#18875B"};
 const categories:Category[]=["전체","학원 추천","발레복 추천","자유"];
@@ -28,6 +30,7 @@ export default function Community(){
  const [newCategory,setNewCategory]=useState<Exclude<Category,"전체">>("학원 추천");
  const [title,setTitle]=useState("");
  const [body,setBody]=useState("");
+ const [selectedPhotos,setSelectedPhotos]=useState<ImagePicker.ImagePickerAsset[]>([]);
  const [userId,setUserId]=useState<string|null>(null);
  const [authorName,setAuthorName]=useState("발레메이트 회원");
  const [blockedUserIds,setBlockedUserIds]=useState<string[]>([]);
@@ -42,7 +45,7 @@ export default function Community(){
   if(requestId===postRequestId.current)setLoadError(false);
   if(!supabase){if(requestId===postRequestId.current)setLoading(false);return;}
   try{
-   let query=supabase.from("community_posts").select("id,author_id,author_name,category,title,content,created_at").order("created_at",{ascending:false}).limit(50);
+   let query=supabase.from("community_posts").select("id,author_id,author_name,category,title,content,image_urls,created_at").order("created_at",{ascending:false}).limit(50);
    if(category!=="전체")query=query.eq("category",category);
    const {data,error}=await query;
    if(error)throw error;
@@ -101,21 +104,46 @@ export default function Community(){
   else Alert.alert("작성 실패",message||"잠시 후 다시 시도해 주세요.");
  };
 
+ const pickPhotos=async()=>{
+  if(selectedPhotos.length>=4){Alert.alert("사진 첨부","게시글 사진은 최대 4장까지 첨부할 수 있습니다.");return;}
+  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:4-selectedPhotos.length,quality:0.85});
+  if(!result.canceled)setSelectedPhotos(current=>[...current,...result.assets].slice(0,4));
+ };
+ const uploadCommunityPhotos=async()=>{
+  if(!supabase||!userId)return {urls:[] as string[],paths:[] as string[]};
+  const urls:string[]=[],paths:string[]=[];
+  for(let index=0;index<selectedPhotos.length;index++){
+   const asset=selectedPhotos[index];
+   const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1600}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
+   const response=await fetch(optimized.uri);
+   if(!response.ok)throw new Error("사진 파일을 읽지 못했습니다.");
+   const bytes=await response.arrayBuffer();
+   const path=`${userId}/${Date.now()}-${index}-${Math.random().toString(36).slice(2,8)}.jpg`;
+   const {error}=await supabase.storage.from("community-photos").upload(path,bytes,{contentType:"image/jpeg",upsert:false});
+   if(error)throw error;
+   paths.push(path);
+   urls.push(supabase.storage.from("community-photos").getPublicUrl(path).data.publicUrl);
+  }
+  return {urls,paths};
+ };
  const submitPost=async()=>{
   if(!userId){requireLogin();return;}
   if(!supabase)return;
   if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목은 2자 이상, 내용은 2자 이상 입력해 주세요.");return;}
   setSubmitting(true);
+  let uploadedPaths:string[]=[];
   try{
-   const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:body.trim()});
+   const uploaded=await uploadCommunityPhotos();uploadedPaths=uploaded.paths;
+   const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:body.trim(),image_urls:uploaded.urls});
    if(error)throw error;
-   setComposer(false);setTitle("");setBody("");setLoading(true);
+   setComposer(false);setTitle("");setBody("");setSelectedPhotos([]);setLoading(true);
    if(category!=="전체")setCategory("전체");else await loadPosts();
    Alert.alert("등록 완료","게시글이 등록되었습니다.");
-  }catch(error:any){explainError(error);}
-  finally{setSubmitting(false);}
+  }catch(error:any){
+   if(uploadedPaths.length)await supabase.storage.from("community-photos").remove(uploadedPaths).catch(()=>{});
+   explainError(error);
+  }finally{setSubmitting(false);}
  };
-
  const submitComment=async()=>{
   if(!userId){requireLogin();return;}
   const client=supabase;
@@ -191,6 +219,8 @@ export default function Community(){
   Alert.alert("게시글 삭제","이 게시글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
    const {error}=await client.from("community_posts").delete().eq("id",post.id);
    if(error){Alert.alert("삭제 실패",error.message);return;}
+   const paths=(post.image_urls||[]).map(url=>{const marker="/community-photos/";const index=url.indexOf(marker);return index>=0?decodeURIComponent(url.slice(index+marker.length)):"";}).filter(Boolean);
+   if(paths.length)await client.storage.from("community-photos").remove(paths);
    commentRequestId.current++;setSelected(null);loadPosts();
   }}]);
  };
@@ -217,6 +247,7 @@ export default function Community(){
      <Text style={s.postTitle}>{selected.title}</Text>
      <Text style={s.meta}>{selected.author_name||"발레메이트 회원"} · {timeLabel(selected.created_at)}</Text>
      <Text style={s.postBody}>{selected.content}</Text>
+     {!!selected.image_urls?.length&&<View style={s.postPhotos}>{selected.image_urls.map((url,index)=><Image key={url} source={{uri:url}} style={s.detailPhoto} resizeMode="cover" accessibilityLabel={"게시글 사진 "+(index+1)}/>)}</View>}
      {selected.author_id===userId?<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>게시글 삭제</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>
     <Text style={s.section}>댓글 {comments.length}</Text>
@@ -243,6 +274,7 @@ export default function Community(){
       <View style={s.postTop}><View style={s.categoryBadge}><Text style={s.categoryText}>{item.category}</Text></View><Text style={s.meta}>{timeLabel(item.created_at)}</Text></View>
       <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
       <Text style={s.preview} numberOfLines={2}>{item.content}</Text>
+      {!!item.image_urls?.length&&<View style={s.postPhotos}>{item.image_urls.slice(0,2).map((url,index)=><Image key={url} source={{uri:url}} style={s.listPhoto} resizeMode="cover"/>)}</View>}
       <View style={s.cardFoot}><Text style={s.author}>{item.author_name||"발레메이트 회원"}</Text><Text style={s.openLabel}>댓글 보기 ›</Text></View>
      </Pressable>} ListEmptyComponent={loadError?<View><Text style={s.empty}>게시글을 불러오지 못했습니다.</Text><Pressable onPress={()=>{setLoading(true);loadPosts();}}><Text style={s.openLabel}>다시 시도</Text></Pressable></View>:<Text style={s.empty}>아직 게시글이 없습니다. 첫 추천을 남겨보세요!</Text>}/>
     }
@@ -269,6 +301,8 @@ export default function Community(){
      <TextInput style={s.titleInput} value={title} onChangeText={setTitle} placeholder="어떤 정보를 나누고 싶으신가요?" maxLength={80}/>
      <Text style={s.label}>내용</Text>
      <TextInput style={s.bodyInput} value={body} onChangeText={setBody} placeholder="경험이나 추천 정보를 자세히 적어주세요." multiline textAlignVertical="top" maxLength={5000}/>
+     <View style={s.photoPickerRow}><Pressable style={s.photoPicker} onPress={pickPhotos}><Ionicons name="image-outline" size={18} color={C.purple}/><Text style={s.photoPickerText}>사진 첨부 ({selectedPhotos.length}/4)</Text></Pressable></View>
+     {!!selectedPhotos.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.photoPreviewRow}>{selectedPhotos.map((photo,index)=><View key={photo.assetId||photo.uri} style={s.photoPreviewWrap}><Image source={{uri:photo.uri}} style={s.photoPreview}/><Pressable style={s.photoRemove} onPress={()=>setSelectedPhotos(current=>current.filter((_,i)=>i!==index))}><Text style={s.photoRemoveText}>×</Text></Pressable></View>)}</ScrollView>}
      <Text style={s.cooldownNote}>게시글 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
      <Pressable style={[s.submitBtn,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitPost}><Text style={s.submitText}>{submitting?"등록 중…":"게시글 등록"}</Text></Pressable>
     </View>
@@ -277,7 +311,7 @@ export default function Community(){
  </SafeAreaView>;
 }
 
-const s=StyleSheet.create({
+const s=StyleSheet.create({postPhotos:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:10},detailPhoto:{width:"48%",height:170,borderRadius:10,backgroundColor:"#EEEAF4"},listPhoto:{width:88,height:68,borderRadius:8,backgroundColor:"#EEEAF4"},photoPickerRow:{flexDirection:"row",marginTop:10},photoPicker:{flexDirection:"row",alignItems:"center",gap:7,paddingHorizontal:12,paddingVertical:9,borderRadius:9,backgroundColor:C.pale},photoPickerText:{fontSize:12,fontWeight:"800",color:C.purple},photoPreviewRow:{gap:8,paddingVertical:10},photoPreviewWrap:{width:76,height:76,position:"relative"},photoPreview:{width:76,height:76,borderRadius:9,backgroundColor:"#EEEAF4"},photoRemove:{position:"absolute",right:-5,top:-5,width:22,height:22,borderRadius:11,backgroundColor:C.red,alignItems:"center",justifyContent:"center"},photoRemoveText:{fontSize:17,color:"#fff",fontWeight:"900",lineHeight:20},
  safe:{flex:1,backgroundColor:C.bg},header:{minHeight:56,paddingVertical:7,paddingHorizontal:12,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:6,borderBottomWidth:1,borderColor:C.line},
  back:{color:C.muted,fontWeight:"700",fontSize:12,width:52},heading:{fontSize:16,fontWeight:"900",color:C.ink,flexShrink:1,textAlign:"center"},writeBtn:{backgroundColor:C.purple,borderRadius:10,paddingHorizontal:9,paddingVertical:8},writeText:{color:"#fff",fontSize:11,fontWeight:"800"},menuBtn:{borderWidth:1,borderColor:C.line,borderRadius:10,paddingHorizontal:9,paddingVertical:7,marginLeft:5},menuText:{color:C.ink,fontSize:17,fontWeight:"800"},
  intro:{color:C.muted,fontSize:12,paddingHorizontal:18,paddingTop:16},filterScroll:{flexGrow:0,flexShrink:0},filters:{paddingHorizontal:14,paddingVertical:9,gap:6,alignItems:"center"},filter:{paddingHorizontal:11,paddingVertical:7,borderRadius:18,borderWidth:1,borderColor:C.line,backgroundColor:"#fff"},filterActive:{backgroundColor:C.pale,borderColor:C.purple},filterText:{fontSize:12,color:C.muted,fontWeight:"700"},filterTextActive:{color:C.purple},
