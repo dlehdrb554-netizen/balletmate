@@ -454,20 +454,8 @@ Deno.serve(async (req) => {
             .eq("studio_id", job.studio_id)
             .eq("blogger_url", candidate.blogger_url);
           if (countError) throw new Error("후보 게시물 수 확인 실패: " + countError.message);
-          const priorRejected = prior?.review_status === "rejected";
-          const { data: ownerRows, error: ownerError } = await db.from("studio_blog_official_accounts")
-            .select("studio_id,blogger_url").eq("is_active", true);
-          if (ownerError) throw new Error("블로그 소유 학원 확인 실패: " + ownerError.message);
-          const accountKey = blogAccountKey(candidate.blogger_url);
-          const belongsToAnotherStudio = (ownerRows ?? []).some((row: {studio_id:string|null;blogger_url:string}) =>
-            row.studio_id && row.studio_id !== job.studio_id && blogAccountKey(row.blogger_url) === accountKey);
-          const { count: activeCount, error: activeCountError } = await db.from("studio_blog_official_accounts")
-            .select("id", { count: "exact", head: true })
-            .eq("studio_id", job.studio_id).eq("is_active", true);
-          if (activeCountError) throw new Error("공식 블로그 등록 개수 확인 실패: " + activeCountError.message);
           // Name/location similarity is not proof of blog ownership or a license to reuse content.
-          // Official blog accounts must be explicitly reviewed and approved by an administrator.
-          const shouldAutoApprove = false;
+          // Keep all discovered accounts pending until an administrator verifies ownership.
           const { error: candidateError } = await db.from("studio_blog_account_candidates")
             .upsert({
               studio_id: job.studio_id,
@@ -477,17 +465,9 @@ Deno.serve(async (req) => {
               matched_post_count: Math.max(mergedSamples.length, Number(sourceCount ?? 0), Number(prior?.matched_post_count ?? 0)),
               sample_posts: mergedSamples,
               match_score: score,
-              ...(shouldAutoApprove ? { review_status: "approved", reviewed_at: new Date().toISOString() } : {}),
               last_seen_at: new Date().toISOString(),
             }, { onConflict: "studio_id,blogger_url" });
           if (candidateError) throw new Error("공식 블로그 후보 저장 실패: " + candidateError.message);
-          if (shouldAutoApprove) {
-            const { error: officialInsertError } = await db.from("studio_blog_official_accounts").upsert({
-              studio_id: job.studio_id, studio_name: String(job.studio_name), blogger_url: candidate.blogger_url,
-              is_active: true, verified_at: new Date().toISOString(),
-            }, { onConflict: "studio_id,blogger_url" });
-            if (officialInsertError) throw new Error("고득점 공식 블로그 자동 등록 실패: " + officialInsertError.message);
-          }
         }
       }
       const { error: finishError } = await db.from("studio_blog_search_queue")
