@@ -42,7 +42,7 @@ BEGIN
  -- Skip child audit inserts when the parent studio has already been removed by FK cascade.
  IF TG_OP='DELETE'
     AND TG_TABLE_NAME IN ('studio_public_prices','studio_public_schedules','studio_owner_notices')
-    AND NOT EXISTS (SELECT 1 FROM public.studios WHERE id=OLD.studio_id) THEN
+    AND NOT EXISTS (SELECT 1 FROM public.studios WHERE id=NULLIF(to_jsonb(OLD)->>'studio_id','')::uuid) THEN
   RETURN OLD;
  END IF;
  IF TG_OP='DELETE' AND pg_trigger_depth()>1 THEN RETURN OLD; END IF;
