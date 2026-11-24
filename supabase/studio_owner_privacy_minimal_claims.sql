@@ -209,25 +209,25 @@ BEGIN
   IF TG_OP='DELETE' THEN
    v_studio_id:=OLD.id;v_entity_id:=OLD.id::text;
    v_old:=jsonb_build_object('name',OLD.name,'district',OLD.district,'address',OLD.address,'phone',OLD.phone,
-    'website_url',OLD.website_url,'description',OLD.description,'image_urls',OLD.image_urls);
+    'website_url',OLD.website_url,'description',OLD.description);
   ELSE
    v_studio_id:=NEW.id;v_entity_id:=NEW.id::text;
    v_new:=jsonb_build_object('name',NEW.name,'district',NEW.district,'address',NEW.address,'phone',NEW.phone,
-    'website_url',NEW.website_url,'description',NEW.description,'image_urls',NEW.image_urls);
+    'website_url',NEW.website_url,'description',NEW.description);
    IF TG_OP='UPDATE' THEN
     v_old:=jsonb_build_object('name',OLD.name,'district',OLD.district,'address',OLD.address,'phone',OLD.phone,
-     'website_url',OLD.website_url,'description',OLD.description,'image_urls',OLD.image_urls);
+     'website_url',OLD.website_url,'description',OLD.description);
    END IF;
   END IF;
  ELSIF TG_TABLE_NAME IN ('studio_public_prices','studio_public_schedules','studio_owner_notices') THEN
   IF TG_OP='DELETE' THEN v_studio_id:=OLD.studio_id;v_entity_id:=OLD.id::text; ELSE v_studio_id:=NEW.studio_id;v_entity_id:=NEW.id::text; END IF;
   IF TG_OP='DELETE' THEN v_old:=to_jsonb(OLD); ELSE v_new:=to_jsonb(NEW); IF TG_OP='UPDATE' THEN v_old:=to_jsonb(OLD); END IF; END IF;
   IF TG_TABLE_NAME='studio_public_prices' THEN
-   v_fields:=ARRAY['amount_krw','price_period','frequency_per_week','image_urls','is_active','expires_at'];
+   v_fields:=ARRAY['amount_krw','price_period','frequency_per_week','is_active','expires_at'];
    v_old:=CASE WHEN v_old IS NULL THEN NULL ELSE v_old-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','published_by','id'] END;
    v_new:=CASE WHEN v_new IS NULL THEN NULL ELSE v_new-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','id'] END;
   ELSIF TG_TABLE_NAME='studio_public_schedules' THEN
-   v_fields:=ARRAY['schedule_text','image_urls','is_active','expires_at'];
+   v_fields:=ARRAY['schedule_text','is_active','expires_at'];
    v_old:=CASE WHEN v_old IS NULL THEN NULL ELSE v_old-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','id'] END;
    v_new:=CASE WHEN v_new IS NULL THEN NULL ELSE v_new-ARRAY['candidate_id','evidence_text','source_url','source_title','source_post_date','published_at','studio_id','created_at','updated_at','id'] END;
   ELSE
