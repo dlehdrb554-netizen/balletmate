@@ -20,8 +20,17 @@ BEGIN
   END LOOP;
 END $$;
 
--- Inactivate old separate official-blog registrations. URLs already copied into
--- studios.website_url remain as the single homepage URL and are not duplicated.
+-- Fold an existing registered Naver blog URL into the single homepage field when empty.
+-- Never overwrite a manually registered standalone homepage or Instagram URL.
+UPDATE public.studios s
+SET website_url=b.blogger_url, updated_at=now()
+FROM public.studio_blog_official_accounts b
+WHERE b.studio_id=s.id AND b.is_active=true
+  AND s.website_url IS NULL
+  AND b.blogger_url ~* '^https://(m\\.)?blog\\.naver\\.com/';
+
+-- Inactivate the old separate official-blog registrations; the single website_url
+-- field is now the only public homepage/channel field.
 UPDATE public.studio_blog_official_accounts SET is_active=false WHERE is_active=true;
 
 -- Clear queues and crawled post/text evidence; do not delete manually maintained
