@@ -609,12 +609,11 @@ export default function Admin() {
   };
   const manuallyClassifyPhotoCandidate=async(item:any,category:"ballet_class"|"schedule"|"price"|"poster"|"logo"|"portrait"|"unrelated"|"unknown")=>{
     if(!supabase||photoReviewBusy)return;
-    const status=["ballet_class","schedule","price","poster","logo"].includes(category)?"approved":"rejected";
     const materialType=category==="schedule"?"schedule":category==="price"?"price":["poster","logo"].includes(category)?"other":null;
     setPhotoReviewBusy(true);
-    const {data,error}=await supabase.rpc("admin_manual_classify_studio_photo_candidate",{p_candidate_id:Number(item.id),p_category:category});
-    if(error)Alert.alert("수동 분류 실패",error.message+"\n수동 분류 SQL을 적용했는지 확인하세요.");
-    else {setPhotoCandidateRows(current=>current.filter(row=>Number(row.id)!==Number(item.id)));setPhotoCandidateTotal(value=>Math.max(0,value-1));Alert.alert("수동 분류 완료",status==="approved"?"분류를 저장하고 사진을 학원 갤러리에 반영했습니다.":"제외 분류를 저장했습니다.");}
+    const {error}=await supabase.rpc("admin_manual_classify_studio_photo_candidate",{p_candidate_id:Number(item.id),p_category:category});
+    if(error)Alert.alert("수동 분류 실패",error.message+"\n저작권 확인 SQL을 적용했는지 확인하세요.");
+    else {setPhotoCandidateRows(current=>current.map(row=>Number(row.id)===Number(item.id)?{...row,auto_classification:category,auto_confidence:1,auto_reason:"관리자 수동 분류 · 권리 확인 전 공개 보류",material_type:materialType}:row));Alert.alert("분류 저장 완료","분류만 저장했습니다. 사진은 권리 확인 및 별도 공개 승인 전까지 대기합니다.");}
     setPhotoReviewBusy(false);
   };
   const classifyPhotoCandidateAI=async(item:any,quiet=false)=>{
