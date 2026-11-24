@@ -30,13 +30,9 @@ const mapStudioRecord = (r: StudioRecord): Studio => ({
   adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],
   time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),
   description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,
-  websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,
-  imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,
-  sourceName:r.source_name||undefined,sourceStatus:r.source_status||undefined,verifiedAt:r.verified_at||undefined,
-  imageUsageNote:r.image_usage_note||undefined,priceEvidenceText:r.price_evidence_text||undefined,
-  scheduleEvidenceText:r.schedule_evidence_text||undefined,detailsSourceUrls:r.details_source_urls||[],kakaoChannelUrl:r.kakao_channel_url||undefined,
-  detailsCheckedAt:r.details_checked_at||undefined,detailsStatus:r.details_status||undefined,
-  classDurations:r.class_durations||[]
+  websiteUrl:r.website_url||undefined,sourceUrl:r.source_url||undefined,
+   sourceName:r.source_name||undefined,sourceStatus:r.source_status||undefined,verifiedAt:r.verified_at||undefined,kakaoChannelUrl:r.kakao_channel_url||undefined,
+   classDurations:r.class_durations||[]
 });
 
 const PROVINCES=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원도","충청북도","충청남도","전라북도","전라남도","경상북도","경상남도","제주도"];
