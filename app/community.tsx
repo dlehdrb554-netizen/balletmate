@@ -31,6 +31,8 @@ export default function Community(){
  const [userId,setUserId]=useState<string|null>(null);
  const [authorName,setAuthorName]=useState("발레메이트 회원");
  const [blockedUserIds,setBlockedUserIds]=useState<string[]>([]);
+ const [termsConsentOpen,setTermsConsentOpen]=useState(false);
+ const [termsAccepting,setTermsAccepting]=useState(false);
  const commentRequestId=useRef(0);
 
  const postRequestId=useRef(0);
@@ -127,6 +129,26 @@ export default function Community(){
   finally{setSubmitting(false);}
  };
 
+ const openComposer=async()=>{
+  if(!userId){requireLogin();return;}
+  const client=supabase;
+  if(!client)return;
+  const {data,error}=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version","2026-11-24").maybeSingle();
+  if(error){Alert.alert("이용규칙 확인 실패",error.message);return;}
+  if(data){setComposer(true);return;}
+  setTermsConsentOpen(true);
+ };
+ const acceptCommunityTerms=async()=>{
+  const client=supabase;
+  if(!client||!userId||termsAccepting)return;
+  setTermsAccepting(true);
+  try{
+   const {error}=await client.from("community_terms_acceptances").insert({user_id:userId,terms_version:"2026-11-24"});
+   if(error&&error.code!=="23505")throw error;
+   setTermsConsentOpen(false);setComposer(true);
+  }catch(error:any){Alert.alert("동의 처리 실패",error?.message||"이용규칙 동의를 저장하지 못했습니다.");}
+  finally{setTermsAccepting(false);}
+ };
  const reportContent=(contentType:"post"|"comment",contentId:string,targetUserId:string)=>{
   const client=supabase;
   if(!userId||!client){requireLogin();return;}
@@ -180,7 +202,7 @@ export default function Community(){
   <View style={s.header}>
    <Pressable onPress={()=>{if(selected){commentRequestId.current++;setSelected(null);setComments([]);}else router.push("/");}}><><Ionicons name="chevron-back" size={16} color={C.muted} /><Text style={s.back}>{selected?"목록":"지도"}</Text></></Pressable>
    <Text style={s.heading}>발레 커뮤니티</Text>
-   <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={()=>userId?setComposer(true):requireLogin()}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>{if(router.canGoBack())router.back();else router.replace("/");}}><Ionicons name="menu-outline" size={22} color={C.ink} /></Pressable></View>
+   <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={openComposer}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>{if(router.canGoBack())router.back();else router.replace("/");}}><Ionicons name="menu-outline" size={22} color={C.ink} /></Pressable></View>
   </View>
   {selected?
    <ScrollView contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled">
@@ -221,6 +243,16 @@ export default function Community(){
    </>
   }
 
+  <Modal visible={termsConsentOpen} transparent animationType="fade" onRequestClose={()=>setTermsConsentOpen(false)}>
+   <View style={s.shade}><View style={[s.modal,{maxHeight:"82%"}]}>
+    <View style={s.modalHead}><Text style={s.modalTitle}>커뮤니티 이용규칙 동의</Text><Pressable onPress={()=>setTermsConsentOpen(false)}><Text style={s.close}>×</Text></Pressable></View>
+    <ScrollView style={{marginTop:12}}><Text style={s.rulesText}>게시글이나 댓글을 작성하기 전에 아래 규칙에 동의해야 합니다.{"\n\n"}• 욕설, 괴롭힘, 협박, 차별 및 특정인을 공격하는 글을 금지합니다.{"\n"}• 스팸, 광고, 도배, 사기 및 허위·오해 유발 정보를 금지합니다.{"\n"}• 본인 또는 타인의 전화번호, 주소, 계정정보 등 개인정보를 무단 공개하지 마세요.{"\n"}• 저작권·초상권 등 타인의 권리를 침해하는 사진과 글을 올리지 마세요.{"\n"}• 신고된 콘텐츠는 운영자가 검토하며, 위반 콘텐츠는 삭제될 수 있습니다.{"\n"}• 다른 회원을 차단하면 해당 회원의 게시글과 댓글이 내 화면에서 숨겨집니다.</Text></ScrollView>
+    <Pressable style={s.termsFullLink} onPress={()=>router.push("/terms")}><Text style={s.openLabel}>서비스 이용약관 전문 보기</Text></Pressable>
+    <Pressable style={[s.submitBtn,termsAccepting&&{opacity:.5}]} disabled={termsAccepting} onPress={acceptCommunityTerms}><Text style={s.submitText}>{termsAccepting?"저장 중…":"동의하고 글쓰기"}</Text></Pressable>
+    <Pressable style={s.legacyLink} onPress={()=>setTermsConsentOpen(false)}><Text style={s.legacyLinkText}>동의하지 않음</Text></Pressable>
+   </View></View>
+  </Modal>
+
   <Modal visible={composer} transparent animationType="slide" onRequestClose={()=>setComposer(false)}>
    <KeyboardAvoidingView style={s.shade} behavior={Platform.OS==="ios"?"padding":undefined}>
     <View style={s.modal}>
@@ -245,6 +277,6 @@ const s=StyleSheet.create({
  intro:{color:C.muted,fontSize:12,paddingHorizontal:18,paddingTop:16},filterScroll:{flexGrow:0,flexShrink:0},filters:{paddingHorizontal:14,paddingVertical:9,gap:6,alignItems:"center"},filter:{paddingHorizontal:11,paddingVertical:7,borderRadius:18,borderWidth:1,borderColor:C.line,backgroundColor:"#fff"},filterActive:{backgroundColor:C.pale,borderColor:C.purple},filterText:{fontSize:12,color:C.muted,fontWeight:"700"},filterTextActive:{color:C.purple},
  list:{padding:12,paddingBottom:24},postCard:{backgroundColor:"#fff",padding:13,borderRadius:16,borderWidth:1,borderColor:C.line,marginBottom:10},postTop:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},categoryBadge:{backgroundColor:C.pale,borderRadius:8,paddingHorizontal:9,paddingVertical:5,alignSelf:"flex-start"},categoryText:{fontSize:10,color:C.purple,fontWeight:"800"},meta:{fontSize:10,color:C.muted},cardTitle:{fontSize:16,fontWeight:"900",color:C.ink,marginTop:11},preview:{fontSize:12,color:"#625E70",lineHeight:18,marginTop:6},cardFoot:{flexDirection:"row",justifyContent:"space-between",marginTop:13},author:{fontSize:11,color:C.muted,fontWeight:"700"},openLabel:{fontSize:11,color:C.purple,fontWeight:"800"},empty:{textAlign:"center",color:C.muted,padding:28,fontSize:13},
  detailContent:{padding:14,paddingBottom:24},postDetail:{backgroundColor:"#fff",borderRadius:17,borderWidth:1,borderColor:C.line,padding:16},postTitle:{fontSize:20,fontWeight:"900",color:C.ink,marginTop:12},postBody:{fontSize:14,color:"#4E4A5C",lineHeight:23,marginTop:20},section:{fontSize:15,fontWeight:"900",color:C.ink,marginTop:22,marginBottom:10},comment:{backgroundColor:"#fff",borderRadius:12,padding:13,marginBottom:8,borderWidth:1,borderColor:C.line},moderationActions:{flexDirection:"row",justifyContent:"flex-end",gap:16,marginTop:10},commentTop:{flexDirection:"row",justifyContent:"space-between"},commentAuthor:{fontSize:12,color:C.ink,fontWeight:"800"},commentBody:{fontSize:13,color:"#555164",lineHeight:20,marginTop:8},deleteText:{fontSize:10,color:C.red,fontWeight:"700",marginTop:10,alignSelf:"flex-end"},
- commentComposer:{flexDirection:"row",alignItems:"flex-end",gap:8,marginTop:15},commentInput:{flex:1,minHeight:44,maxHeight:110,backgroundColor:"#fff",borderRadius:12,borderWidth:1,borderColor:C.line,padding:11,fontSize:13,color:C.ink},sendBtn:{backgroundColor:C.purple,paddingHorizontal:15,paddingVertical:13,borderRadius:11},sendText:{color:"#fff",fontWeight:"800",fontSize:12},cooldownNote:{fontSize:10,color:C.muted,lineHeight:16,marginTop:10},
+ commentComposer:{flexDirection:"row",alignItems:"flex-end",gap:8,marginTop:15},commentInput:{flex:1,minHeight:44,maxHeight:110,backgroundColor:"#fff",borderRadius:12,borderWidth:1,borderColor:C.line,padding:11,fontSize:13,color:C.ink},sendBtn:{backgroundColor:C.purple,paddingHorizontal:15,paddingVertical:13,borderRadius:11},sendText:{color:"#fff",fontWeight:"800",fontSize:12},cooldownNote:{fontSize:10,color:C.muted,lineHeight:16,marginTop:10},rulesText:{fontSize:13,color:"#4E4A5C",lineHeight:22},termsFullLink:{paddingVertical:12,alignItems:"center"},legacyLink:{alignItems:"center",paddingVertical:8},legacyLinkText:{fontSize:12,fontWeight:"800",color:C.purple},
  shade:{flex:1,backgroundColor:"rgba(30,25,45,0.38)",justifyContent:"flex-end"},modal:{backgroundColor:"#fff",borderTopLeftRadius:22,borderTopRightRadius:22,padding:16,paddingBottom:20,maxHeight:"92%"},modalHead:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},modalTitle:{fontSize:20,fontWeight:"900",color:C.ink},close:{fontSize:25,color:C.muted},label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:17,marginBottom:8},categoryChoices:{flexDirection:"row",flexWrap:"wrap",gap:7},titleInput:{height:47,borderWidth:1,borderColor:C.line,borderRadius:11,paddingHorizontal:12,fontSize:13,color:C.ink},bodyInput:{minHeight:140,maxHeight:220,borderWidth:1,borderColor:C.line,borderRadius:11,padding:12,fontSize:13,color:C.ink},submitBtn:{backgroundColor:C.purple,borderRadius:12,padding:15,alignItems:"center",marginTop:15},submitText:{color:"#fff",fontWeight:"900"}
 });
