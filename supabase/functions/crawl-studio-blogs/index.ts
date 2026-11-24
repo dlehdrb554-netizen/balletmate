@@ -357,8 +357,10 @@ Deno.serve(async (req) => {
         if (photoError) photoCandidateWarning = photoError.message;
         else photoCandidateWarning = "공식 블로그 사진 " + images.length + "장 Vision 대기열 등록";
       }
-      const prices = evidence(textBody, "price");
-      const schedules = evidence(textBody, "schedule");
+      // Registered official blogs are an image source only. Do not extract
+      // price/schedule evidence or retain post text for this workflow.
+      const prices = officialMatch ? [] : evidence(textBody, "price");
+      const schedules = officialMatch ? [] : evidence(textBody, "schedule");
       const evidenceCandidates = [
         ...candidateRows(prices, "price", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url), post_date: source.post_date ? String(source.post_date) : null }),
         ...candidateRows(schedules, "schedule", { studio_id: job.studio_id, studio_name: String(job.studio_name), source_id: Number(job.source_id), title: String(source.title ?? ""), post_url: String(job.post_url), post_date: source.post_date ? String(source.post_date) : null }),
@@ -374,7 +376,7 @@ Deno.serve(async (req) => {
       const status = textBody.length > 80 ? "success" : "partial";
       const { error: saveError } = await db.from("studio_blog_post_contents").upsert({
         source_id: job.source_id, studio_id: job.studio_id, post_url: job.post_url,
-        body_text: textBody || null, image_urls: images, price_evidence: prices,
+        body_text: officialMatch ? null : (textBody || null), image_urls: images, price_evidence: prices,
         schedule_evidence: schedules, crawl_status: status, checked_at: new Date().toISOString(),
       }, { onConflict: "source_id" });
       if (saveError) throw new Error("본문 저장 실패: " + saveError.message);
