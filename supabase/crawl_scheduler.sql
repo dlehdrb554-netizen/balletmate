@@ -13,10 +13,10 @@ declare j record;
 begin
  for j in select jobid from cron.job
   where jobname in ('balletmate-studio-image-crawl','balletmate-studio-discovery','balletmate-studio-website-info','balletmate-kakao-studio-discovery')
-     or jobname like 'balletmate-naver-blog%'
+     or jobname ilike '%photo%' or jobname ilike '%vision%' or jobname ilike '%image%' or jobname ilike '%blog%'
      or command ilike '%/functions/v1/crawl-studio%'
+     or command ilike '%/functions/v1/classify-studio-photo%'
      or command ilike '%/functions/v1/search-studio-blogs%'
-     or jobname like 'balletmate-naver-blog%'
  loop perform cron.unschedule(j.jobid); end loop;
 end $$;
 select cron.schedule('balletmate-kakao-studio-discovery','*/5 * * * *',$$
