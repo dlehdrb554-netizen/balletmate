@@ -42,10 +42,23 @@ $transfer$;
 UPDATE public.studios SET image_urls=ARRAY[]::text[], image_source_name=NULL, updated_at=now() WHERE COALESCE(cardinality(image_urls),0)>0 OR image_source_name IS NOT NULL;
 UPDATE public.studios SET price_evidence_text=NULL, schedule_evidence_text=NULL, details_source_urls=ARRAY[]::text[], details_checked_at=NULL, details_status=NULL WHERE price_evidence_text IS NOT NULL OR schedule_evidence_text IS NOT NULL OR cardinality(details_source_urls)>0 OR details_checked_at IS NOT NULL OR details_status IS NOT NULL;
 DROP TABLE IF EXISTS public.studio_photo_candidates CASCADE;
-UPDATE public.studio_public_prices SET image_urls=ARRAY[]::text[] WHERE COALESCE(cardinality(image_urls),0)>0;
-UPDATE public.studio_public_schedules SET image_urls=ARRAY[]::text[] WHERE COALESCE(cardinality(image_urls),0)>0;
-DELETE FROM public.studio_public_prices WHERE candidate_id IS NOT NULL;
-DELETE FROM public.studio_public_schedules WHERE candidate_id IS NOT NULL;
+-- Remove crawler-derived rows/columns only when they still exist (safe after hardening).
+DO $materials$
+BEGIN
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_public_prices' AND column_name='candidate_id') THEN
+    EXECUTE 'DELETE FROM public.studio_public_prices WHERE candidate_id IS NOT NULL';
+  END IF;
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_public_schedules' AND column_name='candidate_id') THEN
+    EXECUTE 'DELETE FROM public.studio_public_schedules WHERE candidate_id IS NOT NULL';
+  END IF;
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_public_prices' AND column_name='image_urls') THEN
+    EXECUTE 'UPDATE public.studio_public_prices SET image_urls=ARRAY[]::text[] WHERE COALESCE(cardinality(image_urls),0)>0';
+  END IF;
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_public_schedules' AND column_name='image_urls') THEN
+    EXECUTE 'UPDATE public.studio_public_schedules SET image_urls=ARRAY[]::text[] WHERE COALESCE(cardinality(image_urls),0)>0';
+  END IF;
+END;
+$materials$;
 DROP TABLE IF EXISTS public.studio_schedule_class_candidates CASCADE;
 
 -- A government registration page or Kakao Place page is never an academy homepage.
