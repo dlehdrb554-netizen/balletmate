@@ -24,37 +24,40 @@ END $$;
 -- Fold an existing registered Naver blog URL into the single homepage field when empty.
 -- This guarded block also remains safe after the retired blog tables are dropped.
 DO $transfer$
+DECLARE
+ v_filter text:='blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/'';
+ v_order_id text:='studio_id';
+ v_order_name text:='lower(trim(studio_name))';
 BEGIN
  IF to_regclass('public.studio_blog_official_accounts') IS NOT NULL
-    AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='blogger_url')
-    AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='studio_name') THEN
-   IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='is_active') THEN
-    EXECUTE $sql$
-     UPDATE public.studios s
-     SET website_url=b.blogger_url,updated_at=now()
-     FROM (
-      SELECT DISTINCT ON (lower(trim(studio_name))) studio_name,blogger_url
+    AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='blogger_url') THEN
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='is_active') THEN
+   v_filter:=v_filter||' AND is_active=true';
+  END IF;
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='verified_at') THEN
+   v_order_id:=v_order_id||', verified_at DESC NULLS LAST';
+   v_order_name:=v_order_name||', verified_at DESC NULLS LAST';
+  END IF;
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='created_at') THEN
+   v_order_id:=v_order_id||', created_at DESC NULLS LAST';
+   v_order_name:=v_order_name||', created_at DESC NULLS LAST';
+  END IF;
+
+  IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='studio_id') THEN
+   EXECUTE 'UPDATE public.studios s SET website_url=b.blogger_url,updated_at=now()
+    FROM (SELECT DISTINCT ON (studio_id) studio_id,blogger_url
       FROM public.studio_blog_official_accounts
-      WHERE is_active=true AND blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/'
-      ORDER BY lower(trim(studio_name)),verified_at DESC NULLS LAST,created_at DESC NULLS LAST
-     ) b
-     WHERE lower(trim(b.studio_name))=lower(trim(s.name))
-       AND s.website_url IS NULL
-    $sql$;
-   ELSE
-    EXECUTE $sql$
-     UPDATE public.studios s
-     SET website_url=b.blogger_url,updated_at=now()
-     FROM (
-      SELECT DISTINCT ON (lower(trim(studio_name))) studio_name,blogger_url
+      WHERE '||v_filter||'
+      ORDER BY '||v_order_id||') b
+    WHERE b.studio_id=s.id AND s.website_url IS NULL';
+  ELSIF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='studio_name') THEN
+   EXECUTE 'UPDATE public.studios s SET website_url=b.blogger_url,updated_at=now()
+    FROM (SELECT DISTINCT ON (lower(trim(studio_name))) studio_name,blogger_url
       FROM public.studio_blog_official_accounts
-      WHERE blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/'
-      ORDER BY lower(trim(studio_name)),verified_at DESC NULLS LAST,created_at DESC NULLS LAST
-     ) b
-     WHERE lower(trim(b.studio_name))=lower(trim(s.name))
-       AND s.website_url IS NULL
-    $sql$;
-   END IF;
+      WHERE '||v_filter||'
+      ORDER BY '||v_order_name||') b
+    WHERE lower(trim(b.studio_name))=lower(trim(s.name)) AND s.website_url IS NULL';
+  END IF;
  END IF;
 END;
 $transfer$;
