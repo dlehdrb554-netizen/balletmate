@@ -30,6 +30,7 @@ export default function Community(){
  const [body,setBody]=useState("");
  const [userId,setUserId]=useState<string|null>(null);
  const [authorName,setAuthorName]=useState("발레메이트 회원");
+ const [blockedUserIds,setBlockedUserIds]=useState<string[]>([]);
  const commentRequestId=useRef(0);
 
  const postRequestId=useRef(0);
@@ -48,6 +49,16 @@ export default function Community(){
  },[category]);
 
  useEffect(()=>{loadPosts();},[loadPosts]);
+ useEffect(()=>{
+  if(!supabase||!userId){setBlockedUserIds([]);return;}
+  let active=true;
+  supabase.from("community_user_blocks").select("blocked_user_id").eq("blocker_id",userId).then(({data,error})=>{
+   if(!active)return;
+   if(error){Alert.alert("차단 목록 조회 실패",error.message);return;}
+   setBlockedUserIds((data||[]).map(row=>row.blocked_user_id));
+  });
+  return()=>{active=false;};
+ },[userId]);
  useEffect(()=>{
   if(!supabase)return;
   const client=supabase;
@@ -116,6 +127,34 @@ export default function Community(){
   finally{setSubmitting(false);}
  };
 
+ const reportContent=(contentType:"post"|"comment",contentId:string,targetUserId:string)=>{
+  if(!userId||!supabase){requireLogin();return;}
+  if(targetUserId===userId){Alert.alert("신고 불가","본인이 작성한 콘텐츠는 신고할 수 없습니다.");return;}
+  const reasons=["스팸/광고","욕설/괴롭힘","부적절한 콘텐츠","개인정보 노출","허위 정보","기타"];
+  Alert.alert("콘텐츠 신고","신고 사유를 선택해 주세요.",[
+   {text:"취소",style:"cancel"},
+   ...reasons.map(reason=>({text:reason,onPress:async()=>{
+    const {error}=await supabase.from("community_reports").insert({reporter_id:userId,target_user_id:targetUserId,content_type:contentType,content_id:contentId,reason,details:""});
+    if(error){Alert.alert("신고 실패",error.code==="23505"?"이미 신고한 콘텐츠입니다.":error.message);return;}
+    Alert.alert("신고 접수","신고가 접수되었습니다. 운영자가 검토하겠습니다.");
+   }}))
+  ]);
+ };
+ const blockUser=(targetUserId:string,targetName:string)=>{
+  if(!userId||!supabase){requireLogin();return;}
+  if(targetUserId===userId)return;
+  Alert.alert("사용자 차단",targetName+" 회원의 게시글과 댓글을 내 화면에서 숨길까요?",[
+   {text:"취소",style:"cancel"},
+   {text:"차단",style:"destructive",onPress:async()=>{
+    const {error}=await supabase.from("community_user_blocks").insert({blocker_id:userId,blocked_user_id:targetUserId});
+    if(error&&error.code!=="23505"){Alert.alert("차단 실패",error.message);return;}
+    setBlockedUserIds(current=>current.includes(targetUserId)?current:[...current,targetUserId]);
+    if(selected?.author_id===targetUserId){commentRequestId.current++;setSelected(null);setComments([]);}
+    else if(selected){setComments(current=>current.filter(comment=>comment.author_id!==targetUserId));}
+    Alert.alert("차단 완료","해당 회원의 콘텐츠를 숨겼습니다.");
+   }}
+  ]);
+ };
  const removePost=async(post:Post)=>{
   const client=supabase;
   if(!client||post.author_id!==userId)return;
@@ -148,13 +187,13 @@ export default function Community(){
      <Text style={s.postTitle}>{selected.title}</Text>
      <Text style={s.meta}>{selected.author_name||"발레메이트 회원"} · {timeLabel(selected.created_at)}</Text>
      <Text style={s.postBody}>{selected.content}</Text>
-     {selected.author_id===userId&&<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>게시글 삭제</Text></Pressable>}
+     {selected.author_id===userId?<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>게시글 삭제</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>
     <Text style={s.section}>댓글 {comments.length}</Text>
-    {comments.map(comment=><View key={comment.id} style={s.comment}>
+    {comments.filter(comment=>!blockedUserIds.includes(comment.author_id)).map(comment=><View key={comment.id} style={s.comment}>
      <View style={s.commentTop}><Text style={s.commentAuthor}>{comment.author_name||"발레메이트 회원"}</Text><Text style={s.meta}>{timeLabel(comment.created_at)}</Text></View>
      <Text style={s.commentBody}>{comment.content}</Text>
-     {comment.author_id===userId&&<Pressable onPress={()=>removeComment(comment)}><Text style={s.deleteText}>삭제</Text></Pressable>}
+     {comment.author_id===userId?<Pressable onPress={()=>removeComment(comment)}><Text style={s.deleteText}>삭제</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("comment",comment.id,comment.author_id)}><Text style={s.deleteText}>신고</Text></Pressable><Pressable onPress={()=>blockUser(comment.author_id,comment.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>)}
     {!comments.length&&<Text style={s.empty}>첫 댓글을 남겨보세요.</Text>}
     <View style={s.commentComposer}>
@@ -170,7 +209,7 @@ export default function Community(){
      {categories.map(item=><Pressable key={item} onPress={()=>setCategory(item)} style={[s.filter,item===category&&s.filterActive]}><Text style={[s.filterText,item===category&&s.filterTextActive]}>{item}</Text></Pressable>)}
     </ScrollView>
     {loading?<ActivityIndicator color={C.purple} style={{marginTop:40}}/>:
-     <FlatList data={posts} keyExtractor={item=>item.id} contentContainerStyle={s.list} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadPosts();}} tintColor={C.purple}/>} renderItem={({item})=><Pressable style={s.postCard} onPress={()=>openPost(item)}>
+     <FlatList data={posts.filter(item=>!blockedUserIds.includes(item.author_id))} keyExtractor={item=>item.id} contentContainerStyle={s.list} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadPosts();}} tintColor={C.purple}/>} renderItem={({item})=><Pressable style={s.postCard} onPress={()=>openPost(item)}>
       <View style={s.postTop}><View style={s.categoryBadge}><Text style={s.categoryText}>{item.category}</Text></View><Text style={s.meta}>{timeLabel(item.created_at)}</Text></View>
       <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
       <Text style={s.preview} numberOfLines={2}>{item.content}</Text>
@@ -203,7 +242,7 @@ const s=StyleSheet.create({
  back:{color:C.muted,fontWeight:"700",fontSize:12,width:52},heading:{fontSize:16,fontWeight:"900",color:C.ink,flexShrink:1,textAlign:"center"},writeBtn:{backgroundColor:C.purple,borderRadius:10,paddingHorizontal:9,paddingVertical:8},writeText:{color:"#fff",fontSize:11,fontWeight:"800"},menuBtn:{borderWidth:1,borderColor:C.line,borderRadius:10,paddingHorizontal:9,paddingVertical:7,marginLeft:5},menuText:{color:C.ink,fontSize:17,fontWeight:"800"},
  intro:{color:C.muted,fontSize:12,paddingHorizontal:18,paddingTop:16},filterScroll:{flexGrow:0,flexShrink:0},filters:{paddingHorizontal:14,paddingVertical:9,gap:6,alignItems:"center"},filter:{paddingHorizontal:11,paddingVertical:7,borderRadius:18,borderWidth:1,borderColor:C.line,backgroundColor:"#fff"},filterActive:{backgroundColor:C.pale,borderColor:C.purple},filterText:{fontSize:12,color:C.muted,fontWeight:"700"},filterTextActive:{color:C.purple},
  list:{padding:12,paddingBottom:24},postCard:{backgroundColor:"#fff",padding:13,borderRadius:16,borderWidth:1,borderColor:C.line,marginBottom:10},postTop:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},categoryBadge:{backgroundColor:C.pale,borderRadius:8,paddingHorizontal:9,paddingVertical:5,alignSelf:"flex-start"},categoryText:{fontSize:10,color:C.purple,fontWeight:"800"},meta:{fontSize:10,color:C.muted},cardTitle:{fontSize:16,fontWeight:"900",color:C.ink,marginTop:11},preview:{fontSize:12,color:"#625E70",lineHeight:18,marginTop:6},cardFoot:{flexDirection:"row",justifyContent:"space-between",marginTop:13},author:{fontSize:11,color:C.muted,fontWeight:"700"},openLabel:{fontSize:11,color:C.purple,fontWeight:"800"},empty:{textAlign:"center",color:C.muted,padding:28,fontSize:13},
- detailContent:{padding:14,paddingBottom:24},postDetail:{backgroundColor:"#fff",borderRadius:17,borderWidth:1,borderColor:C.line,padding:16},postTitle:{fontSize:20,fontWeight:"900",color:C.ink,marginTop:12},postBody:{fontSize:14,color:"#4E4A5C",lineHeight:23,marginTop:20},section:{fontSize:15,fontWeight:"900",color:C.ink,marginTop:22,marginBottom:10},comment:{backgroundColor:"#fff",borderRadius:12,padding:13,marginBottom:8,borderWidth:1,borderColor:C.line},commentTop:{flexDirection:"row",justifyContent:"space-between"},commentAuthor:{fontSize:12,color:C.ink,fontWeight:"800"},commentBody:{fontSize:13,color:"#555164",lineHeight:20,marginTop:8},deleteText:{fontSize:10,color:C.red,fontWeight:"700",marginTop:10,alignSelf:"flex-end"},
+ detailContent:{padding:14,paddingBottom:24},postDetail:{backgroundColor:"#fff",borderRadius:17,borderWidth:1,borderColor:C.line,padding:16},postTitle:{fontSize:20,fontWeight:"900",color:C.ink,marginTop:12},postBody:{fontSize:14,color:"#4E4A5C",lineHeight:23,marginTop:20},section:{fontSize:15,fontWeight:"900",color:C.ink,marginTop:22,marginBottom:10},comment:{backgroundColor:"#fff",borderRadius:12,padding:13,marginBottom:8,borderWidth:1,borderColor:C.line},moderationActions:{flexDirection:"row",justifyContent:"flex-end",gap:16,marginTop:10},commentTop:{flexDirection:"row",justifyContent:"space-between"},commentAuthor:{fontSize:12,color:C.ink,fontWeight:"800"},commentBody:{fontSize:13,color:"#555164",lineHeight:20,marginTop:8},deleteText:{fontSize:10,color:C.red,fontWeight:"700",marginTop:10,alignSelf:"flex-end"},
  commentComposer:{flexDirection:"row",alignItems:"flex-end",gap:8,marginTop:15},commentInput:{flex:1,minHeight:44,maxHeight:110,backgroundColor:"#fff",borderRadius:12,borderWidth:1,borderColor:C.line,padding:11,fontSize:13,color:C.ink},sendBtn:{backgroundColor:C.purple,paddingHorizontal:15,paddingVertical:13,borderRadius:11},sendText:{color:"#fff",fontWeight:"800",fontSize:12},cooldownNote:{fontSize:10,color:C.muted,lineHeight:16,marginTop:10},
  shade:{flex:1,backgroundColor:"rgba(30,25,45,0.38)",justifyContent:"flex-end"},modal:{backgroundColor:"#fff",borderTopLeftRadius:22,borderTopRightRadius:22,padding:16,paddingBottom:20,maxHeight:"92%"},modalHead:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},modalTitle:{fontSize:20,fontWeight:"900",color:C.ink},close:{fontSize:25,color:C.muted},label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:17,marginBottom:8},categoryChoices:{flexDirection:"row",flexWrap:"wrap",gap:7},titleInput:{height:47,borderWidth:1,borderColor:C.line,borderRadius:11,paddingHorizontal:12,fontSize:13,color:C.ink},bodyInput:{minHeight:140,maxHeight:220,borderWidth:1,borderColor:C.line,borderRadius:11,padding:12,fontSize:13,color:C.ink},submitBtn:{backgroundColor:C.purple,borderRadius:12,padding:15,alignItems:"center",marginTop:15},submitText:{color:"#fff",fontWeight:"900"}
 });
