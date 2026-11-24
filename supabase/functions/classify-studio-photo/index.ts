@@ -11,6 +11,9 @@ function isBlockedWesebPhotoSource(raw:string):boolean{
    source.searchParams.get("no")==="16737";
  }catch{return false;}
 }
+function isBlockedSchool24PhotoSource(raw:string):boolean{
+ try{const source=new URL(raw);return source.hostname.toLowerCase().replace(/^www\./,"")==="school24.kr"&&source.pathname.toLowerCase().replace(/\/$/,"")==="/academy/a/j10-3000069628";}catch{return false;}
+}
 function privateHost(h:string){const x=h.toLowerCase();if(x==="localhost"||x.endsWith(".local")||x.endsWith(".localhost")||x.includes(":"))return true;const p=x.split(".");if(p.length!==4||!p.every(v=>/^\\d{1,3}$/.test(v)))return false;const [a,b]=p.map(Number);return a===0||a===10||a===127||a>=224||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127);}
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok");
@@ -51,10 +54,10 @@ Deno.serve(async(req)=>{
  if(!Number.isInteger(body.candidateId))return json({error:"candidateId required"},400);
  const {data:candidate,error:candidateError}=await db.from("studio_photo_candidates").select("id,studio_id,studio_name,image_url,source_page_url,source_host,review_status").eq("id",body.candidateId).eq("review_status","pending").single();
  if(candidateError||!candidate)return json({error:"Candidate not found"},404);
- if(isBlockedWesebPhotoSource(String(candidate.source_page_url||""))){
+ if(isBlockedWesebPhotoSource(String(candidate.source_page_url||""))||isBlockedSchool24PhotoSource(String(candidate.source_page_url||""))){
   await db.from("studio_photo_candidates").update({
    review_status:"rejected",
-   auto_reason:"사용자 지정 제외 출처: 웨셉 아파트 게시물",
+   auto_reason:isBlockedWesebPhotoSource(String(candidate.source_page_url||""))?"사용자 지정 제외 출처: 웨셉 아파트 게시물":"사용자 지정 제외 출처: School24 학원 페이지",
    auto_classified_at:new Date().toISOString(),
    reviewed_at:new Date().toISOString()
   }).eq("id",candidate.id).eq("review_status","pending");
