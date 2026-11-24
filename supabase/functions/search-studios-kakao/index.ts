@@ -98,8 +98,9 @@ Deno.serve(async (req) => {
           const categoryText = String(item.category_name ?? "");
           const relevantName = /(발레|무용|댄스|ballet|dance)/i.test(name);
           const educationCategory = /(발레|무용|댄스)/.test(categoryText);
-          const excludedCategory = /(숙박|모텔|호텔|음식|카페|주점|미용|병원|부동산)/.test(categoryText);
-          if (excludedCategory || (!relevantName && !educationCategory)) continue;
+          const excludedCategory = /(숙박|모텔|호텔|음식|카페|주점|미용|병원|의료|의원|산부인과|약국|치과|한의원|보건|사우나|찜질방|목욕탕|부동산)/.test(categoryText);
+          const excludedName = /(산부인과|여성의원|비뇨기과|피부과|정형외과|내과|외과|안과|치과|이비인후과|소아과|의원|병원|의료원|보건소|약국|한의원|요양원|산후조리원|모텔|호텔|숙박|사우나|찜질방|목욕탕)/i.test(name);
+          if (excludedCategory || excludedName || (!relevantName && !educationCategory)) continue;
           found.set(id, item);
         }
         if (payload?.meta?.is_end || (payload?.documents ?? []).length < 15) break;
