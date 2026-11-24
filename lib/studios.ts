@@ -188,7 +188,7 @@ export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
 /** Fetch the canonical academy row by primary key before opening its detail panel. */
 export async function fetchStudioById(studioId: string): Promise<StudioRecord | null> {
   if (!supabase) return null;
-  const columns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,kakao_channel_url,details_checked_at,details_status,source_status";
+  const columns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status";
   const { data, error } = await supabase.from("studios").select(columns)
     .eq("id", studioId).eq("is_active", true).maybeSingle();
   if (error) throw error;
