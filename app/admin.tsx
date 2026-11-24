@@ -177,6 +177,8 @@ export default function Admin() {
   const blogCandidateBusyRef=useRef(false);
   const blogCandidateOffsetRef=useRef(0);
   const [blogCandidateActionId,setBlogCandidateActionId]=useState<number|null>(null);
+  const [selectedBlogCandidateIds,setSelectedBlogCandidateIds]=useState<number[]>([]);
+  const [blogCandidateBulkBusy,setBlogCandidateBulkBusy]=useState(false);
   const [blogCandidateError,setBlogCandidateError]=useState<string|null>(null);
   const [classRows,setClassRows]=useState<any[]>([]);
   const [classEditing,setClassEditing]=useState<string|null>(null);
@@ -408,6 +410,40 @@ export default function Admin() {
     if(error)Alert.alert("후보 처리 실패",error.message);
     else{setBlogCandidates(current=>current.filter(item=>Number(item.id)!==candidateId));setBlogCandidateTotal(total=>Math.max(0,total-1));blogCandidateOffsetRef.current=Math.max(0,blogCandidateOffsetRef.current-1);setBlogCandidateOffset(offset=>Math.max(0,offset-1));if(status==="approved")Alert.alert("공식 계정 승인","공식 블로그로 등록했습니다.");}
     setBlogCandidateActionId(null);
+  };
+
+  const reviewSelectedBlogCandidates=async(status:"approved"|"rejected")=>{
+    if(!supabase||blogCandidateBulkBusy||blogCandidateActionId!==null||!selectedBlogCandidateIds.length)return;
+    const ids=[...new Set(selectedBlogCandidateIds)];
+    const label=status==="approved"?"공식 계정으로 승인":"공식 아님으로 제외";
+    Alert.alert("블로그 후보 일괄 처리",`선택한 ${ids.length}개 후보를 ${label} 처리할까요?\n처리는 순서대로 진행됩니다.`,[
+      {text:"취소",style:"cancel"},
+      {text:"실행",onPress:async()=>{
+        setBlogCandidateBulkBusy(true);
+        let completed=0;
+        let failedMessage="";
+        for(const id of ids){
+          const {error}=await supabase!.rpc("admin_review_studio_blog_account_candidate",{p_candidate_id:id,p_status:status});
+          if(error){failedMessage=error.message;break;}
+          completed++;
+        }
+        if(completed>0){
+          const completedSet=new Set(ids.slice(0,completed));
+          setBlogCandidates(current=>current.filter(item=>!completedSet.has(Number(item.id))));
+          setBlogCandidateTotal(total=>Math.max(0,total-completed));
+          blogCandidateOffsetRef.current=Math.max(0,blogCandidateOffsetRef.current-completed);
+          setBlogCandidateOffset(offset=>Math.max(0,offset-completed));
+        }
+        setSelectedBlogCandidateIds([]);
+        setBlogCandidateBulkBusy(false);
+        if(failedMessage){
+          Alert.alert("일괄 처리 일부 완료",`${completed}개 처리 완료, 중단된 항목 오류: ${failedMessage}`);
+          await loadBlogCandidates(true);
+        }else{
+          Alert.alert("일괄 처리 완료",`${completed}개 후보를 ${status==="approved"?"공식 계정으로 승인":"공식 아님으로 제외"}했습니다.`);
+        }
+      }}
+    ]);
   };
 
   const loadDashboard=useCallback(async()=>{
@@ -1760,10 +1796,31 @@ export default function Admin() {
     <Pressable onPress={()=>loadBlogCandidates(true)} disabled={blogCandidateBusy}><Text style={styles.refresh}>{blogCandidateBusy?"조회 중…":"새로고침"}</Text></Pressable>
   </View>
   <Text style={styles.hint}>전체 학원의 미승인 후보를 매칭 점수 높은 순으로 표시합니다. 승인하면 공식 블로그로 등록되고, 거절하면 후보에서 제외됩니다.</Text>
+  <View style={styles.reviewToolbar}>
+    <Pressable style={styles.toolbarButton} disabled={blogCandidateBusy||blogCandidateBulkBusy||!blogCandidates.length} onPress={()=>setSelectedBlogCandidateIds(blogCandidates.map(item=>Number(item.id)))}>
+      <Text style={styles.secondaryText}>현재 목록 전체 선택</Text>
+    </Pressable>
+    <Pressable style={styles.toolbarButton} disabled={blogCandidateBulkBusy||!selectedBlogCandidateIds.length} onPress={()=>setSelectedBlogCandidateIds([])}>
+      <Text style={styles.secondaryText}>전체 해제</Text>
+    </Pressable>
+    <Pressable style={[styles.toolbarButton,{backgroundColor:c.purple,borderColor:c.purple}]} disabled={blogCandidateBulkBusy||blogCandidateActionId!==null||!selectedBlogCandidateIds.length} onPress={()=>reviewSelectedBlogCandidates("approved")}>
+      <Text style={{color:"#fff",fontWeight:"800"}}>선택 공식 계정 승인 ({selectedBlogCandidateIds.length})</Text>
+    </Pressable>
+    <Pressable style={[styles.toolbarButton,{borderColor:"#E8C9CE"}]} disabled={blogCandidateBulkBusy||blogCandidateActionId!==null||!selectedBlogCandidateIds.length} onPress={()=>reviewSelectedBlogCandidates("rejected")}>
+      <Text style={{color:"#B95764",fontWeight:"800"}}>선택 공식 아님 ({selectedBlogCandidateIds.length})</Text>
+    </Pressable>
+  </View>
+  <Text style={styles.hint}>불러온 후보 {blogCandidates.length}개 · 선택 {selectedBlogCandidateIds.length}개 · 일괄 처리는 선택된 후보에만 적용됩니다.</Text>
   {blogCandidateError&&<Text style={styles.errorHint}>후보 조회 실패: {blogCandidateError}</Text>}
   {blogCandidateBusy&&<ActivityIndicator color={c.purple}/>}
-  {blogCandidates.map((candidate:any,index:number)=><View key={"all-blog-candidate-"+candidate.id} style={styles.evidenceCard}>
-    <View style={styles.listHead}><Text style={styles.evidenceStudio} numberOfLines={2}>#{blogCandidateOffset-blogCandidates.length+index+1} · {candidate.studio_name||"학원명 미확인"}</Text><Text style={styles.evidenceType}>{Number(candidate.match_score||0)}점</Text></View>
+  {blogCandidates.map((candidate:any,index:number)=><View key={"all-blog-candidate-"+candidate.id} style={[styles.evidenceCard,selectedBlogCandidateIds.includes(Number(candidate.id))&&{borderColor:c.purple,borderWidth:2}]}>
+    <View style={styles.listHead}>
+      <Pressable onPress={()=>setSelectedBlogCandidateIds(ids=>ids.includes(Number(candidate.id))?ids.filter(id=>id!==Number(candidate.id)):[...ids,Number(candidate.id)])} style={{flexDirection:"row",alignItems:"center",gap:7,flex:1,minWidth:0}}>
+        <Ionicons name={selectedBlogCandidateIds.includes(Number(candidate.id))?"checkbox":"square-outline"} size={22} color={c.purple}/>
+        <Text style={styles.evidenceStudio} numberOfLines={2}>#{blogCandidateOffset-blogCandidates.length+index+1} · {candidate.studio_name||"학원명 미확인"}</Text>
+      </Pressable>
+      <Text style={styles.evidenceType}>{Number(candidate.match_score||0)}점</Text>
+    </View>
     <Text style={styles.compactSecondary}>{candidate.district||candidate.address||"지역 미확인"} · 게시글 매칭 {Number(candidate.matched_post_count||0)}건</Text>
     <Text style={styles.evidenceText}>{candidate.blogger_name||"블로그명 미확인"} · {candidate.blogger_url}</Text>
     <View style={styles.rowActions}>
@@ -1772,8 +1829,8 @@ export default function Admin() {
     </View>
     <Text style={styles.compactSecondary}>최근 발견 {candidate.last_seen_at?new Date(candidate.last_seen_at).toLocaleDateString("ko-KR"):"날짜 미확인"}</Text>
     <View style={styles.buttons}>
-      <Pressable style={styles.button} disabled={blogCandidateActionId!==null} onPress={()=>reviewAllBlogCandidate(Number(candidate.id),"approved")}><Text style={styles.buttonText}>{blogCandidateActionId===Number(candidate.id)?"처리 중…":"공식 계정 승인"}</Text></Pressable>
-      <Pressable style={styles.secondary} disabled={blogCandidateActionId!==null} onPress={()=>reviewAllBlogCandidate(Number(candidate.id),"rejected")}><Text style={styles.secondaryText}>공식 아님</Text></Pressable>
+      <Pressable style={styles.button} disabled={blogCandidateActionId!==null||blogCandidateBulkBusy} onPress={()=>reviewAllBlogCandidate(Number(candidate.id),"approved")}><Text style={styles.buttonText}>{blogCandidateActionId===Number(candidate.id)?"처리 중…":"공식 계정 승인"}</Text></Pressable>
+      <Pressable style={styles.secondary} disabled={blogCandidateActionId!==null||blogCandidateBulkBusy} onPress={()=>reviewAllBlogCandidate(Number(candidate.id),"rejected")}><Text style={styles.secondaryText}>공식 아님</Text></Pressable>
     </View>
   </View>)}
   {!blogCandidates.length&&!blogCandidateBusy&&!blogCandidateError&&<Text style={styles.hint}>검토할 블로그 계정 후보가 없습니다.</Text>}
