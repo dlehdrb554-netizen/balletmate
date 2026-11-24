@@ -535,6 +535,13 @@ SELECT s.*,
 FROM public.studios s WHERE s.is_active=true;
 GRANT SELECT ON public.studio_map_search_app TO anon,authenticated;
 
+-- Recreate the source-aware view because dropping the base map view cascades to it.
+-- source_status is already part of studios.*, so do not append a duplicate column.
+CREATE OR REPLACE VIEW public.studio_map_search_app_with_source
+WITH (security_invoker=true) AS
+SELECT v.* FROM public.studio_map_search_app v;
+GRANT SELECT ON public.studio_map_search_app_with_source TO anon,authenticated,service_role;
+
 -- Remove remaining RPCs that only served the retired crawler administration panels.
 DROP FUNCTION IF EXISTS public.admin_clear_discovery_runs();
 DROP FUNCTION IF EXISTS public.admin_published_candidate_ids();
