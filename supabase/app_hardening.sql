@@ -134,7 +134,9 @@ AS $$
 DECLARE v_normalized text;
 BEGIN
   v_normalized := public.normalize_studio_district(NEW.address, NEW.district);
-  NEW.district := v_normalized;
+  -- Keep an existing district-only value when the source has no province/city;
+  -- never erase a usable location merely because its hierarchy is incomplete.
+  NEW.district := COALESCE(v_normalized, NULLIF(trim(NEW.district),''));
   RETURN NEW;
 END;
 $$;
@@ -145,8 +147,9 @@ BEFORE INSERT OR UPDATE OF address, district ON public.studios
 FOR EACH ROW EXECUTE FUNCTION public.normalize_studio_district_before_write();
 
 UPDATE public.studios
-SET district = public.normalize_studio_district(address, district)
-WHERE district IS DISTINCT FROM public.normalize_studio_district(address, district);
+SET district = COALESCE(public.normalize_studio_district(address, district), district)
+WHERE public.normalize_studio_district(address, district) IS NOT NULL
+  AND district IS DISTINCT FROM public.normalize_studio_district(address, district);
 
 -- 2) Keep homepage URL separate from Kakao place URL and NEIS source metadata.
 CREATE OR REPLACE FUNCTION public.owner_update_studio_profile(
