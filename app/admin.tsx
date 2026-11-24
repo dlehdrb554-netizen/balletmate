@@ -698,15 +698,16 @@ export default function Admin() {
 
   const reviewPhotoCandidate=async(item:any,status:"approved"|"rejected")=>{
     if(!supabase)return;
+    const client=supabase;
     const executeReview=async()=>{
       setPhotoReviewBusy(true);
       if(status==="approved"){
-        const {data:userData,error:userError}=await supabase.auth.getUser();
+        const {data:userData,error:userError}=await client.auth.getUser();
         if(userError||!userData.user){
           Alert.alert("권리 확인 실패",userError?.message||"관리자 계정을 확인할 수 없습니다.");
           setPhotoReviewBusy(false);return;
         }
-        const {error:rightsError}=await supabase.from("studio_photo_candidates").update({
+        const {error:rightsError}=await client.from("studio_photo_candidates").update({
           rights_review_status:"verified",
           rights_basis:"관리자 확인: 권리자의 사용 허락 또는 권리자가 직접 제공한 증빙 확인",
           rights_verified_at:new Date().toISOString(),
@@ -717,14 +718,14 @@ export default function Admin() {
           setPhotoReviewBusy(false);return;
         }
       }
-      const {error}=await supabase.rpc("admin_review_studio_photo_candidate",{
+      const {error}=await client.rpc("admin_review_studio_photo_candidate",{
         p_candidate_id:item.id,p_status:status
       });
       if(error)Alert.alert(status==="approved"?"사진 승인 실패":"사진 제외 실패",error.message);
       else {
         setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));setPhotoCandidateOffset(value=>Math.max(0,value-1));
         if(status==="approved"&&!["schedule","price"].includes(String(item.material_type||""))&&!["schedule","price","poster"].includes(String(item.auto_classification||""))){
-          const refreshed=await supabase.from("studios").select(studioColumns).eq("id",item.studio_id).maybeSingle();
+          const refreshed=await client.from("studios").select(studioColumns).eq("id",item.studio_id).maybeSingle();
           if(!refreshed.error&&refreshed.data){
             const studio=refreshed.data as StudioRow;
             setRows(current=>current.some(row=>row.id===studio.id)
