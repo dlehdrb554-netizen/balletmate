@@ -20,21 +20,11 @@ export type StudioRecord = {
   rating: number | null;
   description: string | null;
   phone: string | null;
-  image_urls: string[] | null;
   website_url: string | null;
-  kakao_channel_url: string | null;
-  image_source_name: string | null;
-  image_checked_at: string | null;
   source_url: string | null;
   source_name: string | null;
   source_status?: string | null;
   verified_at: string | null;
-  image_usage_note: string | null;
-  price_evidence_text: string | null;
-  schedule_evidence_text: string | null;
-  details_source_urls: string[] | null;
-  details_checked_at: string | null;
-  details_status: string | null;
   class_durations?: number[] | null;
 };
 
@@ -72,7 +62,7 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
       .lte("longitude", bounds.longitude + bounds.longitudeDelta / 2);
   };
 
-  const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,kakao_channel_url,details_checked_at,details_status,source_status";
+  const selectColumns = "id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status";
   const searchColumns = "search_days,search_time_slots,search_levels,search_class_durations,search_price,search_adult,search_kids";
   const readPages=async(query:any)=>{const collected:any[]=[];for(let offset=0;offset<2400;offset+=300){const page=await query.range(offset,offset+299);if(page.error) return {data:null,error:page.error};const values=page.data||[];collected.push(...values);if(values.length<300)break;}return {data:collected,error:null};};
   const result = await readPages(applyBounds(supabase.from("studio_map_search_app_with_source").select(selectColumns+","+searchColumns).order("name")));
@@ -83,7 +73,7 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
     if (fallback.error) {
       const legacy = await readPages(applyBounds(supabase.from("studios").select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at").eq("is_active",true).order("name")));
       if(legacy.error)throw legacy.error;
-      rows=(legacy.data??[]).map((row:any)=>({...row,image_urls:[],image_source_name:null,image_checked_at:null,image_usage_note:null,price_evidence_text:null,schedule_evidence_text:null,details_source_urls:[],kakao_channel_url:null,details_checked_at:null,details_status:null,source_status:null,class_durations:[]})) as StudioRecord[];
+      rows=(legacy.data??[]).map((row:any)=>({...row,source_status:null,class_durations:[]})) as StudioRecord[];
     } else rows=(fallback.data??[]).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
   } else {
     rows=(result.data??[]).map((row:any)=>({...row,days:[...new Set([...(row.days||[]),...(row.search_days||[])])],time_slots:[...new Set([...(row.time_slots||[]),...(row.search_time_slots||[])])],levels:[...new Set([...(row.levels||[]),...(row.search_levels||[])])],price_per_class:row.price_per_class??row.search_price??null,adult_classes:!!row.adult_classes||!!row.search_adult,kids_classes:!!row.kids_classes||!!row.search_kids,class_durations:row.search_class_durations||[]})) as StudioRecord[];
@@ -108,7 +98,7 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
   if(!supabase)return [];
   const term=query.trim().replace(/[,%()]/g," ").replace(/\s+/g," ").trim();
   if(term.length<2)return [];
-  const columns="id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,kakao_channel_url,details_checked_at,details_status,source_status";
+  const columns="id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status";
   const compact=(value:string)=>value.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
   const variants=new Set<string>([term,compact(term)]);
   if(/퀸스/.test(term)){variants.add(term.replace(/퀸스/g,"퀸즈"));variants.add(term.replace(/퀸스/g,"Queens"));variants.add("퀸즈발레");variants.add("퀸즈");}
