@@ -737,9 +737,7 @@ export default function Home() {
         .catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});
     }
   };
-  const detailPhotoItems = detailStudio ? [...new Set((detailStudio.imageUrls||[]).filter(uri=>uri.toLowerCase().startsWith("https://")))].slice(0,30).map((uri,index)=>({uri,key:"registered-"+index,url:null,label:"학원 등록 사진"})) : [];
-  const representativeStudioImage = detailPhotoItems[0] || null;
-  const evidencePhotosForSource=(storedImages:string[]|null|undefined)=>{
+    const evidencePhotosForSource=(storedImages:string[]|null|undefined)=>{
     // Only load optimized, explicitly attached material images. Do not pull full-size
     // third-party blog originals into the detail screen or its memory cache.
     return [...new Set((storedImages||[]).filter(url=>/^https:\/\//i.test(url)))].slice(0,8);
