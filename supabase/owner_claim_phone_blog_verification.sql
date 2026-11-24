@@ -1,6 +1,0 @@
--- DEPRECATED: Do not run this migration.
--- It was an earlier design that collected business registration number,
--- representative name, address and a document upload.
--- The replacement is supabase/studio_owner_privacy_minimal_claims.sql,
--- which clears legacy claim identity fields and switches to optional
--- public-phone / official social-channel / manual verification.
