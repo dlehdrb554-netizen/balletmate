@@ -73,8 +73,8 @@ Deno.serve(async(req)=>{
    }
    if(!linkedStudioId){
     const {data:byName,error:byNameError}=await db.from("studios").select("id,name").eq("is_active",true).ilike("name",query).limit(10);
-    if(byNameError)throw new Error("기존 학원 이름 조회 실패: "+byNameError.message);
-    linkedStudioId=(byName||[]).length===1?byName[0].id:null;
+    if(byNameError){status="failed";reason="기존 학원 이름 조회 실패: "+byNameError.message;chosen=null;}
+    else linkedStudioId=(byName||[]).length===1?byName[0].id:null;
    }
    if(linkedStudioId){
     const {error:linkError}=await db.from("neis_ballet_academy_candidates")
