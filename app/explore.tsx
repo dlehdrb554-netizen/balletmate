@@ -130,7 +130,7 @@ export default function Home() {
   const [blogLoading,setBlogLoading]=useState(false);
   const detailRequestId=useRef(0);
   const [detailExpanded,setDetailExpanded]=useState(false);
-  const [detailTab,setDetailTab]=useState<"home"|"notices"|"blog"|"reviews"|"photos">("home");
+  const [detailTab,setDetailTab]=useState<"home"|"notices"|"reviews">("home");
   const [detailInfoTab,setDetailInfoTab]=useState<"price"|"schedule">("price");
   const [studioReviews,setStudioReviews]=useState<any[]>([]);
   const [reviewsLoading,setReviewsLoading]=useState(false);
@@ -910,7 +910,7 @@ export default function Home() {
           <Text style={styles.detailDisclaimer}>가격과 시간표는 학원 또는 관리자에게 확인된 등록 정보만 표시합니다. 최신 여부를 확인해 주세요.</Text>
           <Pressable onPress={()=>router.push("/studio-manager?studioId="+encodeURIComponent(detailStudio.id)+"&studioName="+encodeURIComponent(detailStudio.name))} style={{marginTop:14,backgroundColor:COLORS.pale,borderRadius:10,padding:12,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>학원 관리 신청 / 정보 수정</Text></Pressable>
           {(!!detailStudio.detailsCheckedAt||(detailStudio.detailsSourceUrls||[]).length>0)&&<Text style={styles.sectionTitle}>공식 홈페이지 확인 정보</Text>}
-          {!!detailStudio.detailsCheckedAt&&<Text style={styles.photoCredit}>최근 확인: {new Date(detailStudio.detailsCheckedAt).toLocaleDateString("ko-KR")} · 원문 텍스트 자동 추출</Text>}
+          {!!detailStudio.detailsCheckedAt&&<Text style={styles.photoCredit}>최근 확인: {new Date(detailStudio.detailsCheckedAt).toLocaleDateString("ko-KR")} · 운영자 확인 정보</Text>}
           {(detailStudio.detailsSourceUrls||[]).map((url,index)=><Pressable key={url+index} onPress={()=>Linking.openURL(url).catch(()=>Alert.alert("원문 연결","페이지를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>수집 원문 {index+1} 확인 ›</Text></Pressable>)}
           <Pressable onPress={()=>setDetailTab("reviews")} style={{marginHorizontal:14,marginTop:10,padding:12,borderRadius:12,borderWidth:1,borderColor:COLORS.line,backgroundColor:COLORS.white,flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.ink}}>리뷰 {studioReviews.length}개 · 후기 확인하기</Text><Text style={styles.photoSourceLink}>리뷰 ›</Text></Pressable>{studioCoupons.length>0&&<Text style={styles.sectionTitle}>사용 가능한 쿠폰 및 할인</Text>}
           {studioCoupons.length?studioCoupons.map(coupon=><View key={coupon.id} style={styles.classBlock}><Text style={styles.classTitle}>{coupon.title}</Text>{coupon.discount_text&&<Text style={styles.classMeta}>{coupon.discount_text}</Text>}{coupon.description&&<Text style={styles.sessionText}>{coupon.description}</Text>}<Text style={styles.photoCredit}>유효 기간: {coupon.starts_at?new Date(coupon.starts_at).toLocaleDateString("ko-KR"):"시작일 제한 없음"} ~ {coupon.ends_at?new Date(coupon.ends_at).toLocaleDateString("ko-KR"):"종료일 제한 없음"}</Text></View>) :null}
