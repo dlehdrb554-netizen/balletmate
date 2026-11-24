@@ -435,7 +435,7 @@ BEGIN
   FROM pg_policies
   WHERE schemaname='public'
     AND tablename IN ('studios','classes','class_sessions','coupons',
-      'studio_public_prices','studio_public_schedules','studio_owner_notices','studio_reviews')
+      'studio_public_prices','studio_public_schedules','studio_owner_notices')
     AND cmd IN ('INSERT','UPDATE','DELETE','ALL')
     AND policyname NOT ILIKE 'admins %'
  LOOP
