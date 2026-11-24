@@ -31,7 +31,7 @@ const mapStudioRecord = (r: StudioRecord): Studio => ({
   time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),
   description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,
   websiteUrl:r.website_url||undefined,sourceUrl:r.source_url||undefined,
-   sourceName:r.source_name||undefined,sourceStatus:r.source_status||undefined,verifiedAt:r.verified_at||undefined,kakaoChannelUrl:r.kakao_channel_url||undefined,
+   sourceName:r.source_name||undefined,sourceStatus:r.source_status||undefined,verifiedAt:r.verified_at||undefined,
    classDurations:r.class_durations||[]
 });
 
