@@ -195,6 +195,7 @@ Deno.serve(async (req) => {
       .from("studio_photo_candidates")
       .select("id,studio_id,source_page_url,auto_retry_count")
       .eq("review_status", "pending")
+      .is("auto_classification", null)
       .lt("auto_retry_count", 3)
       .or("auto_classified_at.is.null,auto_classified_at.lt." + retryBefore)
       .order("created_at", { ascending: true })
