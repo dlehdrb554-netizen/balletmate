@@ -3,7 +3,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView,
+  ActivityIndicator, Animated, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View, Platform, Alert
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,7 +12,7 @@ import { fetchStudios, fetchStudioById, searchStudiosByName, searchStudiosByKaka
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
 import { searchStudiosByClassFilters, searchStudioIdsByClassName } from "../lib/class-search";
 import { fetchCouponsForStudio, StudioCoupon } from "../lib/coupons";
-import { fetchStudioBlogPosts, StudioBlogPost, fetchStudioPublicPrices, StudioPublicPrice, fetchStudioPublicSchedules, StudioPublicSchedule } from "../lib/studio-blog-content";
+import { fetchStudioPublicPrices, StudioPublicPrice, fetchStudioPublicSchedules, StudioPublicSchedule } from "../lib/studio-blog-content";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import * as Location from "expo-location";
 import KakaoMap, { KakaoMapHandle } from "../components/KakaoMap";
@@ -112,8 +112,6 @@ export default function Home() {
   const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
   const [detailCanonicalLoading,setDetailCanonicalLoading]=useState(false);
   const [detailCanonicalError,setDetailCanonicalError]=useState<string|null>(null);
-  const [detailContentError,setDetailContentError]=useState<string|null>(null);
-  const [failedStudioImageUrls,setFailedStudioImageUrls]=useState<string[]>([]);
   const [reportOpen,setReportOpen]=useState(false);
   const [reportCategory,setReportCategory]=useState("기타");
   const [reportDescription,setReportDescription]=useState("");
@@ -122,13 +120,11 @@ export default function Home() {
   const [freshnessLoading,setFreshnessLoading]=useState(false);
   const [studioClasses,setStudioClasses]=useState<StudioClass[]>([]);
   const [classesLoading,setClassesLoading]=useState(false);
-  const [studioBlogPosts,setStudioBlogPosts]=useState<StudioBlogPost[]>([]);
   const [studioPublicPrices,setStudioPublicPrices]=useState<StudioPublicPrice[]>([]);
   const [studioPublicSchedules,setStudioPublicSchedules]=useState<StudioPublicSchedule[]>([]);
   const [studioOwnerNotices,setStudioOwnerNotices]=useState<any[]>([]);
   const [evidencePhotoIndexes,setEvidencePhotoIndexes]=useState<Record<string,number>>({});
   const [studioCoupons,setStudioCoupons]=useState<StudioCoupon[]>([]);
-  const [blogLoading,setBlogLoading]=useState(false);
   const detailRequestId=useRef(0);
   const [detailExpanded,setDetailExpanded]=useState(false);
   const [detailTab,setDetailTab]=useState<"home"|"notices"|"reviews">("home");
@@ -197,16 +193,6 @@ export default function Home() {
     })();
     return()=>{active=false;};
   },[detailStudio?.id,detailTab]);
-  useEffect(()=>{
-    const studioId=detailStudio?.id;
-    if(!supabase||!studioId)return;
-    let active=true;
-    setBlogLoading(true);
-    fetchStudioBlogPosts(studioId).then(rows=>{if(active)setStudioBlogPosts(rows);})
-      .catch(error=>{console.warn("Studio blog content unavailable:",error);if(active){setStudioBlogPosts([]);setDetailContentError("블로그 자료를 불러오지 못했습니다.");}})
-      .finally(()=>{if(active)setBlogLoading(false);});
-    return()=>{active=false;};
-  },[detailStudio?.id]);
   const [compareOpen,setCompareOpen]=useState(false);
   const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
   const [favoriteStudios,setFavoriteStudios]=useState<Studio[]>([]);
@@ -738,38 +724,7 @@ export default function Home() {
         .catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});
     }
   };
-    const evidencePhotosForSource=(storedImages:string[]|null|undefined)=>{
-    // Only load optimized, explicitly attached material images. Do not pull full-size
-    // third-party blog originals into the detail screen or its memory cache.
-    return [...new Set((storedImages||[]).filter(url=>/^https:\/\//i.test(url)))].slice(0,8);
-  };
-  const cleanScheduleDisplay=(value:string)=>{
-    return String(value||"").replace(/\s*(오픈\s*예정|개강\s*예정|모집\s*예정|모집\s*중|신설\s*예정)\s*$/g,"").trim();
-  };
-    const evidencePhotoGallery=(key:string,storedImages:string[]|null|undefined)=>{
-     const photos=evidencePhotosForSource(storedImages);
-    if(!photos.length)return null;
-    const index=Math.min(evidencePhotoIndexes[key]||0,photos.length-1);
-    return <View style={{marginTop:12,padding:10,borderRadius:12,borderWidth:1,borderColor:"#E5DFF3",backgroundColor:"#FBFAFE"}}>
-      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-        <Text style={{fontSize:13,fontWeight:"800",color:"#40365D"}}>자료 사진</Text>
-        <Text style={styles.photoCredit}>{index+1} / {photos.length}장</Text>
-      </View>
-      <View style={{height:250,borderRadius:9,overflow:"hidden",backgroundColor:"#F0EDF6",justifyContent:"center",alignItems:"center"}}>
-        {failedStudioImageUrls.includes(photos[index])?<Text style={styles.filterHint}>이미지를 불러올 수 없습니다.</Text>:<Image source={{uri:photos[index]}} style={{width:"100%",height:"100%"}} resizeMode="contain" onError={()=>setFailedStudioImageUrls(current=>current.includes(photos[index])?current:[...current,photos[index]])}/>}
-      </View>
-      {photos.length>0&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,paddingTop:9}}>
-        {photos.map((url,i)=><Pressable key={url} onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:i}))} style={{width:72,height:72,borderRadius:8,overflow:"hidden",borderWidth:i===index?2:1,borderColor:i===index?COLORS.purple:"#DCD6E8",backgroundColor:"#F0EDF6"}}>
-          {failedStudioImageUrls.includes(url)?<View style={{flex:1,alignItems:"center",justifyContent:"center"}}><Text style={{fontSize:9,color:COLORS.muted}}>오류</Text></View>:<Image source={{uri:url}} style={{width:"100%",height:"100%"}} resizeMode="cover" onError={()=>setFailedStudioImageUrls(current=>current.includes(url)?current:[...current,url])}/>}
-        </Pressable>)}
-      </ScrollView>}
-      {photos.length>1&&<View style={{flexDirection:"row",justifyContent:"space-between",marginTop:8}}>
-        <Pressable onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:(index+photos.length-1)%photos.length}))} style={{paddingHorizontal:12,paddingVertical:7,borderRadius:16,backgroundColor:"#EEEAFB"}}><Text style={{fontSize:12,color:COLORS.purple,fontWeight:"800"}}>‹ 이전 사진</Text></Pressable>
-        <Pressable onPress={()=>setEvidencePhotoIndexes(current=>({...current,[key]:(index+1)%photos.length}))} style={{paddingHorizontal:12,paddingVertical:7,borderRadius:16,backgroundColor:"#EEEAFB"}}><Text style={{fontSize:12,color:COLORS.purple,fontWeight:"800"}}>다음 사진 ›</Text></Pressable>
-      </View>}
-    </View>;
-  };
-  const handleStudioImageError=useCallback((failed:string)=>{setFailedStudioImageUrls(current=>current.includes(failed)?current:[...current,failed]);},[]);
+    const cleanScheduleDisplay=(value:string)=>String(value||"").replace(/\s*(오픈\s*예정|개강\s*예정|모집\s*예정|모집\s*중|신설\s*예정)\s*$/g,"").trim();
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");const target={latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018};setPendingMapTarget(target);setRegion(target);if(!studios.some(x=>x.id===s.id)){setSearchedRegion(target);setAreaLocked(false);}}} style={[styles.studioCard,compact&&styles.compactCard]}>
     <View style={styles.cardTop}><View style={styles.studioIcon}><MaterialCommunityIcons name="human-female-dance" size={28} color={COLORS.purple}/></View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
