@@ -86,6 +86,7 @@ FOR EACH ROW EXECUTE FUNCTION public.apply_studio_review_report();
 CREATE OR REPLACE FUNCTION public.guard_studio_review_abuse()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_verified_at timestamptz;
+ v_report_count integer:=0;
 BEGIN
  IF auth.uid() IS NULL THEN
   RAISE EXCEPTION '로그인이 필요합니다.';
@@ -101,8 +102,12 @@ BEGIN
   NEW.created_at:=now();
  ELSE
   IF OLD.user_id<>auth.uid() THEN
-   IF NOT public.is_balletmate_admin() THEN RAISE EXCEPTION '본인 리뷰만 수정할 수 있습니다.'; END IF;
-   -- Admin moderation may change visibility without changing the review author/content.
+   SELECT count(DISTINCT reporter_id) INTO v_report_count
+   FROM public.studio_review_reports WHERE review_id=OLD.id;
+   IF NOT public.is_balletmate_admin() AND NOT (NEW.is_hidden=true AND v_report_count>=3) THEN
+    RAISE EXCEPTION '본인 리뷰만 수정할 수 있습니다.';
+   END IF;
+   -- Admin moderation or the report-threshold trigger may change visibility only.
    NEW.user_id:=OLD.user_id;
    NEW.studio_id:=OLD.studio_id;
    NEW.rating:=OLD.rating;
