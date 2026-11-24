@@ -91,35 +91,15 @@ Deno.serve(async(req)=>{
  let result:any;try{result=JSON.parse(raw);}catch{const match=raw.match(/\{[\s\S]*\}/);try{result=match?JSON.parse(match[0]):{};}catch{result={};}}
  const valid=["ballet_class","schedule","price","poster","logo","portrait","unrelated","unknown"];if(!valid.includes(result.category))result.category="unknown";
  result.confidence=Math.max(0,Math.min(1,Number(result.confidence)||0));result.reason=String(result.reason||"").slice(0,180);
- const keep=["ballet_class","schedule","price","poster","logo"].includes(result.category)&&result.confidence>=0.60;
  const materialType=result.category==="schedule"?"schedule":result.category==="price"?"price":result.category==="poster"||result.category==="logo"?"other":null;
  const now=new Date().toISOString();
- const {data:studio,error:studioError}=await db.from("studios").select("image_urls,image_source_name,image_usage_note").eq("id",candidate.studio_id).single();
- if(studioError)return json({error:"Classified, but studio gallery update failed: "+studioError.message},500);
- const current=Array.isArray(studio.image_urls)?studio.image_urls:[];
- if(keep){
-  // Only genuine ballet/class imagery belongs in the studio hero/gallery.
-  // Timetables and price sheets are attached to their own material records below.
-  if(result.category==="ballet_class"&&!current.includes(candidate.image_url)){
-   const {error:galleryError}=await db.from("studios").update({image_urls:[...current,candidate.image_url],image_source_name:studio.image_source_name||candidate.source_host||"AI 자동 분류",image_usage_note:studio.image_usage_note||"AI 비전 분류로 자동 연계된 사진. 출처: "+candidate.source_page_url,updated_at:now}).eq("id",candidate.studio_id);
-   if(galleryError)return json({error:"Classified and approved, but gallery update failed: "+galleryError.message},500);
-  }
-  if(materialType){
-   const table=materialType==="schedule"?"studio_public_schedules":"studio_public_prices";
-   const {data:material}=await db.from(table).select("id,image_urls").eq("studio_id",candidate.studio_id).eq("is_active",true).order("published_at",{ascending:false}).limit(1).maybeSingle();
-   if(material?.id){
-    const materialImages=Array.isArray(material.image_urls)?material.image_urls:[];
-    if(!materialImages.includes(candidate.image_url)){
-     const {error:materialError}=await db.from(table).update({image_urls:[...materialImages,candidate.image_url]}).eq("id",material.id);
-     if(materialError)return json({error:"Gallery updated but supporting material image link failed: "+materialError.message},500);
-    }
-   }
-  }
- }else if(current.includes(candidate.image_url)){
-  const {error:removeError}=await db.from("studios").update({image_urls:current.filter((u:string)=>u!==candidate.image_url),updated_at:now}).eq("id",candidate.studio_id);
-  if(removeError)return json({error:"Classified as excluded, but gallery removal failed: "+removeError.message},500);
- }
- const {error:updateError}=await db.from("studio_photo_candidates").update({auto_classification:result.category,auto_confidence:result.confidence,auto_reason:result.reason,auto_classified_at:now,material_type:materialType,review_status:keep?"approved":"rejected",reviewed_at:now,reviewed_by:userId}).eq("id",candidate.id).eq("review_status","pending");
+ // AI classification is advisory only. It must never grant publication or usage rights.
+ // Every image remains private in the review queue until a human verifies permission and approves it.
+ const {error:updateError}=await db.from("studio_photo_candidates").update({
+  auto_classification:result.category,auto_confidence:result.confidence,auto_reason:result.reason,
+  auto_classified_at:now,material_type:materialType,review_status:"pending",
+  reviewed_at:null,reviewed_by:null
+ }).eq("id",candidate.id).eq("review_status","pending");
  if(updateError)return json({error:updateError.message},500);
- return json({candidateId:candidate.id,...result,decision:keep?"published":"excluded",materialType});
+ return json({candidateId:candidate.id,...result,decision:"awaiting_human_rights_review",materialType});
 });
