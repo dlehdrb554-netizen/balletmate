@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
   let studios: any[] = [];
   if (ids.length) {
     const { data, error } = await db.from("studios")
-      .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,image_urls,website_url,image_source_name,image_checked_at,source_url,source_name,verified_at,image_usage_note,price_evidence_text,schedule_evidence_text,details_source_urls,kakao_channel_url,details_checked_at,details_status")
+      .select("id,name,latitude,longitude,district,address,tags,price_per_class,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status")
       .in("id", ids).eq("is_active", true);
     if (error) errors.push("검색 결과 조회 실패: " + error.message.slice(0, 120));
     else studios = data ?? [];
