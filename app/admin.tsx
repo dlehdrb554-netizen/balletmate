@@ -24,6 +24,7 @@ const STUDIO_PAGE_SIZE = 20;
 const STUDIO_GALLERY_LIMIT = 30;
 const parseStudioImageSlots=(value:string)=>String(value||"").includes("\n")?String(value||"").split(/\r?\n/):String(value||"").split(",");
 const parseStudioImageUrls=(value:string)=>parseStudioImageSlots(value).map(v=>v.trim()).filter(Boolean);
+const isSchool24PhotoSource=(item:any)=>{try{const url=new URL(String(item?.source_page_url||""));return url.hostname.toLowerCase().replace(/^www\./,"")==="school24.kr"&&url.pathname.toLowerCase().replace(/\/$/,"")==="/academy/a/j10-3000069628";}catch{return false;}};
 const isNeisPhotoSource=(item:any)=>{const host=String(item?.source_host||(()=>{try{return new URL(item?.source_page_url||"").hostname}catch{return ""}})()).toLowerCase();return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr");};
 const c = {ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",white:"#FFFFFF",bg:"#FBF9FF"};
 const normalizeScheduleKey=(value:string)=>String(value||"").toLowerCase().replace(/[\s·,，、|/]+/g,"").trim();
@@ -485,11 +486,11 @@ export default function Admin() {
     setPhotoReviewBusy(true);
     const {data,error,count}=await supabase.from("studio_photo_candidates")
       .select("id,studio_id,studio_name,image_url,source_page_url,source_host,created_at,material_type,auto_classification,auto_confidence,auto_reason,auto_classified_at",{count:"exact"})
-      .eq("review_status",photoCandidateStatus).not("source_host","ilike","%neis.go.kr").not("source_host","ilike","%schoolinfo.go.kr").not("source_page_url","ilike","%weseb.com/SJB/m.php%").order("created_at",{ascending:false}).order("id",{ascending:false}).range(0,11);
+      .eq("review_status",photoCandidateStatus).not("source_host","ilike","%neis.go.kr").not("source_host","ilike","%schoolinfo.go.kr").not("source_page_url","ilike","%weseb.com/SJB/m.php%").not("source_page_url","ilike","%school24.kr/academy/a/J10-3000069628%").order("created_at",{ascending:false}).order("id",{ascending:false}).range(0,11);
     if(error){
       Alert.alert("사진 검토 자료 조회 실패",error.message+"\n사진 검토 SQL이 적용됐는지 확인해 주세요.");
       setPhotoCandidateRows([]);
-    }else {const filtered=(data||[]).filter((item:any)=>!isNeisPhotoSource(item));setPhotoCandidateRows(filtered);setPhotoCandidateTotal(Math.max(0,(count??(data||[]).length)-((data||[]).length-filtered.length)));setPhotoCandidateOffset((data||[]).length);}
+    }else {const filtered=(data||[]).filter((item:any)=>!isNeisPhotoSource(item)&&!isSchool24PhotoSource(item));setPhotoCandidateRows(filtered);setPhotoCandidateTotal(Math.max(0,(count??(data||[]).length)-((data||[]).length-filtered.length)));setPhotoCandidateOffset((data||[]).length);}
     setPhotoReviewBusy(false);
   },[authorized,photoCandidateStatus]);
 
