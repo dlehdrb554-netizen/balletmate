@@ -110,8 +110,6 @@ export default function Admin() {
   const [dashboardError,setDashboardError]=useState<string|null>(null);
   const [discoveryErrorRows,setDiscoveryErrorRows]=useState<any[]>([]);
   const [discoveryDuplicateTotal,setDiscoveryDuplicateTotal]=useState(0);
-  const [retryBusy,setRetryBusy]=useState(false);
-  const [duplicatePublicScheduleCount,setDuplicatePublicScheduleCount]=useState(0);
   const [reportRows,setReportRows]=useState<any[]>([]);
   const [reportsBusy,setReportsBusy]=useState(false);
   const [reportsError,setReportsError]=useState<string|null>(null);
@@ -393,7 +391,7 @@ export default function Admin() {
     setImporting(true);
     const {error}=await supabase.from("studios").insert(payload);
     if(error)Alert.alert("일괄 등록 실패",error.message);
-    else{setCsvText("");Alert.alert("일괄 등록 완료",payload.length+"개 등록, "+skipped+"개 제외. 홈페이지가 있는 학원은 수집 대기열에 추가됐습니다.");await load();}
+    else{setCsvText("");Alert.alert("일괄 등록 완료",payload.length+"개 등록, "+skipped+"개 제외. Kakao·NEIS 및 대표 홈페이지 정보로 등록했습니다.");await load();}
     setImporting(false);
   };
   const loadClasses=useCallback(async(studioId:string)=>{
