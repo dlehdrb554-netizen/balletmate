@@ -97,12 +97,21 @@ BEGIN
   END IF;
   NEW.created_at:=now();
  ELSE
-  IF OLD.user_id<>auth.uid() THEN RAISE EXCEPTION '본인 리뷰만 수정할 수 있습니다.'; END IF;
-  IF OLD.updated_at>now()-interval '10 minutes' THEN
-   RAISE EXCEPTION '리뷰 수정은 10분 간격으로 가능합니다.';
+  IF OLD.user_id<>auth.uid() THEN
+   IF NOT public.is_balletmate_admin() THEN RAISE EXCEPTION '본인 리뷰만 수정할 수 있습니다.'; END IF;
+   -- Admin moderation may change visibility without changing the review author/content.
+   NEW.user_id:=OLD.user_id;
+   NEW.studio_id:=OLD.studio_id;
+   NEW.rating:=OLD.rating;
+   NEW.content:=OLD.content;
+   NEW.created_at:=OLD.created_at;
+  ELSE
+   IF OLD.updated_at>now()-interval '10 minutes' THEN
+    RAISE EXCEPTION '리뷰 수정은 10분 간격으로 가능합니다.';
+   END IF;
+   NEW.is_hidden:=OLD.is_hidden;
+   NEW.hidden_reason:=OLD.hidden_reason;
   END IF;
-  NEW.is_hidden:=OLD.is_hidden;
-  NEW.hidden_reason:=OLD.hidden_reason;
  END IF;
  NEW.updated_at:=now();
  SELECT verified_at INTO v_verified_at FROM public.studio_review_verifications
