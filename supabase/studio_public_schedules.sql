@@ -21,8 +21,6 @@ DROP POLICY IF EXISTS "public read active studio schedules" ON public.studio_pub
 CREATE POLICY "public read active studio schedules" ON public.studio_public_schedules FOR SELECT TO anon,authenticated USING(is_active=true AND expires_at>=CURRENT_DATE);
 DROP POLICY IF EXISTS "admins manage studio public schedules" ON public.studio_public_schedules;
 CREATE POLICY "admins manage studio public schedules" ON public.studio_public_schedules FOR ALL TO authenticated USING(public.is_balletmate_admin()) WITH CHECK(public.is_balletmate_admin());
-DROP POLICY IF EXISTS "owners manage own public schedules" ON public.studio_public_schedules;
-CREATE POLICY "owners manage own public schedules" ON public.studio_public_schedules FOR ALL TO authenticated USING(public.is_studio_owner(studio_id)) WITH CHECK(public.is_studio_owner(studio_id));
 DROP VIEW IF EXISTS public.studio_public_schedules_app CASCADE;
 CREATE VIEW public.studio_public_schedules_app WITH (security_invoker=true) AS
  SELECT id,studio_id,schedule_text,published_at,expires_at
