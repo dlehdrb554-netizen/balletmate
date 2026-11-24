@@ -1,4 +1,4 @@
--- Repair owner edit-history trigger compatibility and expose schedule image URLs.
+-- Repair owner edit-history trigger compatibility after the photo pipeline retirement.
 -- Safe to run repeatedly in Supabase SQL Editor.
 
 BEGIN;
@@ -116,8 +116,7 @@ $ballet$;
 CREATE OR REPLACE VIEW public.studio_public_schedules_app
 WITH (security_invoker = true) AS
 SELECT
-  s.id,s.studio_id,s.schedule_text,s.evidence_text,s.source_title,
-  s.source_url,s.source_post_date,s.published_at,s.expires_at,s.image_urls
+  s.id,s.studio_id,s.schedule_text,s.published_at,s.expires_at
 FROM public.studio_public_schedules s
 WHERE s.is_active=true
   AND (s.expires_at IS NULL OR s.expires_at>=CURRENT_DATE);
