@@ -46,7 +46,7 @@ create policy "members manage their own blocks" on public.community_user_blocks
 drop policy if exists "members submit community reports" on public.community_reports;
 create policy "members submit community reports" on public.community_reports
   for insert to authenticated
-  with check (reporter_id = auth.uid() and reporter_id <> coalesce(target_user_id, reporter_id));
+  with check (reporter_id = auth.uid() and (target_user_id is null or reporter_id <> target_user_id));
 
 drop policy if exists "members read own community reports" on public.community_reports;
 create policy "members read own community reports" on public.community_reports
