@@ -1,4 +1,6 @@
-# Supabase setup (free-tier-first)
+# Balletmate Supabase setup
+
+> Current setup instructions are maintained in `supabase/README.md`. Historical photo/blog crawler instructions are retired; do not deploy those workers or run their legacy migrations.
 
 ## Create the backend
 1. The Balletmate Supabase project is already created and its URL/public publishable key are configured as app defaults in `lib/supabase.ts`.
