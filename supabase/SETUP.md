@@ -34,7 +34,7 @@ Admin writes are protected by Supabase Auth and `admin_users`. Admin login in th
 After the existing `community.sql`, `admin_security.sql`, `studio_user_reports.sql`, and owner-management migrations have been applied:
 
 1. Run `account_deletion_setup.sql` to preserve owner approval audit rows when an account is deleted.
-2. Run `community_safety.sql` to enable member reporting, user blocking, admin review, and reported-content removal.
+2. Run `community_safety.sql` to enable member reporting, user blocking, admin review, reported-content removal, and mandatory terms acceptance before posts/comments.
 3. Run `studio_photo_rights_report.sql` to add the copyright/photo takedown category to studio reports.
 4. The GitHub Actions Supabase deployment workflow deploys `delete-account` and `privacy-policy` Edge Functions.
 
