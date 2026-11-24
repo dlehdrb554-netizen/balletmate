@@ -29,6 +29,7 @@ export default function Community(){
  const [title,setTitle]=useState("");
  const [body,setBody]=useState("");
  const [userId,setUserId]=useState<string|null>(null);
+ const [authorName,setAuthorName]=useState("발레메이트 회원");
  const commentRequestId=useRef(0);
 
  const postRequestId=useRef(0);
@@ -81,7 +82,7 @@ export default function Community(){
   if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목은 2자 이상, 내용은 2자 이상 입력해 주세요.");return;}
   setSubmitting(true);
   try{
-   const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:"",category:newCategory,title:title.trim(),content:body.trim()});
+   const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:body.trim()});
    if(error)throw error;
    setComposer(false);setTitle("");setBody("");setLoading(true);
    if(category!=="전체")setCategory("전체");else await loadPosts();
@@ -96,7 +97,7 @@ export default function Community(){
   if(!commentText.trim()){Alert.alert("댓글 내용","댓글을 입력해 주세요.");return;}
   setSubmitting(true);
   try{
-   const {error}=await supabase.from("community_comments").insert({post_id:selected.id,author_id:userId,author_name:"",content:commentText.trim()});
+   const {error}=await supabase.from("community_comments").insert({post_id:selected.id,author_id:userId,author_name:authorName,content:commentText.trim()});
    if(error)throw error;
    setCommentText("");await loadComments(selected.id);
    Alert.alert("등록 완료","댓글이 등록되었습니다.");
@@ -127,20 +128,20 @@ export default function Community(){
   <View style={s.header}>
    <Pressable onPress={()=>{if(selected){commentRequestId.current++;setSelected(null);setComments([]);}else router.push("/");}}><><Ionicons name="chevron-back" size={16} color={C.muted} /><Text style={s.back}>{selected?"목록":"지도"}</Text></></Pressable>
    <Text style={s.heading}>발레 커뮤니티</Text>
-   <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={()=>userId?setComposer(true):requireLogin()}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>router.push("/")}><Ionicons name="menu-outline" size={22} color={C.ink} /></Pressable></View>
+   <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={()=>userId?setComposer(true):requireLogin()}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>{if(router.canGoBack())router.back();else router.replace("/");}}><Ionicons name="menu-outline" size={22} color={C.ink} /></Pressable></View>
   </View>
   {selected?
    <ScrollView contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled">
     <View style={s.postDetail}>
      <View style={s.categoryBadge}><Text style={s.categoryText}>{selected.category}</Text></View>
      <Text style={s.postTitle}>{selected.title}</Text>
-     <Text style={s.meta}>{selected.author_name} · {timeLabel(selected.created_at)}</Text>
+     <Text style={s.meta}>{selected.author_name||"발레메이트 회원"} · {timeLabel(selected.created_at)}</Text>
      <Text style={s.postBody}>{selected.content}</Text>
      {selected.author_id===userId&&<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>게시글 삭제</Text></Pressable>}
     </View>
     <Text style={s.section}>댓글 {comments.length}</Text>
     {comments.map(comment=><View key={comment.id} style={s.comment}>
-     <View style={s.commentTop}><Text style={s.commentAuthor}>{comment.author_name}</Text><Text style={s.meta}>{timeLabel(comment.created_at)}</Text></View>
+     <View style={s.commentTop}><Text style={s.commentAuthor}>{comment.author_name||"발레메이트 회원"}</Text><Text style={s.meta}>{timeLabel(comment.created_at)}</Text></View>
      <Text style={s.commentBody}>{comment.content}</Text>
      {comment.author_id===userId&&<Pressable onPress={()=>removeComment(comment)}><Text style={s.deleteText}>삭제</Text></Pressable>}
     </View>)}
@@ -162,7 +163,7 @@ export default function Community(){
       <View style={s.postTop}><View style={s.categoryBadge}><Text style={s.categoryText}>{item.category}</Text></View><Text style={s.meta}>{timeLabel(item.created_at)}</Text></View>
       <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
       <Text style={s.preview} numberOfLines={2}>{item.content}</Text>
-      <View style={s.cardFoot}><Text style={s.author}>{item.author_name}</Text><Text style={s.openLabel}>댓글 보기 ›</Text></View>
+      <View style={s.cardFoot}><Text style={s.author}>{item.author_name||"발레메이트 회원"}</Text><Text style={s.openLabel}>댓글 보기 ›</Text></View>
      </Pressable>} ListEmptyComponent={loadError?<View><Text style={s.empty}>게시글을 불러오지 못했습니다.</Text><Pressable onPress={()=>{setLoading(true);loadPosts();}}><Text style={s.openLabel}>다시 시도</Text></Pressable></View>:<Text style={s.empty}>아직 게시글이 없습니다. 첫 추천을 남겨보세요!</Text>}/>
     }
    </>
