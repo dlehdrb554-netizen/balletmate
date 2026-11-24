@@ -12,7 +12,7 @@ do $$
 declare j record;
 begin
  for j in select jobid from cron.job
-  where jobname in ('balletmate-studio-image-crawl','balletmate-studio-discovery','balletmate-studio-website-info')
+  where jobname in ('balletmate-studio-image-crawl','balletmate-studio-discovery','balletmate-studio-website-info','balletmate-kakao-studio-discovery')
      or jobname like 'balletmate-naver-blog%'
  loop perform cron.unschedule(j.jobid); end loop;
 end $$;
