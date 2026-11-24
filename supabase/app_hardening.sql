@@ -447,6 +447,24 @@ CREATE VIEW public.studio_public_schedules_app WITH (security_invoker=true) AS
  FROM public.studio_public_schedules WHERE is_active=true AND expires_at>=CURRENT_DATE;
 GRANT SELECT ON public.studio_public_prices_app,public.studio_public_schedules_app TO anon,authenticated;
 
+-- Remove legacy non-admin write policies before applying the current owner-only rules.
+DO $policy_cleanup$
+DECLARE p record;
+BEGIN
+ FOR p IN
+  SELECT schemaname,tablename,policyname
+  FROM pg_policies
+  WHERE schemaname='public'
+    AND tablename IN ('studios','classes','class_sessions','coupons',
+      'studio_public_prices','studio_public_schedules','studio_owner_notices','studio_reviews')
+    AND cmd IN ('INSERT','UPDATE','DELETE','ALL')
+    AND policyname NOT ILIKE 'admins %'
+ LOOP
+  EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I',p.policyname,p.schemaname,p.tablename);
+ END LOOP;
+END;
+$policy_cleanup$;
+
 DROP POLICY IF EXISTS "owners manage own public prices" ON public.studio_public_prices;
 DROP POLICY IF EXISTS "owners insert own public prices" ON public.studio_public_prices;
 DROP POLICY IF EXISTS "owners update own public prices" ON public.studio_public_prices;
@@ -537,6 +555,17 @@ END;
 $ballet_admin_stats$;
 REVOKE ALL ON FUNCTION public.balletmate_admin_dashboard_stats() FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.balletmate_admin_dashboard_stats() TO authenticated;
+
+DROP POLICY IF EXISTS "owners manage own studio notices" ON public.studio_owner_notices;
+DROP POLICY IF EXISTS "owners insert own studio notices" ON public.studio_owner_notices;
+DROP POLICY IF EXISTS "owners update own studio notices" ON public.studio_owner_notices;
+DROP POLICY IF EXISTS "owners delete own studio notices" ON public.studio_owner_notices;
+CREATE POLICY "owners insert own studio notices" ON public.studio_owner_notices FOR INSERT TO authenticated
+ WITH CHECK(public.is_studio_owner(studio_id) AND created_by=auth.uid());
+CREATE POLICY "owners update own studio notices" ON public.studio_owner_notices FOR UPDATE TO authenticated
+ USING(public.is_studio_owner(studio_id)) WITH CHECK(public.is_studio_owner(studio_id));
+CREATE POLICY "owners delete own studio notices" ON public.studio_owner_notices FOR DELETE TO authenticated
+ USING(public.is_studio_owner(studio_id));
 
 -- 5) Owners can manage only classes, sessions and coupons belonging to their own academy.
 DROP POLICY IF EXISTS "owners manage own classes" ON public.classes;
