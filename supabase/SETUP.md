@@ -29,6 +29,26 @@ The schema intentionally defaults studio/class/coupon records to inactive. A stu
 
 Admin writes are protected by Supabase Auth and `admin_users`. Admin login in the app uses a username, not an email. Create the auth user with an internal alias email in the format `<username>@balletmate.app` (e.g. `balletadmin@balletmate.app`) and set a password; this alias is not intended to receive mail. Then insert the user's UUID into `public.admin_users` from SQL Editor. User-facing app browsing remains available without signing in; optional user accounts are separate from admin access. To enable account favorites, run (or re-run) `optional_accounts.sql`. It creates the private favorites table and legacy username profile trigger. New member registration uses Google and Kakao OAuth; after running `optional_accounts.sql`, run `social_auth_profiles.sql` so OAuth users receive a private generated profile username without asking them to create an ID. In Supabase Authentication settings, enable public sign-ups. Email confirmation is not required for OAuth users. Keep the old username/password login available for existing accounts and administrators. To enable the community, also run `community.sql`; it creates public-read discussion boards with member-only posting and comments, plus a database-enforced 30-second cooldown shared across posts and comments. Keep source URLs and source names for provenance, and verify details before publication. Do not bulk-copy sites or use scraping without checking the source's terms, privacy rules, and permission.
 
+## Google Play account deletion and community safety
+
+After the existing `community.sql`, `admin_security.sql`, `studio_user_reports.sql`, and owner-management migrations have been applied:
+
+1. Run `account_deletion_setup.sql` to preserve owner approval audit rows when an account is deleted.
+2. Run `community_safety.sql` to enable member reporting, user blocking, admin review, and reported-content removal.
+3. Run `studio_photo_rights_report.sql` to add the copyright/photo takedown category to studio reports.
+4. The GitHub Actions Supabase deployment workflow deploys `delete-account` and `privacy-policy` Edge Functions.
+
+Set these Edge Function secrets in Supabase Dashboard > Edge Functions > Secrets:
+- `ACCOUNT_DELETION_CONTACT_EMAIL`: monitored privacy/account deletion request email.
+- `PRIVACY_POLICY_OPERATOR_NAME`: actual developer/operator display name.
+- `PRIVACY_POLICY_DATA_REGION`: actual Supabase project region.
+
+Public URLs after deployment:
+- Privacy policy: `https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/privacy-policy`
+- External account deletion request: `https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/delete-account`
+
+Do not submit to Google Play until the contact email, operator name, project region, effective date, and external deletion flow are configured and tested. Complete the Data safety form against the actual deployed data flows. See `PLAY_STORE_RELEASE_CHECKLIST.md`.
+
 ## Studio intake, autonomous discovery and photo collection
 - Run `studio_intake.sql` after the base schema. It creates the crawl queue, image metadata columns and Storage bucket/policies.
 - Run `studio_discovery.sql` after `studio_intake.sql`. It creates a rotating 65-region search cursor, deduplication RPC, and discovery run log.
