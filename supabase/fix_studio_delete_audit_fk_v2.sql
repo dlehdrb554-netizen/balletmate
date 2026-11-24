@@ -58,7 +58,7 @@ BEGIN
     'website_url',NEW.website_url ,'description',NEW.description);
    IF TG_OP='UPDATE' THEN
     v_old:=jsonb_build_object('name',OLD.name,'district',OLD.district,'address',OLD.address,'phone',OLD.phone,
-     'website_url',OLD.website_url,'description',OLD.description,'image_urls',OLD.image_urls);
+     'website_url',OLD.website_url,'description',OLD.description);
    END IF;
   END IF;
  ELSIF TG_TABLE_NAME IN ('studio_public_prices','studio_public_schedules','studio_owner_notices') THEN
