@@ -12,8 +12,9 @@ BEGIN
       'balletmate-studio-image-crawl','balletmate-studio-discovery',
       'balletmate-studio-website-info','balletmate-naver-blog-post-crawl'
     )
-    OR jobname LIKE 'balletmate-naver-blog%'
+    OR jobname ILIKE '%photo%' OR jobname ILIKE '%vision%' OR jobname ILIKE '%image%' OR jobname ILIKE '%blog%'
     OR command ILIKE '%/functions/v1/crawl-studio%'
+    OR command ILIKE '%/functions/v1/classify-studio-photo%'
     OR command ILIKE '%/functions/v1/search-studio-blogs%'
   LOOP
     PERFORM cron.unschedule(j.jobid);
