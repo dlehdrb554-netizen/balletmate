@@ -112,6 +112,7 @@ AS $$
 DECLARE
   candidate public.studio_photo_candidates%ROWTYPE;
   current_images text[];
+  routed_rows integer;
 BEGIN
   IF NOT public.is_balletmate_admin() THEN
     RAISE EXCEPTION 'admin access required' USING ERRCODE = '42501';
@@ -157,9 +158,11 @@ BEGIN
     WHERE sp.id = (
       SELECT sps.id FROM public.studio_public_schedules AS sps
       WHERE sps.studio_id = candidate.studio_id AND sps.is_active = true
-      ORDER BY sps.published_at DESC NULLS LAST, sps.id DESC LIMIT 1
+      ORDER BY (sps.source_url = candidate.source_page_url) DESC, sps.published_at DESC NULLS LAST, sps.id DESC LIMIT 1
     )
     AND (candidate.image_url = ANY(COALESCE(sp.image_urls, ARRAY[]::text[])) OR cardinality(COALESCE(sp.image_urls, ARRAY[]::text[])) < 8);
+    GET DIAGNOSTICS routed_rows = ROW_COUNT;
+    IF routed_rows = 0 THEN RAISE EXCEPTION '시간표 이미지 대상 자료가 없습니다. 먼저 해당 시간표를 공개해 주세요.'; END IF;
   ELSIF p_status = 'approved' AND (candidate.material_type = 'price' OR candidate.auto_classification = 'price') THEN
     UPDATE public.studio_public_prices AS pp
     SET image_urls = CASE
@@ -168,9 +171,11 @@ BEGIN
     WHERE pp.id = (
       SELECT spp.id FROM public.studio_public_prices AS spp
       WHERE spp.studio_id = candidate.studio_id AND spp.is_active = true
-      ORDER BY spp.published_at DESC NULLS LAST, spp.id DESC LIMIT 1
+      ORDER BY (spp.source_url = candidate.source_page_url) DESC, spp.published_at DESC NULLS LAST, spp.id DESC LIMIT 1
     )
     AND (candidate.image_url = ANY(COALESCE(pp.image_urls, ARRAY[]::text[])) OR cardinality(COALESCE(pp.image_urls, ARRAY[]::text[])) < 8);
+    GET DIAGNOSTICS routed_rows = ROW_COUNT;
+    IF routed_rows = 0 THEN RAISE EXCEPTION '가격 이미지 대상 자료가 없습니다. 먼저 해당 가격표를 공개해 주세요.'; END IF;
   END IF;
 
   UPDATE public.studio_photo_candidates AS c
