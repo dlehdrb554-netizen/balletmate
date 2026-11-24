@@ -598,11 +598,11 @@ export default function Home() {
     setMapSettingsOpen(true);
   };
 
-  const retryDetailRequest=async<T,>(task:()=>Promise<T>,attempts=2):Promise<T>=>{
+  const retryDetailRequest=async<T,>(task:()=>Promise<T>,attempts=3):Promise<T>=>{
     let lastError:any=null;
     for(let attempt=0;attempt<attempts;attempt++){
       try{return await task();}
-      catch(error:any){lastError=error;if(attempt+1<attempts)await new Promise(resolve=>setTimeout(resolve,400));}
+      catch(error:any){lastError=error;if(attempt+1<attempts)await new Promise(resolve=>setTimeout(resolve,650*(attempt+1)));}
     }
     throw lastError;
   };
@@ -651,16 +651,19 @@ export default function Home() {
         .catch(error=>{console.warn("Studio notices unavailable:",error);if(requestId===detailRequestId.current)setStudioOwnerNotices([]);});
       (async()=>{
         let lastError:any=null;
-        for(let attempt=0;attempt<2;attempt++){
+        for(let attempt=0;attempt<3;attempt++){
           try{
-            const row=await fetchStudioById(s.id);
+            const row=await Promise.race([
+              fetchStudioById(s.id),
+              new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error("상세정보 조회 시간 초과")),12000))
+            ]);
             if(requestId!==detailRequestId.current)return;
             if(row){setDetailStudio(mapStudioRecord(row));setDetailCanonicalError(null);}
             else setDetailCanonicalError("학원 정보를 찾지 못했습니다. 다시 시도해 주세요.");
             return;
           }catch(error:any){
             lastError=error;
-            if(attempt===0)await new Promise(resolve=>setTimeout(resolve,450));
+            if(attempt<2)await new Promise(resolve=>setTimeout(resolve,700*(attempt+1)));
           }
         }
         if(requestId===detailRequestId.current){
