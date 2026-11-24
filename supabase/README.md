@@ -30,13 +30,15 @@ Run the base schema and feature setup scripts in dependency order:
 2. `community.sql`, `community_safety.sql`, `community_post_update_security.sql`
 3. `studio_discovery.sql`, `studio_intake.sql`
 4. `neis_ballet_discovery.sql`, `neis_ballet_pipeline_upgrade.sql`, `neis_ballet_candidate_matching.sql`, `neis_only_geocoding_upgrade.sql`, `neis_source_status_map_fix.sql`
-5. `studio_map_search_app.sql`, `studio_public_prices.sql`, `studio_public_schedules.sql`
+5. `studio_public_prices.sql`, `studio_public_schedules.sql`
 6. `studio_owner_claim_and_management.sql`, `studio_owner_privacy_minimal_claims.sql`
 7. `studio_reviews.sql`, `studio_user_reports.sql`, `studio_report_resolution.sql`
 8. `studio_regional_search_and_review_rank.sql`, `class_filter_indexes.sql`
-9. `simplify_data_sources.sql`, `app_hardening.sql`, `admin_dashboard_stats.sql`, `admin_sequence_permissions.sql`, `crawl_scheduler.sql`
+9. `simplify_data_sources.sql`, `app_hardening.sql`, `fix_studio_delete_audit_fk_v2.sql`, `admin_sequence_permissions.sql`, `crawl_scheduler.sql`
 
 Other retained scripts are targeted fixes or optional account/privacy setup; do not run them unless their feature is being configured.
+
+`app_hardening.sql` also tests representative address cases (Seoul, Busan, Gyeonggi, Jeju) and normalizes the stored region into province → city → district. Kakao/NEIS source URLs remain provenance only; `website_url` is the single public homepage field for a standalone site, Naver Blog, or Instagram.
 
 ## Active Edge Functions
 
