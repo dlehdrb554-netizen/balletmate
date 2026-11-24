@@ -425,18 +425,6 @@ export default function Admin() {
   };
 
   const loadMoreStudios=async()=>{
-    if(!supabase||busy)return;setBusy(true);
-    try{const result=await readAllRows(()=>supabase!.from("studios").select(studioColumns).eq("ballet_review_status",status).order("name").order("id"));if(result.error)throw result.error;setRows((result.data||[]) as StudioRow[]);setStudioDbOffset((result.data||[]).length);setStudioHasMore(false);setStudioVisibleLimit(10000);}
-    catch(error:any){Alert.alert("발레 관련성 목록 조회 실패",error?.message||"목록을 불러오지 못했습니다.");}
-    finally{setBusy(false);}
-  };
-  const setBalletReview=async(row:StudioRow,status:"verified"|"excluded")=>{
-    if(!supabase||busy)return;
-    const apply=async()=>{setBusy(true);try{const update=status==="excluded"?{ballet_review_status:status,is_active:false}:{ballet_review_status:status};const {error}=await supabase!.from("studios").update(update).eq("id",row.id);if(error)throw error;setRows(current=>current.map(item=>item.id===row.id?{...item,...update}:item));Alert.alert("분류 완료",status==="verified"?"발레 수업 운영 학원으로 확인했습니다.":"발레 수업 미확인으로 분류하고 공개를 중지했습니다.");}catch(error:any){Alert.alert("분류 실패",error?.message||"분류를 저장하지 못했습니다.");}finally{setBusy(false);}};
-    if(status==="excluded")Alert.alert("발레학원 제외",row.name+"을(를) 발레학원 목록에서 제외하고 앱 공개를 중지할까요?",[{text:"취소",style:"cancel"},{text:"제외",style:"destructive",onPress:apply}]);else await apply();
-  };
-
-  const loadMoreStudios=async()=>{
     if(!supabase||busy||!studioHasMore)return;
     setBusy(true);
     try{
