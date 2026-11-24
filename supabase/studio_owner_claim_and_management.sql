@@ -242,6 +242,7 @@ RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
 AS $ballet_fn$
+DECLARE v_host text;
 BEGIN
   IF NOT public.is_studio_owner(p_studio_id) THEN
     RAISE EXCEPTION '승인된 학원 관리자만 기본 정보를 수정할 수 있습니다.';
@@ -249,8 +250,28 @@ BEGIN
   IF length(trim(coalesce(p_name,''))) NOT BETWEEN 2 AND 100 THEN
     RAISE EXCEPTION '학원명은 2~100자로 입력하세요.';
   END IF;
-  IF coalesce(p_website_url,'')<>'' AND p_website_url !~ '^https?://' THEN
-    RAISE EXCEPTION '홈페이지 주소는 http:// 또는 https://로 시작해야 합니다.';
+  IF nullif(trim(coalesce(p_website_url,'')),'') IS NOT NULL THEN
+    IF trim(p_website_url) !~* '^https://[^[:space:]]+
+  UPDATE public.studios SET
+    name=trim(p_name),
+    district=nullif(trim(coalesce(p_district,'')),''),
+    address=nullif(trim(coalesce(p_address,'')),''),
+    phone=nullif(trim(coalesce(p_phone,'')),''),
+    website_url=nullif(trim(coalesce(p_website_url,'')),''),
+    description=nullif(trim(coalesce(p_description,'')),''),
+    updated_at=now()
+  WHERE id=p_studio_id;
+END;
+$ballet_fn$; THEN
+      RAISE EXCEPTION '대표 홈페이지는 HTTPS 주소를 입력하세요.';
+    END IF;
+    v_host:=lower(split_part(split_part(trim(p_website_url),'://',2),'/',1));
+    v_host:=regexp_replace(v_host,'^www[.]','');
+    IF v_host IN ('neis.go.kr','schoolinfo.go.kr','kakao.com','place.map.kakao.com')
+       OR v_host LIKE '%.neis.go.kr' OR v_host LIKE '%.schoolinfo.go.kr'
+       OR v_host LIKE '%.kakao.com' THEN
+      RAISE EXCEPTION 'NEIS·카카오 주소는 대표 홈페이지에 등록할 수 없습니다.';
+    END IF;
   END IF;
   UPDATE public.studios SET
     name=trim(p_name),
