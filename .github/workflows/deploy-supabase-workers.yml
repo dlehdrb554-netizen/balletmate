@@ -75,3 +75,6 @@ jobs:
 
       - name: Deploy account deletion endpoint
         run: supabase functions deploy delete-account --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+
+      - name: Deploy public privacy policy
+        run: supabase functions deploy privacy-policy --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
