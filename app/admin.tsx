@@ -698,33 +698,58 @@ export default function Admin() {
 
   const reviewPhotoCandidate=async(item:any,status:"approved"|"rejected")=>{
     if(!supabase)return;
-    setPhotoReviewBusy(true);
-    const {error}=await supabase.rpc("admin_review_studio_photo_candidate",{
-      p_candidate_id:item.id,p_status:status
-    });
-    if(error)Alert.alert(status==="approved"?"사진 승인 실패":"사진 제외 실패",error.message);
-    else {
-      setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));setPhotoCandidateOffset(value=>Math.max(0,value-1));
-      if(status==="approved"&&!["schedule","price"].includes(String(item.material_type||""))&&!["schedule","price","poster"].includes(String(item.auto_classification||""))){
-        // Refresh the studio row from the database so approvals also appear when
-        // the studio was outside the current paginated admin list.
-        const refreshed=await supabase.from("studios").select(studioColumns).eq("id",item.studio_id).maybeSingle();
-        if(!refreshed.error&&refreshed.data){
-          const studio=refreshed.data as StudioRow;
-          setRows(current=>current.some(row=>row.id===studio.id)
-            ?current.map(row=>row.id===studio.id?studio:row)
-            :[studio,...current]);
-        }else{
-          setRows(current=>current.map(row=>row.id===item.studio_id
-            ?{...row,image_urls:[...(row.image_urls||[]),item.image_url].filter((url,index,all)=>all.indexOf(url)===index).slice(0,30),
-              image_source_name:row.image_source_name||item.source_host}
-            :row));
+    const executeReview=async()=>{
+      setPhotoReviewBusy(true);
+      if(status==="approved"){
+        const {data:userData,error:userError}=await supabase.auth.getUser();
+        if(userError||!userData.user){
+          Alert.alert("권리 확인 실패",userError?.message||"관리자 계정을 확인할 수 없습니다.");
+          setPhotoReviewBusy(false);return;
+        }
+        const {error:rightsError}=await supabase.from("studio_photo_candidates").update({
+          rights_review_status:"verified",
+          rights_basis:"관리자 확인: 권리자의 사용 허락 또는 권리자가 직접 제공한 증빙 확인",
+          rights_verified_at:new Date().toISOString(),
+          rights_verified_by:userData.user.id
+        }).eq("id",item.id).eq("review_status","pending");
+        if(rightsError){
+          Alert.alert("권리 확인 저장 실패",rightsError.message+"\n저작권 확인 SQL을 먼저 적용해 주세요.");
+          setPhotoReviewBusy(false);return;
         }
       }
+      const {error}=await supabase.rpc("admin_review_studio_photo_candidate",{
+        p_candidate_id:item.id,p_status:status
+      });
+      if(error)Alert.alert(status==="approved"?"사진 승인 실패":"사진 제외 실패",error.message);
+      else {
+        setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));setPhotoCandidateOffset(value=>Math.max(0,value-1));
+        if(status==="approved"&&!["schedule","price"].includes(String(item.material_type||""))&&!["schedule","price","poster"].includes(String(item.auto_classification||""))){
+          const refreshed=await supabase.from("studios").select(studioColumns).eq("id",item.studio_id).maybeSingle();
+          if(!refreshed.error&&refreshed.data){
+            const studio=refreshed.data as StudioRow;
+            setRows(current=>current.some(row=>row.id===studio.id)
+              ?current.map(row=>row.id===studio.id?studio:row)
+              :[studio,...current]);
+          }else{
+            setRows(current=>current.map(row=>row.id===item.studio_id
+              ?{...row,image_urls:[...(row.image_urls||[]),item.image_url].filter((url,index,all)=>all.indexOf(url)===index).slice(0,30),
+                image_source_name:row.image_source_name||item.source_host}
+              :row));
+          }
+        }
+      }
+      setPhotoReviewBusy(false);
+    };
+    if(status==="approved"){
+      Alert.alert(
+        "사진 사용 권리 확인",
+        "이 사진의 저작권자 또는 정당한 권리자로부터 발레메이트 내 공개·이용에 대한 명시적 허락을 받았거나, 권리자가 직접 제공한 자료임을 증빙으로 확인했습니까?\n\n공식 블로그에 게시되어 있다는 사실이나 AI 분류 결과만으로는 승인할 수 없습니다.",
+        [{text:"취소",style:"cancel"},{text:"권리 확인 후 승인",onPress:()=>{void executeReview();}}],
+      );
+    }else{
+      await executeReview();
     }
-    setPhotoReviewBusy(false);
   };
-
   const deletePhotoCandidate=async(item:any)=>{
     if(!supabase)return;
     const isApproved=photoCandidateStatus==="approved";
@@ -1873,7 +1898,7 @@ export default function Admin() {
     </View>
     <View style={styles.photoReviewActions}>
       {photoCandidateStatus==="pending"&&<>
-        <Pressable style={styles.photoReviewApprove} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.photoReviewApproveText}>대표 사진으로 추가</Text></Pressable>
+        <Pressable style={styles.photoReviewApprove} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>reviewPhotoCandidate(item,"approved")}><Text style={styles.photoReviewApproveText}>권리 확인 후 공개 승인</Text></Pressable>
         <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>reviewPhotoCandidate(item,"rejected")}><Text style={styles.photoReviewRejectText}>사진 제외</Text></Pressable>
         <Pressable style={styles.photoReviewReject} disabled={photoReviewBusy||photoAutoScanBusy} onPress={()=>classifyPhotoCandidateAI(item)}><Text style={styles.photoReviewRejectText}>AI 재분석</Text></Pressable>
       </>}
