@@ -849,7 +849,7 @@ export default function Home() {
           <Text style={styles.sectionTitle}>대표 이미지</Text>
           {representativeStudioImage?
             <><Pressable onPress={()=>{if(representativeStudioImage.url)Linking.openURL(representativeStudioImage.url).catch(()=>Alert.alert("사진 출처","원문을 열 수 없습니다."));}}><Image source={{uri:representativeStudioImage.uri}} style={[styles.studioPhoto,{width:"100%",height:210,backgroundColor:"#F8F6FB"}]} resizeMode="contain"/></Pressable>
-            <Text style={styles.photoCredit}>학원 관리자가 등록한 사진</Text>
+            <Text style={styles.photoCredit}>학원 관리자가 등록한 사진</Text>{!!detailStudio.sourceUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.sourceUrl!).catch(()=>Alert.alert("출처 연결","출처 페이지를 열 수 없습니다."))} style={{alignSelf:"flex-start",paddingVertical:5}}><Text style={styles.photoSourceLink}>정보 원문 확인 ›</Text></Pressable>}
             <Pressable onPress={()=>setDetailTab("photos")} style={{alignSelf:"flex-end",paddingVertical:6,paddingHorizontal:8}}><Text style={styles.photoSourceLink}>사진 {detailPhotoItems.length}장 모두 보기 ›</Text></Pressable></>
             :<View style={styles.photoEmpty}><Text style={styles.filterHint}>확인된 대표 이미지가 아직 없습니다.</Text>{detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}</View>}
           
@@ -878,7 +878,7 @@ export default function Home() {
           <View style={styles.infoRow}><Text style={styles.infoLabel}>전화</Text><Text style={styles.infoValue}>{detailStudio.phone||"미등록"}</Text></View>
           {detailStudio.phone&&<Pressable style={styles.detailBtn} onPress={()=>Linking.openURL("tel:"+detailStudio.phone).catch(()=>Alert.alert("전화 연결","전화 앱을 열 수 없습니다."))}><Text style={styles.detailBtnText}>전화 문의 · {detailStudio.phone}</Text></Pressable>}
           <Text style={styles.detailDisclaimer}>가격과 시간표는 학원 또는 관리자에게 확인된 등록 정보만 표시합니다. 최신 여부를 확인해 주세요.</Text>
-          <Pressable onPress={()=>router.push("/studio-manager?studioId="+encodeURIComponent(detailStudio.id)+"&studioName="+encodeURIComponent(detailStudio.name))} style={{marginTop:14,backgroundColor:COLORS.pale,borderRadius:10,padding:12,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>학원 관리 신청 / 정보 수정</Text></Pressable>{!!detailStudio.sourceUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.sourceUrl!).catch(()=>Alert.alert("출처 연결","출처 페이지를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>정보 원문 확인 ›</Text></Pressable>}
+          <Pressable onPress={()=>router.push("/studio-manager?studioId="+encodeURIComponent(detailStudio.id)+"&studioName="+encodeURIComponent(detailStudio.name))} style={{marginTop:14,backgroundColor:COLORS.pale,borderRadius:10,padding:12,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>학원 관리 신청 / 정보 수정</Text></Pressable>
           {(!!detailStudio.detailsCheckedAt||(detailStudio.detailsSourceUrls||[]).length>0)&&<Text style={styles.sectionTitle}>공식 홈페이지 확인 정보</Text>}
           {!!detailStudio.detailsCheckedAt&&<Text style={styles.photoCredit}>최근 확인: {new Date(detailStudio.detailsCheckedAt).toLocaleDateString("ko-KR")} · 원문 텍스트 자동 추출</Text>}
           {(detailStudio.detailsSourceUrls||[]).map((url,index)=><Pressable key={url+index} onPress={()=>Linking.openURL(url).catch(()=>Alert.alert("원문 연결","페이지를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>수집 원문 {index+1} 확인 ›</Text></Pressable>)}
