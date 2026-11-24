@@ -5,6 +5,20 @@ const json = (body: unknown, status = 200) =>
 
 const normalize = (value: string) => value.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_./-]/g, "");
 
+function kakaoDistrict(address: string | null | undefined): string {
+ const parts=String(address||"").trim().split(/\s+/).filter(Boolean);
+ if(parts.length<2)return "기타";
+ const first=parts[0].replace(/특별자치시|특별자치도|특별시|광역시|자치시|자치도/g,"");
+ const metro=new Set(["서울","부산","대구","인천","광주","대전","울산"]);
+ if(metro.has(first)){
+  const second=parts[1];
+  return /구$|군$/.test(second)?first+" "+second:first;
+ }
+ if(first==="세종")return "세종";
+ if(parts.length>=3&&/(구|군)$/.test(parts[2]))return parts[1]+" "+parts[2];
+ return parts[1];
+}
+
 function queryVariants(raw: string): string[] {
   const values = new Set<string>([raw]);
   const compact = raw.replace(/\s+/g, "");
@@ -116,7 +130,7 @@ Deno.serve(async (req) => {
     const name = String(item.place_name).trim();
     const lat = Number(item.y), lng = Number(item.x);
     const address = String(item.road_address_name || item.address_name || "").trim() || null;
-    const region = address ? address.split(/\s+/).slice(0, 2).join(" ") : "카카오 검색";
+    const region = kakaoDistrict(address);
     const { data, error } = await db.rpc("register_discovered_studio", {
       p_name: name, p_latitude: lat, p_longitude: lng, p_address: address,
       p_phone: item.phone || null, p_place_url: item.place_url || null, p_region: region,
