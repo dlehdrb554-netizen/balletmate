@@ -531,7 +531,7 @@ BEGIN
  ) INTO result;
  RETURN result;
 END;
-$;
+$ballet_admin_stats$;
 REVOKE ALL ON FUNCTION public.balletmate_admin_dashboard_stats() FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.balletmate_admin_dashboard_stats() TO authenticated;
 
