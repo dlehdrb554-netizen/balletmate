@@ -53,7 +53,7 @@ const PROVINCE_ALIASES:Record<string,string>={
 };
 const METRO_PROVINCES=["서울시","부산시","대구시","인천시","광주시","대전시","울산시"];
 const parseArea=(area:string)=>{
- const parts=String(area||"").trim().split(/\\s+/).filter(Boolean);
+ const parts=String(area||"").trim().split(/\s+/).filter(Boolean);
  const first=parts[0]||"",province=PROVINCE_ALIASES[first]||first;
  if(!PROVINCES.includes(province))return {province:"기타",city:"",detail:""};
  if(METRO_PROVINCES.includes(province)){
@@ -68,7 +68,7 @@ const parseArea=(area:string)=>{
 };
 const canonicalArea=(area:string)=>{
  const parsed=parseArea(area);
- if(parsed.province==="기타")return String(area||"").trim().replace(/\\s+/g," ");
+ if(parsed.province==="기타")return String(area||"").trim().replace(/\s+/g," ");
  return [parsed.province,parsed.city,parsed.detail].filter(Boolean).join(" ");
 };
 
