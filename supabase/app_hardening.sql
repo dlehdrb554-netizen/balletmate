@@ -354,6 +354,21 @@ DROP POLICY IF EXISTS "admins delete studio photos" ON storage.objects;
 DROP POLICY IF EXISTS "owners delete own studio photos" ON storage.objects;
 UPDATE storage.buckets SET public=false WHERE id='studio-photos';
 
+DO $retired_storage_policies$
+DECLARE p record;
+BEGIN
+ FOR p IN
+  SELECT policyname FROM pg_policies
+  WHERE schemaname='storage' AND tablename='objects'
+    AND (policyname ILIKE '%studio%photo%' OR policyname ILIKE '%studio%image%'
+      OR policyname ILIKE '%photo%crawl%' OR policyname ILIKE '%photo%candidate%')
+ LOOP
+  EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects',p.policyname);
+ END LOOP;
+END;
+$retired_storage_policies$;
+
+
 DO $retired_pipeline$
 DECLARE item record;
 BEGIN
@@ -364,15 +379,17 @@ BEGIN
       AND (p.proname ILIKE '%studio_photo%'
         OR p.proname ILIKE '%studio_gallery_photo%'
         OR p.proname ILIKE '%studio_image_crawl%'
-        OR p.proname ILIKE '%studio_blog%'
-        OR p.proname ILIKE 'blog_%')
+        OR p.proname ILIKE '%blog%'
+        OR p.proname ILIKE '%photo%'
+        OR p.proname ILIKE '%evidence%'
+        OR p.proname ILIKE '%image_crawl%')
   LOOP
     EXECUTE 'DROP FUNCTION IF EXISTS '||item.signature||' CASCADE';
   END LOOP;
 
   FOR item IN
     SELECT tablename FROM pg_tables
-    WHERE schemaname='public' AND tablename LIKE 'studio_blog_%'
+    WHERE schemaname='public' AND (tablename LIKE 'studio_blog_%' OR tablename LIKE 'blog_%' OR tablename LIKE '%studio_photo%' OR tablename LIKE '%image_crawl%' OR tablename LIKE '%evidence_candidate%')
   LOOP
     EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE',item.tablename);
   END LOOP;
