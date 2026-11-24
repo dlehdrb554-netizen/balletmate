@@ -79,6 +79,13 @@ Deno.serve(async(req)=>{
    const {error:linkError}=await db.from("neis_ballet_academy_candidates")
     .update({matched_studio_id:linkedStudioId,review_status:"matched"}).eq("id",c.id);
    if(linkError){status="failed";reason="매칭 연결 저장 실패: "+linkError.message;chosen=null;linkedStudioId=null;}
+   if(status==="matched"&&linkedStudioId){
+    // Preserve the existing internal matched/verified marker without changing Kakao-owned fields.
+    const {error:studioFlagError}=await db.from("studios")
+     .update({source_status:"both",neis_candidate_id:c.id,updated_at:new Date().toISOString()})
+     .eq("id",linkedStudioId);
+    if(studioFlagError){status="failed";reason="기존 학원 매칭 상태 저장 실패: "+studioFlagError.message;chosen=null;linkedStudioId=null;}
+   }
   }
 
   const update={kakao_status:status,kakao_place_id:chosen?String(chosen.id):null,kakao_name:chosen?.place_name||null,
