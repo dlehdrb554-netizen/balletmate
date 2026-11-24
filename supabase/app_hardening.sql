@@ -370,6 +370,38 @@ BEGIN
 END;
 $retired_pipeline$;
 
+-- Published price and timetable records are now maintained directly by academy owners.
+DROP VIEW IF EXISTS public.studio_public_prices_app CASCADE;
+DROP VIEW IF EXISTS public.studio_public_schedules_app CASCADE;
+ALTER TABLE public.studio_public_prices
+  DROP COLUMN IF EXISTS candidate_id,
+  DROP COLUMN IF EXISTS evidence_text,
+  DROP COLUMN IF EXISTS source_title,
+  DROP COLUMN IF EXISTS source_url,
+  DROP COLUMN IF EXISTS source_post_date,
+  DROP COLUMN IF EXISTS image_urls;
+ALTER TABLE public.studio_public_schedules
+  DROP COLUMN IF EXISTS candidate_id,
+  DROP COLUMN IF EXISTS evidence_text,
+  DROP COLUMN IF EXISTS source_title,
+  DROP COLUMN IF EXISTS source_url,
+  DROP COLUMN IF EXISTS source_post_date,
+  DROP COLUMN IF EXISTS image_urls;
+CREATE VIEW public.studio_public_prices_app WITH (security_invoker=true) AS
+ SELECT id,studio_id,amount_krw,price_period,frequency_per_week,published_at,expires_at
+ FROM public.studio_public_prices WHERE is_active=true AND expires_at>=CURRENT_DATE;
+CREATE VIEW public.studio_public_schedules_app WITH (security_invoker=true) AS
+ SELECT id,studio_id,schedule_text,published_at,expires_at
+ FROM public.studio_public_schedules WHERE is_active=true AND expires_at>=CURRENT_DATE;
+GRANT SELECT ON public.studio_public_prices_app,public.studio_public_schedules_app TO anon,authenticated;
+
+DROP POLICY IF EXISTS "owners manage own public prices" ON public.studio_public_prices;
+CREATE POLICY "owners manage own public prices" ON public.studio_public_prices FOR ALL TO authenticated
+ USING(public.is_studio_owner(studio_id)) WITH CHECK(public.is_studio_owner(studio_id));
+DROP POLICY IF EXISTS "owners manage own public schedules" ON public.studio_public_schedules;
+CREATE POLICY "owners manage own public schedules" ON public.studio_public_schedules FOR ALL TO authenticated
+ USING(public.is_studio_owner(studio_id)) WITH CHECK(public.is_studio_owner(studio_id));
+
 -- 5) Owners can manage only classes, sessions and coupons belonging to their own academy.
 DROP POLICY IF EXISTS "owners manage own classes" ON public.classes;
 CREATE POLICY "owners manage own classes" ON public.classes FOR ALL TO authenticated
