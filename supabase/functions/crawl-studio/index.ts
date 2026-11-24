@@ -20,6 +20,7 @@ function isPrivateHost(hostname: string): boolean {
     (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) ||
     (a === 198 && (b === 18 || b === 19));
 }
+function isNeisHost(hostname: string): boolean { const host=hostname.toLowerCase().replace(/\\.$/,""); return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr"); }
 function decodeHtml(value: string): string {
   return value.replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
