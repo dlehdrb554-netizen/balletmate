@@ -377,8 +377,10 @@ export default function Home() {
       // Always query Kakao as well as the local DB: a partial DB hit must not
       // suppress a nationwide exact-place search.
       try{
-        const dbRows=await searchStudiosByName(query);
-        const kakaoRows=await searchStudiosByKakao(query);
+        const [dbRows,kakaoRows]=await Promise.all([
+          searchStudiosByName(query).catch(error=>{console.warn("Database studio search failed:",error);return [] as any[];}),
+          searchStudiosByKakao(query).catch(error=>{console.warn("Kakao studio search failed:",error);return [] as any[];})
+        ]);
         const byId=new Map<string,any>();
         [...dbRows,...kakaoRows].forEach(row=>{if(row?.id)byId.set(String(row.id),row);});
         remoteRows=[...byId.values()];
@@ -538,11 +540,18 @@ export default function Home() {
   };
   useEffect(()=>{
     if(view!=="map"||!pendingMapTarget)return;
-    const timer=setTimeout(()=>{
-      map.current?.animateToRegion(pendingMapTarget,650);
-      setPendingMapTarget(null);
-    },120);
-    return()=>clearTimeout(timer);
+    let cancelled=false;
+    let attempts=0;
+    let timer:ReturnType<typeof setTimeout>;
+    const moveMap=()=>{
+      if(cancelled)return;
+      if(map.current){map.current.animateToRegion(pendingMapTarget,650);setPendingMapTarget(null);return;}
+      attempts+=1;
+      if(attempts<6)timer=setTimeout(moveMap,180);
+      else setPendingMapTarget(null);
+    };
+    timer=setTimeout(moveMap,220);
+    return()=>{cancelled=true;clearTimeout(timer);};
   },[view,pendingMapTarget]);
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0)+(durationFilter!==null?1:0)+(classTypeFilter?1:0)+(maxDistance!==null?1:0);
@@ -601,7 +610,7 @@ export default function Home() {
     setMapSettingsOpen(true);
   };
 
-  const retryDetailRequest=async<T,>(task:()=>Promise<T>,attempts=3):Promise<T>=>{
+  const retryDetailRequest=async<T,>(task:()=>Promise<T>,attempts=1):Promise<T>=>{
     let lastError:any=null;
     for(let attempt=0;attempt<attempts;attempt++){
       try{return await task();}
@@ -655,12 +664,9 @@ export default function Home() {
         .catch(error=>{console.warn("Studio notices unavailable:",error);if(requestId===detailRequestId.current)setStudioOwnerNotices([]);});
       (async()=>{
         let lastError:any=null;
-        for(let attempt=0;attempt<3;attempt++){
+        for(let attempt=0;attempt<1;attempt++){
           try{
-            const row=await Promise.race([
-              fetchStudioById(s.id),
-              new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error("상세정보 조회 시간 초과")),12000))
-            ]);
+            const row=await fetchStudioById(s.id);
             if(requestId!==detailRequestId.current)return;
             if(row){setDetailStudio(mapStudioRecord(row));setDetailCanonicalError(null);}
             else setDetailCanonicalError("학원 정보를 찾지 못했습니다. 다시 시도해 주세요.");
