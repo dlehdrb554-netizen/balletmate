@@ -20,53 +20,6 @@ function isPrivateHost(hostname: string): boolean {
     (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) ||
     (a === 198 && (b === 18 || b === 19));
 }
-function isBlockedWesebPhotoSource(raw: string): boolean {
-  try {
-    const url = new URL(raw);
-    const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    return host === "weseb.com" &&
-      url.pathname.toLowerCase() === "/sjb/m.php" &&
-      url.searchParams.get("board")?.toLowerCase() === "apartment" &&
-      url.searchParams.get("command")?.toLowerCase() === "body" &&
-      url.searchParams.get("no") === "16737";
-  } catch { return false; }
-}
-function isBlockedSchool24PhotoSource(raw: string): boolean {
-  try {
-    const url = new URL(raw);
-    const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    return host === "school24.kr" && url.pathname.toLowerCase().replace(/\/$/, "") === "/academy/a/j10-3000069628";
-  } catch { return false; }
-}
-function isNeisHost(hostname: string): boolean { const host=hostname.toLowerCase().replace(/\\.$/,""); return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr"); }
-function safeImageUrl(raw: string, base: string): string | null {
-  try {
-    const url = new URL(raw.trim(), base);
-    if (url.protocol !== "https:" || !url.hostname || url.username || url.password || isPrivateHost(url.hostname) || isNeisHost(url.hostname) || (isBlockedWesebPhotoSource(base) || isBlockedSchool24PhotoSource(base))) return null;
-    if (/\.svg(\?|$)/i.test(url.pathname) || url.pathname.startsWith("/_next/static/")) return null;
-    return url.toString();
-  } catch { return null; }
-}
-function attr(tag: string, name: string): string | null {
-  const pattern = /([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-  for (const match of tag.matchAll(pattern)) {
-    if (match[1].toLowerCase() === name.toLowerCase()) return match[2] ?? match[3] ?? null;
-  }
-  return null;
-}
-function collectJsonImages(value: unknown, output: string[]) {
-  if (!value || typeof value !== "object") return;
-  if (Array.isArray(value)) { value.forEach((item) => collectJsonImages(item, output)); return; }
-  const record = value as Record<string, unknown>;
-  const image = record.image;
-  if (typeof image === "string") output.push(image);
-  else if (Array.isArray(image)) image.forEach((item) => {
-    if (typeof item === "string") output.push(item);
-    else if (item && typeof item === "object" && typeof (item as Record<string, unknown>).url === "string") output.push((item as Record<string, unknown>).url as string);
-  });
-  else if (image && typeof image === "object" && typeof (image as Record<string, unknown>).url === "string") output.push((image as Record<string, unknown>).url as string);
-  Object.values(record).forEach((child) => { if (child && typeof child === "object") collectJsonImages(child, output); });
-}
 function decodeHtml(value: string): string {
   return value.replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
@@ -149,7 +102,7 @@ Deno.serve(async (req) => {
   if (!body.studioId || typeof body.studioId !== "string") return json({ error: "학원 ID가 필요합니다." }, 400);
 
   const { data: studio, error: studioError } = await client.from("studios")
-    .select("id,name,district,address,website_url,source_name,image_urls,image_source_name,source_url")
+    .select("id,name,district,address,website_url,source_name,source_url")
     .eq("id", body.studioId).single();
   if (studioError || !studio) return json({ error: "학원 정보를 찾을 수 없습니다." }, 404);
   if (String(studio.source_name || "").includes("홈페이지 검색 후보") && String(studio.source_name || "").includes("미검증")) return json({ error: "관리자 확인 전 홈페이지 후보입니다. 홈페이지 주소를 먼저 확인·승인해 주세요." }, 409);
@@ -158,7 +111,7 @@ Deno.serve(async (req) => {
   let pageUrl: URL;
   try {
     pageUrl = new URL(studio.website_url);
-    if (pageUrl.protocol !== "https:" || !pageUrl.hostname || pageUrl.username || pageUrl.password || isPrivateHost(pageUrl.hostname) || isNeisHost(pageUrl.hostname) || (isBlockedWesebPhotoSource(pageUrl.toString()) || isBlockedSchool24PhotoSource(pageUrl.toString()))) throw new Error();
+    if (pageUrl.protocol !== "https:" || !pageUrl.hostname || pageUrl.username || pageUrl.password || isPrivateHost(pageUrl.hostname) || isNeisHost(pageUrl.hostname)) throw new Error();
   } catch { return json({ error: "공식 홈페이지는 안전한 https:// 주소여야 하며, NEIS·학교정보 공공 포털 및 지정된 웨셉 아파트 게시물은 사진 수집 대상에서 제외됩니다." }, 400); }
 
   const homeHtml = await fetchHtml(pageUrl);
@@ -191,61 +144,15 @@ Deno.serve(async (req) => {
   const detailSources: string[] = [];
   for (const page of pages) {
     detailSources.push(page.url.toString());
-    const pageImageCandidates: string[] = [];
-    for (const tag of page.html.match(/<meta\b[^>]*>/gi) ?? []) {
-      const key = (attr(tag, "property") || attr(tag, "name") || "").toLowerCase();
-      if (["og:image", "og:image:url", "twitter:image", "twitter:image:src"].includes(key)) {
-        const value = attr(tag, "content"); if (value) pageImageCandidates.push(value);
-      }
-    }
-    for (const script of page.html.match(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) ?? []) {
-      const raw = script.replace(/^.*?>/s, "").replace(/<\/script>\s*$/i, "");
-      try { collectJsonImages(JSON.parse(raw), pageImageCandidates); } catch { /* Ignore invalid structured data. */ }
-    }
-    for (const tag of page.html.match(/<img\b[^>]*>/gi) ?? []) {
-      const value = attr(tag, "src") || attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "data-original") || attr(tag, "data-lazyload");
-      if (value) pageImageCandidates.push(value);
-      const srcset = attr(tag, "srcset");
-      if (srcset) pageImageCandidates.push(srcset.split(",")[0].trim().split(/\s+/)[0]);
-    }
-    for (const value of pageImageCandidates) imageCandidates.push({url:value,sourceUrl:page.url.toString()});
     const text = visibleText(page.html);
     priceEvidence.push(...snippetsFor(text, "price"));
     scheduleEvidence.push(...snippetsFor(text, "schedule"));
   }
 
-  const imageMap=new Map<string,{image_url:string;source_page_url:string}>();
-  for(const item of imageCandidates){
-    const safe=safeImageUrl(item.url,item.sourceUrl);
-    if(safe&&!imageMap.has(safe))imageMap.set(safe,{image_url:safe,source_page_url:item.sourceUrl});
-  }
-  const images=[...imageMap.values()].slice(0,10);
   const prices = [...new Set(priceEvidence)].slice(0, 30);
   const schedules = [...new Set(scheduleEvidence)].slice(0, 30);
-  if (!images.length && !prices.length && !schedules.length) {
-    return json({ error: "공식 사이트에서 사진·가격·시간표 관련 공개 정보를 찾지 못했습니다.", pagesChecked: pages.length }, 404);
-  }
-
-  // Keep crawled images out of the public studio gallery until an administrator
-  // checks the source and approves each candidate. No OCR or text extraction.
-  let photoCandidatesQueued = 0;
-  if (images.length) {
-    const candidates = images.map((image) => ({
-      studio_id: studio.id,
-      studio_name: studio.name,
-      image_url: image.image_url,
-      source_page_url: image.source_page_url,
-      source_host: new URL(image.source_page_url).hostname,
-      review_status: "pending",
-    }));
-    const { data: queued, error: photoQueueError } = await client
-      .from("studio_photo_candidates")
-      .upsert(candidates, { onConflict: "studio_id,image_url", ignoreDuplicates: true })
-      .select("id");
-    if (photoQueueError) {
-      return json({ error: "사진 검토 대기열 저장 실패: " + photoQueueError.message + " (studio_photo_review.sql 적용 여부 확인)" }, 500);
-    }
-    photoCandidatesQueued = queued?.length || 0;
+  if (!prices.length && !schedules.length) {
+    return json({ error: "공식 사이트에서 가격·시간표 관련 공개 정보를 찾지 못했습니다.", pagesChecked: pages.length }, 404);
   }
 
   const update: Record<string, unknown> = {
@@ -260,7 +167,6 @@ Deno.serve(async (req) => {
 
   return json({
     studioId: studio.id, pagesChecked: pages.length, branchSpecificPagesMatched: Math.max(0,pages.length-1),
-    imageCandidatesFound: images.length, photoCandidatesQueued,
     priceEvidenceCount: prices.length, scheduleEvidenceCount: schedules.length,
     detailsStatus: update.details_status,
   });
