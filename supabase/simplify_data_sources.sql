@@ -25,7 +25,7 @@ END $$;
 -- This guarded block also remains safe after the retired blog tables are dropped.
 DO $transfer$
 DECLARE
- v_filter text:='blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/'';
+ v_filter text:=$filter$blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/'$filter$;
  v_order_id text:='studio_id';
  v_order_name text:='lower(trim(studio_name))';
 BEGIN
