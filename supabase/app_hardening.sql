@@ -329,6 +329,47 @@ CREATE POLICY "members delete own community photos"
   ON storage.objects FOR DELETE TO authenticated
   USING(bucket_id='community-photos' AND (storage.foldername(name))[1]=auth.uid()::text);
 
+-- Retire the old academy photo-review and blog-crawling database pipeline.
+DROP TRIGGER IF EXISTS studios_enqueue_image_crawl ON public.studios;
+DROP FUNCTION IF EXISTS public.enqueue_studio_image_crawl();
+DROP FUNCTION IF EXISTS public.claim_studio_image_crawl_queue(integer);
+DROP TABLE IF EXISTS public.studio_image_crawl_queue CASCADE;
+DROP VIEW IF EXISTS public.studio_information_freshness_app CASCADE;
+DROP TABLE IF EXISTS public.studio_photo_candidates CASCADE;
+DROP TABLE IF EXISTS public.studio_schedule_class_candidates CASCADE;
+
+DROP POLICY IF EXISTS "public can view studio photos" ON storage.objects;
+DROP POLICY IF EXISTS "admins upload studio photos" ON storage.objects;
+DROP POLICY IF EXISTS "admins update studio photos" ON storage.objects;
+DROP POLICY IF EXISTS "admins delete studio photos" ON storage.objects;
+DROP POLICY IF EXISTS "owners delete own studio photos" ON storage.objects;
+UPDATE storage.buckets SET public=false WHERE id='studio-photos';
+
+DO $retired_pipeline$
+DECLARE item record;
+BEGIN
+  FOR item IN
+    SELECT p.oid::regprocedure AS signature
+    FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND (p.proname ILIKE '%studio_photo%'
+        OR p.proname ILIKE '%studio_gallery_photo%'
+        OR p.proname ILIKE '%studio_image_crawl%'
+        OR p.proname ILIKE '%studio_blog%'
+        OR p.proname ILIKE 'blog_%')
+  LOOP
+    EXECUTE 'DROP FUNCTION IF EXISTS '||item.signature||' CASCADE';
+  END LOOP;
+
+  FOR item IN
+    SELECT tablename FROM pg_tables
+    WHERE schemaname='public' AND tablename LIKE 'studio_blog_%'
+  LOOP
+    EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE',item.tablename);
+  END LOOP;
+END;
+$retired_pipeline$;
+
 -- 5) Owners can manage only classes, sessions and coupons belonging to their own academy.
 DROP POLICY IF EXISTS "owners manage own classes" ON public.classes;
 CREATE POLICY "owners manage own classes" ON public.classes FOR ALL TO authenticated
