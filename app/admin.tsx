@@ -133,7 +133,7 @@ const dedupeStudioRows=(input:any[])=>{
 };
 
 export default function Admin() {
-  const [adminTab,setAdminTab]=useState<"overview"|"studios"|"owners"|"community">("overview");
+  const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios"|"owners"|"community">("overview");
   const [adminScrollRef]=useState<{current:ScrollView|null}>({current:null});
   const [studioEditPanelY]=useState<{current:number}>({current:0});
   const scrollToOfficialBlogRef=useRef(false);
@@ -169,7 +169,6 @@ export default function Admin() {
   const [studioDbOffset,setStudioDbOffset]=useState(0);
   const [studioHasMore,setStudioHasMore]=useState(false);
   const [studioListFilter,setStudioListFilter]=useState<"all"|"missing_website"|"active"|"inactive">("all");
-  const [selectedPhotoStudioIds,setSelectedPhotoStudioIds]=useState<string[]>([]);
   const [form,setForm]=useState({...blank});
   const [studioPhotoSlotCount,setStudioPhotoSlotCount]=useState(2);
   const [editing,setEditing]=useState<string|null>(null);
@@ -1413,32 +1412,6 @@ export default function Admin() {
     if(!logs.length){Alert.alert("변경 이력","이 학원의 관리자 정보 수정 이력이 아직 없습니다.");return;}
     const summary=logs.slice(0,8).map((log:any)=>new Date(log.changed_at).toLocaleString("ko-KR")+"\n"+Object.keys(log.changed_fields||{}).join(", ")).join("\n\n");
     Alert.alert("학원 정보 변경 이력",summary);
-  };
-  const togglePhotoStudioSelection=(studioId:string)=>setSelectedPhotoStudioIds(current=>current.includes(studioId)?current.filter(id=>id!==studioId):[...current,studioId]);
-  const selectFilteredPhotoStudios=()=>setSelectedPhotoStudioIds(filteredStudioRows.filter(row=>(row.image_urls||[]).length>0).map(row=>row.id));
-  const bulkDeleteStudioPhotos=()=>{
-    const targets=rows.filter(row=>selectedPhotoStudioIds.includes(row.id)&&(row.image_urls||[]).length>0);
-    const photoCount=targets.reduce((sum,row)=>sum+(row.image_urls||[]).length,0);
-    if(!targets.length){Alert.alert("선택 없음","사진이 있는 학원을 선택하세요.");return;}
-    Alert.alert("사진 일괄 삭제 확인",targets.length+"개 학원의 사진 "+photoCount+"장을 영구 삭제합니다. 학원 정보는 유지됩니다.",[
-      {text:"취소",style:"cancel"},
-      {text:"사진 모두 삭제",style:"destructive",onPress:async()=>{
-        if(!supabase)return;setBusy(true);let removed=0,failed=0,storageFailed=0;const removedUrls=new Map<string,string[]>();
-        for(const row of targets){
-          for(const url of row.image_urls||[]){
-            const {error}=await supabase.rpc("admin_remove_studio_gallery_photo",{p_studio_id:row.id,p_image_url:url});
-            if(error){failed++;continue;}
-            removed++;
-            const rowRemoved=removedUrls.get(row.id)||[];rowRemoved.push(url);removedUrls.set(row.id,rowRemoved);
-            const marker="/storage/v1/object/public/studio-photos/",idx=url.indexOf(marker);
-            if(idx>=0){const objectPath=decodeURIComponent(url.slice(idx+marker.length).split("?")[0]);if(objectPath){const result=await supabase.storage.from("studio-photos").remove([objectPath]);if(result.error)storageFailed++;}}
-          }
-        }
-        setRows(current=>current.map(row=>removedUrls.has(row.id)?{...row,image_urls:(row.image_urls||[]).filter(url=>!removedUrls.get(row.id)!.includes(url))}:row));
-        setSelectedPhotoStudioIds([]);setBusy(false);
-        Alert.alert("일괄 삭제 결과","삭제 처리 "+removed+"장"+(failed?"\nDB 삭제 실패 "+failed+"장":"")+(storageFailed?"\n저장소 파일 삭제 실패 "+storageFailed+"장":""));
-      }}
-    ]);
   };
   const filteredStudioRows=useMemo(()=>rows.filter(row=>{
     const q=studioSearch.trim().toLowerCase().replace(/\\s+/g,"");
