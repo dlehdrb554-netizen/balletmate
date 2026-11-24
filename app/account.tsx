@@ -104,7 +104,8 @@ export default function Account(){
   if(error)Alert.alert("로그아웃 실패",error.message);
  };
  const deleteAccount=()=>{
-  if(!supabase)return;
+  const client=supabase;
+  if(!client)return;
   Alert.alert(
    "회원 탈퇴",
    "계정을 영구 삭제합니다. 연결된 회원 프로필과 즐겨찾기 등 계정 데이터도 삭제되며 되돌릴 수 없습니다. 계속할까요?",
@@ -113,10 +114,10 @@ export default function Account(){
     {text:"영구 탈퇴",style:"destructive",onPress:async()=>{
      setLoading(true);
      try{
-      const {data,error}=await supabase.functions.invoke("delete-account",{body:{confirm:true}});
+      const {data,error}=await client.functions.invoke("delete-account",{body:{confirm:true}});
       if(error)throw error;
       if(!data?.success)throw new Error(data?.error||"계정 삭제 결과를 확인할 수 없습니다.");
-      await supabase.auth.signOut({scope:"local"});
+      await client.auth.signOut({scope:"local"});
       setSession(null);
       Alert.alert("탈퇴 완료","회원 계정 삭제가 완료되었습니다.");
      }catch(error:any){
