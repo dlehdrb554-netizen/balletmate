@@ -179,8 +179,7 @@ export async function fetchStudioById(studioId: string): Promise<StudioRecord | 
   if (error) throw error;
   if (!data) return null;
 
-  // Merge schedule and class-derived price fields from the map view, while
-  // keeping all descriptive/media fields from the canonical studios row.
+  // Derived map data is optional; view errors must not invalidate canonical details.
   const derived = await supabase.from("studio_map_search_app_with_source")
     .select("search_days,search_time_slots,search_class_durations,search_price")
     .eq("id", studioId).maybeSingle();
