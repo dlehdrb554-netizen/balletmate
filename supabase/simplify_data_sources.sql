@@ -27,7 +27,7 @@ SET website_url=b.blogger_url, updated_at=now()
 FROM public.studio_blog_official_accounts b
 WHERE b.studio_id=s.id AND b.is_active=true
   AND s.website_url IS NULL
-  AND b.blogger_url ~* '^https://(m\\.)?blog\\.naver\\.com/';
+  AND b.blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/';
 
 -- Inactivate the old separate official-blog registrations; the single website_url
 -- field is now the only public homepage/channel field.
