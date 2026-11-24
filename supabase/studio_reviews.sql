@@ -7,8 +7,36 @@ create table if not exists public.studio_reviews (
   content text not null check (char_length(btrim(content)) between 5 and 1000),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  verified_at timestamptz,
   constraint studio_reviews_one_per_user unique (studio_id, user_id)
 );
+
+-- Attendance verification is stored separately from the review itself.
+-- Only administrators can create or change verification records.
+ALTER TABLE public.studio_reviews
+  ADD COLUMN IF NOT EXISTS verified_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS public.studio_review_verifications (
+  studio_id uuid NOT NULL REFERENCES public.studios(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  verified_at timestamptz NOT NULL DEFAULT now(),
+  verified_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  verification_note text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (studio_id, user_id)
+);
+ALTER TABLE public.studio_review_verifications ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.studio_review_verifications FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.studio_review_verifications TO authenticated;
+DROP POLICY IF EXISTS "Members read own review verifications" ON public.studio_review_verifications;
+CREATE POLICY "Members read own review verifications"
+  ON public.studio_review_verifications FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR public.is_balletmate_admin());
+DROP POLICY IF EXISTS "Admins manage review verifications" ON public.studio_review_verifications;
+CREATE POLICY "Admins manage review verifications"
+  ON public.studio_review_verifications FOR ALL TO authenticated
+  USING (public.is_balletmate_admin())
+  WITH CHECK (public.is_balletmate_admin());
 
 create index if not exists studio_reviews_studio_created_idx
   on public.studio_reviews (studio_id, created_at desc);
