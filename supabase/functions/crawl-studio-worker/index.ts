@@ -3,6 +3,17 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
+function isBlockedWesebPhotoSource(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase().replace(/^www\\./, "");
+    return host === "weseb.com" &&
+      url.pathname.toLowerCase() === "/sjb/m.php" &&
+      url.searchParams.get("board")?.toLowerCase() === "apartment" &&
+      url.searchParams.get("command")?.toLowerCase() === "body" &&
+      url.searchParams.get("no") === "16737";
+  } catch { return false; }
+}
 function isNeisHost(hostname: string): boolean { const host=hostname.toLowerCase().replace(/\\.$/,""); return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr"); }
 
 function blogAccountKey(raw: string | null | undefined): string {
@@ -195,10 +206,12 @@ Deno.serve(async (req) => {
     for (const candidate of candidates || []) {
       let candidateHost="";
       try { candidateHost=new URL(String(candidate.source_page_url||"")).hostname.toLowerCase(); } catch { /* invalid source is rejected below */ }
-      if (isNeisHost(candidateHost)) {
+      if (isNeisHost(candidateHost) || isBlockedWesebPhotoSource(String(candidate.source_page_url||""))) {
         await adminClient.from("studio_photo_candidates").update({
           review_status: "rejected",
-          auto_reason: "NEIS·학교정보 공공 포털 화면 이미지는 학원 사진 자료에서 제외",
+          auto_reason: isBlockedWesebPhotoSource(String(candidate.source_page_url||""))
+            ? "사용자 지정 제외 출처: 웨셉 아파트 게시물"
+            : "NEIS·학교정보 공공 포털 화면 이미지는 학원 사진 자료에서 제외",
           auto_classified_at: new Date().toISOString(),
         }).eq("id", candidate.id).eq("review_status", "pending");
         continue;
