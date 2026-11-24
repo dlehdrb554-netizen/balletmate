@@ -116,8 +116,6 @@ export default function Home() {
   const [reportCategory,setReportCategory]=useState("기타");
   const [reportDescription,setReportDescription]=useState("");
   const [reportSubmitting,setReportSubmitting]=useState(false);
-  const [freshness,setFreshness]=useState<any>(null);
-  const [freshnessLoading,setFreshnessLoading]=useState(false);
   const [studioClasses,setStudioClasses]=useState<StudioClass[]>([]);
   const [classesLoading,setClassesLoading]=useState(false);
   const [studioPublicPrices,setStudioPublicPrices]=useState<StudioPublicPrice[]>([]);
@@ -169,19 +167,6 @@ export default function Home() {
     onShouldBlockNativeResponder:()=>true,
   })).current;
   useEffect(()=>{AsyncStorage.getItem("balletmate.mapProvider.v1").then(value=>{if(value==="google"||value==="kakao")setMapProvider(value);}).catch(()=>{});},[]);
-  useEffect(()=>{
-    const client=supabase;
-    const studioId=detailStudio?.id;
-    if(!client||!studioId){setFreshness(null);return;}
-    let active=true;
-    setFreshnessLoading(true);
-    client.from("studio_information_freshness_app").select("profile_freshness,official_details_freshness,photo_freshness,latest_price_date,price_freshness,latest_schedule_date,schedule_freshness").eq("studio_id",studioId).maybeSingle().then(({data,error})=>{
-      if(!active)return;
-      setFreshness(error?null:data);
-      setFreshnessLoading(false);
-    });
-    return ()=>{active=false;};
-  },[detailStudio?.id]);
   useEffect(()=>{
     const client=supabase;
     const studioId=detailStudio?.id;
