@@ -24,16 +24,24 @@ END $$;
 -- This guarded block also remains safe after the retired blog tables are dropped.
 DO $transfer$
 BEGIN
-  IF to_regclass('public.studio_blog_official_accounts') IS NOT NULL THEN
+ IF to_regclass('public.studio_blog_official_accounts') IS NOT NULL
+    AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='blogger_url') THEN
+   IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studio_blog_official_accounts' AND column_name='is_active') THEN
     EXECUTE $sql$
-      UPDATE public.studios s
-      SET website_url=b.blogger_url, updated_at=now()
-      FROM public.studio_blog_official_accounts b
-      WHERE b.studio_id=s.id AND b.is_active=true
-        AND s.website_url IS NULL
-        AND b.blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/'
+     UPDATE public.studios s SET website_url=b.blogger_url,updated_at=now()
+     FROM public.studio_blog_official_accounts b
+     WHERE b.studio_id=s.id AND b.is_active=true AND s.website_url IS NULL
+       AND b.blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/'
     $sql$;
-  END IF;
+   ELSE
+    EXECUTE $sql$
+     UPDATE public.studios s SET website_url=b.blogger_url,updated_at=now()
+     FROM public.studio_blog_official_accounts b
+     WHERE b.studio_id=s.id AND s.website_url IS NULL
+       AND b.blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/'
+    $sql$;
+   END IF;
+ END IF;
 END;
 $transfer$;
 
