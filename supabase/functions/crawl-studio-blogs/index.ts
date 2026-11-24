@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
         .update({ status: "completed", last_error: null, updated_at: new Date().toISOString() })
         .eq("source_id", job.source_id);
       if (doneError) throw new Error("완료 상태 저장 실패: " + doneError.message);
-      results.push({ sourceId: job.source_id, studio: job.studio_name, textLength: textBody.length, priceEvidence: prices.length, scheduleEvidence: schedules.length, status, ...(candidateWarning ? { candidateWarning } : {}), ...(photoCandidateWarning ? { photoCandidateWarning } : {}) });
+      results.push({ sourceId: job.source_id, studio: job.studio_name, textLength: textBody.length, priceEvidence: prices.length, scheduleEvidence: schedules.length, status, ...(candidateWarning ? { candidateWarning } : {}) });
     } catch (e) {
       const message = e instanceof Error ? e.message : "알 수 없는 오류";
       const terminal = Number(job.attempts) >= 4;
