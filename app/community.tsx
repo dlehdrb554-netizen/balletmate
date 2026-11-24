@@ -50,8 +50,18 @@ export default function Community(){
  useEffect(()=>{loadPosts();},[loadPosts]);
  useEffect(()=>{
   if(!supabase)return;
-  supabase.auth.getSession().then(({data})=>setUserId(data.session?.user?.id||null));
-  const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>setUserId(session?.user?.id||null));
+  const resolveAuthorName=(user:any)=>{
+   const metadata=user?.user_metadata||{};
+   const candidate=[metadata.nickname,metadata.display_name,metadata.full_name,metadata.name,metadata.user_name,user?.email?.split("@")[0]].find(value=>typeof value==="string"&&value.trim());
+   return String(candidate||"발레메이트 회원").trim().slice(0,40);
+  };
+  const loadAuthorName=async(user:any)=>{
+   if(!user)return "발레메이트 회원";
+   try{const {data}=await supabase.from("user_profiles").select("display_name,username").eq("user_id",user.id).maybeSingle();const profileName=data?.display_name||data?.username;if(profileName&&!String(profileName).startsWith("social_"))return String(profileName).trim().slice(0,40);}catch{}
+   return resolveAuthorName(user);
+  };
+  supabase.auth.getSession().then(async({data})=>{setUserId(data.session?.user?.id||null);setAuthorName(await loadAuthorName(data.session?.user));});
+  const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{setUserId(session?.user?.id||null);loadAuthorName(session?.user).then(setAuthorName);});
   return()=>subscription.unsubscribe();
  },[]);
 
