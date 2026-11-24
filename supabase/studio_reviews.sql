@@ -87,7 +87,10 @@ CREATE OR REPLACE FUNCTION public.guard_studio_review_abuse()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_verified_at timestamptz;
 BEGIN
- IF auth.uid() IS NULL OR NEW.user_id<>auth.uid() THEN
+ IF auth.uid() IS NULL THEN
+  RAISE EXCEPTION '로그인이 필요합니다.';
+ END IF;
+ IF TG_OP='INSERT' AND NEW.user_id<>auth.uid() THEN
   RAISE EXCEPTION '본인 계정으로만 리뷰를 작성할 수 있습니다.';
  END IF;
  IF TG_OP='INSERT' THEN
