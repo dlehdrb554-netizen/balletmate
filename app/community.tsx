@@ -33,6 +33,7 @@ export default function Community(){
  const [blockedUserIds,setBlockedUserIds]=useState<string[]>([]);
  const [termsConsentOpen,setTermsConsentOpen]=useState(false);
  const [termsAccepting,setTermsAccepting]=useState(false);
+ const [termsReturnTo,setTermsReturnTo]=useState<"post"|"comment">("post");
  const commentRequestId=useRef(0);
 
  const postRequestId=useRef(0);
@@ -117,11 +118,15 @@ export default function Community(){
 
  const submitComment=async()=>{
   if(!userId){requireLogin();return;}
-  if(!supabase||!selected)return;
+  const client=supabase;
+  if(!client||!selected)return;
+  const accepted=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version","2026-11-24").maybeSingle();
+  if(accepted.error){Alert.alert("이용규칙 확인 실패",accepted.error.message);return;}
+  if(!accepted.data){setTermsReturnTo("comment");setTermsConsentOpen(true);return;}
   if(!commentText.trim()){Alert.alert("댓글 내용","댓글을 입력해 주세요.");return;}
   setSubmitting(true);
   try{
-   const {error}=await supabase.from("community_comments").insert({post_id:selected.id,author_id:userId,author_name:authorName,content:commentText.trim()});
+   const {error}=await client.from("community_comments").insert({post_id:selected.id,author_id:userId,author_name:authorName,content:commentText.trim()});
    if(error)throw error;
    setCommentText("");await loadComments(selected.id);
    Alert.alert("등록 완료","댓글이 등록되었습니다.");
@@ -136,7 +141,7 @@ export default function Community(){
   const {data,error}=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version","2026-11-24").maybeSingle();
   if(error){Alert.alert("이용규칙 확인 실패",error.message);return;}
   if(data){setComposer(true);return;}
-  setTermsConsentOpen(true);
+  setTermsReturnTo("post");setTermsConsentOpen(true);
  };
  const acceptCommunityTerms=async()=>{
   const client=supabase;
@@ -145,7 +150,8 @@ export default function Community(){
   try{
    const {error}=await client.from("community_terms_acceptances").insert({user_id:userId,terms_version:"2026-11-24"});
    if(error&&error.code!=="23505")throw error;
-   setTermsConsentOpen(false);setComposer(true);
+   setTermsConsentOpen(false);
+   if(termsReturnTo==="post")setComposer(true);
   }catch(error:any){Alert.alert("동의 처리 실패",error?.message||"이용규칙 동의를 저장하지 못했습니다.");}
   finally{setTermsAccepting(false);}
  };
