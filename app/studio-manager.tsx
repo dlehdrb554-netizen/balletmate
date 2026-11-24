@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
-import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "../lib/supabase";
 
 const C={ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",bg:"#FBF9FF",red:"#A33342"};
@@ -22,10 +20,6 @@ export default function StudioManager(){
  const [verificationMethod,setVerificationMethod]=useState<"phone"|"blog"|"instagram"|"manual">("phone");
  const [blogUrl,setBlogUrl]=useState("");
  const [blogVerificationCode,setBlogVerificationCode]=useState("");
- const [galleryCount,setGalleryCount]=useState(0);
- const [galleryUrls,setGalleryUrls]=useState<string[]>([]);
- const [galleryExpanded,setGalleryExpanded]=useState(false);
- const [photoUrl,setPhotoUrl]=useState("");
  const [profileName,setProfileName]=useState(studioName);
  const [profileDistrict,setProfileDistrict]=useState("");
  const [profileAddress,setProfileAddress]=useState("");
@@ -52,13 +46,11 @@ export default function StudioManager(){
   const [ownerResult,appResult,studioResult]=await Promise.all([
    supabase.from("studio_owners").select("studio_id,status").eq("studio_id",studioId).eq("user_id",current.user.id).eq("status","approved").maybeSingle(),
    supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,verification_url,verification_code,verification_method").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
-   supabase.from("studios").select("image_urls,name,district,address,phone,website_url,description").eq("id",studioId).maybeSingle()
+   supabase.from("studios").select("name,district,address,phone,website_url,description").eq("id",studioId).maybeSingle()
   ]);
   setOwner(!!ownerResult.data);
   setApplication(appResult.data||null);
   if(appResult.data){setBlogUrl(appResult.data.verification_url||"");setBlogVerificationCode(appResult.data.verification_code||"");setVerificationMethod(appResult.data.verification_method||"phone");}
-  setGalleryUrls(studioResult.data?.image_urls||[]);
-  setGalleryCount((studioResult.data?.image_urls||[]).length);
   if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
   if(ownerResult.data){
    const [scheduleResult,priceResult,noticeResult,historyResult]=await Promise.all([
@@ -111,91 +103,6 @@ export default function StudioManager(){
   }catch(e:any){Alert.alert("신청 실패",e.message||"관리 권한 신청을 제출하지 못했습니다.");}
   finally{setSaving(false);}
  };
- const pickImages=async(multiple=true,maxCount=8)=>{
-  const client=supabase;
-  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:multiple,quality:0.9,selectionLimit:maxCount});
-  if(result.canceled||!result.assets?.length||!client||!session)return [] as string[];
-  const urls:string[]=[];
-  for(const [index,asset] of result.assets.slice(0,maxCount).entries()){
-   const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1600}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
-   const bytes=await (await fetch(optimized.uri)).arrayBuffer();
-   const path=studioId+"/"+session.user.id+"/"+Date.now()+"-"+index+".jpg";
-   const {error}=await client.storage.from("studio-photos").upload(path,bytes,{contentType:"image/jpeg",upsert:false});
-   if(error)throw error;
-   urls.push(client.storage.from("studio-photos").getPublicUrl(path).data.publicUrl);
-  }
-  return urls;
- };
-
- const uploadGallery=async()=>{
-  const client=supabase;
-  if(!client||!owner)return;
-  if(galleryCount>=30){Alert.alert("사진 등록 한도","학원 대표 사진은 최대 30장까지 등록할 수 있습니다.");return;}
-  setSaving(true);
-  try{
-   const urls=await pickImages(true,Math.max(1,30-galleryCount));
-   let count=galleryCount;
-   for(const url of urls){const result=await client.rpc("owner_add_studio_gallery_photo",{p_studio_id:studioId,p_image_url:url});if(result.error)throw result.error;count=Number(result.data??count);}
-   setGalleryCount(count);
-   if(client){const refreshed=await client.from("studios").select("image_urls").eq("id",studioId).maybeSingle();if(!refreshed.error){setGalleryUrls(refreshed.data?.image_urls||[]);setGalleryCount((refreshed.data?.image_urls||[]).length);}}
-   Alert.alert("사진 등록 완료",urls.length+"장을 학원 대표 사진으로 등록했습니다.");
-  }catch(e:any){Alert.alert("사진 등록 실패",e.message||"사진을 등록하지 못했습니다.");}
-  finally{setSaving(false);}
- };
-
- const registerPhotoUrl=async()=>{
-  const client=supabase;
-  const url=photoUrl.trim();
-  if(!client||!owner)return;
-  if(!url.toLowerCase().startsWith("https://")){Alert.alert("URL 확인","https://로 시작하는 사진 주소를 입력해 주세요.");return;}
-  if(galleryCount>=30){Alert.alert("사진 등록 한도","학원 대표 사진은 최대 30장까지 등록할 수 있습니다.");return;}
-  setSaving(true);
-  try{const {error}=await client.rpc("owner_add_studio_gallery_photo",{p_studio_id:studioId,p_image_url:url});if(error)throw error;const refreshed=await client.from("studios").select("image_urls").eq("id",studioId).maybeSingle();if(refreshed.error)throw refreshed.error;setGalleryUrls(refreshed.data?.image_urls||[]);setGalleryCount((refreshed.data?.image_urls||[]).length);setPhotoUrl("");Alert.alert("사진 등록 완료","입력한 URL 사진을 등록했습니다.");}
-  catch(e:any){Alert.alert("사진 등록 실패",e.message||"사진 URL을 등록하지 못했습니다.");}
-  finally{setSaving(false);}
- };
-
- const removeGalleryPhoto=async(url:string)=>{
-  const client=supabase;
-  if(!client||!owner)return;
-  Alert.alert("사진 삭제","이 사진을 학원 갤러리에서 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
-   setSaving(true);
-   try{
-    const {error}=await client.rpc("owner_remove_studio_gallery_photo",{p_studio_id:studioId,p_image_url:url});
-    if(error)throw error;
-    let storageCleanupFailed=false;
-    try{
-     const marker="/storage/v1/object/public/studio-photos/";
-     const index=url.indexOf(marker);
-     if(index>=0){
-      const path=decodeURIComponent(url.slice(index+marker.length).split("?")[0]);
-      if(path.startsWith(studioId+"/")){
-       const {error:storageError}=await client.storage.from("studio-photos").remove([path]);
-       if(storageError)storageCleanupFailed=true;
-      }
-     }
-    }catch{storageCleanupFailed=true;}
-    const refreshed=await client.from("studios").select("image_urls").eq("id",studioId).maybeSingle();
-    if(refreshed.error)throw refreshed.error;
-    setGalleryUrls(refreshed.data?.image_urls||[]);setGalleryCount((refreshed.data?.image_urls||[]).length);
-    Alert.alert("삭제 완료",storageCleanupFailed?"갤러리에서 제거했습니다. 저장 파일은 정리되지 않아 관리자 확인이 필요할 수 있습니다.":"사진을 갤러리와 저장소에서 삭제했습니다.");
-   }catch(e:any){Alert.alert("사진 삭제 실패",e.message||"사진을 삭제하지 못했습니다.");}
-   finally{setSaving(false);}
-  }}]);
- };
- const setPrimaryPhoto=async(url:string)=>{
-  const client=supabase;
-  if(!client||!owner||galleryUrls[0]===url)return;
-  setSaving(true);
-  try{
-   const {error}=await client.rpc("owner_set_studio_primary_photo",{p_studio_id:studioId,p_image_url:url});
-   if(error)throw error;
-   setGalleryUrls(current=>[url,...current.filter(item=>item!==url)]);
-   Alert.alert("대표 사진 변경 완료","선택한 사진이 학원 대표 사진으로 설정됐습니다.");
-  }catch(e:any){Alert.alert("대표 사진 변경 실패",e.message||"대표 사진을 변경하지 못했습니다.");}
-  finally{setSaving(false);}
- };
-
  const saveSchedule=async()=>{
   if(!supabase||!owner||!scheduleText.trim()){Alert.alert("시간표 입력","시간표 설명을 입력해 주세요.");return;}
   setSaving(true);
