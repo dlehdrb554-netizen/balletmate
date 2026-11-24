@@ -43,8 +43,6 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy photo vision classifier
-        run: supabase functions deploy classify-studio-photo --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
       - name: Deploy studio discovery worker
         run: supabase functions deploy studio-discovery-worker --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
