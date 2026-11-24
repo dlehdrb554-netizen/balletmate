@@ -47,8 +47,50 @@ $transfer$;
 
 -- Clear queues and crawled post/text evidence; do not delete manually maintained
 -- classes/class_sessions or the NEIS/Kakao academy records.
-UPDATE public.studios SET image_urls=ARRAY[]::text[], image_source_name=NULL, updated_at=now() WHERE COALESCE(cardinality(image_urls),0)>0 OR image_source_name IS NOT NULL;
-UPDATE public.studios SET price_evidence_text=NULL, schedule_evidence_text=NULL, details_source_urls=ARRAY[]::text[], details_checked_at=NULL, details_status=NULL WHERE price_evidence_text IS NOT NULL OR schedule_evidence_text IS NOT NULL OR cardinality(details_source_urls)>0 OR details_checked_at IS NOT NULL OR details_status IS NOT NULL;
+DO $studio_legacy_cleanup$
+DECLARE
+ v_set text:='';
+ v_where text:='';
+BEGIN
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studios' AND column_name='image_urls') THEN
+  v_set:=v_set||'image_urls=ARRAY[]::text[]';
+  v_where:=v_where||'COALESCE(cardinality(image_urls),0)>0';
+ END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studios' AND column_name='image_source_name') THEN
+  v_set:=v_set||CASE WHEN v_set='' THEN '' ELSE ', ' END||'image_source_name=NULL';
+  v_where:=v_where||CASE WHEN v_where='' THEN '' ELSE ' OR ' END||'image_source_name IS NOT NULL';
+ END IF;
+ IF v_set<>'' THEN
+  v_set:=v_set||CASE WHEN v_set='' THEN '' ELSE ', ' END||'updated_at=now()';
+  EXECUTE 'UPDATE public.studios SET '||v_set||' WHERE '||v_where;
+ END IF;
+
+ v_set:='';v_where:='';
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studios' AND column_name='price_evidence_text') THEN
+  v_set:=v_set||'price_evidence_text=NULL';v_where:=v_where||'price_evidence_text IS NOT NULL';
+ END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studios' AND column_name='schedule_evidence_text') THEN
+  v_set:=v_set||CASE WHEN v_set='' THEN '' ELSE ', ' END||'schedule_evidence_text=NULL';
+  v_where:=v_where||CASE WHEN v_where='' THEN '' ELSE ' OR ' END||'schedule_evidence_text IS NOT NULL';
+ END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studios' AND column_name='details_source_urls') THEN
+  v_set:=v_set||CASE WHEN v_set='' THEN '' ELSE ', ' END||'details_source_urls=ARRAY[]::text[]';
+  v_where:=v_where||CASE WHEN v_where='' THEN '' ELSE ' OR ' END||'cardinality(details_source_urls)>0';
+ END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studios' AND column_name='details_checked_at') THEN
+  v_set:=v_set||CASE WHEN v_set='' THEN '' ELSE ', ' END||'details_checked_at=NULL';
+  v_where:=v_where||CASE WHEN v_where='' THEN '' ELSE ' OR ' END||'details_checked_at IS NOT NULL';
+ END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='studios' AND column_name='details_status') THEN
+  v_set:=v_set||CASE WHEN v_set='' THEN '' ELSE ', ' END||'details_status=NULL';
+  v_where:=v_where||CASE WHEN v_where='' THEN '' ELSE ' OR ' END||'details_status IS NOT NULL';
+ END IF;
+ IF v_set<>'' THEN
+  v_set:=v_set||', updated_at=now()';
+  EXECUTE 'UPDATE public.studios SET '||v_set||' WHERE '||v_where;
+ END IF;
+END;
+$studio_legacy_cleanup$;
 DROP TABLE IF EXISTS public.studio_photo_candidates CASCADE;
 -- Remove crawler-derived rows/columns only when they still exist (safe after hardening).
 DO $materials$
