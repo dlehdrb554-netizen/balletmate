@@ -393,7 +393,7 @@ export default function Admin() {
     setBlogCandidateActionId(candidateId);
     const {error}=await supabase.rpc("admin_review_studio_blog_account_candidate",{p_candidate_id:candidateId,p_status:status});
     if(error)Alert.alert("후보 처리 실패",error.message);
-    else{setBlogCandidates(current=>current.filter(item=>Number(item.id)!==candidateId));setBlogCandidateTotal(total=>Math.max(0,total-1));if(status==="approved")Alert.alert("공식 계정 승인","공식 블로그로 등록했습니다.");}
+    else{setBlogCandidates(current=>current.filter(item=>Number(item.id)!==candidateId));setBlogCandidateTotal(total=>Math.max(0,total-1));blogCandidateOffsetRef.current=Math.max(0,blogCandidateOffsetRef.current-1);setBlogCandidateOffset(offset=>Math.max(0,offset-1));if(status==="approved")Alert.alert("공식 계정 승인","공식 블로그로 등록했습니다.");}
     setBlogCandidateActionId(null);
   };
 
