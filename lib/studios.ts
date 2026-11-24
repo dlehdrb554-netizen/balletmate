@@ -46,7 +46,7 @@ const MAX_NETWORK_SEARCHES_PER_APP_SESSION = 40;
 export function isExcludedStudioSearchResult(name: string): boolean {
   return /(산부인과|여성의원|비뇨기과|피부과|정형외과|내과|외과|안과|치과|이비인후과|소아과|의원|병원|의료원|보건소|약국|한의원|요양원|산후조리원|모텔|호텔|숙박|사우나|찜질방|목욕탕)/i.test(String(name||""));
 }
-let networkSearches = 0;
+const networkSearchQuota = ((globalThis as any).__balletmateNetworkSearchQuota ||= { count: 0 }) as { count: number };
 
 async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord[]> {
   if (!supabase) return [];
@@ -60,8 +60,8 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
     studioCache.set(key, cached);
     return cached.rows;
   }
-  if (networkSearches >= MAX_NETWORK_SEARCHES_PER_APP_SESSION) throw new Error("이번 앱 실행 중 지도 검색 한도(40회)에 도달했습니다. 잠시 후 앱을 다시 실행해 주세요.");
-  networkSearches += 1;
+  if (networkSearchQuota.count >= MAX_NETWORK_SEARCHES_PER_APP_SESSION) throw new Error("이번 앱 실행 중 지도 검색 한도(40회)에 도달했습니다. 잠시 후 앱을 다시 실행해 주세요.");
+  networkSearchQuota.count += 1;
 
   const applyBounds = (query: any) => {
     if (!bounds) return query;
@@ -175,14 +175,14 @@ export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
   const existing = inFlightStudioSearches.get(key);
   if (existing) return existing;
 
-  const requestsBeforeStart = networkSearches;
+  const requestsBeforeStart = networkSearchQuota.count;
   const pendingRequest = fetchStudiosInternal(bounds);
   // The async function reserves its quota synchronously before its first await.
-  const reservedQuota = networkSearches > requestsBeforeStart;
+  const reservedQuota = networkSearchQuota.count > requestsBeforeStart;
   const request = pendingRequest
     .catch((error) => {
       // A transient network/DB failure should not consume the user's session quota.
-      if (reservedQuota) networkSearches = Math.max(0, networkSearches - 1);
+      if (reservedQuota) networkSearchQuota.count = Math.max(0, networkSearchQuota.count - 1);
       throw error;
     })
     .finally(() => {
