@@ -353,7 +353,7 @@ export default function Home() {
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active){setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);setDirectoryStudios(rows.map(mapStudioRecord));}}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
   const listDistricts=useMemo(()=>allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity)),[allListAreas,regionProvince,regionCity]);
   const listRows=useMemo(()=>{
-    const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?studio.area===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
+    const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?canonicalArea(studio.area)===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
     return [...rows].sort((a,b)=>{
       if(listSort==="price"){
         if(a.price===null&&b.price===null)return a.name.localeCompare(b.name,"ko");
@@ -373,7 +373,7 @@ export default function Home() {
     ]).then(([viewsRes,favoritesRes])=>{
       if(!active)return;
       setPopularViewRank(viewsRes.error?[]:(viewsRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"||((regionProvince==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").province===regionProvince)&&(regionCity==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").city===regionCity))));
-      setFavoriteRank(favoritesRes.error?[]:(favoritesRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"?studios.find(studio=>studio.id===r.studio_id)?.area===selectedListRegion:((regionProvince==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").province===regionProvince)&&(regionCity==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").city===regionCity))));
+      setFavoriteRank(favoritesRes.error?[]:(favoritesRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"?canonicalArea(studios.find(studio=>studio.id===r.studio_id)?.area||"")===selectedListRegion:((regionProvince==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").province===regionProvince)&&(regionCity==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").city===regionCity))));
     }).finally(()=>{if(active)setRankLoading(false);});
     return()=>{active=false;};
   },[view,selectedListRegion,regionProvince,regionCity,studios]);
