@@ -10,8 +10,7 @@ BEGIN
     SELECT jobid FROM cron.job
     WHERE jobname IN (
       'balletmate-studio-image-crawl','balletmate-studio-discovery',
-      'balletmate-studio-website-info','balletmate-naver-blog-post-crawl',
-      'balletmate-kakao-studio-discovery'
+      'balletmate-studio-website-info','balletmate-naver-blog-post-crawl'
     )
     OR jobname LIKE 'balletmate-naver-blog%'
   LOOP
