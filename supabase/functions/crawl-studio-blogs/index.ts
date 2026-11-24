@@ -285,6 +285,16 @@ Deno.serve(async (req) => {
       const snippetText = normalize(sourceTitle + " " + sourceDescription);
       const accountKey = blogAccountKey(String(source?.blogger_url ?? ""));
       const officialMatch = !!accountKey && officialAccounts.some((account) => blogAccountKey(account) === accountKey);
+      if (!source || !officialMatch) {
+        const { error: rejectError } = await db.from("studio_blog_post_crawl_queue").update({
+          status: "rejected",
+          last_error: "권리 확인되지 않은 제3자 블로그 본문·이미지 자동 수집 중단",
+          updated_at: new Date().toISOString(),
+        }).eq("source_id", job.source_id);
+        if (rejectError) throw new Error("제3자 게시물 수집 중단 처리 실패: " + rejectError.message);
+        results.push({ sourceId: job.source_id, studio: job.studio_name, status: "rejected", reason: "등록된 공식 블로그가 아니므로 본문 자동 수집 중단" });
+        continue;
+      }
       const hasBalletIntent = /(발레|바레|시간표|스케줄|월간|월별|수강료|수업|클래스|레슨|모집|파드되|작품반)/i.test(sourceTitle + " " + sourceDescription);
       const hasAcademyName = alias.length >= 3 && snippetText.includes(alias);
       if (!source || (!hasAcademyName && !officialMatch && !hasBalletIntent)) {
