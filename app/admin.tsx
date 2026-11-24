@@ -29,6 +29,15 @@ const isSchool24PhotoSource=(item:any)=>{try{const url=new URL(String(item?.sour
 const isNeisPhotoSource=(item:any)=>{const host=String(item?.source_host||(()=>{try{return new URL(item?.source_page_url||"").hostname}catch{return ""}})()).toLowerCase();return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr");};
 const c = {ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",white:"#FFFFFF",bg:"#FBF9FF"};
 const normalizeScheduleKey=(value:string)=>String(value||"").toLowerCase().replace(/[\s·,，、|/]+/g,"").trim();
+const isValidStudioHomepageUrl=(value:string):boolean=>{
+  if(!value.trim())return true;
+  try{
+    const url=new URL(value.trim());
+    if(url.protocol!=="https:")return false;
+    const host=url.hostname.toLowerCase().replace(/^www\./,"");
+    return !["neis.go.kr","schoolinfo.go.kr","place.map.kakao.com","kakao.com"].some(domain=>host===domain||host.endsWith("."+domain));
+  }catch{return false;}
+};
 const normalizeNaverBlogProfileUrl=(value:string):string|null=>{
   const input=String(value||"").trim();
   const match=input.match(/^https?:\/\/(?:www\.)?(?:m\.)?blog\.naver\.com\/([A-Za-z0-9._-]+)\/?(?:[?#].*)?$/i);
@@ -1538,7 +1547,7 @@ export default function Admin() {
   const save=async()=>{
     if(!supabase)return;
     if(!form.name.trim()||!form.latitude.trim()||!form.longitude.trim()){Alert.alert("필수 정보","학원명과 위도/경도를 입력하세요.");return;}
-    if(form.website_url.trim()&&!/^https?:\/\//i.test(form.website_url.trim())){Alert.alert("홈페이지 주소","공식 홈페이지는 http:// 또는 https:// 주소로 입력하세요.");return;}
+    if(!isValidStudioHomepageUrl(form.website_url)){Alert.alert("대표 홈페이지 주소","HTTPS 주소를 입력하세요. 일반 홈페이지, 네이버 블로그, 인스타그램만 등록할 수 있으며 NEIS·카카오 장소 주소는 사용할 수 없습니다.");return;}
     if(form.source_url.trim()&&!/^https?:\/\//i.test(form.source_url.trim())){Alert.alert("출처 주소","출처 URL은 http:// 또는 https:// 주소로 입력하세요.");return;}
     const imageUrls=parseStudioImageUrls(form.image_urls);
     if(imageUrls.length>STUDIO_GALLERY_LIMIT||imageUrls.some(v=>!/^https:\/\//i.test(v))){Alert.alert("사진 주소 확인","사진은 HTTPS 주소로 최대 30개까지 입력할 수 있습니다.");return;}
@@ -1666,7 +1675,7 @@ export default function Admin() {
       const address=get(row,"address"),phone=get(row,"phone"),key=identityKey(name,address,phone);
       if(existing.has(key)){skipped++;continue;} existing.add(key);
       const website=get(row,"website_url"),source=get(row,"source_url");
-      if((website&&!/^https:\/\//i.test(website))||(source&&!/^https:\/\//i.test(source))){skipped++;continue;}
+      if(!isValidStudioHomepageUrl(website)||(source&&!/^https:\/\//i.test(source))){skipped++;continue;}
       const imgs=get(row,"image_urls").split(/[|;]/).map(v=>v.trim()).filter(Boolean);
       if(imgs.length>10||imgs.some(v=>!/^https:\/\//i.test(v))){skipped++;continue;}
       const price=get(row,"price_per_class"),verifiedRaw=get(row,"verified_at"),verifiedDate=verifiedRaw?new Date(verifiedRaw):null;
@@ -1804,7 +1813,7 @@ export default function Admin() {
     <View style={styles.panel}><View style={styles.listHead}><View style={{flex:1,minWidth:0}}><Text style={styles.heading}>탐색 오류 기록</Text><Text style={styles.hint}>최근 40회 중복 제외 {discoveryDuplicateTotal.toLocaleString("ko-KR")}건 · 오류 {discoveryErrorRows.length}종</Text></View><View style={{flexDirection:"row",gap:12}}><Pressable onPress={loadDashboard}><Text style={styles.refresh}>새로고침</Text></Pressable><Pressable onPress={clearDiscoveryHistory} disabled={dashboardBusy}><Text style={[styles.refresh,{color:"#B95764"}]}>기록 초기화</Text></Pressable></View></View>{discoveryErrorRows.map((item:any,index:number)=><View key={"discovery-error-"+index} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.region_name} · {new Date(item.queried_at).toLocaleString("ko-KR")} · 최근 40건 중 {item.count}회</Text><Text style={styles.errorHint}>{item.error}</Text></View>)}{!discoveryErrorRows.length&&!dashboardBusy&&<Text style={styles.hint}>최근 탐색 오류가 없습니다.</Text>}</View><View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>학원 정보 사용자 제보 ({reportRows.filter(r=>r.status==="pending"||r.status==="in_review").length})</Text><Pressable onPress={loadReports}><Text style={styles.refresh}>{reportsBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{reportsError?<View><Text style={styles.hint}>제보 조회 오류: {reportsError}</Text><Pressable onPress={loadReports}><Text style={styles.action}>다시 시도</Text></Pressable></View>:reportRows.length?reportRows.map(report=><View key={"report-"+report.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{report.studio_name||"학원"} · {report.category} · {new Date(report.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.evidenceText}>{report.description}</Text><Text style={styles.rowMeta}>상태: {report.status==="pending"?"대기":report.status==="in_review"?"검토 중":report.status==="resolved"?"처리 완료":"기각"}</Text><View style={styles.rowActions}><Pressable onPress={()=>openReportStudioEdit(report)}><Text style={styles.action}>학원 정보 수정</Text></Pressable><Pressable onPress={()=>showStudioChangeHistory(report)}><Text style={styles.action}>변경 이력</Text></Pressable>{(report.category==="가격/시간표 오류"||report.category==="사진 오류")&&<Pressable onPress={()=>setAdminTab(report.category==="사진 오류"?"review":"publish")}><Text style={styles.action}>관련 자료 검토</Text></Pressable>}{(report.status==="pending"||report.status==="in_review")&&<><Pressable onPress={()=>updateReportStatus(report.id,"in_review")}><Text style={styles.action}>검토 중</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"resolved")}><Text style={styles.action}>처리 완료</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"rejected")}><Text style={styles.reject}>기각</Text></Pressable></>}</View></View>):<Text style={styles.hint}>접수된 제보가 없습니다.</Text>}</View>
         </>}
     {adminTab==="studios"&&<>
-<View style={styles.panel} onLayout={event=>{studioEditPanelY.current=event.nativeEvent.layout.y;}}><Text style={styles.heading}>{reportEditingId!==null?"제보 기반 학원 정보 수정":editing?"학원 정보 수정":"학원 등록"}</Text>{reportEditingId!==null&&<Text style={styles.hint}>제보 내용을 확인해 학원 정보를 수정하고 저장하면 해당 제보가 처리 완료로 변경됩니다. 폐업·이전이 확인된 경우 앱에 공개 토글을 끄세요.</Text>}{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("대표 홈페이지 URL (일반 홈페이지 / 네이버 블로그 / 인스타그램)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}<Text style={styles.hint}>대표 홈페이지 URL에는 일반 홈페이지, 네이버 블로그 또는 인스타그램 주소를 입력하세요. NEIS 등록 정보는 홈페이지로 사용하지 않습니다.</Text>{field("1회 수업 가격 (원)","price_per_class","numeric")}
+<View style={styles.panel} onLayout={event=>{studioEditPanelY.current=event.nativeEvent.layout.y;}}><Text style={styles.heading}>{reportEditingId!==null?"제보 기반 학원 정보 수정":editing?"학원 정보 수정":"학원 등록"}</Text>{reportEditingId!==null&&<Text style={styles.hint}>제보 내용을 확인해 학원 정보를 수정하고 저장하면 해당 제보가 처리 완료로 변경됩니다. 폐업·이전이 확인된 경우 앱에 공개 토글을 끄세요.</Text>}{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("대표 홈페이지 URL (일반 홈페이지 · 네이버 블로그 · 인스타그램)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}<Text style={styles.hint}>대표 홈페이지 URL에는 일반 홈페이지, 네이버 블로그 또는 인스타그램 주소를 입력하세요. NEIS 등록 정보는 홈페이지로 사용하지 않습니다.</Text>{field("1회 수업 가격 (원)","price_per_class","numeric")}
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
     </View>
