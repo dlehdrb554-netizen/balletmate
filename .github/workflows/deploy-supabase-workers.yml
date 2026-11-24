@@ -45,16 +45,12 @@ jobs:
           fi
 
 
-      - name: Replace photo classifier with disabled endpoint
-        run: supabase functions deploy classify-studio-photo --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
-      - name: Retire photo and evidence worker
-        run: supabase functions deploy crawl-studio-worker --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
-      - name: Retire website text crawler
-        run: supabase functions deploy crawl-studio --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
-      - name: Retire Naver blog search
-        run: supabase functions deploy search-studio-blogs --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
-      - name: Retire Naver blog post crawler
-        run: supabase functions deploy crawl-studio-blogs --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+      - name: Delete retired photo and blog Edge Functions
+        shell: bash
+        run: |
+          for function_name in classify-studio-photo crawl-studio crawl-studio-worker crawl-studio-blogs search-studio-blogs; do
+            supabase functions delete "$function_name" --project-ref "$SUPABASE_PROJECT_REF" --yes
+          done
       - name: Deploy studio discovery worker
         run: supabase functions deploy studio-discovery-worker --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
