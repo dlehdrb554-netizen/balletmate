@@ -315,7 +315,7 @@ export default function Admin() {
       // The first verified blog is also the public-facing official link.
       // Never overwrite a URL already entered by the owner or administrator.
       if(urls.length>0&&!String(officialBlogStudio.website_url||"").trim()){
-        const {error:linkError}=await supabase.from("studios").update({website_url:urls[0],updated_at:new Date().toISOString()}).eq("id",officialBlogStudio.id).is("website_url",null);
+        const {error:linkError}=await supabase.from("studios").update({website_url:urls[0],updated_at:new Date().toISOString()}).eq("id",officialBlogStudio.id).or("website_url.is.null,website_url.eq.");
         if(linkError)Alert.alert("공식 블로그는 저장됐지만 대표 링크 반영 실패",linkError.message+" 학원 정보 수정에서 공식 홈페이지/채널 URL을 등록해 주세요.");
       }
       const {error:queueError}=await supabase.rpc("admin_requeue_studio_blog_search",{p_studio_id:officialBlogStudio.id});
