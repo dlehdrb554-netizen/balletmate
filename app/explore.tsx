@@ -95,6 +95,7 @@ export default function Home() {
   const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
   const [detailCanonicalLoading,setDetailCanonicalLoading]=useState(false);
   const [detailCanonicalError,setDetailCanonicalError]=useState<string|null>(null);
+  const [failedStudioImageUrls,setFailedStudioImageUrls]=useState<string[]>([]);
   const [reportOpen,setReportOpen]=useState(false);
   const [reportCategory,setReportCategory]=useState("기타");
   const [reportDescription,setReportDescription]=useState("");
@@ -697,7 +698,7 @@ export default function Home() {
     </View>;
   };
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");const target={latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018};setPendingMapTarget(target);setRegion(target);if(!studios.some(x=>x.id===s.id)){setSearchedRegion(target);setAreaLocked(false);}}} style={[styles.studioCard,compact&&styles.compactCard]}>
-    <View style={styles.cardTop}><View style={styles.studioIcon}>{s.imageUrls?.[0]?<Image source={{uri:s.imageUrls[0]}} style={styles.studioThumb} resizeMode="cover"/>:<MaterialCommunityIcons name="human-female-dance" size={28} color={COLORS.purple}/>}</View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
+    <View style={styles.cardTop}><View style={styles.studioIcon}>{(s.imageUrls||[]).find(url=>!failedStudioImageUrls.includes(url))?<Image source={{uri:(s.imageUrls||[]).find(url=>!failedStudioImageUrls.includes(url))!}} onError={()=>{const failed=(s.imageUrls||[]).find(url=>!failedStudioImageUrls.includes(url));if(failed)setFailedStudioImageUrls(current=>current.includes(failed)?current:[...current,failed]);}} style={styles.studioThumb} resizeMode="cover"/>:<MaterialCommunityIcons name="human-female-dance" size={28} color={COLORS.purple}/>}</View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
     <View style={styles.cardBottom}><Text style={styles.priceText}>{s.price!==null?"₩"+s.price.toLocaleString():"가격 문의"}<Text style={styles.priceUnit}> / 회</Text></Text><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();openDetail(s);}} style={styles.actionChip}><Text style={styles.actionText}>상세정보</Text></Pressable></View>
   </Pressable>;
