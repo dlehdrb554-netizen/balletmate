@@ -744,7 +744,7 @@ export default function Home() {
     return [...new Set((storedImages||[]).filter(url=>/^https:\/\//i.test(url)))].slice(0,8);
   };
   const cleanScheduleDisplay=(value:string)=>{
-    return String(value||"").replace(/\s*(오픈\\s*예정|개강\\s*예정|모집\\s*예정|모집\\s*중|신설\\s*예정)\\s*$/g,"").trim();
+    return String(value||"").replace(/\s*(오픈\s*예정|개강\s*예정|모집\s*예정|모집\s*중|신설\s*예정)\s*$/g,"").trim();
   };
     const evidencePhotoGallery=(key:string,storedImages:string[]|null|undefined)=>{
      const photos=evidencePhotosForSource(storedImages);
