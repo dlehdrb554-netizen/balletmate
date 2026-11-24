@@ -100,7 +100,7 @@ AS $$
 DECLARE v_normalized text;
 BEGIN
   v_normalized := public.normalize_studio_district(NEW.address, NEW.district);
-  IF v_normalized IS NOT NULL THEN NEW.district := v_normalized; END IF;
+  NEW.district := v_normalized;
   RETURN NEW;
 END;
 $$;
@@ -112,8 +112,7 @@ FOR EACH ROW EXECUTE FUNCTION public.normalize_studio_district_before_write();
 
 UPDATE public.studios
 SET district = public.normalize_studio_district(address, district)
-WHERE public.normalize_studio_district(address, district) IS NOT NULL
-  AND district IS DISTINCT FROM public.normalize_studio_district(address, district);
+WHERE district IS DISTINCT FROM public.normalize_studio_district(address, district);
 
 -- 2) Keep homepage URL separate from Kakao place URL and NEIS source metadata.
 CREATE OR REPLACE FUNCTION public.owner_update_studio_profile(
