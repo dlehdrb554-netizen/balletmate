@@ -21,9 +21,11 @@ Run these in Supabase SQL Editor, in this order:
    - Enables community post photo attachments.
 6. `fix_studio_delete_audit_fk_v2.sql`
    - Keeps academy deletion and owner edit history compatible with the new schema.
-7. `crawl_scheduler.sql`
+7. `studio_discovery.sql`
+   - Applies the 123-region Seoul → Gyeonggi → Incheon → other discovery order and the branch-safe registration/retry RPCs.
+8. `crawl_scheduler.sql`
    - Schedules Kakao discovery; NEIS discovery and name-only verification use their own schedules.
-8. `retire_neis_only_geocoding.sql`
+9. `retire_neis_only_geocoding.sql`
    - Removes the obsolete NEIS-address geocoding cron job without deleting historical candidate data.
 
 After SQL:
@@ -46,7 +48,7 @@ Run the base schema and feature setup scripts in dependency order:
 8. `studio_regional_search_and_review_rank.sql`, `class_filter_indexes.sql`
 9. `simplify_data_sources.sql`, `app_hardening.sql`, `fix_studio_delete_audit_fk_v2.sql`, `admin_sequence_permissions.sql`, `crawl_scheduler.sql`
 
-Legacy discovery patch files and `studio_intake.sql` are consolidated or retired; do not run them. Existing database rows are preserved.
+Legacy discovery patch files (`seoul_discovery_upgrade.sql`, `studio_discovery_grid_upgrade.sql`, `studio_discovery_rollout_order.sql`, `studio_discovery_branch_dedupe_fix.sql`, `studio_discovery_verification_fix.sql`) and `studio_intake.sql` are consolidated or retired; do not run them. Existing database rows are preserved.
 
 `app_hardening.sql` tests Seoul duplicate-label normalization plus Seoul, Busan, Gyeonggi and Jeju cases, and normalizes the stored region into province → city → district. Kakao is the canonical map source; NEIS contributes only an internal academy-name match. Kakao/NEIS source URLs remain provenance only; `website_url` is the single public homepage field for a standalone site, Naver Blog, or Instagram.
 
