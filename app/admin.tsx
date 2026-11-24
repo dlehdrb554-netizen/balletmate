@@ -26,12 +26,6 @@ const isValidStudioHomepageUrl=(value:string):boolean=>{
     return !["neis.go.kr","schoolinfo.go.kr","place.map.kakao.com","kakao.com"].some(domain=>host===domain||host.endsWith("."+domain));
   }catch{return false;}
 };
-const normalizeNaverBlogProfileUrl=(value:string):string|null=>{
-  const input=String(value||"").trim();
-  const match=input.match(/^https?:\/\/(?:www\.)?(?:m\.)?blog\.naver\.com\/([A-Za-z0-9._-]+)\/?(?:[?#].*)?$/i);
-  return match?"https://blog.naver.com/"+match[1]:null;
-};
-
 function parseCsv(text:string): string[][] {
   const rows:string[][]=[]; let row:string[]=[]; let cell=""; let quoted=false;
   for(let i=0;i<text.length;i++){
