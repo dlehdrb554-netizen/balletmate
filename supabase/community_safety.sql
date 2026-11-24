@@ -65,11 +65,51 @@ as $$
 begin
   if not public.is_balletmate_admin() then raise exception 'Admin access required'; end if;
   return coalesce((
-    select jsonb_agg(to_jsonb(r) order by r.created_at desc)
+    select jsonb_agg(jsonb_build_object(
+      'id', r.id, 'reporter_id', r.reporter_id, 'target_user_id', r.target_user_id,
+      'content_type', r.content_type, 'content_id', r.content_id, 'reason', r.reason,
+      'details', r.details, 'status', r.status, 'created_at', r.created_at,
+      'content_preview', coalesce(
+        case when r.content_type = 'post' then p.title || ': ' || left(p.content, 240) end,
+        case when r.content_type = 'comment' then left(c.content, 240) end,
+        '[삭제되었거나 확인할 수 없는 콘텐츠]'
+      )
+    ) order by r.created_at desc)
     from (select * from public.community_reports order by created_at desc limit 100) r
+    left join public.community_posts p on r.content_type = 'post' and p.id = r.content_id
+    left join public.community_comments c on r.content_type = 'comment' and c.id = r.content_id
   ), '[]'::jsonb);
 end;
-$$;
+$;
+
+create or replace function public.admin_remove_community_content(
+  p_content_type text,
+  p_content_id uuid,
+  p_report_id bigint
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  if not public.is_balletmate_admin() then raise exception 'Admin access required'; end if;
+  if p_content_type = 'post' then
+    delete from public.community_posts where id = p_content_id;
+  elsif p_content_type = 'comment' then
+    delete from public.community_comments where id = p_content_id;
+  else
+    raise exception 'Invalid content type';
+  end if;
+  update public.community_reports
+  set status = 'actioned', reviewed_by = auth.uid(), reviewed_at = now(),
+      admin_note = '신고 콘텐츠 삭제'
+  where id = p_report_id;
+  return found;
+end;
+$;
+revoke all on function public.admin_remove_community_content(text,uuid,bigint) from public, anon;
+grant execute on function public.admin_remove_community_content(text,uuid,bigint) to authenticated;
 
 create or replace function public.admin_update_community_report(
   p_report_id bigint,
