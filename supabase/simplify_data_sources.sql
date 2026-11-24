@@ -34,8 +34,10 @@ DELETE FROM public.studio_blog_search_queue;
 DELETE FROM public.studio_blog_account_candidates;
 DELETE FROM public.studio_blog_post_contents;
 DELETE FROM public.studio_blog_evidence_candidates;
-DELETE FROM public.studio_public_prices;
-DELETE FROM public.studio_public_schedules;
+UPDATE public.studio_public_prices SET image_urls=ARRAY[]::text[] WHERE COALESCE(cardinality(image_urls),0)>0;
+UPDATE public.studio_public_schedules SET image_urls=ARRAY[]::text[] WHERE COALESCE(cardinality(image_urls),0)>0;
+DELETE FROM public.studio_public_prices WHERE candidate_id IS NOT NULL;
+DELETE FROM public.studio_public_schedules WHERE candidate_id IS NOT NULL;
 DELETE FROM public.studio_schedule_class_candidates;
 
 -- A government registration page or Kakao Place page is never an academy homepage.
