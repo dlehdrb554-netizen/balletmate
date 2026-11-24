@@ -12,7 +12,7 @@ import { fetchStudios, fetchStudioById, searchStudiosByName, searchStudiosByKaka
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
 import { searchStudiosByClassFilters, searchStudioIdsByClassName } from "../lib/class-search";
 import { fetchCouponsForStudio, StudioCoupon } from "../lib/coupons";
-import { fetchStudioPublicPrices, StudioPublicPrice, fetchStudioPublicSchedules, StudioPublicSchedule } from "../lib/studio-blog-content";
+import { fetchStudioPublicPrices, StudioPublicPrice, fetchStudioPublicSchedules, StudioPublicSchedule } from "../lib/studio-public-materials";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import * as Location from "expo-location";
 import KakaoMap, { KakaoMapHandle } from "../components/KakaoMap";
