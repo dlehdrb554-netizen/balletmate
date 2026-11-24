@@ -133,7 +133,7 @@ const dedupeStudioRows=(input:any[])=>{
 };
 
 export default function Admin() {
-  const [adminTab,setAdminTab]=useState<"overview"|"review"|"publish"|"studios"|"owners"|"community">("overview");
+  const [adminTab,setAdminTab]=useState<"overview"|"studios"|"owners"|"community">("overview");
   const [adminScrollRef]=useState<{current:ScrollView|null}>({current:null});
   const [studioEditPanelY]=useState<{current:number}>({current:0});
   const scrollToOfficialBlogRef=useRef(false);
@@ -168,7 +168,7 @@ export default function Admin() {
   const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
   const [studioDbOffset,setStudioDbOffset]=useState(0);
   const [studioHasMore,setStudioHasMore]=useState(false);
-  const [studioListFilter,setStudioListFilter]=useState<"all"|"has_photo"|"missing_photo"|"missing_website"|"active"|"inactive">("all");
+  const [studioListFilter,setStudioListFilter]=useState<"all"|"missing_website"|"active"|"inactive">("all");
   const [selectedPhotoStudioIds,setSelectedPhotoStudioIds]=useState<string[]>([]);
   const [form,setForm]=useState({...blank});
   const [studioPhotoSlotCount,setStudioPhotoSlotCount]=useState(2);
@@ -1504,8 +1504,6 @@ export default function Admin() {
     const initials=(value:string)=>value.split("").map(char=>{const code=char.charCodeAt(0)-44032;if(code<0||code>11171)return char;return "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"[Math.floor(code/588)]||char;}).join("");
     const fields=[row.name,row.district||"",row.address||"",row.phone||""];
     if(q&&!fields.some(value=>value.toLowerCase().replace(/\\s+/g,"").includes(q)||initials(value.replace(/\\s+/g,"")).includes(q)))return false;
-    if(false&&(row.image_urls||[]).length===0)return false;
-    if(studioListFilter==="missing_photo"&&(row.image_urls||[]).length>0)return false;
     if(studioListFilter==="missing_website"&&!!row.website_url)return false;
     if(studioListFilter==="active"&&!row.is_active)return false;
     if(studioListFilter==="inactive"&&row.is_active)return false;
@@ -1513,44 +1511,11 @@ export default function Admin() {
   }),[rows,studioSearch,studioListFilter]);
   const visibleStudioRows=filteredStudioRows.slice(0,studioVisibleLimit);
   const reset=()=>{setEditing(null);setReportEditingId(null);setForm({...blank});setStudioPhotoSlotCount(2);};
-  const addStudioPhotosToForm=async()=>{
-    if(!supabase)return;
-    const currentUrls=parseStudioImageUrls(form.image_urls);
-    if(currentUrls.length>=STUDIO_GALLERY_LIMIT){Alert.alert("사진 등록 한도","학원별 사진은 최대 30장까지 등록할 수 있습니다.");return;}
-    const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if(!permission.granted){Alert.alert("사진 권한","사진 보관함 접근 권한을 허용해 주세요.");return;}
-    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:Math.min(30-currentUrls.length,30),quality:1});
-    if(picked.canceled||!picked.assets?.length)return;
-    setBusy(true);const uploadedPaths:string[]=[];
-    try{
-      const urls:string[]=[];
-      for(const [index,asset] of picked.assets.slice(0,STUDIO_GALLERY_LIMIT-currentUrls.length).entries()){
-        if(!["image/jpeg","image/png","image/webp"].includes(asset.mimeType||"image/jpeg"))throw new Error("JPG, PNG, WEBP 사진만 등록할 수 있습니다.");
-        if((asset.fileSize||0)>15*1024*1024)throw new Error("원본 사진은 한 장당 15MB 이하여야 합니다.");
-        const width=asset.width||1600,height=asset.height||1600,scale=Math.min(1,1600/width,1800/height);
-        const resized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:Math.max(1,Math.round(width*scale))}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
-        try{
-          const bytes=await (await fetch(resized.uri)).arrayBuffer();
-          if(bytes.byteLength>1800*1024)throw new Error("압축된 사진이 1.8MB를 초과합니다. 다른 사진을 선택해 주세요.");
-          const path=(editing||"draft")+"/"+Date.now()+"_"+index+".jpg";
-          const {error}=await supabase.storage.from("studio-photos").upload(path,bytes,{contentType:"image/jpeg",cacheControl:"31536000",upsert:false});
-          if(error)throw error;uploadedPaths.push(path);urls.push(supabase.storage.from("studio-photos").getPublicUrl(path).data.publicUrl);
-        }finally{await FileSystem.deleteAsync(resized.uri,{idempotent:true}).catch(()=>{});}
-      }
-      setForm(current=>({...current,image_urls:[...parseStudioImageUrls(current.image_urls),...urls].join("\n"),image_source_name:current.image_source_name||"관리자 직접 등록"}));
-      setStudioPhotoSlotCount(count=>Math.min(STUDIO_GALLERY_LIMIT,Math.max(count,currentUrls.length+urls.length+2,2)));
-      Alert.alert("사진 추가 완료",urls.length+"장을 업로드했습니다. 학원 정보 저장을 누르면 등록됩니다.");
-    }catch(error:any){if(uploadedPaths.length)await supabase.storage.from("studio-photos").remove(uploadedPaths);Alert.alert("사진 업로드 실패",error?.message||"사진을 추가하지 못했습니다.");}
-    finally{setBusy(false);}
-  };
-
   const save=async()=>{
     if(!supabase)return;
     if(!form.name.trim()||!form.latitude.trim()||!form.longitude.trim()){Alert.alert("필수 정보","학원명과 위도/경도를 입력하세요.");return;}
     if(!isValidStudioHomepageUrl(form.website_url)){Alert.alert("대표 홈페이지 주소","HTTPS 주소를 입력하세요. 일반 홈페이지, 네이버 블로그, 인스타그램만 등록할 수 있으며 NEIS·카카오 장소 주소는 사용할 수 없습니다.");return;}
     if(form.source_url.trim()&&!/^https?:\/\//i.test(form.source_url.trim())){Alert.alert("출처 주소","출처 URL은 http:// 또는 https:// 주소로 입력하세요.");return;}
-    const imageUrls=parseStudioImageUrls(form.image_urls);
-    if(imageUrls.length>STUDIO_GALLERY_LIMIT||imageUrls.some(v=>!/^https:\/\//i.test(v))){Alert.alert("사진 주소 확인","사진은 HTTPS 주소로 최대 30개까지 입력할 수 있습니다.");return;}
     const verifiedAt=form.verified_at.trim()?new Date(form.verified_at.trim()):null;
     if(verifiedAt&&!Number.isFinite(verifiedAt.getTime())){Alert.alert("확인 날짜","확인 날짜는 YYYY-MM-DD 형식으로 입력하세요.");return;}
     const lat=Number(form.latitude),lng=Number(form.longitude),price=form.price_per_class.trim()?Number(form.price_per_class):null;
@@ -1595,65 +1560,6 @@ export default function Admin() {
         setBusy(false);
       }}
     ]);
-  };
-  const uploadPhotos=async(id:string,name:string)=>{
-    if(!supabase)return;
-    const current=rows.find(r=>r.id===id);
-    const existing=current?.image_urls||[];
-    if(existing.length>=10){Alert.alert("사진 등록 한도","학원별 소개 사진은 최대 10장까지 등록할 수 있습니다.");return;}
-    const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if(!permission.granted){Alert.alert("사진 권한","사진 보관함 접근 권한을 허용해 주세요.");return;}
-    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:Math.min(10,10-existing.length),quality:1});
-    if(picked.canceled||!picked.assets?.length)return;
-    const assets=picked.assets.slice(0,10-existing.length);
-    const uploadedPaths:string[]=[];
-    setBusy(true);
-    try{
-      const urls:string[]=[];
-      for(let i=0;i<assets.length;i++){
-        const asset=assets[i];
-        if(!["image/jpeg","image/png","image/webp"].includes(asset.mimeType||"image/jpeg"))throw new Error("JPG, PNG, WEBP 사진만 등록할 수 있습니다.");
-        if((asset.fileSize||0)>15*1024*1024)throw new Error("원본 사진은 한 장당 15MB 이하여야 합니다.");
-        const maxWidth=2000;
-        const sourceWidth=asset.width||maxWidth;
-        const sourceHeight=asset.height||maxWidth;
-        const scale=Math.min(1,maxWidth/sourceWidth,1800/sourceHeight);
-        const targetWidth=Math.max(1,Math.round(sourceWidth*scale));
-        const targetHeight=Math.max(1,Math.round(sourceHeight*scale));
-        const resized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:targetWidth,height:targetHeight}}],{compress:0.84,format:ImageManipulator.SaveFormat.JPEG});
-        try{
-          let response=await fetch(resized.uri);
-          if(!response.ok)throw new Error("최적화된 사진 파일을 읽지 못했습니다.");
-          let bytes=await response.arrayBuffer();
-          if(bytes.byteLength>1500*1024){
-            const compact=await ImageManipulator.manipulateAsync(resized.uri,[],{compress:0.68,format:ImageManipulator.SaveFormat.JPEG});
-            try{
-              response=await fetch(compact.uri);
-              if(!response.ok)throw new Error("압축된 사진 파일을 읽지 못했습니다.");
-              bytes=await response.arrayBuffer();
-            }finally{await FileSystem.deleteAsync(compact.uri,{idempotent:true}).catch(()=>{});}
-          }
-          if(bytes.byteLength>1800*1024)throw new Error("사진을 최적화한 뒤에도 1.8MB를 초과합니다. 다른 사진을 선택해 주세요.");
-          const path=id+"/"+Date.now()+"_"+i+".jpg";
-          const {error:uploadError}=await supabase.storage.from("studio-photos").upload(path,bytes,{contentType:"image/jpeg",cacheControl:"31536000",upsert:false});
-          if(uploadError)throw uploadError;
-          uploadedPaths.push(path);
-          urls.push(supabase.storage.from("studio-photos").getPublicUrl(path).data.publicUrl);
-        }finally{await FileSystem.deleteAsync(resized.uri,{idempotent:true}).catch(()=>{});}
-      }
-      const {error:updateError}=await supabase.from("studios").update({
-        image_urls:[...existing,...urls],
-        image_source_name:"관리자 직접 등록",
-        image_usage_note:current?.image_usage_note||"관리자가 직접 업로드한 최적화 사진",
-        updated_at:new Date().toISOString()
-      }).eq("id",id);
-      if(updateError)throw updateError;
-      Alert.alert("사진 등록 완료",name+" · "+urls.length+"장 최적화 후 업로드 완료");
-      await load();
-    }catch(error:any){
-      if(uploadedPaths.length)await supabase.storage.from("studio-photos").remove(uploadedPaths);
-      Alert.alert("사진 업로드 실패",error?.message||"잠시 후 다시 시도해 주세요.");
-    }finally{setBusy(false);}
   };
   const importCsv=async()=>{
     if(!supabase||!csvText.trim())return;
@@ -1826,7 +1732,7 @@ export default function Admin() {
     <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,25000,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원 · 화면 {visibleStudioRows.length}/{filteredStudioRows.length} · 조회 {rows.length}개</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Pressable style={[styles.secondary,{marginBottom:10}]} disabled={busy} onPress={cleanupUnrelatedStudios}><Text style={styles.secondaryText}>발레 무관 업체 자동 삭제</Text></Pressable>
       <TextInput style={styles.input} value={studioSearch} onChangeText={value=>{setStudioSearch(value);setStudioVisibleLimit(100);}} placeholder="학원명·지역·주소·전화 검색" autoCapitalize="none"/><View style={styles.buttons}><Pressable style={styles.button} disabled={busy} onPress={searchStudiosServer}><Text style={styles.buttonText}>전체 학원 검색</Text></Pressable><Pressable style={styles.secondary} disabled={busy} onPress={()=>{setStudioSearch("");setStudioAppliedSearch("");load();}}><Text style={styles.secondaryText}>초기화</Text></Pressable></View>
-      <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"has_photo",label:"사진 있음"},{key:"missing_photo",label:"사진 없음"},{key:"missing_website",label:"홈페이지 없음"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>{setStudioListFilter(option.key);setStudioVisibleLimit(100);if(option.key==="has_photo")loadAllPhotoStudios();}}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
+      <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"missing_website",label:"홈페이지 없음"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>{setStudioListFilter(option.key);setStudioVisibleLimit(100);}}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
             {studioListFilter==="has_photo"&&<View style={[styles.row,{justifyContent:"space-between",flexWrap:"wrap"}]}><Text style={styles.rowMeta}>{busy?"사진 학원 전체 조회 중…":"전체 사진 보유 "+rows.filter(row=>(row.image_urls||[]).length>0).length+"개 · 검색 결과 "+filteredStudioRows.length+"개"} · 선택 {selectedPhotoStudioIds.length}개</Text><View style={{flexDirection:"row",gap:6,flexWrap:"wrap",alignItems:"center"}}><Pressable style={styles.compactButton} onPress={selectFilteredPhotoStudios}><Text style={styles.compactButtonText} numberOfLines={1}>전체 선택</Text></Pressable><Pressable style={styles.compactButton} onPress={()=>setSelectedPhotoStudioIds([])}><Text style={styles.compactButtonText} numberOfLines={1}>선택 해제</Text></Pressable><Pressable style={[styles.compactButton,{borderColor:"#E6C5C9"}]} disabled={busy||!selectedPhotoStudioIds.length} onPress={bulkDeleteStudioPhotos}><Text style={[styles.compactButtonText,{color:"#B94C58"}]} numberOfLines={1}>선택 사진 삭제</Text></Pressable></View></View>}
       {visibleStudioRows.map(r=><View key={r.id} style={[styles.row,studioListFilter==="has_photo"&&selectedPhotoStudioIds.includes(r.id)&&{backgroundColor:"#F2ECFF",borderColor:c.purple,borderWidth:1,borderRadius:12}]}>{studioListFilter==="has_photo"&&<Pressable onPress={()=>togglePhotoStudioSelection(r.id)} style={{paddingRight:6,paddingVertical:8}}><Ionicons name={selectedPhotoStudioIds.includes(r.id)?"checkbox":"square-outline"} size={26} color={selectedPhotoStudioIds.includes(r.id)?c.purple:c.muted}/></Pressable>}<View style={{flex:1,minWidth:0}}><Text style={styles.rowName} numberOfLines={1}>{r.name}</Text><Text style={styles.rowMeta}>{r.district||"지역 미입력"} · {r.is_active?"공개":"비공개"}</Text></View><View style={{flexDirection:"row",flexWrap:"wrap",gap:6,alignItems:"center"}}><Pressable style={styles.manageButton} onPress={()=>setStudioActionId(current=>current===r.id?null:r.id)}><Text style={styles.manageButtonText}>{studioActionId===r.id?"닫기":"관리"}</Text></Pressable></View>{studioActionId===r.id&&<View style={styles.studioActionMenu}><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);startEdit(r);}}><Text style={styles.manageButtonText}>정보 수정</Text></Pressable><Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);setClassStudio(r);resetClass();}}><Text style={styles.manageButtonText}>수업 관리</Text></Pressable>{String(r.source_name||"").includes("홈페이지 검색 후보")&&<Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);deleteHomepageCandidate(r);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>후보 홈페이지 삭제</Text></Pressable>}<Pressable style={styles.manageAction} onPress={()=>{setStudioActionId(null);remove(r.id,r.name);}}><Text style={[styles.manageButtonText,{color:"#B95764"}]}>삭제</Text></Pressable></View>}</View>)}
       {visibleStudioRows.length<filteredStudioRows.length&&<Pressable style={styles.secondary} onPress={()=>setStudioVisibleLimit(limit=>limit+100)}><Text style={styles.secondaryText}>학원 100개 더 보기 ({visibleStudioRows.length}/{filteredStudioRows.length})</Text></Pressable>}
