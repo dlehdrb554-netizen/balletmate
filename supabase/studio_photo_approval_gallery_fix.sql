@@ -33,8 +33,8 @@ BEGIN
     candidate.auto_classification = 'logo'
     OR candidate.auto_classification = 'ballet_class'
     OR (
-      COALESCE(candidate.material_type,'') NOT IN ('schedule','price','other')
-      AND COALESCE(candidate.auto_classification,'') NOT IN ('schedule','price','poster','logo')
+      COALESCE(candidate.material_type,'') NOT IN ('schedule','price')
+      AND COALESCE(candidate.auto_classification,'') NOT IN ('schedule','price','poster')
     )
   ) THEN
     SELECT COALESCE(image_urls, ARRAY[]::text[]) INTO current_images
@@ -99,7 +99,8 @@ BEGIN
     SELECT studio_id,image_url,source_host,source_page_url
     FROM public.studio_photo_candidates
     WHERE review_status='approved'
-      AND auto_classification IN ('logo','ballet_class')
+      AND COALESCE(material_type,'') NOT IN ('schedule','price')
+      AND COALESCE(auto_classification,'') NOT IN ('schedule','price','poster')
     ORDER BY reviewed_at NULLS FIRST, id
   LOOP
     SELECT COALESCE(image_urls,ARRAY[]::text[]) INTO current_images
