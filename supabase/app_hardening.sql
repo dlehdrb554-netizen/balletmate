@@ -406,8 +406,9 @@ BEGIN
         OR p.proname ILIKE '%studio_gallery_photo%'
         OR p.proname ILIKE '%studio_image_crawl%'
         OR p.proname ILIKE '%blog%'
-        OR p.proname ILIKE '%photo%'
-        OR p.proname ILIKE '%evidence%'
+        OR p.proname ILIKE '%studio%photo%'
+        OR p.proname ILIKE '%studio%image%'
+        OR p.proname ILIKE '%studio%evidence%'
         OR p.proname ILIKE '%image_crawl%')
   LOOP
     EXECUTE 'DROP FUNCTION IF EXISTS '||item.signature||' CASCADE';
@@ -415,21 +416,21 @@ BEGIN
 
   FOR item IN
     SELECT tablename FROM pg_tables
-    WHERE schemaname='public' AND (tablename LIKE 'studio_blog_%' OR tablename LIKE 'blog_%' OR tablename LIKE '%studio_photo%' OR tablename LIKE '%image_crawl%' OR tablename LIKE '%evidence_candidate%')
+    WHERE schemaname='public' AND (tablename LIKE 'studio_blog_%' OR tablename LIKE 'studio_photo_%' OR tablename LIKE 'studio_image_crawl_%' OR tablename LIKE 'studio_evidence_candidate_%')
   LOOP
     EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE',item.tablename);
   END LOOP;
 
   FOR item IN
     SELECT viewname FROM pg_views
-    WHERE schemaname='public' AND (viewname LIKE 'studio_blog_%' OR viewname LIKE 'blog_%' OR viewname LIKE '%studio_photo%' OR viewname LIKE '%image_crawl%')
+    WHERE schemaname='public' AND (viewname LIKE 'studio_blog_%' OR viewname LIKE 'studio_photo_%' OR viewname LIKE 'studio_image_crawl_%')
   LOOP
     EXECUTE format('DROP VIEW IF EXISTS public.%I CASCADE',item.viewname);
   END LOOP;
 
   FOR item IN
     SELECT matviewname FROM pg_matviews
-    WHERE schemaname='public' AND (matviewname LIKE 'studio_blog_%' OR matviewname LIKE 'blog_%' OR matviewname LIKE '%studio_photo%' OR matviewname LIKE '%image_crawl%')
+    WHERE schemaname='public' AND (matviewname LIKE 'studio_blog_%' OR matviewname LIKE 'studio_photo_%' OR matviewname LIKE 'studio_image_crawl_%')
   LOOP
     EXECUTE format('DROP MATERIALIZED VIEW IF EXISTS public.%I CASCADE',item.matviewname);
   END LOOP;
