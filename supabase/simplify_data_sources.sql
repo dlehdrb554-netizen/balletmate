@@ -21,33 +21,32 @@ BEGIN
 END $$;
 
 -- Fold an existing registered Naver blog URL into the single homepage field when empty.
--- Never overwrite a manually registered standalone homepage or Instagram URL.
-UPDATE public.studios s
-SET website_url=b.blogger_url, updated_at=now()
-FROM public.studio_blog_official_accounts b
-WHERE b.studio_id=s.id AND b.is_active=true
-  AND s.website_url IS NULL
-  AND b.blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/';
-
--- Inactivate the old separate official-blog registrations; the single website_url
--- field is now the only public homepage/channel field.
-UPDATE public.studio_blog_official_accounts SET is_active=false WHERE is_active=true;
+-- This guarded block also remains safe after the retired blog tables are dropped.
+DO $transfer$
+BEGIN
+  IF to_regclass('public.studio_blog_official_accounts') IS NOT NULL THEN
+    EXECUTE $sql$
+      UPDATE public.studios s
+      SET website_url=b.blogger_url, updated_at=now()
+      FROM public.studio_blog_official_accounts b
+      WHERE b.studio_id=s.id AND b.is_active=true
+        AND s.website_url IS NULL
+        AND b.blogger_url ~* '^https://(m[.])?blog[.]naver[.]com/'
+    $sql$;
+  END IF;
+END;
+$transfer$;
 
 -- Clear queues and crawled post/text evidence; do not delete manually maintained
 -- classes/class_sessions or the NEIS/Kakao academy records.
 UPDATE public.studios SET image_urls=ARRAY[]::text[], image_source_name=NULL, updated_at=now() WHERE COALESCE(cardinality(image_urls),0)>0 OR image_source_name IS NOT NULL;
 UPDATE public.studios SET price_evidence_text=NULL, schedule_evidence_text=NULL, details_source_urls=ARRAY[]::text[], details_checked_at=NULL, details_status=NULL WHERE price_evidence_text IS NOT NULL OR schedule_evidence_text IS NOT NULL OR cardinality(details_source_urls)>0 OR details_checked_at IS NOT NULL OR details_status IS NOT NULL;
-DELETE FROM public.studio_photo_candidates;
-DELETE FROM public.studio_blog_post_crawl_queue;
-DELETE FROM public.studio_blog_search_queue;
-DELETE FROM public.studio_blog_account_candidates;
-DELETE FROM public.studio_blog_post_contents;
-DELETE FROM public.studio_blog_evidence_candidates;
+DROP TABLE IF EXISTS public.studio_photo_candidates CASCADE;
 UPDATE public.studio_public_prices SET image_urls=ARRAY[]::text[] WHERE COALESCE(cardinality(image_urls),0)>0;
 UPDATE public.studio_public_schedules SET image_urls=ARRAY[]::text[] WHERE COALESCE(cardinality(image_urls),0)>0;
 DELETE FROM public.studio_public_prices WHERE candidate_id IS NOT NULL;
 DELETE FROM public.studio_public_schedules WHERE candidate_id IS NOT NULL;
-DELETE FROM public.studio_schedule_class_candidates;
+DROP TABLE IF EXISTS public.studio_schedule_class_candidates CASCADE;
 
 -- A government registration page or Kakao Place page is never an academy homepage.
 UPDATE public.studios
