@@ -19,6 +19,7 @@ DECLARE
   current_images text[];
   next_status text;
   next_material text;
+  routed_rows integer;
 BEGIN
   IF NOT public.is_balletmate_admin() THEN
     RAISE EXCEPTION 'admin access required' USING ERRCODE = '42501';
@@ -55,16 +56,20 @@ BEGIN
       THEN COALESCE(image_urls,ARRAY[]::text[]) ELSE array_append(COALESCE(image_urls,ARRAY[]::text[]),candidate.image_url) END
     WHERE id=(SELECT id FROM public.studio_public_schedules
       WHERE studio_id=candidate.studio_id AND is_active=true
-      ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1)
+      ORDER BY (source_url=candidate.source_page_url) DESC,published_at DESC NULLS LAST,id DESC LIMIT 1)
       AND (candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[])) OR cardinality(COALESCE(image_urls,ARRAY[]::text[]))<8);
+    GET DIAGNOSTICS routed_rows = ROW_COUNT;
+    IF routed_rows = 0 THEN RAISE EXCEPTION '시간표 이미지 대상 자료가 없습니다. 먼저 해당 시간표를 공개해 주세요.'; END IF;
   ELSIF p_category = 'price' THEN
     UPDATE public.studio_public_prices
     SET image_urls=CASE WHEN candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[]))
       THEN COALESCE(image_urls,ARRAY[]::text[]) ELSE array_append(COALESCE(image_urls,ARRAY[]::text[]),candidate.image_url) END
     WHERE id=(SELECT id FROM public.studio_public_prices
       WHERE studio_id=candidate.studio_id AND is_active=true
-      ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1)
+      ORDER BY (source_url=candidate.source_page_url) DESC,published_at DESC NULLS LAST,id DESC LIMIT 1)
       AND (candidate.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[])) OR cardinality(COALESCE(image_urls,ARRAY[]::text[]))<8);
+    GET DIAGNOSTICS routed_rows = ROW_COUNT;
+    IF routed_rows = 0 THEN RAISE EXCEPTION '가격 이미지 대상 자료가 없습니다. 먼저 해당 가격표를 공개해 주세요.'; END IF;
   ELSE
     -- Poster/logo are retained as classified source material, never as hero photos.
     SELECT COALESCE(image_urls,ARRAY[]::text[]) INTO current_images
@@ -199,7 +204,7 @@ DO $$
 DECLARE rec record;
 BEGIN
   FOR rec IN
-    SELECT c.studio_id,c.image_url,c.auto_classification
+    SELECT c.studio_id,c.image_url,c.source_page_url,c.auto_classification
     FROM public.studio_photo_candidates c
     WHERE c.review_status='approved'
       AND c.auto_classification IN ('schedule','price','poster','logo')
@@ -208,7 +213,7 @@ BEGIN
       UPDATE public.studio_public_schedules
       SET image_urls=CASE WHEN rec.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[]))
         THEN COALESCE(image_urls,ARRAY[]::text[]) ELSE array_append(COALESCE(image_urls,ARRAY[]::text[]),rec.image_url) END
-      WHERE id=(SELECT id FROM public.studio_public_schedules WHERE studio_id=rec.studio_id AND is_active=true ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1)
+      WHERE id=(SELECT id FROM public.studio_public_schedules WHERE studio_id=rec.studio_id AND is_active=true ORDER BY (source_url=rec.source_page_url) DESC,published_at DESC NULLS LAST,id DESC LIMIT 1)
         AND (rec.image_url=ANY(COALESCE(image_urls,ARRAY[]::text[])) OR cardinality(COALESCE(image_urls,ARRAY[]::text[]))<8);
     ELSIF rec.auto_classification='price' THEN
       UPDATE public.studio_public_prices
