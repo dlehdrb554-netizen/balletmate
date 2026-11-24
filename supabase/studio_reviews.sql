@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS public.studio_review_reports (
   reporter_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   reason text NOT NULL CHECK(reason IN ('광고/홍보','욕설/비방','허위 정보','도배/스팸','개인정보 노출','기타')),
   details text NOT NULL DEFAULT '' CHECK(char_length(details)<=500),
+  status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','actioned','dismissed')),
+  admin_note text,
+  reviewed_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(review_id,reporter_id)
 );
@@ -130,3 +134,42 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.submit_studio_review_report(uuid,text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.submit_studio_review_report(uuid,text,text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.admin_list_studio_review_reports()
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN
+ IF NOT public.is_balletmate_admin() THEN RAISE EXCEPTION 'Admin access required'; END IF;
+ RETURN coalesce((SELECT jsonb_agg(jsonb_build_object(
+  'id',q.id,'review_id',q.review_id,'studio_id',q.studio_id,'studio_name',s.name,
+  'reviewer_id',r.user_id,'review_content',r.content,'reason',q.reason,
+  'details',q.details,'status',q.status,'created_at',q.created_at
+ ) ORDER BY q.created_at DESC)
+ FROM (SELECT * FROM public.studio_review_reports ORDER BY created_at DESC LIMIT 100) q
+ JOIN public.studio_reviews r ON r.id=q.review_id
+ LEFT JOIN public.studios s ON s.id=r.studio_id),'[]'::jsonb);
+END $$;
+CREATE OR REPLACE FUNCTION public.admin_resolve_studio_review_report(
+ p_report_id bigint,p_action text,p_admin_note text DEFAULT NULL
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_review_id uuid;
+BEGIN
+ IF NOT public.is_balletmate_admin() THEN RAISE EXCEPTION 'Admin access required'; END IF;
+ IF p_action NOT IN ('hide','restore','dismiss') THEN RAISE EXCEPTION 'Invalid action'; END IF;
+ SELECT review_id INTO v_review_id FROM public.studio_review_reports WHERE id=p_report_id;
+ IF v_review_id IS NULL THEN RAISE EXCEPTION 'Report not found'; END IF;
+ UPDATE public.studio_review_reports SET
+  status=CASE WHEN p_action='dismiss' THEN 'dismissed' ELSE 'actioned' END,
+  admin_note=nullif(left(coalesce(p_admin_note,''),500),''),
+  reviewed_by=auth.uid(),reviewed_at=now()
+ WHERE id=p_report_id;
+ IF p_action='hide' THEN
+  UPDATE public.studio_reviews SET is_hidden=true,hidden_reason='관리자 검토 결과 숨김' WHERE id=v_review_id;
+ ELSIF p_action IN ('restore','dismiss') THEN
+  UPDATE public.studio_reviews SET is_hidden=false,hidden_reason=NULL WHERE id=v_review_id;
+ END IF;
+END $$;
+REVOKE ALL ON FUNCTION public.admin_list_studio_review_reports() FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.admin_resolve_studio_review_report(bigint,text,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.admin_list_studio_review_reports() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_resolve_studio_review_report(bigint,text,text) TO authenticated;
