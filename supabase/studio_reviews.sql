@@ -113,6 +113,7 @@ BEGIN
    NEW.rating:=OLD.rating;
    NEW.content:=OLD.content;
    NEW.created_at:=OLD.created_at;
+   NEW.verified_at:=OLD.verified_at;
   ELSE
    IF OLD.updated_at>now()-interval '10 minutes' THEN
     RAISE EXCEPTION '리뷰 수정은 10분 간격으로 가능합니다.';
