@@ -72,6 +72,36 @@ create table if not exists public.community_reports (
   created_at timestamptz not null default now(),
   unique (reporter_id, content_type, content_id)
 );
+create or replace function public.validate_community_report_target()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $validate_report$
+declare
+  actual_author uuid;
+begin
+  if new.content_type = 'post' then
+    select author_id into actual_author from public.community_posts where id = new.content_id;
+  elsif new.content_type = 'comment' then
+    select author_id into actual_author from public.community_comments where id = new.content_id;
+  else
+    raise exception 'Invalid community report content type';
+  end if;
+  if actual_author is null then raise exception '신고할 콘텐츠를 찾을 수 없습니다.'; end if;
+  if actual_author = new.reporter_id then raise exception '본인 콘텐츠는 신고할 수 없습니다.'; end if;
+  if new.target_user_id is distinct from actual_author then
+    raise exception '신고 대상 작성자 정보가 일치하지 않습니다.';
+  end if;
+  return new;
+end;
+$validate_report$;
+revoke all on function public.validate_community_report_target() from public, anon, authenticated;
+drop trigger if exists community_reports_validate_target on public.community_reports;
+create trigger community_reports_validate_target
+  before insert on public.community_reports
+  for each row execute function public.validate_community_report_target();
+
 create index if not exists community_reports_status_created_idx
   on public.community_reports(status, created_at desc);
 
