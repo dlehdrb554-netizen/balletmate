@@ -102,7 +102,6 @@ export default function Admin() {
   const [ownerReviewBusy,setOwnerReviewBusy]=useState(false);
   const [failedStudioThumbIds,setFailedStudioThumbIds]=useState<string[]>([]);
   const [studioSearch,setStudioSearch]=useState("");
-  const photoFilteredCandidates=photoCandidateRows.filter(item=>{const heuristics=classifyPhotoCandidate(item);const face=photoFaceResults[Number(item.id)];const suspect=heuristics.suspect||face?.status==="faces";const ai=item.auto_classification;const autoOk=photoAutoFilter==="all"||(photoAutoFilter==="suspect"?suspect||!!ai&&ai!=="ballet_class":photoAutoFilter==="ballet"?!!ai&&["ballet_class","schedule","price","poster","logo"].includes(ai)&&Number(item.auto_confidence||0)>=0.60:photoAutoFilter==="excluded"?!!ai&&(["portrait","unrelated","unknown"].includes(ai)||Number(item.auto_confidence||0)<0.60):ai?ai==="ballet_class"||ai==="unknown":!suspect);const materialOk=photoMaterialFilter==="all"||(photoMaterialFilter==="unclassified"?!item.material_type:item.material_type===photoMaterialFilter);return autoOk&&materialOk;});
   const [studioAppliedSearch,setStudioAppliedSearch]=useState("");
   const [studioVisibleLimit,setStudioVisibleLimit]=useState(100);
   const [studioDbOffset,setStudioDbOffset]=useState(0);
