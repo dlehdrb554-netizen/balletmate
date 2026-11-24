@@ -34,7 +34,8 @@ function findKakaoPlaceChannel(value:unknown,depth=0):string|null{
  if(typeof value==="object"){for(const [key,item] of Object.entries(value as Record<string,unknown>)){if(/channel|kakao|plus.?friend|sns|url|link|homepage|site/i.test(key)||depth<3){const found=findKakaoPlaceChannel(item,depth+1);if(found)return found;}}}
  return null;
 }
-// Official-link enrichment is intentionally disabled: no undocumented Kakao Place HTML endpoints are requested.\nasync function findKakaoPlaceOfficialLinks(_placeId:string):Promise<{blog:string|null;channel:string|null;website:string|null;checked:boolean}>{
+// Official-link enrichment is intentionally disabled: no undocumented Kakao Place HTML endpoints are requested.
+async function findKakaoPlaceOfficialLinks(_placeId:string):Promise<{blog:string|null;channel:string|null;website:string|null;checked:boolean}>{
  // Do not scrape undocumented Kakao Place web endpoints. Use only Kakao's documented Local API;
  // official links can be entered or verified by an academy owner/admin.
  return {blog:null,channel:null,website:null,checked:false};
