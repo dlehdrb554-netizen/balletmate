@@ -35,7 +35,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $
+as $require_terms$
 begin
   if auth.uid() is null or not exists (
     select 1 from public.community_terms_acceptances
@@ -46,7 +46,7 @@ begin
   end if;
   return new;
 end;
-$;
+$require_terms$;
 revoke all on function public.require_community_terms_acceptance() from public, anon, authenticated;
 drop trigger if exists community_posts_terms_acceptance on public.community_posts;
 create trigger community_posts_terms_acceptance
@@ -107,7 +107,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $list_reports$
 begin
   if not public.is_balletmate_admin() then raise exception 'Admin access required'; end if;
   return coalesce((
@@ -126,7 +126,7 @@ begin
     left join public.community_comments c on r.content_type = 'comment' and c.id = r.content_id
   ), '[]'::jsonb);
 end;
-$;
+$list_reports$;
 
 create or replace function public.admin_remove_community_content(
   p_content_type text,
@@ -137,7 +137,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $remove_content$
 begin
   if not public.is_balletmate_admin() then raise exception 'Admin access required'; end if;
   if p_content_type = 'post' then
@@ -153,7 +153,7 @@ begin
   where id = p_report_id;
   return found;
 end;
-$;
+$remove_content$;
 revoke all on function public.admin_remove_community_content(text,uuid,bigint) from public, anon;
 grant execute on function public.admin_remove_community_content(text,uuid,bigint) to authenticated;
 
