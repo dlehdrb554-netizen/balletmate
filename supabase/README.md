@@ -56,7 +56,6 @@ Legacy discovery patch files and `studio_intake.sql` are consolidated or retired
 - `search-studios-kakao`
 - `neis-ballet-discovery`
 - `neis-ballet-kakao-verification`
-
 - `delete-account`
 - `privacy-policy`
 
