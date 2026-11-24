@@ -28,11 +28,11 @@ ALTER TABLE public.studio_public_schedules
 -- Admin-reviewed photos (reviewed_by is not null) are preserved.
 UPDATE public.studios s
 SET image_urls = COALESCE((
-  SELECT array_agg(u)
-  FROM unnest(COALESCE(s.image_urls, ARRAY[]::text[])) AS u
+  SELECT array_agg(item.image_url)
+  FROM unnest(COALESCE(s.image_urls, ARRAY[]::text[])) AS item(image_url)
   WHERE NOT EXISTS (
     SELECT 1 FROM public.studio_photo_candidates c
-    WHERE c.studio_id=s.id AND c.image_url=u
+    WHERE c.studio_id=s.id AND c.image_url=item.image_url
       AND c.review_status='approved' AND c.reviewed_by IS NULL
       AND c.auto_classified_at IS NOT NULL
   )
@@ -46,11 +46,11 @@ WHERE EXISTS (
 
 UPDATE public.studio_public_prices p
 SET image_urls = COALESCE((
-  SELECT array_agg(value)
-  FROM unnest(COALESCE(p.image_urls,ARRAY[]::text[])) AS value
+  SELECT array_agg(item.image_url)
+  FROM unnest(COALESCE(p.image_urls,ARRAY[]::text[])) AS item(image_url)
   WHERE NOT EXISTS (
     SELECT 1 FROM public.studio_photo_candidates c
-    WHERE c.studio_id=p.studio_id AND c.image_url=value
+    WHERE c.studio_id=p.studio_id AND c.image_url=item.image_url
       AND c.review_status='approved' AND c.reviewed_by IS NULL
       AND c.auto_classified_at IS NOT NULL
   )
