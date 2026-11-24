@@ -242,6 +242,8 @@ export default function Home() {
   const [maxDistance,setMaxDistance]=useState<number|null>(null);
   const [locationLoading,setLocationLoading]=useState(false);
   const [locationGranted,setLocationGranted]=useState(false);
+  const [locationConsentStatus,setLocationConsentStatus]=useState<"loading"|"unknown"|"accepted"|"declined">("loading");
+  const [locationConsentVisible,setLocationConsentVisible]=useState(false);
   const [currentLocation,setCurrentLocation]=useState<{latitude:number;longitude:number}|null>(null);
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);
   const [areaLocked,setAreaLocked]=useState(false);
@@ -471,7 +473,8 @@ export default function Home() {
     }catch(error){if(requestId===searchSubmitRequestId.current){console.warn("Search location geocoding failed:",error);Alert.alert("지역 검색","지역 위치를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");}}
     finally{if(requestId===searchSubmitRequestId.current)setSearchSubmitting(false);}
   };
-  const locate=async()=>{
+  const locate=async(forceConsent=false)=>{
+    if(!forceConsent&&locationConsentStatus!=="accepted"){setLocationConsentVisible(true);return;}
     setLocationLoading(true);
     try {
       const {status}=await Location.requestForegroundPermissionsAsync();
@@ -482,6 +485,15 @@ export default function Home() {
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
+  useEffect(()=>{
+    let active=true;
+    AsyncStorage.getItem("balletmate.locationConsent.v1").then(value=>{
+      if(!active)return;
+      if(value==="accepted"||value==="declined")setLocationConsentStatus(value);
+      else {setLocationConsentStatus("unknown");setLocationConsentVisible(true);}
+    }).catch(()=>{if(active){setLocationConsentStatus("unknown");setLocationConsentVisible(true);}});
+    return()=>{active=false;};
+  },[]);
   // Location permissions and GPS are requested only after the user taps the location button.
   useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,legacyCache])=>{let savedIds:string[]=[];let legacyStudios:Studio[]=[];if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))savedIds=[...new Set(parsed.filter(x=>typeof x==="string"))];}if(legacyCache){const parsed=JSON.parse(legacyCache);if(Array.isArray(parsed))legacyStudios=parsed.filter((x:any)=>x&&typeof x.id==="string");}guestFavoritesRef.current={ids:savedIds,studios:legacyStudios.filter(studio=>savedIds.includes(studio.id))};setFavoriteIds(savedIds);setFavoriteStudios(guestFavoritesRef.current.studios);}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
   useEffect(()=>{if(favoritesReady){AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});AsyncStorage.removeItem("balletmate.favoriteStudios.v1").catch(()=>{});}},[favoriteIds,favoriteStudios,favoritesReady]);
@@ -765,7 +777,7 @@ export default function Home() {
     <View style={styles.cardBottom}><Text style={styles.priceText}>{s.price!==null?"₩"+s.price.toLocaleString():"가격 문의"}<Text style={styles.priceUnit}> / 회</Text></Text><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();openDetail(s);}} style={styles.actionChip}><Text style={styles.actionText}>상세정보</Text></Pressable></View>
   </Pressable>;
 
-  return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}>
+  return <SafeAreaView style={styles.safe}><Modal visible={locationConsentVisible} transparent animationType="fade" onRequestClose={()=>setLocationConsentVisible(false)}><View style={{flex:1,backgroundColor:"rgba(20,16,30,0.55)",justifyContent:"center",padding:22}}><View style={{backgroundColor:"#fff",borderRadius:20,padding:20}}><Text style={{fontSize:19,fontWeight:"900",color:COLORS.ink}}>위치정보 이용 동의</Text><Text style={{fontSize:13,lineHeight:21,color:COLORS.ink,marginTop:13}}>발레메이트는 현재 위치를 지도에 표시하고 주변 발레 학원을 찾거나 길찾기 출발지를 설정하기 위해 기기 위치정보를 이용합니다.</Text><View style={{backgroundColor:"#F7F4FC",borderRadius:12,padding:13,marginTop:14}}><Text style={{fontSize:12,lineHeight:19,color:COLORS.ink}}>• 이용 항목: 기기에서 확인한 현재 위치(위도·경도){"\n"}• 이용 목적: 현재 위치 표시, 주변 학원 검색, 길찾기 출발지 설정{"\n"}• 이용 시점: 해당 기능을 직접 실행할 때{"\n"}• 보유·저장: 현재 위치를 앱 서버에 별도 저장하지 않으며, 지도 조회에 필요한 지도 범위 좌표만 검색 요청에 사용합니다.{"\n"}• 동의 거부: 동의하지 않아도 지역 검색과 지도 이동 등 위치를 사용하지 않는 기능은 이용할 수 있습니다.</Text></View><Text style={{fontSize:11,lineHeight:17,color:COLORS.muted,marginTop:12}}>앱 내 동의 후 Android/iOS 기기 위치 권한을 별도로 요청합니다. 기기 권한을 허용하지 않으면 현재 위치 기반 기능을 사용할 수 없습니다.</Text><Pressable onPress={()=>{AsyncStorage.setItem("balletmate.locationConsent.v1","accepted").catch(()=>{});setLocationConsentStatus("accepted");setLocationConsentVisible(false);void locate(true);}} style={{backgroundColor:COLORS.purple,borderRadius:12,padding:14,alignItems:"center",marginTop:17}}><Text style={{color:"#fff",fontWeight:"900",fontSize:14}}>동의하고 위치 기능 사용</Text></Pressable><Pressable onPress={()=>{AsyncStorage.setItem("balletmate.locationConsent.v1","declined").catch(()=>{});setLocationConsentStatus("declined");setLocationConsentVisible(false);}} style={{padding:13,alignItems:"center"}}><Text style={{color:COLORS.muted,fontWeight:"800",fontSize:13}}>동의하지 않고 계속 이용</Text></Pressable><Pressable onPress={()=>{setLocationConsentVisible(false);router.push("/privacy");}} style={{alignItems:"center",paddingBottom:3}}><Text style={{color:COLORS.purple,fontSize:12,fontWeight:"800"}}>개인정보처리방침 보기</Text></Pressable></View></View></Modal><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}>
     <View style={styles.header}>
       <Text style={styles.brand}>balletmate <Text style={styles.brandDot}>✦</Text></Text>
       <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>setMenuOpen(true)} accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/account")} accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={COLORS.ink} /></Pressable></View>
