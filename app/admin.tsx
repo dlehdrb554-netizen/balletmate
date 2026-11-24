@@ -597,12 +597,14 @@ export default function Admin() {
         }catch(error:any){failures.push({id:Number(item.id),message:String(error?.message||error||"요청 실패")});}
       }
       const failedIds=failures.map(item=>item.id);
-      const completedIds=targets.filter(item=>!failedIds.includes(Number(item.id))).map(item=>Number(item.id));
-      setPhotoCandidateRows(current=>current.filter(item=>!completedIds.includes(Number(item.id))));
-      setPhotoCandidateTotal(value=>Math.max(0,value-completed));
+      const completedById=new Map(targets.filter(item=>!failedIds.includes(Number(item.id))).map(item=>[Number(item.id),item]));
+      setPhotoCandidateRows(current=>current.map(row=>{
+        const target=completedById.get(Number(row.id));
+        return target?{...row,auto_classification:category,auto_confidence:1,auto_reason:"관리자 수동 분류 · 권리 확인 전 공개 보류",material_type:category==="schedule"?"schedule":category==="price"?"price":["poster"].includes(category)?"other":null}:row;
+      }));
       setSelectedPhotoCandidateIds(failedIds);
       const detail=failures.slice(0,3).map(item=>"사진 #"+item.id+": "+item.message).join("\n");
-      Alert.alert("일괄 판정 결과",completed+"장 처리"+(failures.length?" · 실패 "+failures.length+"장\n"+detail:""));
+      Alert.alert("분류 저장 결과",completed+"장 분류 저장 · 사진은 권리 확인 및 공개 승인 전까지 대기"+(failures.length?"\n실패 "+failures.length+"장\n"+detail:""));
     }finally{setPhotoReviewBusy(false);}
   };
   const manuallyClassifyPhotoCandidate=async(item:any,category:"ballet_class"|"schedule"|"price"|"poster"|"logo"|"portrait"|"unrelated"|"unknown")=>{
@@ -636,8 +638,11 @@ export default function Admin() {
         if(!quiet)Alert.alert("이미지 자동 분류 실패",detail);
         return false;
       }
-      setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));
-      setPhotoCandidateTotal(value=>Math.max(0,value-1));
+      setPhotoCandidateRows(current=>current.map(row=>row.id===item.id?{
+        ...row,auto_classification:data.category,auto_confidence:data.confidence,
+        auto_reason:data.reason,material_type:data.materialType,
+        auto_classified_at:new Date().toISOString()
+      }:row));
       return true;
     }catch(error:any){
       if(!quiet)Alert.alert("이미지 자동 분류 실패",String(error?.message||error));
@@ -1866,7 +1871,7 @@ export default function Admin() {
 </View>
 <View style={styles.panel}>
   <View style={styles.listHead}>
-    <Text style={styles.heading}>학원 사진 검토</Text>
+    <Text style={styles.heading}>학원 사진 검토</Text><Text style={styles.hint}>AI·수동 분류는 참고용입니다. 공개 승인 전 반드시 저작권자의 명시적 사용 허락 또는 직접 제공 증빙을 확인해야 합니다.</Text>
     <Pressable onPress={loadPhotoCandidates} disabled={photoReviewBusy}><Text style={styles.refresh}>{photoReviewBusy?"조회 중…":"새로고침"}</Text></Pressable>
   </View>
   <Text style={styles.hint}>{photoCandidateStatus==="pending"?"검수 대기":photoCandidateStatus==="rejected"?"AI 제외":"승인됨"} {photoCandidateTotal.toLocaleString("ko-KR")}건 · 불러온 {photoCandidateRows.length}건 · 현재 필터 {photoFilteredCandidates.length}건</Text>
