@@ -1,7 +1,5 @@
--- Autonomous Balletmate collection scheduler.
--- Replace the placeholder with a long random secret. Set the same value as
--- Edge Function secret CRAWL_WORKER_SECRET. Run after deploying both workers.
--- Set KAKAO_REST_API_KEY separately in Edge Function secrets.
+-- Balletmate data sources: Kakao Local API + NEIS only.
+-- NEIS scheduler is configured separately in neis_ballet_discovery.sql.
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 create extension if not exists supabase_vault with schema vault;
@@ -10,8 +8,18 @@ do $$ begin
   perform vault.create_secret('REPLACE_WITH_LONG_RANDOM_SECRET','balletmate_crawl_worker_secret','Balletmate scheduled worker shared secret');
  end if;
 end $$;
--- Only the website text-evidence crawler remains. Photo vision and image collection are disabled.
-select cron.unschedule(jobid) from cron.job where jobname in ('balletmate-studio-image-crawl','balletmate-studio-discovery');
-select cron.schedule('balletmate-studio-website-info','*/5 * * * *',$$
- select net.http_post(url:='https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/studio-discovery-worker',headers:=jsonb_build_object('Content-Type','application/json','x-crawl-secret',(select decrypted_secret from vault.decrypted_secrets where name='balletmate_crawl_worker_secret' order by created_at desc limit 1)),body:='{}'::jsonb);
- $$);
+do $$
+declare j record;
+begin
+ for j in select jobid from cron.job
+  where jobname in ('balletmate-studio-image-crawl','balletmate-studio-discovery','balletmate-studio-website-info')
+     or jobname like 'balletmate-naver-blog%'
+ loop perform cron.unschedule(j.jobid); end loop;
+end $$;
+select cron.schedule('balletmate-kakao-studio-discovery','*/5 * * * *',$$
+ select net.http_post(
+  url:='https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/studio-discovery-worker',
+  headers:=jsonb_build_object('Content-Type','application/json','x-crawl-secret',(select decrypted_secret from vault.decrypted_secrets where name='balletmate_crawl_worker_secret' order by created_at desc limit 1)),
+  body:='{}'::jsonb
+ );
+$$);
