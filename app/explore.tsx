@@ -735,8 +735,8 @@ export default function Home() {
   const cleanScheduleDisplay=(value:string)=>{
     return String(value||"").replace(/\\s*(오픈\\s*예정|개강\\s*예정|모집\\s*예정|모집\\s*중|신설\\s*예정)\\s*$/g,"").trim();
   };
-    const evidencePhotoGallery=(key:string,sourceUrl:string,storedImages:string[]|null|undefined)=>{
-    const photos=evidencePhotosForSource(sourceUrl,storedImages);
+    const evidencePhotoGallery=(key:string,storedImages:string[]|null|undefined)=>{
+     const photos=evidencePhotosForSource(storedImages);
     if(!photos.length)return null;
     const index=Math.min(evidencePhotoIndexes[key]||0,photos.length-1);
     return <View style={{marginTop:12,padding:10,borderRadius:12,borderWidth:1,borderColor:"#E5DFF3",backgroundColor:"#FBFAFE"}}>
@@ -881,8 +881,8 @@ export default function Home() {
 <View style={{flex:1}}>{detailStudio&&<>
 {detailTab==="home"&&<ScrollView key={detailTab} style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}><View style={{marginTop:10}}>{studioCard(detailStudio,true)}</View>
           <Text style={styles.sectionTitle}>대표 이미지</Text>
-          {representativeStudioImage?
-            <><Pressable onPress={()=>{if(representativeStudioImage.url)Linking.openURL(representativeStudioImage.url).catch(()=>Alert.alert("사진 출처","원문을 열 수 없습니다."));}}><Image source={{uri:representativeStudioImage.uri}} style={[styles.studioPhoto,{width:"100%",height:210,backgroundColor:"#F8F6FB"}]} resizeMode="contain" onError={()=>setFailedStudioImageUrls(current=>current.includes(representativeStudioImage.uri)?current:[...current,representativeStudioImage.uri])}/></Pressable>
+          {representativeStudioImage&&!failedStudioImageUrls.includes(representativeStudioImage.uri)?
+             <><Pressable onPress={()=>{if(representativeStudioImage.url)Linking.openURL(representativeStudioImage.url).catch(()=>Alert.alert("사진 출처","원문을 열 수 없습니다."));}}><Image source={{uri:representativeStudioImage.uri}} style={[styles.studioPhoto,{width:"100%",height:210,backgroundColor:"#F8F6FB"}]} resizeMode="contain" onError={()=>setFailedStudioImageUrls(current=>current.includes(representativeStudioImage.uri)?current:[...current,representativeStudioImage.uri])}/></Pressable>
             <Text style={styles.photoCredit}>학원 관리자가 등록한 사진</Text>{!!detailStudio.sourceUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.sourceUrl!).catch(()=>Alert.alert("출처 연결","출처 페이지를 열 수 없습니다."))} style={{alignSelf:"flex-start",paddingVertical:5}}><Text style={styles.photoSourceLink}>정보 원문 확인 ›</Text></Pressable>}
             <Pressable onPress={()=>setDetailTab("photos")} style={{alignSelf:"flex-end",paddingVertical:6,paddingHorizontal:8}}><Text style={styles.photoSourceLink}>사진 {detailPhotoItems.length}장 모두 보기 ›</Text></Pressable></>
             :<View style={styles.photoEmpty}><Text style={styles.filterHint}>확인된 대표 이미지가 아직 없습니다.</Text>{detailStudio.websiteUrl&&<Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>공식 홈페이지 방문 ›</Text></Pressable>}</View>}
@@ -900,7 +900,7 @@ export default function Home() {
             {detailInfoTab==="schedule"&&<View>
               <Text style={styles.sectionTitle}>시간표 이미지</Text>
               {studioPublicSchedules.filter(item=>evidencePhotosForSource(item.image_urls).length>0).map(item=><View key={"public-schedule-"+item.id}>{evidencePhotoGallery("schedule-"+item.id,item.image_urls)}</View>)}
-              {!studioPublicSchedules.some(item=>evidencePhotosForSource(item.source_url||"",item.image_urls).length>0)&&<Text style={styles.filterHint}>등록된 시간표 이미지가 없습니다.</Text>}
+              {!studioPublicSchedules.some(item=>evidencePhotosForSource(item.image_urls).length>0)&&<Text style={styles.filterHint}>등록된 시간표 이미지가 없습니다.</Text>}
             </View>}
           </View>
           {detailStudio.address&&<View style={styles.infoRow}><Text style={styles.infoLabel}>주소</Text><Text style={styles.infoValue}>{detailStudio.address}</Text></View>}
