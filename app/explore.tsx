@@ -39,6 +39,19 @@ const mapStudioRecord = (r: StudioRecord): Studio => ({
   classDurations:r.class_durations||[]
 });
 
+const PROVINCES=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원도","충청북도","충청남도","전라북도","전라남도","경상북도","경상남도","제주도"];
+const CITY_PROVINCE:Record<string,string>={"고양시":"경기","성남시":"경기","수원시":"경기","용인시":"경기","화성시":"경기","부천시":"경기","안양시":"경기","안산시":"경기","의정부시":"경기","남양주시":"경기","파주시":"경기","김포시":"경기","광명시":"경기","하남시":"경기","평택시":"경기","시흥시":"경기","광주시":"경기","양주시":"경기","구리시":"경기","군포시":"경기","오산시":"경기","이천시":"경기","포천시":"경기","춘천시":"강원도","원주시":"강원도","강릉시":"강원도","청주시":"충청북도","천안시":"충청남도","아산시":"충청남도","전주시":"전라북도","익산시":"전라북도","군산시":"전라북도","목포시":"전라남도","여수시":"전라남도","순천시":"전라남도","포항시":"경상북도","경주시":"경상북도","구미시":"경상북도","창원시":"경상남도","김해시":"경상남도","진주시":"경상남도","거제시":"경상남도","제주시":"제주도","서귀포시":"제주도"};
+const PROVINCE_ALIASES:Record<string,string>={"서울특별시":"서울","경기도":"경기","강원":"강원도","강원특별자치도":"강원도","충북":"충청북도","충남":"충청남도","전북":"전라북도","전남":"전라남도","경북":"경상북도","경남":"경상남도","제주":"제주도","제주특별자치도":"제주도","부산광역시":"부산","대구광역시":"대구","인천광역시":"인천","광주광역시":"광주","대전광역시":"대전","울산광역시":"울산","세종특별자치시":"세종"};
+const parseArea=(area:string)=>{
+  const parts=area.trim().split(/\\s+/).filter(Boolean),first=parts[0]||"",normalized=PROVINCE_ALIASES[first]||first;
+  const explicitProvince=PROVINCES.includes(normalized);
+  const metro=["서울","부산","대구","인천","광주","대전","울산","세종"].includes(normalized);
+  const city=explicitProvince?(metro?normalized:(parts[1]||normalized)):first;
+  const province=explicitProvince?normalized:(CITY_PROVINCE[city]||(["서울","부산","대구","인천","광주","대전","울산","세종"].includes(city)?city:"기타"));
+  const detail=explicitProvince?parts.slice(metro?1:2).join(" "):parts.slice(1).join(" ");
+  return {province,city,detail:detail||area};
+};
+
 const DATA: Studio[] = [
   {id:"s1",name:"발레온 스튜디오",lat:37.6584,lng:126.8321,area:"고양시 일산동구",tags:["성인","초급","기초"],price:25000,coupon:true,adult:true,kids:false,level:["초급","중급"],days:["평일","주말"],time:"오전 · 저녁",duration:60,rating:4.8,description:"성인 취미 발레 기초와 단계별 수업을 운영하는 스튜디오."},
   {id:"s2",name:"라벨르 발레",lat:37.6643,lng:126.7798,area:"고양시 일산서구",tags:["성인","키즈","초급"],price:22000,coupon:false,adult:true,kids:true,level:["입문","초급"],days:["평일"],time:"오전 · 오후",duration:50,rating:4.7,description:"입문자를 위한 소규모 그룹 수업."},
@@ -330,23 +343,11 @@ export default function Home() {
   const mapMarkers=useMemo(()=>results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng})),[results]);
   const handleMapRegionChange=useCallback((next:Region)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);},[]);
   const handleMapMarkerPress=useCallback((id:string)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);},[results]);
-  const allListAreas=[...new Set([...directoryAreas,...studios.map(studio=>studio.area)].filter(area=>area&&area!=="지역 정보 없음"))].sort((a,b)=>a.localeCompare(b,"ko"));
-  const PROVINCES=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원도","충청북도","충청남도","전라북도","전라남도","경상북도","경상남도","제주도"];
-  const CITY_PROVINCE:Record<string,string>={"고양시":"경기","성남시":"경기","수원시":"경기","용인시":"경기","화성시":"경기","부천시":"경기","안양시":"경기","안산시":"경기","의정부시":"경기","남양주시":"경기","파주시":"경기","김포시":"경기","광명시":"경기","하남시":"경기","평택시":"경기","시흥시":"경기","광주시":"경기","양주시":"경기","구리시":"경기","군포시":"경기","오산시":"경기","이천시":"경기","포천시":"경기","춘천시":"강원도","원주시":"강원도","강릉시":"강원도","청주시":"충청북도","천안시":"충청남도","아산시":"충청남도","전주시":"전라북도","익산시":"전라북도","군산시":"전라북도","목포시":"전라남도","여수시":"전라남도","순천시":"전라남도","포항시":"경상북도","경주시":"경상북도","구미시":"경상북도","창원시":"경상남도","김해시":"경상남도","진주시":"경상남도","거제시":"경상남도","제주시":"제주도","서귀포시":"제주도"};
-  const PROVINCE_ALIASES:Record<string,string>={"서울특별시":"서울","경기도":"경기","강원":"강원도","강원특별자치도":"강원도","충북":"충청북도","충남":"충청남도","전북":"전라북도","전남":"전라남도","경북":"경상북도","경남":"경상남도","제주":"제주도","제주특별자치도":"제주도","부산광역시":"부산","대구광역시":"대구","인천광역시":"인천","광주광역시":"광주","대전광역시":"대전","울산광역시":"울산","세종특별자치시":"세종"};
-  const parseArea=(area:string)=>{
-    const parts=area.trim().split(/\s+/).filter(Boolean),first=parts[0]||"",normalized=PROVINCE_ALIASES[first]||first;
-    const explicitProvince=PROVINCES.includes(normalized);
-    const metro=["서울","부산","대구","인천","광주","대전","울산","세종"].includes(normalized);
-    const city=explicitProvince?(metro?normalized:(parts[1]||normalized)):first;
-    const province=explicitProvince?normalized:(CITY_PROVINCE[city]||(["서울","부산","대구","인천","광주","대전","울산","세종"].includes(city)?city:"기타"));
-    const detail=explicitProvince?parts.slice(metro?1:2).join(" "):parts.slice(1).join(" ");
-    return {province,city,detail:detail||area};
-  };
-  const listProvinces=["전체",...PROVINCES.filter(province=>allListAreas.some(area=>parseArea(area).province===province))];
-  const listCities=["전체",...new Set(allListAreas.filter(area=>regionProvince==="전체"||parseArea(area).province===regionProvince).map(area=>parseArea(area).city))].sort((a,b)=>a.localeCompare(b,"ko"));
+  const allListAreas=useMemo(()=>[...new Set([...directoryAreas,...studios.map(studio=>studio.area)].filter(area=>area&&area!=="지역 정보 없음"))].sort((a,b)=>a.localeCompare(b,"ko")),[directoryAreas,studios]);
+  const listProvinces=useMemo(()=>["전체",...PROVINCES.filter(province=>allListAreas.some(area=>parseArea(area).province===province))],[allListAreas]);
+  const listCities=useMemo(()=>["전체",...new Set(allListAreas.filter(area=>regionProvince==="전체"||parseArea(area).province===regionProvince).map(area=>parseArea(area).city))].sort((a,b)=>a.localeCompare(b,"ko")),[allListAreas,regionProvince]);
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active)setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
-  const listDistricts=allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity));
+  const listDistricts=useMemo(()=>allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity)),[allListAreas,regionProvince,regionCity]);
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?studio.area===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
     return [...rows].sort((a,b)=>{
