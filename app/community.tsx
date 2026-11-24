@@ -112,19 +112,24 @@ export default function Community(){
  const uploadCommunityPhotos=async()=>{
   if(!supabase||!userId)return {urls:[] as string[],paths:[] as string[]};
   const urls:string[]=[],paths:string[]=[];
-  for(let index=0;index<selectedPhotos.length;index++){
-   const asset=selectedPhotos[index];
-   const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1600}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
-   const response=await fetch(optimized.uri);
-   if(!response.ok)throw new Error("사진 파일을 읽지 못했습니다.");
-   const bytes=await response.arrayBuffer();
-   const path=`${userId}/${Date.now()}-${index}-${Math.random().toString(36).slice(2,8)}.jpg`;
-   const {error}=await supabase.storage.from("community-photos").upload(path,bytes,{contentType:"image/jpeg",upsert:false});
-   if(error)throw error;
-   paths.push(path);
-   urls.push(supabase.storage.from("community-photos").getPublicUrl(path).data.publicUrl);
+  try{
+   for(let index=0;index<selectedPhotos.length;index++){
+    const asset=selectedPhotos[index];
+    const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1600}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
+    const response=await fetch(optimized.uri);
+    if(!response.ok)throw new Error("사진 파일을 읽지 못했습니다.");
+    const bytes=await response.arrayBuffer();
+    const path=`${userId}/${Date.now()}-${index}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const {error}=await supabase.storage.from("community-photos").upload(path,bytes,{contentType:"image/jpeg",upsert:false});
+    if(error)throw error;
+    paths.push(path);
+    urls.push(supabase.storage.from("community-photos").getPublicUrl(path).data.publicUrl);
+   }
+   return {urls,paths};
+  }catch(error){
+   if(paths.length)await supabase.storage.from("community-photos").remove(paths);
+   throw error;
   }
-  return {urls,paths};
  };
  const submitPost=async()=>{
   if(!userId){requireLogin();return;}
