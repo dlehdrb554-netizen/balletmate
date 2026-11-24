@@ -86,6 +86,7 @@ export default function Home() {
   const [rankMode,setRankMode]=useState<"views"|"favorites">("views");
   const [regionPickerOpen,setRegionPickerOpen]=useState(false);
   const [regionCity,setRegionCity]=useState("전체");
+  const [directoryAreas,setDirectoryAreas]=useState<string[]>(DATA.map(studio=>studio.area));
   const [popularViewRank,setPopularViewRank]=useState<any[]>([]);
   const [favoriteRank,setFavoriteRank]=useState<any[]>([]);
   const [rankLoading,setRankLoading]=useState(false);
@@ -305,12 +306,13 @@ export default function Home() {
   const mapMarkers=useMemo(()=>results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng})),[results]);
   const handleMapRegionChange=useCallback((next:Region)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);},[]);
   const handleMapMarkerPress=useCallback((id:string)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);},[results]);
-  const allListAreas=[...new Set(studios.map(studio=>studio.area).filter(area=>area&&area!=="지역 정보 없음"))].sort((a,b)=>a.localeCompare(b,"ko"));
+  const allListAreas=[...new Set([...directoryAreas,...studios.map(studio=>studio.area)].filter(area=>area&&area!=="지역 정보 없음"))].sort((a,b)=>a.localeCompare(b,"ko"));
   const cityLabels=["서울","부산","대구","인천","광주","대전","울산","세종","경기","강원","충북","충남","전북","전남","경북","경남","제주","고양시","성남시","수원시","용인시","화성시","부천시","안양시","안산시","의정부시","남양주시","파주시","김포시","광명시","하남시","평택시","시흥시","광주시","양주시","구리시","군포시","오산시","이천시","포천시","춘천시","원주시","강릉시","청주시","천안시","아산시","전주시","익산시","군산시","목포시","여수시","순천시","포항시","경주시","구미시","창원시","김해시","진주시","거제시"];
   const seoulDistricts=["강남구","강동구","강북구","강서구","관악구","광진구","구로구","금천구","노원구","도봉구","동대문구","동작구","마포구","서대문구","서초구","성동구","성북구","송파구","양천구","영등포구","용산구","은평구","종로구","중구","중랑구"];
   const cityOfArea=(area:string)=>{const parts=area.trim().split(" ").filter(Boolean);const first=parts[0]||"";return cityLabels.includes(first)?first:(seoulDistricts.includes(first)?"서울":"기타");};
   const districtOfArea=(area:string)=>{const parts=area.trim().split(" ").filter(Boolean);return cityLabels.includes(parts[0])?parts.slice(1).join(" "):area;};
   const listCities=["전체",...new Set(allListAreas.map(cityOfArea))].sort((a,b)=>a==="전체"?-1:b==="전체"?1:a.localeCompare(b,"ko"));
+  useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active)setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
   const listDistricts=allListAreas.filter(area=>regionCity==="전체"||cityOfArea(area)===regionCity);
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?studio.area===selectedListRegion:(regionCity==="전체"||cityOfArea(studio.area)===regionCity));
