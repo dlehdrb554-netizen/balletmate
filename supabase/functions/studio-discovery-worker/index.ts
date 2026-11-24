@@ -1,3 +1,4 @@
+// Active Kakao Local discovery worker; photo, Vision and website-text crawlers are retired.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
