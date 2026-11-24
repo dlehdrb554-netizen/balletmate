@@ -190,29 +190,8 @@ Deno.serve(async (req) => {
     let requestCount = 0;
     const errors: string[] = [];
     try {
-      // Skip every academy that already has an active official blog account.
-      // This check is repeated at execution time so stale queue rows cannot recollect it.
-      const { data: registeredOfficialRows, error: registeredOfficialError } = await db
-        .from("studio_blog_official_accounts").select("id")
-        .eq("studio_id", job.studio_id).eq("is_active", true).limit(1);
-      if (registeredOfficialError) throw new Error("기등록 공식 블로그 확인 실패: " + registeredOfficialError.message);
-      let hasRegisteredOfficialBlog = Boolean(registeredOfficialRows?.length);
-      if (!hasRegisteredOfficialBlog) {
-        const { data: legacyOfficialRows, error: legacyOfficialError } = await db
-          .from("studio_blog_official_accounts").select("id")
-          .is("studio_id", null).eq("studio_name", String(job.studio_name))
-          .eq("is_active", true).limit(1);
-        if (legacyOfficialError) throw new Error("기존 공식 블로그 확인 실패: " + legacyOfficialError.message);
-        hasRegisteredOfficialBlog = Boolean(legacyOfficialRows?.length);
-      }
-      if (hasRegisteredOfficialBlog) {
-        const { error: skipError } = await db.from("studio_blog_search_queue")
-          .update({ status: "completed", last_error: null, updated_at: new Date().toISOString() })
-          .eq("studio_id", job.studio_id);
-        if (skipError) throw new Error("기등록 학원 검색 제외 처리 실패: " + skipError.message);
-        results.push({ studio: job.studio_name, saved: 0, requestCount: 0, status: "skipped", reason: "Official blog already registered" });
-        continue;
-      }
+      // Registered official blogs are checked through their RSS feeds below;
+      // they are not rediscovered as candidate accounts.
       // Blog collection is allowed only when the academy has a Kakao Place listing.
       const {data:studioOrigin,error:originError}=await db.from("studios").select("source_url").eq("id",job.studio_id).maybeSingle();
       if(originError)throw new Error("카카오 장소 출처 확인 실패: "+originError.message);
@@ -250,8 +229,8 @@ Deno.serve(async (req) => {
         .select("blogger_url").eq("studio_id",job.studio_id).eq("blogger_name","카카오 장소 등록 블로그").in("review_status",["pending","approved"]).limit(5);
       if(kakaoCandidateError)throw new Error("카카오 장소 등록 블로그 조회 실패: "+kakaoCandidateError.message);
       const kakaoSeedAccounts=(kakaoCandidates??[]).map((row:{blogger_url:string})=>row.blogger_url);
-      // Ignore legacy/manual candidates unless the exact account is also listed on Kakao Place.
-      officialAccounts=officialAccounts.filter((account)=>kakaoSeedAccounts.some((seed:string)=>blogAccountKey(seed)===blogAccountKey(account)));
+      // Manually verified official accounts are authoritative. Do not require
+      // a duplicate Kakao candidate row before checking their RSS feeds.
       const knownAccounts=[...new Set([...officialAccounts,...kakaoSeedAccounts])];
       const studioQuery = String(job.studio_name);
       // Known public blog RSS feeds discover new posts without depending on Naver ranking.
