@@ -21,7 +21,7 @@ type Studio = {
   id: string; name: string; lat: number; lng: number; area: string;
   tags: string[]; price: number | null; coupon: boolean; adult: boolean; kids: boolean;
   level: string[]; days: string[]; time: string; duration: number; rating: number;
-  description: string; address?: string; phone?: string; imageUrls?: string[]; websiteUrl?: string; imageSourceName?: string; imageCheckedAt?: string; sourceUrl?: string; sourceName?: string; sourceStatus?: string; verifiedAt?: string; imageUsageNote?: string; priceEvidenceText?: string; scheduleEvidenceText?: string; detailsSourceUrls?: string[];kakaoChannelUrl?:string;detailsCheckedAt?: string; detailsStatus?: string; classDurations?: number[];
+  description: string; address?: string; phone?: string; websiteUrl?: string; sourceUrl?: string; sourceName?: string; sourceStatus?: string; verifiedAt?: string; kakaoChannelUrl?:string; classDurations?: number[];
 };
 const cleanPublicText=(value:string|null|undefined)=>String(value||"").replace(/<[^>]*>/g," ").replace(/&nbsp;|&#160;/gi," ").replace(/&amp;/gi,"&").split(" ").filter(Boolean).join(" ");
 const mapStudioRecord = (r: StudioRecord): Studio => ({
@@ -29,7 +29,7 @@ const mapStudioRecord = (r: StudioRecord): Studio => ({
   address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,
   adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],
   time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),
-  description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,imageUrls:r.image_urls||[],
+  description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,
   websiteUrl:r.website_url||undefined,imageSourceName:r.image_source_name||undefined,
   imageCheckedAt:r.image_checked_at||undefined,sourceUrl:r.source_url||undefined,
   sourceName:r.source_name||undefined,sourceStatus:r.source_status||undefined,verifiedAt:r.verified_at||undefined,
@@ -909,9 +909,6 @@ export default function Home() {
           {detailStudio.phone&&<Pressable style={styles.detailBtn} onPress={()=>Linking.openURL("tel:"+detailStudio.phone).catch(()=>Alert.alert("전화 연결","전화 앱을 열 수 없습니다."))}><Text style={styles.detailBtnText}>전화 문의 · {detailStudio.phone}</Text></Pressable>}
           <Text style={styles.detailDisclaimer}>가격과 시간표는 학원 또는 관리자에게 확인된 등록 정보만 표시합니다. 최신 여부를 확인해 주세요.</Text>
           <Pressable onPress={()=>router.push("/studio-manager?studioId="+encodeURIComponent(detailStudio.id)+"&studioName="+encodeURIComponent(detailStudio.name))} style={{marginTop:14,backgroundColor:COLORS.pale,borderRadius:10,padding:12,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>학원 관리 신청 / 정보 수정</Text></Pressable>
-          {(!!detailStudio.detailsCheckedAt||(detailStudio.detailsSourceUrls||[]).length>0)&&<Text style={styles.sectionTitle}>공식 홈페이지 확인 정보</Text>}
-          {!!detailStudio.detailsCheckedAt&&<Text style={styles.photoCredit}>최근 확인: {new Date(detailStudio.detailsCheckedAt).toLocaleDateString("ko-KR")} · 운영자 확인 정보</Text>}
-          {(detailStudio.detailsSourceUrls||[]).map((url,index)=><Pressable key={url+index} onPress={()=>Linking.openURL(url).catch(()=>Alert.alert("원문 연결","페이지를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>수집 원문 {index+1} 확인 ›</Text></Pressable>)}
           <Pressable onPress={()=>setDetailTab("reviews")} style={{marginHorizontal:14,marginTop:10,padding:12,borderRadius:12,borderWidth:1,borderColor:COLORS.line,backgroundColor:COLORS.white,flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.ink}}>리뷰 {studioReviews.length}개 · 후기 확인하기</Text><Text style={styles.photoSourceLink}>리뷰 ›</Text></Pressable>{studioCoupons.length>0&&<Text style={styles.sectionTitle}>사용 가능한 쿠폰 및 할인</Text>}
           {studioCoupons.length?studioCoupons.map(coupon=><View key={coupon.id} style={styles.classBlock}><Text style={styles.classTitle}>{coupon.title}</Text>{coupon.discount_text&&<Text style={styles.classMeta}>{coupon.discount_text}</Text>}{coupon.description&&<Text style={styles.sessionText}>{coupon.description}</Text>}<Text style={styles.photoCredit}>유효 기간: {coupon.starts_at?new Date(coupon.starts_at).toLocaleDateString("ko-KR"):"시작일 제한 없음"} ~ {coupon.ends_at?new Date(coupon.ends_at).toLocaleDateString("ko-KR"):"종료일 제한 없음"}</Text></View>) :null}
           <Pressable style={styles.detailBtn} onPress={async()=>{if(!supabase){Alert.alert("제보","로그인이 필요한 기능입니다.");return;}const {data}=await supabase.auth.getSession();if(!data.session){Alert.alert("로그인 필요","학원 정보 제보는 로그인 후 이용할 수 있어요.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);return;}setReportCategory("기타");setReportDescription("");setReportOpen(true);}}><Text style={styles.detailBtnText}>학원 정보 오류 제보</Text></Pressable>
