@@ -624,7 +624,7 @@ export default function Admin() {
     if(error)Alert.alert(status==="approved"?"사진 승인 실패":"사진 제외 실패",error.message);
     else {
       setPhotoCandidateRows(current=>current.filter(row=>row.id!==item.id));setPhotoCandidateTotal(value=>Math.max(0,value-1));setPhotoCandidateOffset(value=>Math.max(0,value-1));
-      if(status==="approved"&&!["schedule","price","other"].includes(String(item.material_type||""))&&!["schedule","price","poster","logo"].includes(String(item.auto_classification||""))){
+      if(status==="approved"&&(String(item.auto_classification||"")==="logo"||String(item.auto_classification||"")==="ballet_class"||(!["schedule","price","other"].includes(String(item.material_type||""))&&!["schedule","price","poster","logo"].includes(String(item.auto_classification||""))))){
         // Refresh the studio row from the database so approvals also appear when
         // the studio was outside the current paginated admin list.
         const refreshed=await supabase.from("studios").select(studioColumns).eq("id",item.studio_id).maybeSingle();
