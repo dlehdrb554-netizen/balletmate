@@ -12,7 +12,7 @@ begin
      and (tg_op = 'INSERT' or old.is_active is distinct from new.is_active)
      and not exists (
        select 1 from public.studio_blog_official_accounts a
-       where a.studio_id = new.id and a.is_active = true
+       where (a.studio_id = new.id or (a.studio_id is null and a.studio_name = new.name)) and a.is_active = true
      ) then
     insert into public.studio_blog_search_queue(studio_id,status,attempts,last_error,updated_at)
     values(new.id,'pending',0,null,now())
@@ -36,7 +36,7 @@ begin
    where (q.status='pending' or (q.status='processing' and q.updated_at < now() - interval '20 minutes'))
      and exists (
        select 1 from public.studio_blog_official_accounts a
-       where a.studio_id=q.studio_id and a.is_active=true
+       where (a.studio_id=q.studio_id or (a.studio_id is null and a.studio_name=(select st.name from public.studios st where st.id=q.studio_id))) and a.is_active=true
      );
 
   return query
