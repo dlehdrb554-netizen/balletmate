@@ -1,7 +1,10 @@
 -- Balletmate hardening: canonical regions, owner controls, verified reviews, community photos.
--- Run after schema.sql, admin_security.sql, studio_owner_privacy_minimal_claims.sql,
--- studio_public_prices.sql, studio_public_schedules.sql, and community.sql.
+-- Run after schema.sql, admin_security.sql, studio_owner_claim_and_management.sql,
+-- studio_owner_privacy_minimal_claims.sql, studio_public_prices.sql, studio_public_schedules.sql,
+-- studio_reviews.sql, studio_user_reports.sql, community.sql, and community_safety.sql.
 -- Safe to re-run.
+
+BEGIN;
 
 -- 1) Normalize the single district field from the full address.
 CREATE OR REPLACE FUNCTION public.normalize_studio_district(p_address text, p_fallback text DEFAULT NULL)
@@ -550,3 +553,5 @@ DROP POLICY IF EXISTS "owners manage own coupons" ON public.coupons;
 CREATE POLICY "owners manage own coupons" ON public.coupons FOR ALL TO authenticated
   USING(public.is_studio_owner(studio_id))
   WITH CHECK(public.is_studio_owner(studio_id));
+
+COMMIT;
