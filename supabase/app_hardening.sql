@@ -123,6 +123,14 @@ BEGIN
  IF public.normalize_studio_district(NULL,'경기 수원')<>'경기도 수원시' THEN
   RAISE EXCEPTION 'Region test failed: Gyeonggi discovery label';
  END IF;
+ IF public.normalize_studio_district(NULL,'서울 강남')
+    <> public.normalize_studio_district(NULL,'서울 강남구') THEN
+  RAISE EXCEPTION 'Region test failed: duplicate Seoul district labels';
+ END IF;
+ IF public.normalize_studio_district('경기도 성남시 분당구 정자동','성남')
+    <>'경기도 성남시 분당구' THEN
+  RAISE EXCEPTION 'Region test failed: full province/city/district hierarchy';
+ END IF;
 END;
 $region_normalizer_tests$;
 

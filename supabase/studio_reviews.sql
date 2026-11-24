@@ -21,18 +21,11 @@ create policy "Public can read studio reviews"
   to anon, authenticated
   using (true);
 
+-- Write access is disabled here. app_hardening.sql installs
+-- verified-attendee-only INSERT/UPDATE policies and the database trigger.
 drop policy if exists "Users can create own studio reviews" on public.studio_reviews;
-create policy "Users can create own studio reviews"
-  on public.studio_reviews for insert
-  to authenticated
-  with check (auth.uid() = user_id);
-
 drop policy if exists "Users can update own studio reviews" on public.studio_reviews;
-create policy "Users can update own studio reviews"
-  on public.studio_reviews for update
-  to authenticated
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
-
+drop policy if exists "Verified students create own studio reviews" on public.studio_reviews;
+drop policy if exists "Verified students update own studio reviews" on public.studio_reviews;
+revoke insert, update on public.studio_reviews from anon, authenticated;
 grant select on public.studio_reviews to anon, authenticated;
-grant insert, update on public.studio_reviews to authenticated;

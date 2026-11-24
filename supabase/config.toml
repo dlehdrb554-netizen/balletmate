@@ -15,6 +15,3 @@ verify_jwt = false
 
 [functions.neis-ballet-kakao-verification]
 verify_jwt = false
-
-[functions.neis-only-geocoding]
-verify_jwt = false

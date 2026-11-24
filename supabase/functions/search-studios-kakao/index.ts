@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     const name = String(item.place_name).trim();
     const lat = Number(item.y), lng = Number(item.x);
     const address = String(item.road_address_name || item.address_name || "").trim() || null;
-    const region = address ? address.split(/\s+/).slice(0, 2).join(" ") : "카카오 검색";
+    const region = address ? address.split(/\s+/).slice(0, 3).join(" ") : "카카오 검색";
     const { data, error } = await db.rpc("register_discovered_studio", {
       p_name: name, p_latitude: lat, p_longitude: lng, p_address: address,
       p_phone: item.phone || null, p_place_url: item.place_url || null, p_region: region,
