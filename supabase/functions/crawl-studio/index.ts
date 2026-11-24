@@ -20,11 +20,22 @@ function isPrivateHost(hostname: string): boolean {
     (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) ||
     (a === 198 && (b === 18 || b === 19));
 }
+function isBlockedWesebPhotoSource(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase().replace(/^www\\./, "");
+    return host === "weseb.com" &&
+      url.pathname.toLowerCase() === "/sjb/m.php" &&
+      url.searchParams.get("board")?.toLowerCase() === "apartment" &&
+      url.searchParams.get("command")?.toLowerCase() === "body" &&
+      url.searchParams.get("no") === "16737";
+  } catch { return false; }
+}
 function isNeisHost(hostname: string): boolean { const host=hostname.toLowerCase().replace(/\\.$/,""); return host==="neis.go.kr"||host.endsWith(".neis.go.kr")||host==="schoolinfo.go.kr"||host.endsWith(".schoolinfo.go.kr"); }
 function safeImageUrl(raw: string, base: string): string | null {
   try {
     const url = new URL(raw.trim(), base);
-    if (url.protocol !== "https:" || !url.hostname || url.username || url.password || isPrivateHost(url.hostname) || isNeisHost(url.hostname)) return null;
+    if (url.protocol !== "https:" || !url.hostname || url.username || url.password || isPrivateHost(url.hostname) || isNeisHost(url.hostname) || isBlockedWesebPhotoSource(base)) return null;
     if (/\.svg(\?|$)/i.test(url.pathname) || url.pathname.startsWith("/_next/static/")) return null;
     return url.toString();
   } catch { return null; }
@@ -72,7 +83,7 @@ function relevantLinks(html: string, base: URL): string[] {
     const label = visibleText(tag.replace(/<a\b[^>]*>/i, "").replace(/<\/a>/i, "")).slice(0, 100);
     try {
       const url = new URL(href, base);
-      if (url.protocol !== "https:" || url.hostname !== base.hostname || url.username || url.password) continue;
+      if (url.protocol !== "https:" || url.hostname !== base.hostname || url.username || url.password || isBlockedWesebPhotoSource(url.toString())) continue;
       if (url.pathname === base.pathname && !url.search) continue;
       if (/login|logout|member|privacy|terms|sns|share|javascript:/i.test(url.href)) continue;
       const clue = (url.pathname + " " + label).toLowerCase();
@@ -140,8 +151,8 @@ Deno.serve(async (req) => {
   let pageUrl: URL;
   try {
     pageUrl = new URL(studio.website_url);
-    if (pageUrl.protocol !== "https:" || !pageUrl.hostname || pageUrl.username || pageUrl.password || isPrivateHost(pageUrl.hostname) || isNeisHost(pageUrl.hostname)) throw new Error();
-  } catch { return json({ error: "공식 홈페이지는 안전한 https:// 주소여야 하며, NEIS·학교정보 공공 포털은 사진 수집 대상에서 제외됩니다." }, 400); }
+    if (pageUrl.protocol !== "https:" || !pageUrl.hostname || pageUrl.username || pageUrl.password || isPrivateHost(pageUrl.hostname) || isNeisHost(pageUrl.hostname) || isBlockedWesebPhotoSource(pageUrl.toString())) throw new Error();
+  } catch { return json({ error: "공식 홈페이지는 안전한 https:// 주소여야 하며, NEIS·학교정보 공공 포털 및 지정된 웨셉 아파트 게시물은 사진 수집 대상에서 제외됩니다." }, 400); }
 
   const homeHtml = await fetchHtml(pageUrl);
   if (!homeHtml) return json({ error: "공식 홈페이지에 접속할 수 없거나 HTML 페이지를 제공하지 않습니다." }, 502);
