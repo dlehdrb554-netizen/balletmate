@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function AuthCallback(){
  const isDark=useColorScheme()==="dark";
@@ -29,7 +30,7 @@ export default function AuthCallback(){
    const {error}=await supabase.auth.exchangeCodeForSession(code);
    if(!active)return;
    if(error){setFailed(true);setMessage(error.message||"로그인 인증을 완료하지 못했습니다.");}
-   else {const {data:{user}}=await supabase.auth.getUser();if(user){const profile=await supabase.from("user_profiles").select("username,display_name").eq("user_id",user.id).maybeSingle();const username=profile.data?.username||"";if(profile.error||username.startsWith("social_")||!profile.data?.display_name)setNextRoute("/onboarding");}setMessage("로그인이 완료되었습니다.");}
+   else {const {data:{user}}=await supabase.auth.getUser();if(user){const profile=await supabase.from("user_profiles").select("username,display_name").eq("user_id",user.id).maybeSingle();const username=profile.data?.username||"";if(profile.error||username.startsWith("social_")||!profile.data?.display_name)setNextRoute("/onboarding");else{const destination=await AsyncStorage.getItem("balletmate.auth.returnTo");await AsyncStorage.removeItem("balletmate.auth.returnTo");if(destination==="mypage")setNextRoute("/mypage");else if(destination==="mypage-settings")setNextRoute("/mypage?open=settings");}}setMessage("로그인이 완료되었습니다.");}
   };
   const codeParam=Array.isArray(params.code)?params.code[0]:params.code;
   const errorParam=Array.isArray(params.error_description)?params.error_description[0]:params.error_description;
