@@ -219,7 +219,7 @@ export default function Home() {
           const rows=data||[];
           const ids=[...new Set(rows.map((row:any)=>row.created_by).filter(Boolean))];
           const profiles=ids.length?await client.rpc("get_public_member_profiles",{p_user_ids:ids}):{data:[],error:null};
-          const profileMap=new Map((profiles.data||[]).map((profile:any)=>[profile.user_id,profile]));
+          const profileMap=new Map<string,any>((profiles.data||[]).map((profile:any)=>[profile.user_id,profile]));
           setStudioOwnerNotices(rows.map((row:any)=>({...row,author_display_name:profileMap.get(row.created_by)?.display_name||null,author_avatar_url:profileMap.get(row.created_by)?.avatar_url||null})));
           studioOwnerNoticesOffset.current=rows.length;
           setStudioOwnerNoticesHasMore(rows.length===10);
