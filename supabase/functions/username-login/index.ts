@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
     if (error || !data.session) return json({ error: "아이디 또는 비밀번호를 확인해 주세요." }, 401);
     return json({ session: data.session, user: data.user });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "로그인에 실패했습니다." }, 400);
+    console.error("username-login failed:", error);
+    return json({ error: error instanceof Error ? error.message : "로그인에 실패했습니다." }, 500);
   }
 });
