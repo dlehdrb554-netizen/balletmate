@@ -58,3 +58,14 @@ begin
   return new;
 end;
 $$;
+
+create table if not exists public.user_notification_preferences(
+ user_id uuid primary key references auth.users(id) on delete cascade,
+ preferences jsonb not null default '{}'::jsonb,
+ updated_at timestamptz not null default now()
+);
+alter table public.user_notification_preferences enable row level security;
+grant select,insert,update on public.user_notification_preferences to authenticated;
+drop policy if exists "members manage own notification preferences" on public.user_notification_preferences;
+create policy "members manage own notification preferences" on public.user_notification_preferences
+ for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
