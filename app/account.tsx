@@ -1,7 +1,7 @@
-import React, { useEffect, useState , useMemo, useColorScheme} from "react";
-import { themeStyles } from "../lib/theme";
+import React, {useEffect, useState, useMemo} from "react";
+import {themeStyles } from "../lib/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { SafeAreaView } from "react-native-safe-area-context";
