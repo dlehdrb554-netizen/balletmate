@@ -8,8 +8,6 @@ import {useRouter} from "expo-router";
 import {supabase} from "../lib/supabase";
 import * as Notifications from "expo-notifications";
 Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowAlert:true,shouldPlaySound:true,shouldSetBadge:false,shouldShowBanner:true,shouldShowList:true})});
-import * as Notifications from "expo-notifications";
-Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowAlert:true,shouldPlaySound:true,shouldSetBadge:false,shouldShowBanner:true,shouldShowList:true})});
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0"};
 type Mode="system"|"light"|"dark";
 export default function MyPage(){
@@ -23,7 +21,6 @@ export default function MyPage(){
   else if(menu==="activity"&&activity==="posts"){r=await supabase.from("community_posts").select("id,title,content,category,created_at").eq("author_id",user.id).order("created_at",{ascending:false});data=r.data||[];}
   else if(menu==="activity"&&activity==="comments"){r=await supabase.from("community_comments").select("id,post_id,content,created_at,community_posts(title)").eq("author_id",user.id).order("created_at",{ascending:false});data=r.data||[];}
   else if(menu==="activity"&&activity==="reviews"){r=await supabase.from("studio_reviews").select("id,studio_id,rating,content,created_at,studios(name)").eq("user_id",user.id).order("created_at",{ascending:false});data=r.data||[];}
-  else if(menu==="notices"){r=await supabase.from("app_notices").select("id,title,body,created_at").eq("is_active",true).order("created_at",{ascending:false}).limit(50);data=r.data||[];}
   else if(menu==="notices"){r=await supabase.from("app_notices").select("id,title,body,created_at").eq("is_active",true).order("created_at",{ascending:false}).limit(50);data=r.data||[];}
   if(r?.error){Alert.alert("목록 조회 실패",r.error.message);return;}if(active)setItems(data);
  })();return()=>{active=false;};},[menu,activity,user]);
@@ -40,19 +37,8 @@ export default function MyPage(){
   if(error)console.warn("Push token registration failed:",error.message);
  }catch(error){console.warn("Push registration unavailable:",error);}})();return()=>{active=false;};},[menu,user]);
  useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const data=response.notification.request.content.data as any;if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});else if(data?.noticeId)setMenu("notices");});return()=>sub.remove();},[router]);
- useEffect(()=>{if(menu!=="settings"||!user||!supabase)return;let active=true;(async()=>{try{
-  const projectId=Constants.easConfig?.projectId||Constants.expoConfig?.extra?.eas?.projectId;
-  if(!projectId){console.warn("Expo push registration skipped: EAS projectId is not configured.");return;}
-  if(Platform.OS==="android")await Notifications.setNotificationChannelAsync("default",{name:"기본 알림",importance:Notifications.AndroidImportance.DEFAULT});
-  const current=await Notifications.getPermissionsAsync();let status=current.status;
-  if(status!=="granted")status=(await Notifications.requestPermissionsAsync()).status;
-  if(status!=="granted")return;
-  const token=(await Notifications.getExpoPushTokenAsync({projectId})).data;
-  if(!active)return;
-  const {error}=await supabase.from("user_push_tokens").upsert({user_id:user.id,expo_push_token:token,platform:Platform.OS,updated_at:new Date().toISOString()},{onConflict:"expo_push_token"});
-  if(error)console.warn("Push token registration failed:",error.message);
- }catch(error){console.warn("Push registration unavailable:",error);}})();return()=>{active=false;};},[menu,user]);
- useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const data=response.notification.request.content.data as any;if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});else if(data?.noticeId)setMenu("notices");});return()=>sub.remove();},[router]);
+ 
+ 
  useEffect(()=>{if(!user||!supabase)return;let active=true;supabase.from("user_notification_preferences").select("preferences").eq("user_id",user.id).maybeSingle().then(({data})=>{if(active&&data?.preferences)setAlerts(v=>({...v,...data.preferences}));});return()=>{active=false;};},[user]);
  const updateAlert=async(key:keyof typeof alerts,value:boolean)=>{const next={...alerts,[key]:value};setAlerts(next);await AsyncStorage.setItem("balletmate.notification.preferences",JSON.stringify(next));if(user&&supabase){const {error}=await supabase.from("user_notification_preferences").upsert({user_id:user.id,preferences:next,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error)Alert.alert("알림 설정 저장 실패",error.message);}};
  const chooseMode=async(v:Mode)=>{setMode(v);setModeOpen(false);await AsyncStorage.setItem("balletmate.theme.mode",v);Appearance.setColorScheme(v==="system"?null:v);};
