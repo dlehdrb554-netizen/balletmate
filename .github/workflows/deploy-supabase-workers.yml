@@ -79,5 +79,8 @@ jobs:
       - name: Deploy username login endpoint
         run: supabase functions deploy username-login --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
 
+      - name: Deploy push notification dispatcher
+        run: supabase functions deploy send-push --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
+
       - name: Deploy public privacy policy
         run: supabase functions deploy privacy-policy --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
