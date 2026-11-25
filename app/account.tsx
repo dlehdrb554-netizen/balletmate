@@ -91,9 +91,16 @@ export default function Account(){
   if((username.includes("@")?!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username):!/^[a-z0-9_]{3,24}$/.test(username))||!pw){Alert.alert("입력 확인","아이디 또는 이메일과 비밀번호를 입력해 주세요.");return;}
   setLoading(true);
   try{
-   const loginEmail=username.includes("@")?username:username+"@balletmate.app";
-   const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:pw});
-   if(error)throw error;
+   if(username.includes("@")){
+    const {error}=await supabase.auth.signInWithPassword({email:username,password:pw});
+    if(error)throw error;
+   }else{
+    const {data,error}=await supabase.functions.invoke("username-login",{body:{username,password:pw}});
+    if(error)throw error;
+    if(!data?.session?.access_token||!data?.session?.refresh_token)throw new Error(data?.error||"로그인 정보를 확인할 수 없습니다.");
+    const {error:setSessionError}=await supabase.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});
+    if(setSessionError)throw setSessionError;
+   }
   }catch(error:any){
    Alert.alert("로그인 실패",error?.message||"아이디와 비밀번호를 확인해 주세요.");
   }finally{setLoading(false);}
