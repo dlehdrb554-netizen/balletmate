@@ -88,10 +88,11 @@ export default function Account(){
  const submitLegacyLogin=async()=>{
   if(!supabase){Alert.alert("설정 확인","Supabase 설정을 확인하세요.");return;}
   const username=name.trim().toLowerCase();
-  if(!/^[a-z0-9_]{3,24}$/.test(username)||!pw){Alert.alert("입력 확인","기존 계정 아이디와 비밀번호를 입력해 주세요.");return;}
+  if((username.includes("@")?!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username):!/^[a-z0-9_]{3,24}$/.test(username))||!pw){Alert.alert("입력 확인","아이디 또는 이메일과 비밀번호를 입력해 주세요.");return;}
   setLoading(true);
   try{
-   const loginEmail=username.includes("@")?username:username+"@balletmate.app";\n   const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:pw});
+   const loginEmail=username.includes("@")?username:username+"@balletmate.app";
+   const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:pw});
    if(error)throw error;
   }catch(error:any){
    Alert.alert("로그인 실패",error?.message||"아이디와 비밀번호를 확인해 주세요.");
@@ -169,7 +170,8 @@ export default function Account(){
         </Pressable>
         <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
         <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는</Text><View style={s.separatorLine}/></View>
-        <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>\n        <Pressable style={s.legacyLink} onPress={()=>setLegacyLogin(true)}><Text style={s.legacyLinkText}>기존 아이디 또는 이메일로 로그인</Text></Pressable>
+        <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
+        <Pressable style={s.legacyLink} onPress={()=>setLegacyLogin(true)}><Text style={s.legacyLinkText}>기존 아이디 또는 이메일로 로그인</Text></Pressable>
        </>
        :
        <>
