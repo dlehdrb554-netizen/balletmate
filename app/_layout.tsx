@@ -1,9 +1,21 @@
-import React, { useEffect } from "react";\nimport { Stack } from "expo-router";
+import React, { useEffect } from "react";
+import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, Pressable, StyleSheet, Appearance } from "react-native";\nimport AsyncStorage from "@react-native-async-storage/async-storage";\nimport { supabase } from "../lib/supabase";
+import { View, Text, Pressable, StyleSheet, Appearance } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "../lib/supabase";
 
 export default function RootLayout() {
+  useEffect(() => {
+    AsyncStorage.getItem("balletmate.screen_lock").then(enabled => {
+      if (enabled === "1" && supabase) return supabase.auth.signOut({ scope: "local" });
+      return undefined;
+    }).catch(() => {});
+    AsyncStorage.getItem("balletmate.theme.mode").then(mode => {
+      Appearance.setColorScheme(mode === "dark" ? "dark" : mode === "light" ? "light" : "unspecified");
+    }).catch(() => {});
+  }, []);
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
