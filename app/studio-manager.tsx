@@ -34,6 +34,8 @@ export default function StudioManager(){
  const [profileDescription,setProfileDescription]=useState("");
  const [scheduleImage,setScheduleImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
  const [priceImage,setPriceImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
+ const [representativeImage,setRepresentativeImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
+ const [representativeImagePath,setRepresentativeImagePath]=useState<string|null>(null);
  const [noticeTitle,setNoticeTitle]=useState("");
  const [noticeBody,setNoticeBody]=useState("");
  const [materials,setMaterials]=useState<any[]>([]);
@@ -62,12 +64,12 @@ export default function StudioManager(){
   const [ownerResult,appResult,studioResult]=await Promise.all([
    supabase.from("studio_owners").select("studio_id,status").eq("studio_id",studioId).eq("user_id",current.user.id).eq("status","approved").maybeSingle(),
    supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,verification_url,verification_code,verification_method").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
-   supabase.from("studios").select("name,district,address,phone,website_url,description").eq("id",studioId).maybeSingle()
+   supabase.from("studios").select("name,district,address,phone,website_url,description,representative_image_path").eq("id",studioId).maybeSingle()
   ]);
   setOwner(!!ownerResult.data);
   setApplication(appResult.data||null);
   if(appResult.data){setBlogUrl(appResult.data.verification_url||"");setBlogVerificationCode(appResult.data.verification_code||"");setVerificationMethod(appResult.data.verification_method||"phone");}
-  if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
+  if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");setRepresentativeImagePath(studioResult.data.representative_image_path||null);}
   if(ownerResult.data){
    const [scheduleResult,priceResult,noticeResult,historyResult,classResult,couponResult]=await Promise.all([
     supabase.from("studio_public_schedules").select("id,schedule_text,image_path,is_active,published_at").eq("studio_id",studioId).not("image_path","is",null).order("published_at",{ascending:false}).limit(20),
@@ -167,6 +169,8 @@ export default function StudioManager(){
   const {error}=await supabase.from("coupons").update({is_active:!item.is_active}).eq("id",item.id).eq("studio_id",studioId);
   if(error)Alert.alert("혜택 변경 실패",error.message);else await load();
  };
+ const pickRepresentativeImage=async()=>{const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:false,quality:0.9});if(!result.canceled&&result.assets[0])setRepresentativeImage(result.assets[0]);};
+ const saveRepresentativeImage=async()=>{if(!supabase||!owner||!session?.user?.id||!representativeImage){Alert.alert("대표 이미지","사진을 먼저 선택해 주세요.");return;}setSaving(true);let uploadedPath:string|null=null;try{const optimized=await ImageManipulator.manipulateAsync(representativeImage.uri,[{resize:{width:1600,height:1600}}],{compress:0.86,format:ImageManipulator.SaveFormat.JPEG});const response=await fetch(optimized.uri);if(!response.ok)throw new Error("이미지를 읽지 못했습니다.");const bytes=await response.arrayBuffer();uploadedPath=studioId+"/representative/"+Date.now()+".jpg";const {error:uploadError}=await supabase.storage.from("studio-representative-images").upload(uploadedPath,bytes,{contentType:"image/jpeg",upsert:false});if(uploadError)throw uploadError;const {error}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:uploadedPath});if(error)throw error;setRepresentativeImagePath(uploadedPath);setRepresentativeImage(null);Alert.alert("대표 이미지 변경 완료","학원 대표 이미지가 변경되었습니다. 운영자에게 변경 알림이 전달됩니다.");await load();}catch(error:any){if(uploadedPath)await supabase.storage.from("studio-representative-images").remove([uploadedPath]);Alert.alert("대표 이미지 저장 실패",error?.message||"대표 이미지를 저장하지 못했습니다.");}finally{setSaving(false);}};
  const pickMaterialImage=async(kind:"schedule"|"price")=>{
   const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:false,quality:0.9});
   if(result.canceled||!result.assets[0])return;
@@ -240,6 +244,7 @@ export default function StudioManager(){
   :owner?
    <>
     <View style={s.card}><Text style={s.cardTitle}>승인된 원장님 계정</Text><Text style={s.body}>이 학원의 정보와 공개 자료를 관리할 수 있습니다. 등록한 내용은 학원 상세 페이지에 바로 공개됩니다.</Text></View>
+    <View style={s.card}><Text style={s.cardTitle}>학원 대표 이미지</Text><Text style={s.body}>사진을 첨부해 학원 상세 페이지의 대표 사진을 변경할 수 있습니다. 별도 승인 없이 즉시 반영됩니다.</Text>{(representativeImage?.uri||representativeImagePath)&&<Image source={{uri:representativeImage?.uri||supabase?.storage.from("studio-representative-images").getPublicUrl(representativeImagePath!).data.publicUrl}} style={{width:"100%",height:190,borderRadius:10,marginTop:10}} resizeMode="cover"/>}{button(representativeImage?"사진 다시 선택":"대표 사진 첨부",pickRepresentativeImage,saving)}{button("대표 이미지로 설정",saveRepresentativeImage,saving||!representativeImage)}{representativeImagePath&&button("대표 이미지 제거",()=>Alert.alert("대표 이미지 제거","현재 대표 이미지를 제거할까요?",[{text:"취소",style:"cancel"},{text:"제거",style:"destructive",onPress:async()=>{if(!supabase)return;setSaving(true);const {error}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:null});if(error)Alert.alert("제거 실패",error.message);else{setRepresentativeImagePath(null);Alert.alert("제거 완료","대표 이미지가 제거되었습니다.");await load();}setSaving(false);}}]),saving,true)}</View>
     <View style={s.card}><Text style={s.cardTitle}>학원 기본 정보 수정</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("대표 홈페이지 URL",profileWebsite,setProfileWebsite,"일반 홈페이지·네이버 블로그·인스타그램 URL (https://)") }<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:90,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>시간표 이미지 등록</Text><Text style={s.body}>글자 입력은 지원하지 않습니다. 시간표가 보이는 이미지 한 장을 선택해 주세요.</Text>{scheduleImage&&<Image source={{uri:scheduleImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(scheduleImage?"시간표 이미지 다시 선택":"시간표 이미지 선택",()=>pickMaterialImage("schedule"),saving)}{button("시간표 이미지 공개",saveSchedule,saving||!scheduleImage)}</View>
     <View style={s.card}><Text style={s.cardTitle}>가격표 이미지 등록</Text><Text style={s.body}>가격과 이용 조건이 표시된 이미지로만 등록할 수 있습니다.</Text>{priceImage&&<Image source={{uri:priceImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(priceImage?"가격표 이미지 다시 선택":"가격표 이미지 선택",()=>pickMaterialImage("price"),saving)}{button("가격표 이미지 공개",savePrice,saving||!priceImage)}</View>
