@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Appearance, useEffect } from "react-native";\nimport AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function RootLayout() {
   return (
