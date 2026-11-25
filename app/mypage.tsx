@@ -28,7 +28,7 @@ export default function MyPage(){
   else if(menu==="notices"){r=await supabase.from("app_notices").select("id,title,body,created_at").eq("is_active",true).order("created_at",{ascending:false}).limit(50);data=r.data||[];}
   if(r?.error){Alert.alert("목록 조회 실패",r.error.message);return;}if(active)setItems(data);
  })();return()=>{active=false;};},[menu,activity,user]);
- useEffect(()=>{if(!menu||!user||!supabase||notificationPermission!=="granted")return;let active=true;(async()=>{try{
+ useEffect(()=>{if(menu!=="settings"||!user||!supabase||notificationPermission!=="granted")return;let active=true;(async()=>{try{
   const projectId=Constants.easConfig?.projectId||Constants.expoConfig?.extra?.eas?.projectId;
   if(!projectId)return;
   if(Platform.OS==="android")await Notifications.setNotificationChannelAsync("default",{name:"기본 알림",importance:Notifications.AndroidImportance.DEFAULT});
