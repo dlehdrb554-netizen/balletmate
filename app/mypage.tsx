@@ -1,10 +1,10 @@
 import React,{useEffect,useState,useMemo} from "react";
-import {Alert,Appearance,Modal,Platform,Pressable,ScrollView,StyleSheet,Switch,Text,View} from "react-native";
+import {ActivityIndicator,Alert,Appearance,Modal,Platform,Pressable,ScrollView,StyleSheet,Switch,Text,View} from "react-native";
 import Constants from "expo-constants";
 import {Ionicons} from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {SafeAreaView} from "react-native-safe-area-context";
-import {useRouter} from "expo-router";
+import {useLocalSearchParams,useRouter} from "expo-router";
 import * as Linking from "expo-linking";
 import {supabase} from "../lib/supabase";
 import {themeStyles} from "../lib/theme";
@@ -13,15 +13,15 @@ Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowAl
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0"};
 type Mode="system"|"light"|"dark";
 export default function MyPage(){
- const router=useRouter();const [user,setUser]=useState<any>(null),[display,setDisplay]=useState("회원"),[username,setUsername]=useState(""),[providers,setProviders]=useState<string[]>([]);
- const [menu,setMenu]=useState<"activity"|"bookmarks"|"settings"|"notices"|null>(null),[activity,setActivity]=useState<"posts"|"comments"|"reviews">("posts"),[items,setItems]=useState<any[]>([]);
+ const router=useRouter();const routeParams=useLocalSearchParams<{open?:string}>();const [authChecked,setAuthChecked]=useState(false);const [user,setUser]=useState<any>(null),[display,setDisplay]=useState("회원"),[username,setUsername]=useState(""),[providers,setProviders]=useState<string[]>([]);
+ const [menu,setMenu]=useState<"activity"|"bookmarks"|"settings"|"notices"|null>(routeParams.open==="settings"?"settings":null),[activity,setActivity]=useState<"posts"|"comments"|"reviews">("posts"),[items,setItems]=useState<any[]>([]);
  const [mode,setMode]=useState<Mode>("system"),[modeOpen,setModeOpen]=useState(false),[locked,setLocked]=useState(false);
  const isDark=mode==="dark"||(mode==="system"&&Appearance.getColorScheme()==="dark");
  const s=useMemo(()=>createS(isDark),[isDark]);
  const [alerts,setAlerts]=useState({announcements:true,messages:true,replies:false,recommendations:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true});
  const [notificationPermission,setNotificationPermission]=useState<"granted"|"denied"|"undetermined">("undetermined");
  useEffect(()=>{Notifications.getPermissionsAsync().then(p=>setNotificationPermission(p.status as any)).catch(()=>setNotificationPermission("undetermined"));},[]);
- useEffect(()=>{let alive=true;(async()=>{if(!supabase)return;const {data}=await supabase.auth.getSession();if(!alive)return;const u=data.session?.user||null;setUser(u);if(u){const p=await supabase.from("user_profiles").select("display_name,username").eq("user_id",u.id).maybeSingle();setDisplay(p.data?.display_name||p.data?.username||"회원");setUsername(p.data?.username||"");setProviders((u.identities||[]).map((x:any)=>x.provider));}})();AsyncStorage.multiGet(["balletmate.theme.mode","balletmate.screen_lock","balletmate.notification.preferences"]).then(v=>{if(alive){setMode((v[0][1] as Mode)||"system");setLocked(v[1][1]==="1");if(v[2][1])try{setAlerts({...{announcements:true,messages:true,replies:false,recommendations:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true},...JSON.parse(v[2][1])});}catch{}}});return()=>{alive=false;};},[]);
+ useEffect(()=>{let alive=true;(async()=>{if(!supabase){setAuthChecked(true);return;}const {data}=await supabase.auth.getSession();if(!alive)return;const u=data.session?.user||null;setUser(u);setAuthChecked(true);if(!u){router.replace(routeParams.open==="settings"?"/account?returnTo=mypage-settings":"/account?returnTo=mypage");return;}const p=await supabase.from("user_profiles").select("display_name,username").eq("user_id",u.id).maybeSingle();if(!alive)return;setDisplay(p.data?.display_name||p.data?.username||"회원");setUsername(p.data?.username||"");setProviders((u.identities||[]).map((x:any)=>x.provider));})();AsyncStorage.multiGet(["balletmate.theme.mode","balletmate.screen_lock","balletmate.notification.preferences"]).then(v=>{if(alive){setMode((v[0][1] as Mode)||"system");setLocked(v[1][1]==="1");if(v[2][1])try{setAlerts({...{announcements:true,messages:true,replies:false,recommendations:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true},...JSON.parse(v[2][1])});}catch{}}});return()=>{alive=false;};},[router,routeParams.open]);
  useEffect(()=>{if(!menu||!user||!supabase)return;let active=true;(async()=>{let data:any[]=[];let r:any;
   if(menu==="bookmarks"){r=await supabase.from("community_post_bookmarks").select("post_id,created_at,community_posts(id,title,content,category,created_at)").eq("user_id",user.id).order("created_at",{ascending:false});data=(r.data||[]).map((x:any)=>x.community_posts).filter(Boolean);}
   else if(menu==="activity"&&activity==="posts"){r=await supabase.from("community_posts").select("id,title,content,category,created_at").eq("author_id",user.id).order("created_at",{ascending:false});data=r.data||[];}
@@ -48,7 +48,8 @@ export default function MyPage(){
  const toggleLock=()=>Alert.alert(locked?"화면 잠금 해제":"화면 잠금 설정",locked?"화면 잠금 설정을 해제할까요?":"화면 잠금을 설정하면 현재 로그아웃되며 다음 이용 시 다시 로그인해야 합니다.",[{text:"취소",style:"cancel"},{text:locked?"해제":"잠금 설정",onPress:async()=>{const next=!locked;setLocked(next);await AsyncStorage.setItem("balletmate.screen_lock",next?"1":"0");if(next&&supabase){const {error}=await supabase.auth.signOut({scope:"local"});if(error)Alert.alert("잠금 설정 실패",error.message);else Alert.alert("화면 잠금","로그아웃되었습니다. 다시 이용하려면 로그인해 주세요.");}}}]);
  const openPost=(id:string)=>router.push({pathname:"/community",params:{postId:id}});
  const openPrivacyPolicy=async()=>{try{await Linking.openURL("https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/privacy-policy");}catch{Alert.alert("페이지 열기 실패","개인정보처리방침 페이지를 열 수 없습니다. 잠시 후 다시 시도해 주세요.");}};
- const title=menu==="activity"?"내가 작성한 글":menu==="bookmarks"?"북마크":menu==="settings"?"설정":"공지사항";
+ const title=menu==="activity"?"내가 작성한 글":menu==="bookmarks"?"북마크":menu==="settings"?"알림 설정":"공지사항";
+ if(!authChecked||!user)return <SafeAreaView style={s.safe}><View style={{flex:1,alignItems:"center",justifyContent:"center"}}><ActivityIndicator color={C.purple}/><Text style={s.small}>로그인 확인 중…</Text></View></SafeAreaView>;
  return <SafeAreaView style={[s.safe,isDark&&{backgroundColor:"#101010"}]}><View style={[s.header,isDark&&{backgroundColor:"#101010",borderColor:"#383443"}]}><Pressable onPress={()=>menu?setMenu(null):router.back()}><Ionicons name="chevron-back" size={23} color={C.ink}/></Pressable><Text style={[s.heading,isDark&&{color:"#FFFFFF"}]}>{menu?title:"마이페이지"}</Text><View style={{width:24}}/></View>
  {!menu?<ScrollView contentContainerStyle={s.content}><Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>내 계정</Text><View style={[s.account,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]}><View style={s.avatar}><Ionicons name="person" size={25} color={C.purple}/></View><View style={{flex:1}}><Text style={[s.display,isDark&&{color:"#FFFFFF"}]}>{display}</Text><Text style={s.small}>계정 · {username||"확인되지 않음"}</Text></View><View>{providers.map(p=><Text key={p} style={s.provider}>{p==="google"?"Google 인증":"카카오 인증"}</Text>)}</View></View>
  {(["activity","bookmarks","settings","notices"] as const).map((v,i)=><Pressable key={v} style={[s.menuItem,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]} onPress={()=>setMenu(v)}><Ionicons name={["document-text-outline","bookmark-outline","settings-outline","megaphone-outline"][i] as any} size={21} color={C.purple}/><Text style={[s.menuText,isDark&&{color:"#FFFFFF"}]}>{["내가 작성한 글","북마크","설정","공지사항"][i]}</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>)}
