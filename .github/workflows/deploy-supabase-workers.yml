@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          for function_name in classify-studio-photo crawl-studio crawl-studio-worker crawl-studio-blogs search-studio-blogs neis-only-geocoding; do
+          for function_name in hyper-responder classify-studio-photo crawl-studio crawl-studio-worker crawl-studio-blogs search-studio-blogs neis-only-geocoding; do
             supabase functions delete "$function_name" --project-ref "$SUPABASE_PROJECT_REF" --yes
             status=$?
             if [ "$status" -ne 0 ]; then
