@@ -585,8 +585,11 @@ export default function Home() {
         return;
       }
       if(favoriteSyncUser.current===uid)return;
-      favoriteSyncUser.current=uid;
       try{
+        const {data:memberProfile,error:profileError}=await client.from("user_profiles").select("display_name").eq("user_id",uid).maybeSingle();
+        if(profileError)throw profileError;
+        if(!String(memberProfile?.display_name||"").trim())return;
+        favoriteSyncUser.current=uid;
         const {data:remote,error}=await client.from("user_favorites").select("studio_id,studio_snapshot").eq("user_id",uid);
         if(error)throw error;
         if(!active)return;
