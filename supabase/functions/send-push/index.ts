@@ -20,9 +20,9 @@ Deno.serve(async (req) => {
 
   try {
     const payload = await req.json();
-    const scope = payload?.scope === "favorites" ? "favorites" : payload?.scope === "all" ? "all" : null;
+    const scope = payload?.scope === "favorites" ? "favorites" : payload?.scope === "admins" ? "admins" : payload?.scope === "all" ? "all" : null;
     const preference = String(payload?.preference || "");
-    const allowed = ["announcements", "favoriteNotices", "favoritePrices", "favoriteSchedules"];
+    const allowed = ["announcements", "favoriteNotices", "favoritePrices", "favoriteSchedules", "adminStudioChanges"];
     if (!scope || !allowed.includes(preference)) return json({ error: "Invalid notification payload" }, 400);
     const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -33,6 +33,10 @@ Deno.serve(async (req) => {
       const { data: favorites, error: favoriteError } = await db.from("user_favorites").select("user_id").eq("studio_id", studioId);
       if (favoriteError) throw favoriteError;
       userIds = [...new Set((favorites || []).map((row: any) => String(row.user_id)))];
+    } else if (scope === "admins") {
+      const { data: admins, error: adminError } = await db.from("admin_users").select("user_id");
+      if (adminError) throw adminError;
+      userIds = [...new Set((admins || []).map((row: any) => String(row.user_id)))];
     } else {
       const { data: registered, error: registeredError } = await db.from("user_push_tokens").select("user_id");
       if (registeredError) throw registeredError;
