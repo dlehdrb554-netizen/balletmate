@@ -199,20 +199,21 @@ export default function Home() {
   })).current;
   useEffect(()=>{AsyncStorage.getItem("balletmate.mapProvider.v1").then(value=>{if(value==="google"||value==="kakao")setMapProvider(value);}).catch(()=>{});},[]);
   const saveStudioReview=async()=>{
-    if(!supabase)return;
+    const client=supabase;
+    if(!client)return;
     setReviewSubmitting(true);
     try{
-      const {data:{session}}=await supabase.auth.getSession();
+      const {data:{session}}=await client.auth.getSession();
       if(!session){Alert.alert("로그인 필요","리뷰 작성은 로그인 후 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);return;}
-      const {data:memberProfile,error:memberProfileError}=await supabase.from("user_profiles").select("display_name").eq("user_id",session.user.id).maybeSingle();
+      const {data:memberProfile,error:memberProfileError}=await client.from("user_profiles").select("display_name").eq("user_id",session.user.id).maybeSingle();
       if(memberProfileError)throw memberProfileError;
       if(!String(memberProfile?.display_name||"").trim()){Alert.alert("회원정보 등록 필요","리뷰를 작성하려면 회원정보 등록을 완료해 주세요.",[{text:"취소",style:"cancel"},{text:"등록하기",onPress:()=>router.push("/onboarding")}]);return;}
-      const {error}=await supabase.from("studio_reviews").upsert({studio_id:detailStudio!.id,user_id:session.user.id,rating:reviewRating,content:reviewText.trim(),updated_at:new Date().toISOString()},{onConflict:"studio_id,user_id"});
+      const {error}=await client.from("studio_reviews").upsert({studio_id:detailStudio!.id,user_id:session.user.id,rating:reviewRating,content:reviewText.trim(),updated_at:new Date().toISOString()},{onConflict:"studio_id,user_id"});
       if(error)throw error;
       setReviewText("");
-      const {data,error:loadError}=await supabase.from("studio_reviews").select("id,studio_id,user_id,rating,content,created_at,updated_at,verified_at").eq("studio_id",detailStudio!.id).order("created_at",{ascending:false}).limit(100);
+      const {data,error:loadError}=await client.from("studio_reviews").select("id,studio_id,user_id,rating,content,created_at,updated_at,verified_at").eq("studio_id",detailStudio!.id).order("created_at",{ascending:false}).limit(100);
       if(loadError)throw loadError;
-      const {data:blocks}=await supabase.from("community_user_blocks").select("blocked_user_id").eq("blocker_id",session.user.id);
+      const {data:blocks}=await client.from("community_user_blocks").select("blocked_user_id").eq("blocker_id",session.user.id);
       const blockedIds=(blocks||[]).map((row:any)=>String(row.blocked_user_id));
       setStudioReviews((data||[]).filter((row:any)=>!blockedIds.includes(String(row.user_id))).sort((a:any,b:any)=>Number(!!b.verified_at)-Number(!!a.verified_at)));
       Alert.alert("리뷰 등록 완료","학원 리뷰가 등록되었습니다.");
@@ -222,7 +223,7 @@ export default function Home() {
   const startStudioReviewSubmission=async()=>{
     const client=supabase;
     if(!client){Alert.alert("리뷰","로그인이 필요한 기능입니다.");return;}
-    const {data:{session}}=await supabase.auth.getSession();
+    const {data:{session}}=await client.auth.getSession();
     if(!session){Alert.alert("로그인 필요","리뷰 작성은 로그인 후 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);return;}
     const {data:acceptance,error}=await client.from("service_terms_acceptances").select("terms_version").eq("user_id",session.user.id).eq("terms_version","2026-11-26").maybeSingle();
     if(error){Alert.alert("약관 확인 실패","서비스 이용약관 동의 정보를 확인할 수 없습니다. Supabase에 서비스 약관 SQL을 먼저 적용해 주세요.");return;}
