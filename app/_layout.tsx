@@ -13,7 +13,7 @@ export default function RootLayout() {
       return undefined;
     }).catch(() => {});
     AsyncStorage.getItem("balletmate.theme.mode").then(mode => {
-      Appearance.setColorScheme(mode === "dark" ? "dark" : mode === "light" ? "light" : "unspecified");
+      Appearance.setColorScheme(mode === "dark" ? "dark" : mode === "light" ? "light" : null);
     }).catch(() => {});
   }, []);
   return (
