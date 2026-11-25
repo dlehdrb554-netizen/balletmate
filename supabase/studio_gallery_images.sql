@@ -17,7 +17,9 @@ CREATE INDEX IF NOT EXISTS studio_gallery_images_public_idx
 ALTER TABLE public.studio_gallery_images ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.studio_gallery_images FROM anon, authenticated;
 GRANT SELECT ON public.studio_gallery_images TO anon, authenticated;
-GRANT INSERT, UPDATE ON public.studio_gallery_images TO authenticated;
+GRANT INSERT ON public.studio_gallery_images TO authenticated;
+REVOKE UPDATE ON public.studio_gallery_images FROM authenticated;
+GRANT UPDATE (is_active) ON public.studio_gallery_images TO authenticated;
 
 DROP POLICY IF EXISTS "public read active studio gallery images" ON public.studio_gallery_images;
 CREATE POLICY "public read active studio gallery images"
