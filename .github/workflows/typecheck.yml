@@ -14,6 +14,8 @@ jobs:
           node-version: 20
       - run: npm install --no-audit --no-fund
       - run: npx tsc --noEmit
+      - name: Check React Native raw text nodes
+        run: node scripts/check-jsx-text-nodes.cjs
       - name: Expo configuration and dependency health check
         run: npx expo-doctor@1.20.5
       - name: Set up Deno for Supabase Edge Functions
