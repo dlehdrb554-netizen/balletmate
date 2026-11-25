@@ -856,7 +856,8 @@ export default function Home() {
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 비교</Text><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.filterHint}>학원별 가격표와 시간표 이미지를 좌우로 비교해 보세요. 최대 3곳까지 비교할 수 있습니다.</Text>
         {compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{paddingVertical:8,gap:10}}>
+        <ScrollView style={{maxHeight:"72%"}} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+        <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator contentContainerStyle={{paddingVertical:8,gap:10}}>
           {compareIds.map(id=>{
             const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
             if(!studio)return null;
@@ -883,7 +884,7 @@ export default function Home() {
               </View>):<Text style={styles.compareEmpty}>등록된 수업 정보가 없습니다.</Text>}
             </View>;
           })}
-        </ScrollView>}
+        </ScrollView></ScrollView>}
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
