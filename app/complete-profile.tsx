@@ -1,4 +1,5 @@
-import React,{useEffect,useState} from "react";
+import React, {useEffect,useState, useMemo, useColorScheme} from "react";
+import {themeStyles} from "../lib/theme";
 import {ActivityIndicator,Alert,KeyboardAvoidingView,Platform,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from "react-native";
 import {useRouter} from "expo-router";
 import {SafeAreaView} from "react-native-safe-area-context";
@@ -6,6 +7,8 @@ import {supabase} from "../lib/supabase";
 
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0"};
 export default function CompleteProfile(){
+ const isDark=useColorScheme()==="dark";
+ const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
  const [username,setUsername]=useState("");
  const [loading,setLoading]=useState(true);
@@ -84,7 +87,7 @@ export default function CompleteProfile(){
   </KeyboardAvoidingView>
  </SafeAreaView>;
 }
-const s=StyleSheet.create({
+const createS=(dark:boolean)=>StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:C.bg},content:{flexGrow:1,justifyContent:"center",padding:20},
  brand:{fontSize:22,fontWeight:"900",color:C.ink,marginBottom:22},
  card:{backgroundColor:"#fff",borderWidth:1,borderColor:C.line,borderRadius:20,padding:20},
@@ -98,4 +101,4 @@ const s=StyleSheet.create({
  buttonText:{color:"#fff",fontWeight:"900",fontSize:14},
  logout:{alignItems:"center",paddingVertical:14},logoutText:{fontSize:12,color:C.muted,fontWeight:"700"},
  center:{flex:1,alignItems:"center",justifyContent:"center",padding:24},muted:{color:C.muted,marginTop:12}
-});
+},dark));;
