@@ -9,7 +9,7 @@ export default function AuthCallback(){
  const router=useRouter();
  const params=useLocalSearchParams<{code?:string|string[];error?:string|string[];error_description?:string|string[]}>();
  const [message,setMessage]=useState("로그인 정보를 확인하고 있어요.");
- const [failed,setFailed]=useState(false);
+ const [failed,setFailed]=useState(false);\n const [nextRoute,setNextRoute]=useState("/");
  const handled=useRef(false);
 
  useEffect(()=>{
@@ -25,7 +25,7 @@ export default function AuthCallback(){
    const {error}=await supabase.auth.exchangeCodeForSession(code);
    if(!active)return;
    if(error){setFailed(true);setMessage(error.message||"로그인 인증을 완료하지 못했습니다.");}
-   else setMessage("로그인이 완료되었습니다.");
+   else {const {data:{user}}=await supabase.auth.getUser();if(user){const profile=await supabase.from("user_profiles").select("username,display_name").eq("user_id",user.id).maybeSingle();const username=profile.data?.username||"";if(profile.error||username.startsWith("social_")||!profile.data?.display_name)setNextRoute("/onboarding");}setMessage("로그인이 완료되었습니다.");}
   };
   const codeParam=Array.isArray(params.code)?params.code[0]:params.code;
   const errorParam=Array.isArray(params.error_description)?params.error_description[0]:params.error_description;
@@ -53,7 +53,7 @@ export default function AuthCallback(){
    {!failed&&message!=="로그인이 완료되었습니다."?<ActivityIndicator size="large" color="#7661D8"/>:null}
    <Text style={styles.title}>{failed?"로그인에 실패했습니다":message==="로그인이 완료되었습니다."?"로그인 완료":"인증 처리 중"}</Text>
    <Text style={styles.message}>{message}</Text>
-   <Pressable style={styles.button} onPress={()=>router.replace("/account")}><Text style={styles.buttonText}>{failed?"계정 화면으로 돌아가기":"계속하기"}</Text></Pressable>
+   <Pressable style={styles.button} onPress={()=>router.replace(failed?"/account":nextRoute as any)}><Text style={styles.buttonText}>{failed?"계정 화면으로 돌아가기":"계속하기"}</Text></Pressable>
   </View>
  </SafeAreaView>;
 }
