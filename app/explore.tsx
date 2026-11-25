@@ -92,6 +92,8 @@ const sourceStatusMeta=(status?:string|null)=>{
 };
 
 function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>void}) {
+  const isDark=useColorScheme()==="dark";
+  const styles=useMemo(()=>createStyles(isDark),[isDark]);
   return <Pressable onPress={onPress} style={[styles.chip,active&&styles.chipActive]}><Text style={[styles.chipText,active&&styles.chipTextActive]}>{label}</Text></Pressable>;
 }
 export default function Home() {
