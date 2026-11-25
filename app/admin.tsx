@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 
 import AdminCommunityReports from "../components/AdminCommunityReports";
 import AdminStudioReviewReports from "../components/AdminStudioReviewReports";
+import AdminAppNotices from "../components/AdminAppNotices";
 
 
 type StudioRow = {
@@ -72,7 +73,7 @@ const dedupeStudioRows=(input:any[])=>{
 };
 
 export default function Admin() {
-  const [adminTab,setAdminTab]=useState<"overview"|"studios"|"owners"|"community"|"reviewReports">("overview");
+  const [adminTab,setAdminTab]=useState<"overview"|"studios"|"owners"|"community"|"reviewReports"|"notices">("overview");
   const [adminScrollRef]=useState<{current:ScrollView|null}>({current:null});
   const [studioEditPanelY]=useState<{current:number}>({current:0});
   const [studioActionId,setStudioActionId]=useState<string|null>(null);
@@ -473,9 +474,10 @@ export default function Admin() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView ref={node=>{adminScrollRef.current=node;}} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length.toLocaleString("ko-KR")}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
-    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"},{key:"community",label:"커뮤니티 신고"},{key:"reviewReports",label:"리뷰 신고"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
+    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"},{key:"community",label:"커뮤니티 신고"},{key:"reviewReports",label:"리뷰 신고"},{key:"notices",label:"공지사항"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
         {adminTab==="community"&&<View style={styles.panel}><AdminCommunityReports /></View>}
         {adminTab==="reviewReports"&&<View style={styles.panel}><AdminStudioReviewReports /></View>}
+        {adminTab==="notices"&&<View style={styles.panel}><AdminAppNotices /></View>}
         {adminTab==="owners"&&<View style={styles.panel}>
           <View style={styles.listHead}><Text style={styles.heading}>학원 관리자 권한 신청</Text><Pressable onPress={loadOwnerApplications} disabled={ownerReviewBusy}><Text style={styles.refresh}>{ownerReviewBusy?"조회 중…":"새로고침"}</Text></Pressable></View>
           <Text style={styles.hint}>공개 전화번호 확인, 대표 홈페이지·인스타그램 인증 코드 또는 직접 확인으로 운영 관계를 확인한 후 승인하세요. 사업자번호·대표자·주소·등록증은 수집하지 않습니다.</Text>
