@@ -166,8 +166,8 @@ export default function Home() {
   const detailPan=useRef(PanResponder.create({
     // Dedicated grip zone: keep gesture handling away from the close buttons and content scroll.
     onStartShouldSetPanResponder:()=>false,
-    onMoveShouldSetPanResponder:(_,gesture)=>Math.abs(gesture.dy)>6,
-    onMoveShouldSetPanResponderCapture:()=>false,
+    onMoveShouldSetPanResponder:(_,gesture)=>Math.abs(gesture.dy)>5&&Math.abs(gesture.dy)>Math.abs(gesture.dx)*1.2,
+    onMoveShouldSetPanResponderCapture:(_,gesture)=>Math.abs(gesture.dy)>5&&Math.abs(gesture.dy)>Math.abs(gesture.dx)*1.2,
     onPanResponderMove:(_,gesture)=>detailDragY.setValue(Math.max(-180,Math.min(420,gesture.dy))),
     onPanResponderRelease:(_,gesture)=>{
       const dy=gesture.dy;
