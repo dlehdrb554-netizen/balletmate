@@ -123,6 +123,14 @@ BEGIN
  IF public.normalize_studio_district(NULL,'경기 수원')<>'경기도 수원시' THEN
   RAISE EXCEPTION 'Region test failed: Gyeonggi discovery label';
  END IF;
+ IF public.normalize_studio_district(NULL,'서울 강남')
+    <> public.normalize_studio_district(NULL,'서울 강남구') THEN
+  RAISE EXCEPTION 'Region test failed: duplicate Seoul district labels';
+ END IF;
+ IF public.normalize_studio_district('경기도 성남시 분당구 정자동','성남')
+    <>'경기도 성남시 분당구' THEN
+  RAISE EXCEPTION 'Region test failed: full province/city/district hierarchy';
+ END IF;
 END;
 $region_normalizer_tests$;
 
@@ -292,55 +300,8 @@ $$;
 REVOKE ALL ON FUNCTION public.claim_studio_review_attendance_code(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.claim_studio_review_attendance_code(text) TO authenticated;
 
-CREATE OR REPLACE FUNCTION public.enforce_verified_studio_review()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE v_verified_at timestamptz;
-BEGIN
-  IF auth.uid() IS NULL OR NEW.user_id<>auth.uid() THEN
-    RAISE EXCEPTION '본인 계정으로만 리뷰를 작성할 수 있습니다.';
-  END IF;
-  SELECT verified_at INTO v_verified_at
-  FROM public.studio_review_verifications
-  WHERE studio_id=NEW.studio_id AND user_id=NEW.user_id;
-  IF v_verified_at IS NULL THEN
-    RAISE EXCEPTION '해당 학원의 수강 인증을 완료한 회원만 리뷰를 작성할 수 있습니다.';
-  END IF;
-  NEW.verified_at:=v_verified_at;
-  RETURN NEW;
-END;
-$$;
-DROP TRIGGER IF EXISTS studio_reviews_require_attendance ON public.studio_reviews;
-CREATE TRIGGER studio_reviews_require_attendance
-BEFORE INSERT OR UPDATE ON public.studio_reviews
-FOR EACH ROW EXECUTE FUNCTION public.enforce_verified_studio_review();
-
-DROP POLICY IF EXISTS "Users can create own studio reviews" ON public.studio_reviews;
-DROP POLICY IF EXISTS "Users can update own studio reviews" ON public.studio_reviews;
-CREATE POLICY "Verified students create own studio reviews"
-  ON public.studio_reviews FOR INSERT TO authenticated
-  WITH CHECK (
-    auth.uid()=user_id
-    AND EXISTS(SELECT 1 FROM public.studio_review_verifications v
-      WHERE v.studio_id=studio_reviews.studio_id AND v.user_id=auth.uid())
-  );
-CREATE POLICY "Verified students update own studio reviews"
-  ON public.studio_reviews FOR UPDATE TO authenticated
-  USING (
-    auth.uid()=user_id
-    AND EXISTS(SELECT 1 FROM public.studio_review_verifications v
-      WHERE v.studio_id=studio_reviews.studio_id AND v.user_id=auth.uid())
-  )
-  WITH CHECK (
-    auth.uid()=user_id
-    AND EXISTS(SELECT 1 FROM public.studio_review_verifications v
-      WHERE v.studio_id=studio_reviews.studio_id AND v.user_id=auth.uid())
-  );
-GRANT SELECT ON public.studio_reviews TO anon, authenticated;
-GRANT INSERT, UPDATE ON public.studio_reviews TO authenticated;
+-- Reviews are open to all signed-in members; verified attendees receive a badge.
+-- Anti-abuse triggers, report threshold and RLS policies live in studio_reviews.sql.
 
 -- 4) Community post image attachments. Uploads are scoped to the owner's UUID folder.
 ALTER TABLE public.community_posts
@@ -474,7 +435,7 @@ BEGIN
   FROM pg_policies
   WHERE schemaname='public'
     AND tablename IN ('studios','classes','class_sessions','coupons',
-      'studio_public_prices','studio_public_schedules','studio_owner_notices','studio_reviews')
+      'studio_public_prices','studio_public_schedules','studio_owner_notices')
     AND cmd IN ('INSERT','UPDATE','DELETE','ALL')
     AND policyname NOT ILIKE 'admins %'
  LOOP
