@@ -72,7 +72,7 @@ const dedupeStudioRows=(input:any[])=>{
 };
 
 export default function Admin() {
-  const [adminTab,setAdminTab]=useState<"overview"|"studios"|"owners"|"community">("overview");
+  const [adminTab,setAdminTab]=useState<"overview"|"studios"|"owners"|"community"|"reviewReports">("overview");
   const [adminScrollRef]=useState<{current:ScrollView|null}>({current:null});
   const [studioEditPanelY]=useState<{current:number}>({current:0});
   const [studioActionId,setStudioActionId]=useState<string|null>(null);
