@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState, useMemo} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {themeStyles } from "../lib/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
