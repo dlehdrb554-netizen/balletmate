@@ -19,14 +19,14 @@ import KakaoMap, { KakaoMapHandle } from "../components/KakaoMap";
 
 type Studio = {
   id: string; name: string; lat: number; lng: number; area: string;
-  tags: string[]; price: number | null; coupon: boolean; adult: boolean; kids: boolean;
+  tags: string[]; coupon: boolean; adult: boolean; kids: boolean;
   level: string[]; days: string[]; time: string; duration: number; rating: number;
   description: string; address?: string; phone?: string; websiteUrl?: string; sourceUrl?: string; sourceName?: string; sourceStatus?: string; verifiedAt?: string; classDurations?: number[];
 };
 const cleanPublicText=(value:string|null|undefined)=>String(value||"").replace(/<[^>]*>/g," ").replace(/&nbsp;|&#160;/gi," ").replace(/&amp;/gi,"&").split(" ").filter(Boolean).join(" ");
 const mapStudioRecord = (r: StudioRecord): Studio => ({
   id:r.id,name:r.name,lat:Number(r.latitude),lng:Number(r.longitude),area:r.district||"지역 정보 없음",
-  address:r.address||undefined,tags:r.tags||[],price:r.price_per_class,coupon:!!r.coupon_available,
+  address:r.address||undefined,tags:r.tags||[],coupon:!!r.coupon_available,
   adult:!!r.adult_classes,kids:!!r.kids_classes,level:r.levels||[],days:r.days||[],
   time:(r.time_slots||[]).join(" · "),duration:r.duration_minutes||0,rating:Number(r.rating||0),
   description:r.description||"등록된 소개가 없습니다.",phone:r.phone||undefined,
@@ -74,12 +74,12 @@ const canonicalArea=(area:string)=>{
 const districtOptionLabel=(area:string,citySelected:string)=>{const parsed=parseArea(area);const detail=parsed.detail||"시 전체";return citySelected==="전체"&&parsed.city?parsed.city+" "+detail:detail;};
 
 const DATA: Studio[] = [
-  {id:"s1",name:"발레온 스튜디오",lat:37.6584,lng:126.8321,area:"경기도 고양시 일산동구",tags:["성인","초급","기초"],price:25000,coupon:true,adult:true,kids:false,level:["초급","중급"],days:["평일","주말"],time:"오전 · 저녁",duration:60,rating:4.8,description:"성인 취미 발레 기초와 단계별 수업을 운영하는 스튜디오."},
-  {id:"s2",name:"라벨르 발레",lat:37.6643,lng:126.7798,area:"경기도 고양시 일산서구",tags:["성인","키즈","초급"],price:22000,coupon:false,adult:true,kids:true,level:["입문","초급"],days:["평일"],time:"오전 · 오후",duration:50,rating:4.7,description:"입문자를 위한 소규모 그룹 수업."},
-  {id:"s3",name:"아뜰리에 발레",lat:37.6452,lng:126.7867,area:"경기도 고양시 일산서구",tags:["성인","중급"],price:30000,coupon:true,adult:true,kids:false,level:["초급","중급","고급"],days:["평일","주말"],time:"저녁",duration:75,rating:4.9,description:"테크닉과 작품 수업을 함께 운영."},
-  {id:"s4",name:"리틀 스완 발레",lat:37.6711,lng:126.8143,area:"경기도 고양시 일산동구",tags:["키즈","유아"],price:18000,coupon:false,adult:false,kids:true,level:["입문"],days:["평일","주말"],time:"오후",duration:40,rating:4.6,description:"유아·어린이 발레 수업."},
-  {id:"s5",name:"무브 발레핏",lat:37.6344,lng:126.8328,area:"경기도 고양시 일산동구",tags:["성인","발레핏","초급"],price:20000,coupon:true,adult:true,kids:false,level:["입문","초급"],days:["평일"],time:"오전 · 저녁",duration:55,rating:4.5,description:"발레 기초와 컨디셔닝을 결합한 수업."},
-  {id:"s6",name:"플리에 발레 아카데미",lat:37.6530,lng:126.8578,area:"경기도 고양시 덕양구",tags:["성인","키즈","중급"],price:28000,coupon:false,adult:true,kids:true,level:["초급","중급"],days:["평일","주말"],time:"오전 · 오후 · 저녁",duration:60,rating:4.8,description:"연령별·수준별 클래스 운영."}
+  {id:"s1",name:"발레온 스튜디오",lat:37.6584,lng:126.8321,area:"경기도 고양시 일산동구",tags:["성인","초급","기초"],coupon:true,adult:true,kids:false,level:["초급","중급"],days:["평일","주말"],time:"오전 · 저녁",duration:60,rating:4.8,description:"성인 취미 발레 기초와 단계별 수업을 운영하는 스튜디오."},
+  {id:"s2",name:"라벨르 발레",lat:37.6643,lng:126.7798,area:"경기도 고양시 일산서구",tags:["성인","키즈","초급"],coupon:false,adult:true,kids:true,level:["입문","초급"],days:["평일"],time:"오전 · 오후",duration:50,rating:4.7,description:"입문자를 위한 소규모 그룹 수업."},
+  {id:"s3",name:"아뜰리에 발레",lat:37.6452,lng:126.7867,area:"경기도 고양시 일산서구",tags:["성인","중급"],coupon:true,adult:true,kids:false,level:["초급","중급","고급"],days:["평일","주말"],time:"저녁",duration:75,rating:4.9,description:"테크닉과 작품 수업을 함께 운영."},
+  {id:"s4",name:"리틀 스완 발레",lat:37.6711,lng:126.8143,area:"경기도 고양시 일산동구",tags:["키즈","유아"],coupon:false,adult:false,kids:true,level:["입문"],days:["평일","주말"],time:"오후",duration:40,rating:4.6,description:"유아·어린이 발레 수업."},
+  {id:"s5",name:"무브 발레핏",lat:37.6344,lng:126.8328,area:"경기도 고양시 일산동구",tags:["성인","발레핏","초급"],coupon:true,adult:true,kids:false,level:["입문","초급"],days:["평일"],time:"오전 · 저녁",duration:55,rating:4.5,description:"발레 기초와 컨디셔닝을 결합한 수업."},
+  {id:"s6",name:"플리에 발레 아카데미",lat:37.6530,lng:126.8578,area:"경기도 고양시 덕양구",tags:["성인","키즈","중급"],coupon:false,adult:true,kids:true,level:["초급","중급"],days:["평일","주말"],time:"오전 · 오후 · 저녁",duration:60,rating:4.8,description:"연령별·수준별 클래스 운영."}
 ];
 const INITIAL: Region = {latitude:37.5665,longitude:126.9780,latitudeDelta:0.06,longitudeDelta:0.06};
 const distanceKm=(lat1:number,lon1:number,lat2:number,lon2:number)=>{const rad=(n:number)=>n*Math.PI/180;const dLat=rad(lat2-lat1),dLon=rad(lon2-lon1);const a=Math.sin(dLat/2)**2+Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2;return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));};
@@ -115,7 +115,7 @@ export default function Home() {
   const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
-  const [listSort,setListSort]=useState<"distance"|"price">("distance");
+
   const [selectedListRegion,setSelectedListRegion]=useState("전체");
   const [rankMode,setRankMode]=useState<"views"|"favorites">("views");
   const [regionPickerOpen,setRegionPickerOpen]=useState(false);
@@ -233,7 +233,7 @@ export default function Home() {
   const [level,setLevel]=useState<string|null>(null);
   const [dayFilter,setDayFilter]=useState<string|null>(null);
   const [timeFilter,setTimeFilter]=useState<string|null>(null);
-  const [maxPrice,setMaxPrice]=useState<number|null>(null);
+
   const [durationFilter,setDurationFilter]=useState<number|null>(null);
   const [classTypeFilter,setClassTypeFilter]=useState<string|null>(null);
   const [classTypeOptions,setClassTypeOptions]=useState<string[]>([]);
@@ -290,7 +290,7 @@ export default function Home() {
     return()=>{active=false;};
   },[]);
 
-  const hasClassLevelFilters=!!(adult||kids||classTypeFilter||level||dayFilter||timeFilter||durationFilter!==null||maxPrice!==null);
+  const hasClassLevelFilters=!!(adult||kids||classTypeFilter||level||dayFilter||timeFilter||durationFilter!==null);
   useEffect(()=>{
     if(!supabase||!hasClassLevelFilters){setClassFilterIds([]);setClassFilterLoading(false);return;}
     let active=true;
@@ -300,13 +300,13 @@ export default function Home() {
         audiences:[adult?"adult":null,kids?"kids":null].filter((value):value is "adult"|"kids"=>value!==null),
         classType:classTypeFilter,level,weekdayGroup:dayFilter as "평일"|"주말"|null,
         timeOfDay:timeFilter as "오전"|"오후"|"저녁"|null,
-        durationMinutes:durationFilter,maxPrice,
+        durationMinutes:durationFilter,
       }).then(ids=>{if(active)setClassFilterIds(ids);})
         .catch(error=>{if(active){setClassFilterIds([]);console.warn("Class filter search failed:",error);}})
         .finally(()=>{if(active)setClassFilterLoading(false);});
     },250);
     return()=>{active=false;clearTimeout(timer);};
-  },[adult,kids,classTypeFilter,level,dayFilter,timeFilter,durationFilter,maxPrice,hasClassLevelFilters]);
+  },[adult,kids,classTypeFilter,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters]);
 
   useEffect(()=>{
     const client=supabase;
@@ -338,7 +338,7 @@ export default function Home() {
     if(level&&!s.level.includes(level))return false;
     if(dayFilter&&!s.days.includes(dayFilter))return false;
     if(timeFilter&&!s.time.includes(timeFilter))return false;
-    if(maxPrice!==null&&(s.price===null||s.price>maxPrice))return false;
+
     if(durationFilter!==null&&!(s.classDurations?.length?s.classDurations.includes(durationFilter):s.duration===durationFilter))return false;
     if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
     if(areaLocked){
@@ -347,7 +347,7 @@ export default function Home() {
       if(Math.abs(s.lat-searchedRegion.latitude)>latSpan||Math.abs(s.lng-searchedRegion.longitude)>lngSpan)return false;
     }
     return true;
-  }),[mergedStudios,globalSearchIdSet,search,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,maxPrice,durationFilter,classTypeFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
+  }),[mergedStudios,globalSearchIdSet,search,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,classTypeFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
 
   const mapMarkers=useMemo(()=>results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng})),[results]);
   const handleMapRegionChange=useCallback((next:Region)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);},[]);
@@ -360,15 +360,10 @@ export default function Home() {
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?canonicalArea(studio.area)===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
     return [...rows].sort((a,b)=>{
-      if(listSort==="price"){
-        if(a.price===null&&b.price===null)return a.name.localeCompare(b.name,"ko");
-        if(a.price===null)return 1;
-        if(b.price===null)return -1;
-        return a.price-b.price||a.name.localeCompare(b.name,"ko");
-      }
+
       return distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng);
     });
-  },[view,favoriteStudios,results,listSort,searchedRegion,selectedListRegion,regionProvince,regionCity]);
+  },[view,favoriteStudios,results,searchedRegion,selectedListRegion,regionProvince,regionCity]);
   useEffect(()=>{
     if(view!=="list"||!supabase)return;
     let active=true;setRankLoading(true);
@@ -609,7 +604,7 @@ export default function Home() {
     return()=>{cancelled=true;clearTimeout(timer);};
   },[view,pendingMapTarget]);
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
-  const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(maxPrice!==null?1:0)+(durationFilter!==null?1:0)+(classTypeFilter?1:0)+(maxDistance!==null?1:0);
+  const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(durationFilter!==null?1:0)+(classTypeFilter?1:0)+(maxDistance!==null?1:0);
   const toggleCompare=(studio:Studio)=>{
     if(compareIds.includes(studio.id)){
       setCompareIds(ids=>ids.filter(i=>i!==studio.id));
@@ -637,7 +632,7 @@ export default function Home() {
       else client.from("user_favorites").upsert({user_id:uid,studio_id:studio.id,studio_snapshot:studio,updated_at:new Date().toISOString()},{onConflict:"user_id,studio_id"}).then(({error})=>{if(error)console.warn("Favorite save sync failed",error);});
     });
   };
-  const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setNeisOnlyFilter(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setMaxPrice(null);setDurationFilter(null);setClassTypeFilter(null);setMaxDistance(null);};
+  const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setNeisOnlyFilter(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setDurationFilter(null);setClassTypeFilter(null);setMaxDistance(null);};
   const resetListFilters=()=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);resetFilters();setRegionProvince("전체");setRegionCity("전체");setSelectedListRegion("전체");setSearch("");setGlobalSearchStudios([]);setSearchMatches([]);setAreaLocked(false);Keyboard.dismiss();};
   const openDirections=async(studio:Studio,provider:"google"|"kakao")=>{
     const destination=studio.address||studio.name;
@@ -744,7 +739,7 @@ export default function Home() {
   const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");const target={latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018};setPendingMapTarget(target);setRegion(target);if(!studios.some(x=>x.id===s.id)){setSearchedRegion(target);setAreaLocked(false);}}} style={[styles.studioCard,compact&&styles.compactCard]}>
     <View style={styles.cardTop}><View style={styles.studioIcon}><MaterialCommunityIcons name="human-female-dance" size={28} color={COLORS.purple}/></View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
-    <View style={styles.cardBottom}><Text style={styles.priceText}>{s.price!==null?"₩"+s.price.toLocaleString():"가격 문의"}<Text style={styles.priceUnit}> / 회</Text></Text><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();openDetail(s);}} style={styles.actionChip}><Text style={styles.actionText}>상세정보</Text></Pressable></View>
+    <View style={styles.cardBottom}><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();openDetail(s);}} style={styles.actionChip}><Text style={styles.actionText}>상세정보</Text></Pressable></View>
   </Pressable>;
 
   return <SafeAreaView style={styles.safe}><Modal visible={locationConsentVisible} transparent animationType="fade" onRequestClose={()=>setLocationConsentVisible(false)}><View style={{flex:1,backgroundColor:"rgba(20,16,30,0.55)",justifyContent:"center",padding:22}}><View style={{backgroundColor:"#fff",borderRadius:20,padding:20}}><Text style={{fontSize:19,fontWeight:"900",color:COLORS.ink}}>위치정보 이용 동의</Text><Text style={{fontSize:13,lineHeight:21,color:COLORS.ink,marginTop:13}}>발레메이트는 현재 위치를 지도에 표시하기 위해 기기 위치정보를 이용합니다. 길찾기는 선택한 외부 지도 앱에서 출발지를 현재 위치로 설정할 수 있으며, 이때 해당 지도 앱의 위치 권한과 정책이 적용됩니다.</Text><View style={{backgroundColor:"#F7F4FC",borderRadius:12,padding:13,marginTop:14}}><Text style={{fontSize:12,lineHeight:19,color:COLORS.ink}}>• 이용 항목: 기기에서 확인한 현재 위치(위도·경도){"\n"}• 이용 목적: 현재 위치 표시 및 현재 위치 중심으로 지도 이동{"\n"}• 이용 시점·방법: 동의 후 현재 위치 기능 실행 시 기기 GPS/네트워크 위치를 일회성으로 확인합니다.{"\n"}• 보유·저장 기간: 현재 위치 좌표는 기능 수행 중에만 일시 이용하며 앱 서버나 계정에 별도 저장하지 않습니다.{"\n"}• 주변 학원 검색: 사용자가 보고 있는 지도 범위 좌표가 학원 검색 요청에 포함됩니다.{"\n"}• 동의 거부: 동의하지 않아도 지역 검색과 지도 이동 등 위치를 사용하지 않는 기능은 이용할 수 있습니다.</Text></View><Text style={{fontSize:11,lineHeight:17,color:COLORS.muted,marginTop:12}}>앱 내 동의 후 Android/iOS 기기 위치 권한을 별도로 요청합니다. 기기 권한을 허용하지 않으면 현재 위치 기반 기능을 사용할 수 없습니다.</Text><Pressable onPress={()=>{AsyncStorage.setItem("balletmate.locationConsent.v1","accepted").catch(()=>{});setLocationConsentStatus("accepted");setLocationConsentVisible(false);void locate(true);}} style={{backgroundColor:COLORS.purple,borderRadius:12,padding:14,alignItems:"center",marginTop:17}}><Text style={{color:"#fff",fontWeight:"900",fontSize:14}}>동의하고 위치 기능 사용</Text></Pressable><Pressable onPress={()=>{AsyncStorage.setItem("balletmate.locationConsent.v1","declined").catch(()=>{});setLocationConsentStatus("declined");setLocationConsentVisible(false);}} style={{padding:13,alignItems:"center"}}><Text style={{color:COLORS.muted,fontWeight:"800",fontSize:13}}>동의하지 않고 계속 이용</Text></Pressable><Pressable onPress={()=>{setLocationConsentVisible(false);router.push("/privacy");}} style={{alignItems:"center",paddingBottom:3}}><Text style={{color:COLORS.purple,fontSize:12,fontWeight:"800"}}>개인정보처리방침 보기</Text></Pressable></View></View></Modal><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}>
@@ -765,7 +760,7 @@ export default function Home() {
         <Pressable style={styles.locateButton} onPress={()=>locate()}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
         <Pressable style={styles.mapCount} onPress={()=>{if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}</Text>곳{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
         {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={styles.detailBtn} onPress={()=>openDetail(selected)}><Text style={styles.detailBtnText}>상세 보기  ›</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
-      </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Pressable onPress={()=>setListSort("distance")} style={[styles.listSortChip,listSort==="distance"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="distance"&&styles.listSortChipTextActive]}>거리순</Text></Pressable><Pressable onPress={()=>setListSort("price")} style={[styles.listSortChip,listSort==="price"&&styles.listSortChipActive]}><Text style={[styles.listSortChipText,listSort==="price"&&styles.listSortChipTextActive]}>가격 낮은순</Text></Pressable></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}>
+      </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Text style={styles.listSortChipText}>거리순</Text></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}>
   <Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted,marginBottom:6}}>지역 선택</Text>
   <View style={{flexDirection:"row",alignItems:"center",gap:7}}><Pressable onPress={()=>setRegionPickerOpen(true)} style={{flex:1,paddingHorizontal:12,paddingVertical:10,borderRadius:10,borderWidth:1,borderColor:COLORS.line,backgroundColor:COLORS.white,flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}><Text numberOfLines={1} style={{flex:1,fontSize:12,fontWeight:"800",color:COLORS.ink}}>{selectedListRegion!=="전체"?selectedListRegion:[regionProvince,regionCity].filter(x=>x!=="전체").join(" · ")||"전체 지역"}</Text><Text style={{color:COLORS.purple,fontWeight:"900"}}>변경⌄</Text></Pressable>{(selectedListRegion!=="전체"||regionCity!=="전체"||regionProvince!=="전체")&&<Pressable onPress={()=>{setSelectedListRegion("전체");setRegionCity("전체");setRegionProvince("전체");}} style={{paddingHorizontal:10,paddingVertical:10,borderRadius:10,backgroundColor:"#F2F0F6"}}><Text style={{fontSize:11,fontWeight:"800",color:COLORS.ink}}>전체</Text></Pressable>}</View>
   <View style={{flexDirection:"row",gap:7,marginTop:10}}>
@@ -849,7 +844,7 @@ export default function Home() {
       <View style={styles.modalShade}><View style={styles.modal}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 비교</Text><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.filterHint}>최대 3곳까지 비교할 수 있습니다. 카드의 비교 버튼으로 선택을 변경하세요.</Text>
-        {compareIds.map(id=>{const s=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);if(!s)return null;return <View key={id} style={styles.compareRow}><Text style={styles.compareName}>{s.name}</Text><Text style={styles.compareInfo}>{s.area} · {s.level.join("/")}</Text><Text style={styles.compareInfo}>{[s.days.join(" · "),s.time].filter(Boolean).join(" / ")||"요일·시간 미등록"}</Text><Text style={styles.compareInfo}>{s.duration>0?s.duration+"분":"수업 시간 미등록"} · {s.coupon?"쿠폰 있음":"쿠폰 없음"}</Text><Text style={styles.comparePrice}>{s.price!==null?"₩"+s.price.toLocaleString()+" / 회":"가격 미등록"}</Text><Text style={styles.compareInfo}>등록 수업 및 시간표</Text>{compareClassLoading?<ActivityIndicator color={COLORS.purple}/>:((compareClassData[id]||[]).length?(compareClassData[id]||[]).map(cls=><View key={cls.id} style={{marginTop:6}}><Text style={styles.compareInfo}>{cls.title} · {cls.duration_minutes||"-"}분 · {cls.price!=null?"₩"+cls.price.toLocaleString()+" / 회":"가격 문의"}</Text><Text style={styles.compareInfo}>{cls.class_sessions?.length?cls.class_sessions.map(session=>["일","월","화","수","목","금","토"][session.weekday]+" "+session.start_time.slice(0,5)+(session.end_time?"–"+session.end_time.slice(0,5):"")).join(" / "):"시간표 미등록"}</Text></View>):<Text style={styles.compareInfo}>세부 수업 시간표가 등록되지 않았습니다.</Text>)}<Pressable onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}}><Text style={styles.removeCompare}>비교 목록에서 제외</Text></Pressable></View>})}
+        {compareIds.map(id=>{const s=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);if(!s)return null;return <View key={id} style={styles.compareRow}><Text style={styles.compareName}>{s.name}</Text><Text style={styles.compareInfo}>{s.area} · {s.level.join("/")}</Text><Text style={styles.compareInfo}>{[s.days.join(" · "),s.time].filter(Boolean).join(" / ")||"요일·시간 미등록"}</Text><Text style={styles.compareInfo}>{s.duration>0?s.duration+"분":"수업 시간 미등록"} · {s.coupon?"쿠폰 있음":"쿠폰 없음"}</Text><Text style={styles.compareInfo}>등록 수업 및 시간표</Text>{compareClassLoading?<ActivityIndicator color={COLORS.purple}/>:((compareClassData[id]||[]).length?(compareClassData[id]||[]).map(cls=><View key={cls.id} style={{marginTop:6}}><Text style={styles.compareInfo}>{cls.title} · {cls.duration_minutes||"-"}분</Text><Text style={styles.compareInfo}>{cls.class_sessions?.length?cls.class_sessions.map(session=>["일","월","화","수","목","금","토"][session.weekday]+" "+session.start_time.slice(0,5)+(session.end_time?"–"+session.end_time.slice(0,5):"")).join(" / "):"시간표 미등록"}</Text></View>):<Text style={styles.compareInfo}>세부 수업 시간표가 등록되지 않았습니다.</Text>)}<Pressable onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}}><Text style={styles.removeCompare}>비교 목록에서 제외</Text></Pressable></View>})}
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
@@ -911,7 +906,7 @@ export default function Home() {
         {classFilterLoading&&<Text style={styles.filterHint}>선택한 수업 조건을 확인하고 있습니다…</Text>}
         <Text style={styles.sectionTitle}>요일</Text><View style={styles.filterChoices}>{["평일","주말"].map(v=><Chip key={v} label={v} active={dayFilter===v} onPress={()=>setDayFilter(dayFilter===v?null:v)}/>)}</View>
         <Text style={styles.sectionTitle}>시간대</Text><View style={styles.filterChoices}>{["오전","오후","저녁"].map(v=><Chip key={v} label={v} active={timeFilter===v} onPress={()=>setTimeFilter(timeFilter===v?null:v)}/>)}</View>
-        <Text style={styles.sectionTitle}>가격</Text><View style={styles.filterChoices}>{[{label:"2만원 이하",value:20000},{label:"2.5만원 이하",value:25000},{label:"3만원 이하",value:30000}].map(v=><Chip key={v.value} label={v.label} active={maxPrice===v.value} onPress={()=>setMaxPrice(maxPrice===v.value?null:v.value)}/>)}</View>
+        
         <Text style={styles.sectionTitle}>수업 길이</Text><View style={styles.filterChoices}>{[45,50,60,75,90].map(v=><Chip key={v} label={v+"분"} active={durationFilter===v} onPress={()=>setDurationFilter(durationFilter===v?null:v)}/>)}</View>
         <Text style={styles.sectionTitle}>거리 (지도 중심 기준)</Text><View style={styles.filterChoices}>{[1,3,5,10].map(v=><Chip key={v} label={v+"km"} active={maxDistance===v} onPress={()=>setMaxDistance(maxDistance===v?null:v)}/>)}</View>
         <Text style={styles.sectionTitle}>교육청 등록 정보</Text><View style={styles.filterChoices}><Chip label="교육청 등록 정보 확인된 곳만" active={neisOnlyFilter} onPress={()=>setNeisOnlyFilter(!neisOnlyFilter)}/></View><Text style={styles.filterHint}>기본 검색에는 지도에서 확인된 모든 학원이 표시됩니다. 필터를 켜면 교육청 등록 정보가 확인된 학원만 볼 수 있습니다. 등록 여부 미확인은 미등록을 뜻하지 않습니다.</Text>
