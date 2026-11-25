@@ -1,4 +1,4 @@
--- Service terms acceptance for user-generated content (reviews).
+-- Service terms acceptance for user-generated content (reviews).\n-- Current terms version: 2026-11-26-ads-1 (advertising clause added).
 -- Run once in Supabase SQL Editor. Safe to re-run.
 create table if not exists public.service_terms_acceptances (
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -24,7 +24,7 @@ begin
   if auth.uid() is not null and new.user_id = auth.uid()
      and not exists (
        select 1 from public.service_terms_acceptances a
-       where a.user_id = auth.uid() and a.terms_version = '2026-11-26'
+       where a.user_id = auth.uid() and a.terms_version = '2026-11-26-ads-1'
      ) then
     raise exception using errcode = '42501',
       message = '리뷰를 작성하거나 수정하려면 서비스 이용약관 동의가 필요합니다.';
