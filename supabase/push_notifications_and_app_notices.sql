@@ -54,8 +54,11 @@ for all to authenticated using (public.is_balletmate_admin()) with check (public
 
 -- The Edge Function URL and shared dispatch secret are stored in Vault.
 -- Create both secrets after deploying send-push:
--- select vault.create_secret('https://<PROJECT_REF>.supabase.co/functions/v1/send-push','balletmate_push_function_url');
--- select vault.create_secret('<A_LONG_RANDOM_SECRET>','balletmate_push_dispatch_secret');
+-- After deploying send-push, create a long random secret and set the same value in
+-- Supabase Dashboard > Edge Functions > Secrets as PUSH_DISPATCH_SECRET.
+-- Then replace the placeholders and run these two statements:
+-- select vault.create_secret('https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/send-push','balletmate_push_function_url');
+-- select vault.create_secret('<SAME_SECRET_AS_PUSH_DISPATCH_SECRET>','balletmate_push_dispatch_secret');
 create or replace function public.dispatch_balletmate_push(p_payload jsonb)
 returns void language plpgsql security definer set search_path=''
 as $$
@@ -67,12 +70,16 @@ begin
     raise warning 'Balletmate push secrets are not configured; notification event was not dispatched.';
     return;
   end if;
-  perform net.http_post(
-    url:=v_url,
-    headers:=jsonb_build_object('Content-Type','application/json','x-push-secret',v_secret),
-    body:=p_payload,
-    timeout_milliseconds:=5000
-  );
+  begin
+    perform net.http_post(
+      url:=v_url,
+      headers:=jsonb_build_object('Content-Type','application/json','x-push-secret',v_secret),
+      body:=p_payload,
+      timeout_milliseconds:=5000
+    );
+  exception when others then
+    raise warning 'Push dispatch request failed: %',sqlerrm;
+  end;
 end;
 $$;
 revoke all on function public.dispatch_balletmate_push(jsonb) from public,anon,authenticated;
