@@ -71,7 +71,7 @@ export default function StudioManager(){
     supabase.from("studio_public_prices").select("id,amount_krw,price_period,image_path,is_active,published_at").eq("studio_id",studioId).not("image_path","is",null).order("published_at",{ascending:false}).limit(20),
     supabase.from("studio_owner_notices").select("id,title,body,is_active,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20),
     supabase.from("studio_owner_edit_history").select("id,entity,action,changed_fields,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20)
-    ,supabase.from("classes").select("id,title,audience,level,class_type,duration_minutes,price,is_active").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(50)
+    ,supabase.from("classes").select("id,title,audience,level,class_type,duration_minutes,is_active").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(50)
     ,supabase.from("coupons").select("id,title,description,discount_text,is_active,starts_at,ends_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(30)
    ]);
    setMaterials([...(scheduleResult.data||[]).map(x=>({...x,kind:"schedule"})),...(priceResult.data||[]).map(x=>({...x,kind:"price"}))]);
