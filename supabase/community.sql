@@ -56,6 +56,13 @@ alter table public.community_comments enable row level security;
 
 grant select on public.community_posts, public.community_comments to anon, authenticated;
 grant insert, delete on public.community_posts, public.community_comments to authenticated;
+drop policy if exists "admins delete community posts" on public.community_posts;
+create policy "admins delete community posts" on public.community_posts
+for delete to authenticated using (public.is_balletmate_admin());
+
+drop policy if exists "admins delete community comments" on public.community_comments;
+create policy "admins delete community comments" on public.community_comments
+for delete to authenticated using (public.is_balletmate_admin());
 
 drop policy if exists "community posts are public" on public.community_posts;
 create policy "community posts are public" on public.community_posts
@@ -114,14 +121,21 @@ begin
       message = '도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.';
   end if;
 
-  select p.username into v_username
+  select case
+    when nullif(pg_catalog.btrim(p.display_name), '') is not null then pg_catalog.left(pg_catalog.btrim(p.display_name), 40)
+    when p.username is not null and p.username not like 'social\\_%' escape '\\' then pg_catalog.left(p.username, 40)
+    else null
+  end into v_username
   from public.user_profiles p
   where p.user_id = v_user_id;
 
   if v_username is null then
     v_username := coalesce(
-      nullif(auth.jwt() -> 'user_metadata' ->> 'username', ''),
-      '회원'
+      nullif(auth.jwt() -> 'user_metadata' ->> 'nickname', ''),
+      nullif(auth.jwt() -> 'user_metadata' ->> 'display_name', ''),
+      nullif(auth.jwt() -> 'user_metadata' ->> 'full_name', ''),
+      nullif(auth.jwt() -> 'user_metadata' ->> 'name', ''),
+      '발레메이트 회원'
     );
   end if;
 
