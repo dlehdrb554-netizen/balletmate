@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
+import { invalidateStudioPublicMaterials } from "../lib/studio-public-materials";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
@@ -188,7 +189,7 @@ export default function StudioManager(){
    uploadedPath=await uploadMaterialImage(scheduleImage,"schedule");
    const {error}=await supabase.from("studio_public_schedules").insert({studio_id:studioId,schedule_text:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
    if(error)throw error;
-   setScheduleImage(null);Alert.alert("시간표 등록 완료","이미지 시간표가 학원 상세 페이지에 공개됩니다.");await load();
+   setScheduleImage(null);invalidateStudioPublicMaterials(studioId);Alert.alert("시간표 등록 완료","이미지 시간표가 학원 상세 페이지에 공개됩니다.");await load();
   }catch(e:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("시간표 등록 실패",e.message||"시간표를 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
@@ -199,7 +200,7 @@ export default function StudioManager(){
    uploadedPath=await uploadMaterialImage(priceImage,"price");
    const {error}=await supabase.from("studio_public_prices").insert({studio_id:studioId,amount_krw:null,price_period:null,frequency_per_week:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
    if(error)throw error;
-   setPriceImage(null);Alert.alert("가격표 등록 완료","이미지 가격표가 학원 상세 페이지에 공개됩니다.");await load();
+   setPriceImage(null);invalidateStudioPublicMaterials(studioId);Alert.alert("가격표 등록 완료","이미지 가격표가 학원 상세 페이지에 공개됩니다.");await load();
   }catch(e:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("가격표 등록 실패",e.message||"가격표를 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
@@ -219,7 +220,7 @@ export default function StudioManager(){
   if(!supabase)return;
   const table=item.kind==="schedule"?"studio_public_schedules":"studio_public_prices";
   const {error}=await supabase.from(table).update({is_active:false}).eq("id",item.id).eq("studio_id",studioId);
-  if(error)Alert.alert("자료 삭제 실패",error.message);else await load();
+  if(error)Alert.alert("자료 삭제 실패",error.message);else{invalidateStudioPublicMaterials(studioId);await load();}
  };
  const toggleNotice=async(item:any)=>{
   if(!supabase)return;
