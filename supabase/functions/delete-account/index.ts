@@ -76,9 +76,14 @@ Deno.serve(async (req) => {
     if (error) return json({ error: "작성한 커뮤니티 사진을 삭제하지 못했습니다." }, 500);
   }
 
-  // Remove the member's public profile photo before deleting the auth user.
-  const { error: avatarError } = await adminClient.storage.from("user-avatars").remove([`${userId}/profile.jpg`]);
-  if (avatarError) return json({ error: "프로필 사진을 삭제하지 못했습니다." }, 500);
+  // Remove the member's public profile photo when the avatar bucket is installed.
+  // This keeps account deletion compatible with projects that have not run the avatar migration yet.
+  const { data: storageBuckets, error: bucketListError } = await adminClient.storage.listBuckets();
+  if (bucketListError) return json({ error: "프로필 사진 저장소를 확인하지 못했습니다." }, 500);
+  if ((storageBuckets || []).some((bucket) => bucket.name === "user-avatars")) {
+    const { error: avatarError } = await adminClient.storage.from("user-avatars").remove([`${userId}/profile.jpg`]);
+    if (avatarError) return json({ error: "프로필 사진을 삭제하지 못했습니다." }, 500);
+  }
 
   // approved_by becomes NULL through account_deletion_setup.sql (ON DELETE SET NULL).
   const { error: noticesError } = await adminClient.from("studio_owner_notices")
