@@ -33,7 +33,7 @@ ALTER TABLE public.studio_public_prices
   ADD CONSTRAINT studio_public_prices_image_content_check
   CHECK (
     nullif(trim(coalesce(image_path,'')),'') IS NOT NULL
-    OR (amount_krw > 0 AND nullif(trim(coalesce(price_period,'')),'') IS NOT NULL)
+    OR (amount_krw IS NOT NULL AND amount_krw > 0 AND nullif(trim(coalesce(price_period,'')),'') IS NOT NULL)
   );
 
 -- Publicly readable images; writes and deletes are limited to the approved owner of the studio.
