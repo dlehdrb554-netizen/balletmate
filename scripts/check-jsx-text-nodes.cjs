@@ -38,7 +38,7 @@ for (const file of files) {
     }
     if (!parentIsText && ts.isJsxExpression(node) && node.expression) {
       const expression = node.expression;
-      if ((ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression) || ts.isNumericLiteral(expression)) && String(expression.text).trim().length > 0) {
+      if ((ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression) || ts.isNumericLiteral(expression)) && String(expression.text).length > 0) {
         const pos = ast.getLineAndCharacterOfPosition(node.getStart(ast));
         issues.push(file + ":" + (pos.line + 1) + ":" + (pos.character + 1) + " literal JSX expression outside <Text>: " + expression.getText(ast));
       }
