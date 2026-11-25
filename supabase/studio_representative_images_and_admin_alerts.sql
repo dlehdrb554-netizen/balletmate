@@ -110,6 +110,17 @@ BEGIN
  END IF;
  INSERT INTO public.studio_admin_change_alerts(studio_id,studio_name,change_type,summary,actor_user_id)
  VALUES(v_studio_id,coalesce(v_studio_name,'학원'),v_type,v_summary,auth.uid());
+ BEGIN
+   PERFORM public.dispatch_balletmate_push(jsonb_build_object(
+     'scope','admins','preference','adminStudioChanges',
+     'title','학원 정보 변경 알림','body',left(coalesce(v_studio_name,'학원')||' · '||v_summary,180),
+     'data',jsonb_build_object('studioId',v_studio_id,'kind','studioAdminChange')
+   ));
+ EXCEPTION WHEN undefined_function THEN
+   RAISE WARNING 'Push dispatch is not configured; the in-app administrator alert was still saved.';
+ WHEN OTHERS THEN
+   RAISE WARNING 'Administrator push dispatch failed: %',sqlerrm;
+ END;
  RETURN NEW;
 END;
 $$;
