@@ -13,11 +13,11 @@ Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowAl
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0"};
 type Mode="system"|"light"|"dark";
 export default function MyPage(){
- const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();const [user,setUser]=useState<any>(null),[display,setDisplay]=useState("회원"),[username,setUsername]=useState(""),[providers,setProviders]=useState<string[]>([]);
  const [menu,setMenu]=useState<"activity"|"bookmarks"|"settings"|"notices"|null>(null),[activity,setActivity]=useState<"posts"|"comments"|"reviews">("posts"),[items,setItems]=useState<any[]>([]);
  const [mode,setMode]=useState<Mode>("system"),[modeOpen,setModeOpen]=useState(false),[locked,setLocked]=useState(false);
  const isDark=mode==="dark"||(mode==="system"&&Appearance.getColorScheme()==="dark");
+ const s=useMemo(()=>createS(isDark),[isDark]);
  const [alerts,setAlerts]=useState({announcements:true,messages:true,replies:false,recommendations:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true});
  const [notificationPermission,setNotificationPermission]=useState<"granted"|"denied"|"undetermined">("undetermined");
  useEffect(()=>{Notifications.getPermissionsAsync().then(p=>setNotificationPermission(p.status as any)).catch(()=>setNotificationPermission("undetermined"));},[]);
