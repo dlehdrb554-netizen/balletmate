@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState, useMemo} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {themeStyles } from "../lib/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
