@@ -1,6 +1,8 @@
 -- Fix review-report listing, community display names, and administrator deletion.
 -- Run once in Supabase SQL Editor. Safe to re-run.
 
+ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS display_name text;
+
 CREATE OR REPLACE FUNCTION public.admin_list_studio_review_reports()
 RETURNS jsonb
 LANGUAGE plpgsql
