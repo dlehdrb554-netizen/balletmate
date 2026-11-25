@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";\nimport { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, Pressable, StyleSheet, Appearance } from "react-native";\nimport AsyncStorage from "@react-native-async-storage/async-storage";
+import { View, Text, Pressable, StyleSheet, Appearance } from "react-native";\nimport AsyncStorage from "@react-native-async-storage/async-storage";\nimport { supabase } from "../lib/supabase";
 
 export default function RootLayout() {
   return (
