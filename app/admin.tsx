@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState , useMemo, useColorScheme} from "react";
-import { themeStyles } from "../lib/theme";
+import React, {useCallback, useEffect, useMemo, useRef, useState, useMemo} from "react";
+import {themeStyles } from "../lib/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 
