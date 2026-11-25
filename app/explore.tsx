@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, Animated, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View, Platform, Alert
+  StyleSheet, Text, TextInput, View, Platform, Alert, Image
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
@@ -867,10 +867,10 @@ export default function Home() {
               {([{id:"price",label:"가격 정보"},{id:"schedule",label:"시간표"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailInfoTab(tab.id)} style={{flex:1,paddingVertical:10,borderRadius:10,borderWidth:1,borderColor:detailInfoTab===tab.id?COLORS.purple:COLORS.line,backgroundColor:detailInfoTab===tab.id?COLORS.pale:"#FFFFFF",alignItems:"center"}}><Text style={{fontSize:13,fontWeight:"800",color:detailInfoTab===tab.id?COLORS.purple:COLORS.muted}}>{tab.label}</Text></Pressable>)}
             </View>
             {detailInfoTab==="price"&&<View>
-              {studioPublicPrices.length?studioPublicPrices.map(item=><View key={"public-price-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>₩{Number(item.amount_krw||0).toLocaleString("ko-KR")}</Text><Text style={styles.classMeta}>{item.price_period||"이용 기간 미입력"}{item.frequency_per_week?" · 주 "+item.frequency_per_week+"회":""}</Text></View>):<Text style={styles.filterHint}>등록된 수강료 안내가 없습니다.</Text>}
+              {studioPublicPrices.length?studioPublicPrices.map(item=><View key={"public-price-"+item.id} style={styles.classBlock}><Image source={{uri:item.image_url}} style={{width:"100%",height:230,borderRadius:10,backgroundColor:"#FFFFFF"}} resizeMode="contain"/></View>):<Text style={styles.filterHint}>등록된 가격표 이미지가 없습니다.</Text>}
             </View>}
             {detailInfoTab==="schedule"&&<View>
-              {studioPublicSchedules.length?studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}><Text style={styles.sessionText}>{item.schedule_text}</Text></View>):<Text style={styles.filterHint}>등록된 시간표 안내가 없습니다.</Text>}
+              {studioPublicSchedules.length?studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}><Image source={{uri:item.image_url}} style={{width:"100%",height:230,borderRadius:10,backgroundColor:"#FFFFFF"}} resizeMode="contain"/></View>):<Text style={styles.filterHint}>등록된 시간표 이미지가 없습니다.</Text>}
             </View>}
           </View>
           {detailStudio.address&&<View style={styles.infoRow}><Text style={styles.infoLabel}>주소</Text><Text style={styles.infoValue}>{detailStudio.address}</Text></View>}
