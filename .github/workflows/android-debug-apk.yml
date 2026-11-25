@@ -58,6 +58,16 @@ jobs:
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
         run: npx expo prebuild --platform android --non-interactive
 
+      - name: Configure Gradle memory for release dexing
+        working-directory: android
+        run: |
+          sed -i '/^org.gradle.jvmargs=/d' gradle.properties
+          cat >> gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+          org.gradle.workers.max=2
+          org.gradle.parallel=false
+          EOF
+
       - name: Build standalone release APK
         working-directory: android
         env:
