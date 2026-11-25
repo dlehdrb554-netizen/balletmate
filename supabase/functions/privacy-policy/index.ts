@@ -224,8 +224,8 @@ Deno.serve((req) => {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=UTF-8",
+      "Content-Disposition": "inline",
       "Cache-Control": "no-store, max-age=0",
-      "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     },
   });
