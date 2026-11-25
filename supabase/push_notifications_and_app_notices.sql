@@ -1,6 +1,6 @@
 -- Balletmate push notifications and global announcements.
 -- Run once in Supabase SQL Editor. Safe to re-run.
-create extension if not exists pg_net with schema extensions;
+create extension if not exists pg_net with schema net;
 
 create table if not exists public.user_push_tokens (
   id uuid primary key default gen_random_uuid(),
