@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
 type Category="전체"|"학원 추천"|"발레복 추천"|"자유";
@@ -16,7 +16,7 @@ const timeLabel=(value:string)=>{const date=new Date(value);return Number.isNaN(
 const cooldownMessage="도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.";
 
 export default function Community(){
- const router=useRouter();
+ const router=useRouter();\n const params=useLocalSearchParams<{postId?:string}>();\n const [bookmarkedIds,setBookmarkedIds]=useState<string[]>([]);
  const [posts,setPosts]=useState<Post[]>([]);
  const [category,setCategory]=useState<Category>("전체");
  const [selected,setSelected]=useState<Post|null>(null);
@@ -101,7 +101,7 @@ export default function Community(){
   setComments([]);
   await loadComments(post.id,requestId);
  };
- const requireLogin=()=>{Alert.alert("로그인이 필요합니다","게시글과 댓글 작성은 가입한 회원만 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);};
+ const toggleBookmark=async(post:Post)=>{if(!userId||!supabase){requireLogin();return;}const exists=bookmarkedIds.includes(post.id);if(exists){const {error}=await supabase.from("community_post_bookmarks").delete().eq("user_id",userId).eq("post_id",post.id);if(error){Alert.alert("북마크 해제 실패",error.message);return;}setBookmarkedIds(v=>v.filter(id=>id!==post.id));}else{const {error}=await supabase.from("community_post_bookmarks").insert({user_id:userId,post_id:post.id});if(error){Alert.alert("북마크 저장 실패",error.message);return;}setBookmarkedIds(v=>[...v,post.id]);}};\n useEffect(()=>{if(!supabase||!userId)return;supabase.from("community_post_bookmarks").select("post_id").eq("user_id",userId).then(({data})=>setBookmarkedIds((data||[]).map(x=>x.post_id)));},[userId]);\n useEffect(()=>{if(!params.postId||!supabase)return;let active=true;supabase.from("community_posts").select("id,author_id,author_name,category,title,content,image_urls,created_at").eq("id",params.postId).maybeSingle().then(({data,error})=>{if(active&&data&&!error)void openPost(data as Post);});return()=>{active=false;};},[params.postId]);\n const requireLogin=()=>{Alert.alert("로그인이 필요합니다","게시글과 댓글 작성은 가입한 회원만 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);};
  const explainError=(error:any)=>{
   const message=String(error?.message||"");
   if(message.includes("30초")||message.includes("P0001"))Alert.alert("잠시만 기다려 주세요",cooldownMessage);
@@ -255,7 +255,7 @@ export default function Community(){
    <ScrollView contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled">
     <View style={s.postDetail}>
      <View style={s.categoryBadge}><Text style={s.categoryText}>{selected.category}</Text></View>
-     <Text style={s.postTitle}>{selected.title}</Text>
+     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={[s.postTitle,{flex:1}]}>{selected.title}</Text><Pressable onPress={()=>void toggleBookmark(selected)} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(selected.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(selected.id)?"bookmark":"bookmark-outline"} size={22} color={C.purple}/></Pressable></View>
      <Text style={s.meta}>{selected.author_name||"발레메이트 회원"} · {timeLabel(selected.created_at)}</Text>
      <Text style={s.postBody}>{selected.content}</Text>
      {!!selected.image_urls?.length&&<View style={s.postPhotos}>{selected.image_urls.map((url,index)=><Image key={url} source={{uri:url}} style={s.detailPhoto} resizeMode="cover" accessibilityLabel={"게시글 사진 "+(index+1)}/>)}</View>}
@@ -286,7 +286,7 @@ export default function Community(){
       <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
       <Text style={s.preview} numberOfLines={2}>{item.content}</Text>
       {!!item.image_urls?.length&&<View style={s.postPhotos}>{item.image_urls.slice(0,2).map((url,index)=><Image key={url} source={{uri:url}} style={s.listPhoto} resizeMode="cover"/>)}</View>}
-      <View style={s.cardFoot}><Text style={s.author}>{item.author_name||"발레메이트 회원"}</Text><Text style={s.openLabel}>댓글 보기 ›</Text></View>
+      <View style={s.cardFoot}><Text style={s.author}>{item.author_name||"발레메이트 회원"}</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable onPress={(event:any)=>{event.stopPropagation?.();void toggleBookmark(item);}} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(item.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(item.id)?"bookmark":"bookmark-outline"} size={18} color={C.purple}/></Pressable><Text style={s.openLabel}>댓글 보기 ›</Text></View></View>
      </Pressable>} ListEmptyComponent={loadError?<View><Text style={s.empty}>게시글을 불러오지 못했습니다.</Text><Pressable onPress={()=>{setLoading(true);loadPosts();}}><Text style={s.openLabel}>다시 시도</Text></Pressable></View>:<Text style={s.empty}>아직 게시글이 없습니다. 첫 추천을 남겨보세요!</Text>}/>
     }
    </>
