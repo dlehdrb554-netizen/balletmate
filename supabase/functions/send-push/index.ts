@@ -33,17 +33,22 @@ Deno.serve(async (req) => {
       const { data: favorites, error: favoriteError } = await db.from("user_favorites").select("user_id").eq("studio_id", studioId);
       if (favoriteError) throw favoriteError;
       userIds = [...new Set((favorites || []).map((row: any) => String(row.user_id)))];
-      if (!userIds.length) return json({ ok: true, recipients: 0, sent: 0 });
+    } else {
+      const { data: registered, error: registeredError } = await db.from("user_push_tokens").select("user_id");
+      if (registeredError) throw registeredError;
+      userIds = [...new Set((registered || []).map((row: any) => String(row.user_id)))];
     }
+    if (!userIds.length) return json({ ok: true, recipients: 0, sent: 0 });
 
-    let prefQuery = db.from("user_notification_preferences").select("user_id,preferences");
-    if (scope === "favorites") prefQuery = prefQuery.in("user_id", userIds) as any;
-    const { data: prefRows, error: prefError } = await prefQuery;
+    const { data: prefRows, error: prefError } = await db.from("user_notification_preferences")
+      .select("user_id,preferences").in("user_id", userIds);
     if (prefError) throw prefError;
-    const enabledUsers = new Set((prefRows || []).filter((row: any) => row.preferences?.[preference] !== false).map((row: any) => String(row.user_id)));
-    if (scope === "favorites") userIds = userIds.filter(id => enabledUsers.has(id));
-    else userIds = [...enabledUsers];
-
+    const preferenceByUser = new Map((prefRows || []).map((row: any) => [String(row.user_id), row.preferences || {}]));
+    const defaultEnabled = preference !== "replies";
+    userIds = userIds.filter(id => {
+      const preferences = preferenceByUser.get(id);
+      return preferences ? preferences[preference] !== false : defaultEnabled;
+    });
     if (!userIds.length) return json({ ok: true, recipients: 0, sent: 0 });
     const { data: tokens, error: tokenError } = await db.from("user_push_tokens")
       .select("user_id,expo_push_token").in("user_id", userIds);
