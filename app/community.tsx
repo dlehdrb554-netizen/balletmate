@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState , useMemo, useColorScheme} from "react";
-import { themeStyles } from "../lib/theme";
+import React, {useCallback, useEffect, useRef, useState, useMemo} from "react";
+import {themeStyles } from "../lib/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { SafeAreaView } from "react-native-safe-area-context";
