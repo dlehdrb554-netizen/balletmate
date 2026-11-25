@@ -21,3 +21,6 @@ verify_jwt = false
 
 [functions.privacy-policy]
 verify_jwt = false
+
+[functions.username-login]
+verify_jwt = false
