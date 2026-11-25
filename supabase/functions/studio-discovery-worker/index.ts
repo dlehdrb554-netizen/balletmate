@@ -32,7 +32,7 @@ Deno.serve(async(req)=>{
      const name=String(item.place_name||"").trim(),category=String(item.category_name||"");
      const excluded=/(테라피|therapy|마사지|massag|스파|spa|요가|yoga|필라테스|pilates|체형관리|교정|에스테틱|피부관리|힐링|wellness|뷰티|beauty)/i;
      const relevantName=/(발레|무용|댄스|ballet|dance)/i.test(name);
-     const danceEducationCategory=/(무용|댄스)/.test(category);
+     const danceEducationCategory=/(발레|무용|댄스)/.test(category);
      if(!name||excluded.test(name+" "+category)||(!relevantName&&!danceEducationCategory))continue;
      const lat=Number(item.y),lng=Number(item.x);if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
      const identity=String(item.id||[name,lat.toFixed(5),lng.toFixed(5)].join("|"));
