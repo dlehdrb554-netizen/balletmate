@@ -36,7 +36,7 @@ export default function MyPage(){
   if(status!=="granted")return;
   const token=(await Notifications.getExpoPushTokenAsync({projectId})).data;
   if(!active)return;
-  const {error}=await supabase.from("user_push_tokens").upsert({user_id:user.id,expo_push_token:token,platform:Platform.OS,updated_at:new Date().toISOString()},{onConflict:"expo_push_token"});
+  const {error}=await supabase.from("user_push_tokens").upsert({user_id:user.id,expo_push_token:token,platform:Platform.OS,updated_at:new Date().toISOString()},{onConflict:"user_id,expo_push_token"});
   if(error)console.warn("Push token registration failed:",error.message);
  }catch(error){console.warn("Push registration unavailable:",error);}})();return()=>{active=false;};},[menu,user]);
  useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const data=response.notification.request.content.data as any;if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});else if(data?.noticeId)setMenu("notices");});return()=>sub.remove();},[router]);
