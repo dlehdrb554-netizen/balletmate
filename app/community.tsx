@@ -256,13 +256,13 @@ export default function Community(){
      <Text style={s.meta}>{selected.author_name||"발레메이트 회원"} · {timeLabel(selected.created_at)}</Text>
      <Text style={s.postBody}>{selected.content}</Text>
      {!!selected.image_urls?.length&&<View style={s.postPhotos}>{selected.image_urls.map((url,index)=><Image key={url} source={{uri:url}} style={s.detailPhoto} resizeMode="cover" accessibilityLabel={"게시글 사진 "+(index+1)}/>)}</View>}
-     {selected.author_id===userId?<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>게시글 삭제</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
+     {selected.author_id===userId||isAdmin?<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>{isAdmin&&selected.author_id!==userId?"관리자 삭제":"게시글 삭제"}</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>
     <Text style={s.section}>댓글 {comments.length}</Text>
     {comments.filter(comment=>!blockedUserIds.includes(comment.author_id)).map(comment=><View key={comment.id} style={s.comment}>
      <View style={s.commentTop}><Text style={s.commentAuthor}>{comment.author_name||"발레메이트 회원"}</Text><Text style={s.meta}>{timeLabel(comment.created_at)}</Text></View>
      <Text style={s.commentBody}>{comment.content}</Text>
-     {comment.author_id===userId?<Pressable onPress={()=>removeComment(comment)}><Text style={s.deleteText}>삭제</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("comment",comment.id,comment.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(comment.author_id,comment.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
+     {comment.author_id===userId||isAdmin?<Pressable onPress={()=>removeComment(comment)}><Text style={s.deleteText}>{isAdmin&&comment.author_id!==userId?"관리자 삭제":"삭제"}</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("comment",comment.id,comment.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(comment.author_id,comment.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>)}
     {!comments.length&&<Text style={s.empty}>첫 댓글을 남겨보세요.</Text>}
     <View style={s.commentComposer}>
