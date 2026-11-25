@@ -146,7 +146,7 @@ export default function Admin() {
  },[authorized]);
  const loadStudioChangeAlerts=useCallback(async()=>{if(!supabase||!authorized)return;setStudioChangeBusy(true);const {data,error}=await supabase.from("studio_admin_change_alerts").select("id,studio_id,studio_name,change_type,summary,created_at,read_at").order("created_at",{ascending:false}).limit(100);if(error){Alert.alert("학원 변경 알림 조회 실패",error.message);setStudioChangeAlerts([]);}else setStudioChangeAlerts(data||[]);setStudioChangeBusy(false);},[authorized]);
  const markStudioChangeRead=async(id:number)=>{if(!supabase)return;const {error}=await supabase.from("studio_admin_change_alerts").update({read_at:new Date().toISOString()}).eq("id",id);if(error)Alert.alert("읽음 처리 실패",error.message);else setStudioChangeAlerts(items=>items.map(item=>item.id===id?{...item,read_at:new Date().toISOString()}:item));};
- useEffect(()=>{if(adminTab==="studioChanges"&&authorized)void loadStudioChangeAlerts();},[adminTab,authorized,loadStudioChangeAlerts]);
+ useEffect(()=>{if(authorized)void loadStudioChangeAlerts();},[authorized,loadStudioChangeAlerts]);
  const updateReportStatus=async(id:number,status:"in_review"|"resolved"|"rejected")=>{
   if(!supabase)return;
   const {error}=await supabase.rpc("admin_update_studio_user_report",{p_report_id:id,p_status:status});
@@ -483,7 +483,7 @@ export default function Admin() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView ref={node=>{adminScrollRef.current=node;}} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length.toLocaleString("ko-KR")}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
-    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"},{key:"community",label:"커뮤니티 신고"},{key:"reviewReports",label:"리뷰 신고"},{key:"notices",label:"공지사항"},{key:"studioChanges",label:"학원 변경 알림"}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
+    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"},{key:"community",label:"커뮤니티 신고"},{key:"reviewReports",label:"리뷰 신고"},{key:"notices",label:"공지사항"},{key:"studioChanges",label:"학원 변경 알림"+(studioChangeAlerts.some(item=>!item.read_at)?" · 새 알림":"")}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
         {adminTab==="community"&&<View style={styles.panel}><AdminCommunityReports /></View>}
         {adminTab==="reviewReports"&&<View style={styles.panel}><AdminStudioReviewReports /></View>}
         {adminTab==="notices"&&<View style={styles.panel}><AdminAppNotices /></View>}
