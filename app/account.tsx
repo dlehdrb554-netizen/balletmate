@@ -38,13 +38,13 @@ export default function Account(){
   if(session?.user&&supabase){
    Promise.all([
     supabase.from("user_profiles").select("username, display_name").eq("user_id",session.user.id).maybeSingle(),
-    supabase.from("admin_users").select("user_id").eq("user_id",session.user.id).maybeSingle()
+    supabase.rpc("is_balletmate_admin")
    ]).then(([profile,role])=>{
     if(!active)return;
     const metadata=session.user.user_metadata||{};
     const username=profile.data?.username||"";
     const displayName=profile.data?.display_name||"";
-    const isAdmin=!role.error&&role.data?.user_id===session.user.id;
+    const isAdmin=!role.error&&role.data===true;
     // Keep the internal social_* username private; show only the app display name.
     setDisplay(isAdmin?"관리자":displayName||(username.startsWith("social_")?"발레메이트 회원":username)||"회원");
     setAdminRole(isAdmin);
