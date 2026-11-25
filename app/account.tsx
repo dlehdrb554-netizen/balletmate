@@ -177,7 +177,7 @@ export default function Account(){
        <>
         <Text style={s.legacyTitle}>아이디 또는 이메일 로그인</Text>
         <Text style={s.label}>아이디</Text>
-        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={24}/>
+        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={254}/>
         <Text style={s.label}>비밀번호</Text>
         <TextInput style={s.input} value={pw} onChangeText={setPw} placeholder="비밀번호" secureTextEntry autoCapitalize="none"/>
         <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
