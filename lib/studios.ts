@@ -64,7 +64,7 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
 
   const selectColumns = "id,name,latitude,longitude,district,address,tags,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status";
   const searchColumns = "search_days,search_time_slots,search_levels,search_class_durations,search_adult,search_kids";
-  const readPages=async(query:any)=>{const collected:any[]=[];for(let offset=0;offset<2400;offset+=300){const page=await query.range(offset,offset+299);if(page.error) return {data:null,error:page.error};const values=page.data||[];collected.push(...values);if(values.length<300)break;}return {data:collected,error:null};};
+  const readPages=async(query:any)=>{const collected:any[]=[];for(let offset=0;;offset+=300){const page=await query.range(offset,offset+299);if(page.error) return {data:null,error:page.error};const values=page.data||[];collected.push(...values);if(values.length<300)break;}return {data:collected,error:null};};
   const result = await readPages(applyBounds(supabase.from("studio_map_search_app_with_source").select(selectColumns+","+searchColumns).order("name")));
 
   let rows: StudioRecord[];
