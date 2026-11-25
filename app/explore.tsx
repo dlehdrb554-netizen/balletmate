@@ -198,6 +198,44 @@ export default function Home() {
     onShouldBlockNativeResponder:()=>false,
   })).current;
   useEffect(()=>{AsyncStorage.getItem("balletmate.mapProvider.v1").then(value=>{if(value==="google"||value==="kakao")setMapProvider(value);}).catch(()=>{});},[]);
+  const saveStudioReview=async()=>{
+    if(!supabase)return;
+    setReviewSubmitting(true);
+    try{
+      const {data:{session}}=await supabase.auth.getSession();
+      if(!session){Alert.alert("로그인 필요","리뷰 작성은 로그인 후 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);return;}
+      const {data:memberProfile,error:memberProfileError}=await supabase.from("user_profiles").select("display_name").eq("user_id",session.user.id).maybeSingle();
+      if(memberProfileError)throw memberProfileError;
+      if(!String(memberProfile?.display_name||"").trim()){Alert.alert("회원정보 등록 필요","리뷰를 작성하려면 회원정보 등록을 완료해 주세요.",[{text:"취소",style:"cancel"},{text:"등록하기",onPress:()=>router.push("/onboarding")}]);return;}
+      const {error}=await supabase.from("studio_reviews").upsert({studio_id:detailStudio!.id,user_id:session.user.id,rating:reviewRating,content:reviewText.trim(),updated_at:new Date().toISOString()},{onConflict:"studio_id,user_id"});
+      if(error)throw error;
+      setReviewText("");
+      const {data,error:loadError}=await supabase.from("studio_reviews").select("id,studio_id,user_id,rating,content,created_at,updated_at,verified_at").eq("studio_id",detailStudio!.id).order("created_at",{ascending:false}).limit(100);
+      if(loadError)throw loadError;
+      const {data:blocks}=await supabase.from("community_user_blocks").select("blocked_user_id").eq("blocker_id",session.user.id);
+      const blockedIds=(blocks||[]).map((row:any)=>String(row.blocked_user_id));
+      setStudioReviews((data||[]).filter((row:any)=>!blockedIds.includes(String(row.user_id))).sort((a:any,b:any)=>Number(!!b.verified_at)-Number(!!a.verified_at)));
+      Alert.alert("리뷰 등록 완료","학원 리뷰가 등록되었습니다.");
+    }catch(error:any){Alert.alert("리뷰 등록 실패",error?.message||"잠시 후 다시 시도해 주세요.");}
+    finally{setReviewSubmitting(false);}
+  };
+  const startStudioReviewSubmission=async()=>{
+    if(!supabase){Alert.alert("리뷰","로그인이 필요한 기능입니다.");return;}
+    const {data:{session}}=await supabase.auth.getSession();
+    if(!session){Alert.alert("로그인 필요","리뷰 작성은 로그인 후 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);return;}
+    const {data:acceptance,error}=await supabase.from("service_terms_acceptances").select("terms_version").eq("user_id",session.user.id).eq("terms_version","2026-11-26").maybeSingle();
+    if(error){Alert.alert("약관 확인 실패","서비스 이용약관 동의 정보를 확인할 수 없습니다. Supabase에 서비스 약관 SQL을 먼저 적용해 주세요.");return;}
+    if(acceptance){await saveStudioReview();return;}
+    Alert.alert("서비스 이용약관 동의","리뷰를 등록하거나 수정하려면 서비스 이용약관에 동의해야 합니다.",[
+      {text:"취소",style:"cancel"},
+      {text:"약관 보기",onPress:()=>router.push("/terms")},
+      {text:"동의하고 리뷰 등록",onPress:async()=>{
+        const {error:acceptError}=await supabase.from("service_terms_acceptances").insert({user_id:session.user.id,terms_version:"2026-11-26"});
+        if(acceptError&&acceptError.code!=="23505"){Alert.alert("동의 처리 실패",acceptError.message);return;}
+        await saveStudioReview();
+      }}
+    ]);
+  };
   const submitReviewReport=async(reviewId:string,reason:string)=>{if(!supabase){Alert.alert("로그인 필요","로그인 후 신고할 수 있습니다.");return;}const {data:{session}}=await supabase.auth.getSession();if(!session){Alert.alert("로그인 필요","로그인 후 신고할 수 있습니다.");return;}const {error}=await supabase.rpc("submit_studio_review_report",{p_review_id:reviewId,p_reason:reason,p_details:""});if(error)Alert.alert("신고 실패",error.message);else Alert.alert("신고 접수","신고가 접수되었습니다. 반복 신고가 확인되면 관리자 검토 전까지 리뷰가 숨김 처리됩니다.");};
 
   useEffect(()=>{
@@ -313,7 +351,11 @@ export default function Home() {
         const {data:authData}=await client.auth.getSession();
         const userId=authData.session?.user.id||null;
         if(active)setReviewUserId(userId);
+        let blockedIds:string[]=[];
         if(userId){
+          const {data:blocks,error:blockError}=await client.from("community_user_blocks").select("blocked_user_id").eq("blocker_id",userId);
+          if(blockError)throw blockError;
+          blockedIds=(blocks||[]).map((row:any)=>String(row.blocked_user_id));
           const {data:verification,error:verificationError}=await client.from("studio_review_verifications").select("verified_at").eq("studio_id",studioId).eq("user_id",userId).maybeSingle();
           if(active)setReviewVerified(!verificationError&&!!verification?.verified_at);
         }else if(active)setReviewVerified(false);
@@ -322,7 +364,7 @@ export default function Home() {
           .eq("studio_id",studioId).order("created_at",{ascending:false}).limit(100);
         if(!active)return;
         if(error)throw error;
-        const rows=(data||[]);
+        const rows=(data||[]).filter((row:any)=>!blockedIds.includes(String(row.user_id)));
         setStudioReviews(rows.sort((a:any,b:any)=>Number(!!b.verified_at)-Number(!!a.verified_at)));
         const mine=rows.find((row:any)=>row.user_id===userId);
         if(mine){setReviewRating(Number(mine.rating));setReviewText(mine.content||"");}
@@ -1002,7 +1044,7 @@ export default function Home() {
 
           <Text style={styles.sectionTitle}>공지사항</Text><View style={{marginHorizontal:14,marginTop:10,padding:13,borderRadius:13,backgroundColor:"#FFF9E9",borderWidth:1,borderColor:"#F0E3C1"}}><Text style={{fontSize:13,fontWeight:"900",color:"#72551A"}}>공지사항</Text>{studioOwnerNotices.length?studioOwnerNotices.map(item=><View key={"owner-notice-"+String(item?.id??"notice")} style={{borderTopWidth:1,borderTopColor:"#EFE4CA",paddingTop:10,marginTop:9}}><View style={{flexDirection:"row",alignItems:"center",gap:7,marginBottom:7}}><View style={{width:34,height:34,borderRadius:17,backgroundColor:"#EEE9FF",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>{item.author_avatar_url?<Image source={{uri:item.author_avatar_url}} style={{width:34,height:34,borderRadius:17}}/>:<Ionicons name="person" size={17} color={COLORS.purple}/>}</View><View style={{flex:1}}><Text style={{fontSize:11,fontWeight:"900",color:COLORS.ink}}>{item.author_display_name||detailStudio.name}</Text><Text style={{fontSize:9,color:COLORS.muted}}>{detailStudio.name} · 학원 관리자</Text></View><Text style={{fontSize:10,color:COLORS.muted}}>{item?.created_at&&Number.isFinite(Date.parse(item.created_at))?new Date(item.created_at).toLocaleDateString("ko-KR"):"날짜 미확인"}</Text></View><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>{cleanPublicText(item?.title)||"공지"}</Text><Text style={{fontSize:12,lineHeight:18,color:"#625E70",marginTop:4}}>{cleanPublicText(item?.body)||"내용이 없습니다."}</Text><Text style={{fontSize:10,color:COLORS.muted,marginTop:5}}>{item?.created_at&&Number.isFinite(Date.parse(item.created_at))?new Date(item.created_at).toLocaleDateString("ko-KR"):"날짜 미확인"}</Text></View>):studioOwnerNoticesLoading?<ActivityIndicator color={COLORS.purple} style={{marginTop:12}}/>:<Text style={{fontSize:11,color:"#81798D",marginTop:7}}>등록된 공지사항이 없습니다.</Text>}{studioOwnerNoticesLoading&&studioOwnerNotices.length>0&&<ActivityIndicator color={COLORS.purple} style={{marginTop:12}}/>}{!studioOwnerNoticesLoading&&!studioOwnerNoticesHasMore&&studioOwnerNotices.length>0&&<Text style={{fontSize:10,color:COLORS.muted,textAlign:"center",marginTop:14}}>모든 공지를 확인했습니다.</Text>}</View></ScrollView>}{detailTab==="reviews"&&<ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(112,insets.bottom+112)}}>
 <View style={styles.classBlock}><Text style={styles.classTitle}>이 학원에 대한 리뷰</Text><Text style={styles.photoCredit}>{studioReviews.length?"평균 별점 "+(studioReviews.reduce((sum,row)=>sum+Number(row.rating),0)/studioReviews.length).toFixed(1)+" · 리뷰 "+studioReviews.length+"개":"첫 리뷰를 남겨주세요."}</Text>
-<Text style={styles.classMeta}>{reviewVerified?"수강 인증 완료 · 인증 배지가 표시됩니다.":"일반 리뷰 · 로그인 회원은 누구나 작성할 수 있습니다."} · 내 별점</Text><View style={{flexDirection:"row",gap:8,marginVertical:8}}>{[1,2,3,4,5].map(value=><Pressable key={value} onPress={()=>setReviewRating(value)}><Text style={{fontSize:28,color:value<=reviewRating?"#F2B544":"#D8D4E1"}}>★</Text></Pressable>)}</View><TextInput value={reviewText} onChangeText={setReviewText} placeholder="수업 분위기, 강사님, 시설 등에 대한 경험을 작성해 주세요." placeholderTextColor="#A5A1B0" multiline maxLength={1000} textAlignVertical="top" style={styles.reportInput}/>{reviewText.trim().length>0&&reviewText.trim().length<5&&<Text style={{fontSize:11,color:"#B66B77",marginTop:-9,marginBottom:10}}>리뷰는 5자 이상 입력해 주세요. ({reviewText.trim().length}/5자)</Text>}<Pressable disabled={reviewSubmitting||reviewText.trim().length<5} style={[styles.applyButton,{minHeight:50,paddingVertical:15,marginBottom:14,opacity:reviewSubmitting||reviewText.trim().length<5?0.5:1}]} onPress={async()=>{if(!supabase){Alert.alert("리뷰","로그인이 필요한 기능입니다.");return;}setReviewSubmitting(true);try{const {data:{session}}=await supabase.auth.getSession();if(!session){Alert.alert("로그인 필요","리뷰 작성은 로그인 후 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);return;}const {data:memberProfile,error:memberProfileError}=await supabase.from("user_profiles").select("display_name").eq("user_id",session.user.id).maybeSingle();if(memberProfileError)throw memberProfileError;if(!String(memberProfile?.display_name||"").trim()){Alert.alert("회원정보 등록 필요","리뷰를 작성하려면 회원정보 등록을 완료해 주세요.",[{text:"취소",style:"cancel"},{text:"등록하기",onPress:()=>router.push("/onboarding")}]);return;}const {error}=await supabase.from("studio_reviews").upsert({studio_id:detailStudio!.id,user_id:session.user.id,rating:reviewRating,content:reviewText.trim(),updated_at:new Date().toISOString()},{onConflict:"studio_id,user_id"});if(error)throw error;setReviewText("");const {data,error:loadError}=await supabase.from("studio_reviews").select("id,studio_id,user_id,rating,content,created_at,updated_at,verified_at").eq("studio_id",detailStudio!.id).order("created_at",{ascending:false}).limit(100);if(loadError)throw loadError;setStudioReviews((data||[]).sort((a:any,b:any)=>Number(!!b.verified_at)-Number(!!a.verified_at)));Alert.alert("리뷰 등록 완료","학원 리뷰가 등록되었습니다.");}catch(error:any){Alert.alert("리뷰 등록 실패",error?.message||"잠시 후 다시 시도해 주세요.");}finally{setReviewSubmitting(false);}}}><Text style={styles.applyText}>{reviewSubmitting?"등록 중…":"리뷰 등록 / 수정"}</Text></Pressable></View>
+<Text style={styles.classMeta}>{reviewVerified?"수강 인증 완료 · 인증 배지가 표시됩니다.":"일반 리뷰 · 로그인 회원은 누구나 작성할 수 있습니다."} · 내 별점</Text><View style={{flexDirection:"row",gap:8,marginVertical:8}}>{[1,2,3,4,5].map(value=><Pressable key={value} onPress={()=>setReviewRating(value)}><Text style={{fontSize:28,color:value<=reviewRating?"#F2B544":"#D8D4E1"}}>★</Text></Pressable>)}</View><TextInput value={reviewText} onChangeText={setReviewText} placeholder="수업 분위기, 강사님, 시설 등에 대한 경험을 작성해 주세요." placeholderTextColor="#A5A1B0" multiline maxLength={1000} textAlignVertical="top" style={styles.reportInput}/>{reviewText.trim().length>0&&reviewText.trim().length<5&&<Text style={{fontSize:11,color:"#B66B77",marginTop:-9,marginBottom:10}}>리뷰는 5자 이상 입력해 주세요. ({reviewText.trim().length}/5자)</Text>}<Pressable disabled={reviewSubmitting||reviewText.trim().length<5} style={[styles.applyButton,{minHeight:50,paddingVertical:15,marginBottom:14,opacity:reviewSubmitting||reviewText.trim().length<5?0.5:1}]} onPress={()=>{void startStudioReviewSubmission();}}><Text style={styles.applyText}>{reviewSubmitting?"등록 중…":"리뷰 등록 / 수정"}</Text></Pressable></View>
 <Pressable onPress={()=>setVerifiedReviewsOnly(v=>!v)} style={{marginHorizontal:14,marginTop:8,marginBottom:12,minHeight:46,paddingVertical:12,borderRadius:10,backgroundColor:verifiedReviewsOnly?COLORS.pale:"#F8F7FA",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>{verifiedReviewsOnly?"전체 리뷰 보기":"인증 후기만 보기"}</Text></Pressable>{reviewsLoading?<ActivityIndicator color={COLORS.purple} style={{margin:20}}/>:((verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).length?(verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).map((item:any)=><View key={String(item.id)} style={styles.classBlock}><Text style={styles.classTitle}>{"★".repeat(Number(item.rating))}{"☆".repeat(5-Number(item.rating))}</Text><Text style={styles.photoCredit}>{item.user_id===reviewUserId?"내 리뷰":"방문자 리뷰"} · {item.verified_at?"수강 인증":"일반 리뷰"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{item.content}</Text>{item.user_id!==reviewUserId&&<Pressable onPress={()=>Alert.alert("리뷰 신고","신고 사유를 선택해 주세요.",[{text:"광고/홍보",onPress:()=>submitReviewReport(item.id,"광고/홍보")},{text:"욕설/비방",onPress:()=>submitReviewReport(item.id,"욕설/비방")},{text:"허위 정보",onPress:()=>submitReviewReport(item.id,"허위 정보")},{text:"도배/스팸",onPress:()=>submitReviewReport(item.id,"도배/스팸")},{text:"기타",onPress:()=>submitReviewReport(item.id,"기타")},{text:"취소",style:"cancel"}])} style={{alignSelf:"flex-end",paddingVertical:8}}><Text style={{fontSize:11,color:COLORS.muted}}>신고</Text></Pressable>}</View>):<Text style={styles.filterHint}>아직 등록된 리뷰가 없습니다.</Text>)}</ScrollView>}
 </>}</View>
 </Animated.View></View></Modal><Modal visible={reportOpen} transparent animationType="slide" onRequestClose={()=>setReportOpen(false)}>
