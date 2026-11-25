@@ -9,15 +9,15 @@ export function themeStyles<T>(styles:T,dark:boolean):T{
   if(!isHex(value))return value;
   const light=luminance(value);
   if(key==="backgroundColor"){
-   if(light>0.88)return "#24212D";
-   if(light>0.68)return "#302C3A";
-   if(light>0.48)return "#40394D";
+   if(light>0.88)return "#111111";
+   if(light>0.68)return "#1D1D1D";
+   if(light>0.48)return "#292929";
    return value;
   }
-  if(key==="borderColor")return light>0.35?"#3B3748":value;
+  if(key==="borderColor")return light>0.35?"#383838":value;
   if(key==="color"){
-   if(light<0.28)return "#F4F1FA";
-   if(light<0.52)return "#C2BDCC";
+   if(light<0.28)return "#FFFFFF";
+   if(light<0.52)return "#D0D0D0";
    return value;
   }
   if(key==="shadowColor")return "#000000";
