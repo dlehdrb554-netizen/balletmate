@@ -49,8 +49,8 @@ export default function MyPage(){
      profile=await supabase.from("user_profiles").select("display_name,username").eq("user_id",currentUser.id).maybeSingle() as typeof profile;
     }
     if(!alive)return;
-    const {data:adminResult,error:adminError}=await supabase.from("admin_users").select("user_id").eq("user_id",currentUser.id).maybeSingle();
-    const isAdmin=!adminError&&adminResult?.user_id===currentUser.id;
+    const {data:adminResult,error:adminError}=await supabase.rpc("is_balletmate_admin");
+    const isAdmin=!adminError&&adminResult===true;
     if(profile.error&&!isAdmin){Alert.alert("회원 정보 확인 실패",profile.error.message||"회원 정보를 불러오지 못했습니다.");return;}
     if(!profile.data?.display_name&&!isAdmin){router.replace("/onboarding");return;}
     setDisplay(profile.data?.display_name||profile.data?.username||(isAdmin?"관리자":"회원"));
