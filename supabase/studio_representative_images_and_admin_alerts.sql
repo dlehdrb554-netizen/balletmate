@@ -83,8 +83,12 @@ DECLARE
  v_studio_name text;
  v_summary text;
  v_type text;
+ v_is_delete boolean := (TG_OP='DELETE');
 BEGIN
  IF TG_TABLE_NAME='studios' THEN
+   IF v_is_delete THEN
+     RETURN OLD;
+   END IF;
    v_studio_id:=NEW.id;
    IF NOT public.is_studio_owner(v_studio_id) THEN RETURN NEW; END IF;
    IF (to_jsonb(NEW)-'updated_at'-'representative_image_path') IS NOT DISTINCT FROM (to_jsonb(OLD)-'updated_at'-'representative_image_path')
@@ -98,18 +102,25 @@ BEGIN
      v_type:='studio_profile';
    END IF;
  ELSIF TG_TABLE_NAME IN ('studio_public_prices','studio_public_schedules','studio_owner_notices') THEN
-   v_studio_id:=NEW.studio_id;
-   IF NOT public.is_studio_owner(v_studio_id) THEN RETURN NEW; END IF;
+   IF v_is_delete THEN
+     v_studio_id:=OLD.studio_id;
+   ELSE
+     v_studio_id:=NEW.studio_id;
+   END IF;
+   IF NOT public.is_studio_owner(v_studio_id) THEN
+     IF v_is_delete THEN RETURN OLD; ELSE RETURN NEW; END IF;
+   END IF;
    SELECT name INTO v_studio_name FROM public.studios WHERE id=v_studio_id;
    v_type:=TG_TABLE_NAME;
    v_summary:=CASE TG_TABLE_NAME
-     WHEN 'studio_public_prices' THEN '학원 가격표가 등록 또는 변경되었습니다.'
-     WHEN 'studio_public_schedules' THEN '학원 시간표가 등록 또는 변경되었습니다.'
-     ELSE '학원 공지사항이 등록 또는 변경되었습니다.' END;
- ELSE RETURN NEW;
+     WHEN 'studio_public_prices' THEN CASE WHEN v_is_delete THEN '학원 가격 정보가 삭제되었습니다.' ELSE '학원 가격표가 등록 또는 변경되었습니다.' END
+     WHEN 'studio_public_schedules' THEN CASE WHEN v_is_delete THEN '학원 시간표가 삭제되었습니다.' ELSE '학원 시간표가 등록 또는 변경되었습니다.' END
+     ELSE CASE WHEN v_is_delete THEN '학원 공지사항이 삭제되었습니다.' ELSE '학원 공지사항이 등록 또는 변경되었습니다.' END END;
+ ELSE
+   IF v_is_delete THEN RETURN OLD; ELSE RETURN NEW; END IF;
  END IF;
  INSERT INTO public.studio_admin_change_alerts(studio_id,studio_name,change_type,summary,actor_user_id)
- VALUES(v_studio_id,coalesce(v_studio_name,'학원'),v_type,v_summary,auth.uid());
+ VALUES(v_studio_id,coalesce(v_studio_name,'학원'),v_type||CASE WHEN v_is_delete THEN '_deleted' ELSE '' END,v_summary,auth.uid());
  BEGIN
    PERFORM public.dispatch_balletmate_push(jsonb_build_object(
      'scope','admins','preference','adminStudioChanges',
@@ -121,7 +132,7 @@ BEGIN
  WHEN OTHERS THEN
    RAISE WARNING 'Administrator push dispatch failed: %',sqlerrm;
  END;
- RETURN NEW;
+ IF v_is_delete THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END;
 $$;
 REVOKE ALL ON FUNCTION public.notify_admin_of_studio_owner_change() FROM public,anon,authenticated;
@@ -130,13 +141,13 @@ DROP TRIGGER IF EXISTS notify_admin_studio_profile_change ON public.studios;
 CREATE TRIGGER notify_admin_studio_profile_change AFTER UPDATE ON public.studios
 FOR EACH ROW EXECUTE FUNCTION public.notify_admin_of_studio_owner_change();
 DROP TRIGGER IF EXISTS notify_admin_studio_price_change ON public.studio_public_prices;
-CREATE TRIGGER notify_admin_studio_price_change AFTER INSERT OR UPDATE ON public.studio_public_prices
+CREATE TRIGGER notify_admin_studio_price_change AFTER INSERT OR UPDATE OR DELETE ON public.studio_public_prices
 FOR EACH ROW EXECUTE FUNCTION public.notify_admin_of_studio_owner_change();
 DROP TRIGGER IF EXISTS notify_admin_studio_schedule_change ON public.studio_public_schedules;
-CREATE TRIGGER notify_admin_studio_schedule_change AFTER INSERT OR UPDATE ON public.studio_public_schedules
+CREATE TRIGGER notify_admin_studio_schedule_change AFTER INSERT OR UPDATE OR DELETE ON public.studio_public_schedules
 FOR EACH ROW EXECUTE FUNCTION public.notify_admin_of_studio_owner_change();
 DROP TRIGGER IF EXISTS notify_admin_studio_notice_change ON public.studio_owner_notices;
-CREATE TRIGGER notify_admin_studio_notice_change AFTER INSERT OR UPDATE ON public.studio_owner_notices
+CREATE TRIGGER notify_admin_studio_notice_change AFTER INSERT OR UPDATE OR DELETE ON public.studio_owner_notices
 FOR EACH ROW EXECUTE FUNCTION public.notify_admin_of_studio_owner_change();
 
 -- Keep representative image changes in the existing owner edit history.
