@@ -9,7 +9,8 @@ export default function AuthCallback(){
  const router=useRouter();
  const params=useLocalSearchParams<{code?:string|string[];error?:string|string[];error_description?:string|string[]}>();
  const [message,setMessage]=useState("로그인 정보를 확인하고 있어요.");
- const [failed,setFailed]=useState(false);\n const [nextRoute,setNextRoute]=useState("/");
+ const [failed,setFailed]=useState(false);
+ const [nextRoute,setNextRoute]=useState("/");
  const handled=useRef(false);
 
  useEffect(()=>{
