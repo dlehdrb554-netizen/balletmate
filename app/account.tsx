@@ -192,7 +192,8 @@ export default function Account(){
        <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
       </>
      </View>
-    }\n<View style={s.info}>
+    }
+    <View style={s.info}>
      <Text style={s.infoTitle}>계정 사용 안내</Text>
      <Text style={s.note}>• 로그인하면 찜 목록을 기기 간 동기화할 수 있습니다.</Text>
      <Text style={s.note}>• 학원 탐색은 로그인 없이 계속 이용할 수 있습니다.</Text>
