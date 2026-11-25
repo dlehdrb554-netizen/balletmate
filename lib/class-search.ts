@@ -7,7 +7,6 @@ export type ClassSearchFilters = {
   weekdayGroup?: "평일" | "주말" | null;
   timeOfDay?: "오전" | "오후" | "저녁" | null;
   durationMinutes?: number | null;
-  maxPrice?: number | null;
 };
 
 const CACHE_MS = 2 * 60_000;
@@ -52,7 +51,7 @@ export async function searchStudioIdsByClassName(query: string): Promise<string[
 }
 
 const hasClassFilter = (f: ClassSearchFilters) =>
-  !!(f.audiences?.length || f.level || f.classType || f.weekdayGroup || f.timeOfDay || f.durationMinutes || f.maxPrice !== null && f.maxPrice !== undefined);
+  !!(f.audiences?.length || f.level || f.classType || f.weekdayGroup || f.timeOfDay || f.durationMinutes);
 
 function matchesTime(value: string, period: "오전" | "오후" | "저녁") {
   const hour = Number(value.slice(0, 2));
@@ -75,7 +74,6 @@ export async function searchStudiosByClassFilters(filters: ClassSearchFilters): 
     weekdayGroup: filters.weekdayGroup || null,
     timeOfDay: filters.timeOfDay || null,
     durationMinutes: filters.durationMinutes ?? null,
-    maxPrice: filters.maxPrice ?? null,
   });
   const cached = cache.get(key);
   if (cached && Date.now() - cached.savedAt < CACHE_MS) return cached.studioIds;
@@ -89,7 +87,7 @@ export async function searchStudiosByClassFilters(filters: ClassSearchFilters): 
   const request = (async () => {
     const { data, error } = await supabase
       .from("classes")
-      .select("studio_id,audience,level,class_type,duration_minutes,price,class_sessions(weekday,start_time)")
+      .select("studio_id,audience,level,class_type,duration_minutes,class_sessions(weekday,start_time)")
       .eq("is_active", true)
       .limit(1000);
     if (error) throw error;
@@ -101,8 +99,6 @@ export async function searchStudiosByClassFilters(filters: ClassSearchFilters): 
       if (filters.level && !String(row.level || "").trim().includes(filters.level)) continue;
       if (filters.classType && String(row.class_type || "").trim() !== filters.classType) continue;
       if (filters.durationMinutes && Number(row.duration_minutes) !== filters.durationMinutes) continue;
-      if (filters.maxPrice !== null && filters.maxPrice !== undefined &&
-          (row.price === null || row.price === undefined || Number(row.price) > filters.maxPrice)) continue;
 
       const sessions = Array.isArray(row.class_sessions) ? row.class_sessions : [];
       if (filters.weekdayGroup) {
