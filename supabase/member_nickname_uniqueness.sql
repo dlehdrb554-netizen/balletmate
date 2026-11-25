@@ -26,7 +26,8 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $1
+as $$
+declare
   current_user_id uuid := auth.uid();
   normalized_name text := pg_catalog.btrim(coalesce(p_display_name, ''));
 begin
@@ -49,7 +50,7 @@ begin
     raise exception '회원 프로필을 찾을 수 없습니다.';
   end if;
 end;
-$;
+$$;
 
 revoke all on function public.update_member_display_name(text) from public, anon;
 grant execute on function public.update_member_display_name(text) to authenticated;
