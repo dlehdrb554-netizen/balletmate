@@ -110,6 +110,7 @@ export default function Community(){
  useEffect(()=>{if(!supabase||!userId)return;supabase.from("community_post_bookmarks").select("post_id").eq("user_id",userId).then(({data})=>setBookmarkedIds((data||[]).map(x=>x.post_id)));},[userId]);
  useEffect(()=>{if(!params.postId||!supabase)return;let active=true;supabase.from("community_posts").select("id,author_id,author_name,category,title,content,image_urls,created_at").eq("id",params.postId).maybeSingle().then(({data,error})=>{if(active&&data&&!error)void openPost(data as Post);});return()=>{active=false;};},[params.postId]);
  const requireLogin=()=>{Alert.alert("로그인이 필요합니다","게시글과 댓글 작성은 가입한 회원만 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);};
+ const requireMemberProfile=async()=>{if(!supabase||!userId)return false;const {data,error}=await supabase.from("user_profiles").select("display_name").eq("user_id",userId).maybeSingle();if(error){Alert.alert("회원 정보 확인 실패",error.message);return false;}if(!String(data?.display_name||"").trim()){Alert.alert("회원정보 등록 필요","게시글과 댓글을 작성하려면 회원정보 등록을 완료해 주세요.",[{text:"취소",style:"cancel"},{text:"등록하기",onPress:()=>router.push("/onboarding")}]);return false;}return true;};
  const explainError=(error:any)=>{
   const message=String(error?.message||"");
   if(message.includes("30초")||message.includes("P0001"))Alert.alert("잠시만 기다려 주세요",cooldownMessage);
@@ -146,7 +147,7 @@ export default function Community(){
  };
  const submitPost=async()=>{
   if(!userId){requireLogin();return;}
-  if(!supabase)return;
+  if(!supabase||!(await requireMemberProfile()))return;
   if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목은 2자 이상, 내용은 2자 이상 입력해 주세요.");return;}
   setSubmitting(true);
   let uploadedPaths:string[]=[];
@@ -165,7 +166,7 @@ export default function Community(){
  const submitComment=async()=>{
   if(!userId){requireLogin();return;}
   const client=supabase;
-  if(!client||!selected)return;
+  if(!client||!selected||!(await requireMemberProfile()))return;
   const accepted=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version","2026-11-24").maybeSingle();
   if(accepted.error){Alert.alert("이용규칙 확인 실패",accepted.error.message);return;}
   if(!accepted.data){setTermsReturnTo("comment");setTermsConsentOpen(true);return;}
@@ -183,7 +184,7 @@ export default function Community(){
  const openComposer=async()=>{
   if(!userId){requireLogin();return;}
   const client=supabase;
-  if(!client)return;
+  if(!client||!(await requireMemberProfile()))return;
   const {data,error}=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version","2026-11-24").maybeSingle();
   if(error){Alert.alert("이용규칙 확인 실패",error.message);return;}
   if(data){setComposer(true);return;}
