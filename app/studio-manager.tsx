@@ -277,16 +277,16 @@ export default function StudioManager(){
   :<View style={s.card}>
     <Text style={s.cardTitle}>{application?.status==="needs_info"?"추가 확인 정보 제출":"학원 관리자 권한 신청"}</Text>{application?.status==="needs_info"&&<Text style={s.body}>운영자가 확인을 요청했습니다. 다시 제출해 주세요. {application.review_note||""}</Text>}
     <Text style={s.body}>이메일 또는 소셜 로그인 계정으로 신청하고 아래 방법 중 하나로 운영 관계를 확인합니다. 사업자번호·대표자·주소·등록증은 수집하지 않습니다. 확인 후 운영자 승인을 받습니다.</Text>
-    <View style={{flexDirection:"row",gap:7,marginTop:10,flexWrap:"wrap"}}>
-      {([{value:"phone",label:"공개 전화 확인"},{value:"blog",label:"네이버 블로그"},{value:"instagram",label:"인스타그램"},{value:"manual",label:"운영자 직접 확인"}] as const).map(option=><Pressable key={option.value} onPress={()=>setVerificationMethod(option.value)} style={{paddingHorizontal:11,paddingVertical:9,borderRadius:10,backgroundColor:verificationMethod===option.value?C.purple:"#F2F0F6"}}><Text style={{fontSize:11,fontWeight:"800",color:verificationMethod===option.value?"#fff":C.ink}}>{option.label}</Text></Pressable>)}
+    <View style={{flexDirection:"row",gap:7,marginTop:12,flexWrap:"wrap"}}>
+      {([{value:"phone",label:"공개 전화 확인"},{value:"blog",label:"네이버 블로그"},{value:"instagram",label:"인스타그램"},{value:"manual",label:"운영자 직접 확인"}] as const).map(option=><Pressable key={option.value} onPress={()=>setVerificationMethod(option.value)} style={{paddingHorizontal:11,paddingVertical:9,borderRadius:10,backgroundColor:verificationMethod===option.value?C.purple:(isDark?"#292929":"#F2F0F6")}}><Text style={{fontSize:11,fontWeight:"800",color:verificationMethod===option.value?"#fff":(isDark?"#FFFFFF":C.ink)}}>{option.label}</Text></Pressable>)}
     </View>
     {(verificationMethod==="blog"||verificationMethod==="instagram")&&<>
       {field(verificationMethod==="blog"?"공식 네이버 블로그 URL *":"공식 인스타그램 URL *",blogUrl,setBlogUrl,verificationMethod==="blog"?"https://blog.naver.com/아이디":"https://www.instagram.com/아이디")}
-      <View style={{backgroundColor:C.pale,borderRadius:10,padding:11,marginTop:10}}><Text style={s.body}>선택한 공식 채널의 새 게시물 또는 소개란에 인증 문구를 올려 주세요. 확인 후 삭제해도 됩니다.</Text><Text style={{fontSize:15,fontWeight:"900",color:C.purple,marginTop:6}}>{blogVerificationCode||"인증 코드를 생성하세요"}</Text><Pressable onPress={()=>setBlogVerificationCode("BALLET-"+Math.random().toString(36).slice(2,8).toUpperCase())} style={{marginTop:8}}><Text style={s.buttonText}>인증 코드 생성</Text></Pressable></View>
+      <View style={{backgroundColor:isDark?"#242424":C.pale,borderRadius:10,padding:11,marginTop:10}}><Text style={s.body}>선택한 공식 채널의 새 게시물 또는 소개란에 인증 문구를 올려 주세요. 확인 후 삭제해도 됩니다.</Text><Text style={{fontSize:15,fontWeight:"900",color:C.purple,marginTop:6}}>{blogVerificationCode||"인증 코드를 생성하세요"}</Text><Pressable onPress={()=>setBlogVerificationCode("BALLET-"+Math.random().toString(36).slice(2,8).toUpperCase())} style={{marginTop:8}}><Text style={s.buttonText}>인증 코드 생성</Text></Pressable></View>
     </>}
-    {verificationMethod==="phone"&&<Text style={s.body}>학원에 공개된 전화번호로 운영자가 직접 확인합니다. 공개 번호가 없는 경우 다른 확인 방법을 선택해 주세요. {profilePhone?("현재 공개 번호: "+profilePhone):"공개 전화번호가 등록되어 있지 않습니다."}</Text>}
+    {verificationMethod==="phone"&&<View style={{padding:11,borderRadius:10,backgroundColor:isDark?"#242424":C.pale,marginTop:10}}><Text style={s.body}>학원에 공개된 전화번호로 운영자가 직접 확인합니다. 별도 서류나 개인 전화번호는 수집하지 않습니다.</Text><Text style={{fontSize:12,fontWeight:"800",color:isDark?"#FFFFFF":C.ink,marginTop:6}}>{profilePhone?"확인 대상 공개 번호: "+profilePhone:"공개 전화번호가 등록되어 있지 않습니다."}</Text></View>}
     {verificationMethod==="manual"&&<Text style={s.body}>운영자가 공개 연락처, 공식 채널 또는 기타 자료로 운영 관계를 확인합니다. 필요 시 신청 계정으로 추가 안내합니다.</Text>}
-    {button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving)}
+    <Text style={[s.body,{marginTop:12}]}>신청 정보는 선택한 인증 방식에 필요한 공식 채널 정보만 전달됩니다. 운영자 확인 후 승인되면 별도 신청 없이 학원 관리 기능을 사용할 수 있습니다.</Text>{button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving||(verificationMethod==="phone"&&!profilePhone.trim())||((verificationMethod==="blog"||verificationMethod==="instagram")&&(!blogUrl.trim()||!blogVerificationCode.trim())))}
    </View>}
  </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
