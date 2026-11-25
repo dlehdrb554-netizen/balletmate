@@ -119,6 +119,7 @@ export default function Admin() {
     const {data,error}=await supabase!.rpc("is_balletmate_admin");
     setAuthorized(!error&&data===true);
     setChecking(false);
+    if(error)Alert.alert("관리자 권한 확인 실패",error.message||"관리자 권한을 확인하지 못했습니다.");
   },[]);
 
   useEffect(()=>{
