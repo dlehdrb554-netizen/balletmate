@@ -1,5 +1,5 @@
 -- Keep review visibility consistent with the number of unresolved reports.
--- Dismissing one report must not expose a review while three other reports remain pending.
+-- Dismissing one report must not expose a review while any other report remains pending.
 CREATE OR REPLACE FUNCTION public.admin_resolve_studio_review_report(
  p_report_id bigint,p_action text,p_admin_note text DEFAULT NULL
 )
@@ -40,7 +40,7 @@ BEGIN
  WHERE id=v_review_id
  FOR UPDATE;
 
- IF v_pending_count>=3 THEN
+ IF v_pending_count>0 THEN
   UPDATE public.studio_reviews
   SET is_hidden=true,
       hidden_reason=coalesce(v_hidden_reason,'신고 3건 이상 · 관리자 검토 대기')
