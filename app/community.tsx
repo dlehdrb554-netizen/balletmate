@@ -190,6 +190,7 @@ export default function Community(){
    if(error&&error.code!=="23505")throw error;
    setTermsConsentOpen(false);
    if(termsReturnTo==="post")setComposer(true);
+   else if(termsReturnTo==="comment")await submitComment();
   }catch(error:any){Alert.alert("동의 처리 실패",error?.message||"이용규칙 동의를 저장하지 못했습니다.");}
   finally{setTermsAccepting(false);}
  };
@@ -299,7 +300,7 @@ export default function Community(){
      {["욕설·괴롭힘·협박·차별 등 다른 회원을 공격하는 표현은 사용할 수 없습니다.","스팸·광고·도배·사기 및 사실과 다른 정보의 반복 게시를 금지합니다.","본인이나 타인의 전화번호·주소·계정정보 등 개인정보를 공개하지 마세요.","저작권·초상권 등 타인의 권리를 침해하는 사진이나 글을 올리지 마세요.","신고된 콘텐츠는 운영자가 검토하며, 운영정책 위반 시 삭제될 수 있습니다.","회원을 차단하면 해당 회원의 게시글과 댓글이 내 화면에서 숨겨집니다."].map((rule,index)=><View key={index} style={s.ruleRow}><Text style={s.ruleNumber}>{index+1}</Text><Text style={s.ruleText}>{rule}</Text></View>)}
     </ScrollView>
     <Pressable style={s.termsFullLink} onPress={()=>router.push("/terms")}><Text style={s.openLabel}>서비스 이용약관 전문 보기</Text></Pressable>
-    <Pressable style={[s.submitBtn,termsAccepting&&{opacity:.5}]} disabled={termsAccepting} onPress={acceptCommunityTerms}><Text style={s.submitText}>{termsAccepting?"저장 중…":"동의하고 계속하기"}</Text></Pressable>
+    <Pressable style={[s.submitBtn,termsAccepting&&{opacity:.5}]} disabled={termsAccepting} onPress={acceptCommunityTerms}><Text style={s.submitText}>{termsAccepting?"저장 중…":termsReturnTo==="comment"?"동의하고 댓글 등록":"동의하고 글쓰기"}</Text></Pressable>
     <Pressable style={s.legacyLink} onPress={()=>setTermsConsentOpen(false)}><Text style={s.legacyLinkText}>동의하지 않음</Text></Pressable>
    </View></View>
   </Modal>
