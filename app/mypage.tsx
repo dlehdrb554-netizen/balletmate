@@ -29,6 +29,7 @@ export default function MyPage(){
  const isDark=mode==="dark"||(mode==="system"&&Appearance.getColorScheme()==="dark");
  const s=useMemo(()=>createS(isDark),[isDark]);
  const [alerts,setAlerts]=useState({announcements:true,messages:true,replies:false,recommendations:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true});
+ const [pushEnabled,setPushEnabled]=useState(true);
  const [notificationPermission,setNotificationPermission]=useState<"granted"|"denied"|"undetermined">("undetermined");
  useEffect(()=>{Notifications.getPermissionsAsync().then(p=>setNotificationPermission(p.status as any)).catch(()=>setNotificationPermission("undetermined"));},[]);
  useEffect(()=>{
@@ -65,7 +66,7 @@ export default function MyPage(){
    }
   })();
   AsyncStorage.multiGet(["balletmate.theme.mode","balletmate.screen_lock","balletmate.notification.preferences"]).then(v=>{
-   if(alive){setMode((v[0][1] as Mode)||"system");setLocked(v[1][1]==="1");if(v[2][1])try{setAlerts({...{announcements:true,messages:true,replies:false,recommendations:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true},...JSON.parse(v[2][1])});}catch{}}
+   if(alive){setMode((v[0][1] as Mode)||"system");setLocked(v[1][1]==="1");if(v[2][1])try{const saved=JSON.parse(v[2][1]);setAlerts({...{announcements:true,messages:true,replies:false,recommendations:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true},...saved});setPushEnabled(saved.pushEnabled!==false);}catch{}}
   }).catch(()=>{});
   return()=>{alive=false;};
  },[router,routeParams.open]);
@@ -90,8 +91,10 @@ export default function MyPage(){
  useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const data=response.notification.request.content.data as any;if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});else if(data?.noticeId)setMenu("notices");});return()=>sub.remove();},[router]);
  
  
- useEffect(()=>{if(!user||!supabase)return;let active=true;supabase.from("user_notification_preferences").select("preferences").eq("user_id",user.id).maybeSingle().then(({data})=>{if(active&&data?.preferences)setAlerts(v=>({...v,...data.preferences}));});return()=>{active=false;};},[user]);
- const updateAlert=async(key:keyof typeof alerts,value:boolean)=>{const next={...alerts,[key]:value};setAlerts(next);await AsyncStorage.setItem("balletmate.notification.preferences",JSON.stringify(next));if(user&&supabase){const {error}=await supabase.from("user_notification_preferences").upsert({user_id:user.id,preferences:next,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error)Alert.alert("알림 설정 저장 실패",error.message);}};
+ useEffect(()=>{if(!user||!supabase)return;let active=true;supabase.from("user_notification_preferences").select("preferences").eq("user_id",user.id).maybeSingle().then(({data})=>{if(active&&data?.preferences){setAlerts(v=>({...v,...data.preferences}));setPushEnabled(data.preferences.pushEnabled!==false);}});return()=>{active=false;};},[user]);
+ const persistNotificationPreferences=async(next:any)=>{await AsyncStorage.setItem("balletmate.notification.preferences",JSON.stringify(next));if(user&&supabase){const {error}=await supabase.from("user_notification_preferences").upsert({user_id:user.id,preferences:next,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error)Alert.alert("알림 설정 저장 실패",error.message);}};
+ const updateAlert=async(key:keyof typeof alerts,value:boolean)=>{const next={...alerts,[key]:value};setAlerts(next);await persistNotificationPreferences({...next,pushEnabled});};
+ const updatePushEnabled=async(value:boolean)=>{setPushEnabled(value);await persistNotificationPreferences({...alerts,pushEnabled:value});};
  const chooseMode=async(v:Mode)=>{setMode(v);setModeOpen(false);await AsyncStorage.setItem("balletmate.theme.mode",v);Appearance.setColorScheme(v==="system"?null:v);};
  const toggleLock=()=>Alert.alert(locked?"화면 잠금 해제":"화면 잠금 설정",locked?"화면 잠금 설정을 해제할까요?":"화면 잠금을 설정하면 현재 로그아웃되며 다음 이용 시 다시 로그인해야 합니다.",[{text:"취소",style:"cancel"},{text:locked?"해제":"잠금 설정",onPress:async()=>{const next=!locked;setLocked(next);await AsyncStorage.setItem("balletmate.screen_lock",next?"1":"0");if(next&&supabase){const {error}=await supabase.auth.signOut({scope:"local"});if(error)Alert.alert("잠금 설정 실패",error.message);else Alert.alert("화면 잠금","로그아웃되었습니다. 다시 이용하려면 로그인해 주세요.");}}}]);
  const openPost=(id:string)=>router.push({pathname:"/community",params:{postId:id}});
@@ -107,12 +110,14 @@ export default function MyPage(){
  <Pressable style={s.accountLink} onPress={()=>router.push("/account")}><Text style={s.small}>계정 연결 및 로그인 관리</Text></Pressable><Modal transparent visible={profileOpen} animationType="fade" onRequestClose={()=>setProfileOpen(false)}><Pressable style={s.shade} onPress={()=>setProfileOpen(false)}><Pressable onPress={()=>{}} style={[s.picker,isDark&&{backgroundColor:"#111111"}]}><Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>프로필 수정</Text><Pressable onPress={changeProfilePhoto} style={{alignItems:"center",padding:12}}>{avatarUrl?<Image source={{uri:avatarUrl}} style={s.avatarImage}/>:<View style={s.avatar}><Ionicons name="person" size={25} color={C.purple}/></View>}<Text style={{color:C.purple,fontSize:11,fontWeight:"800",marginTop:5}}>프로필 사진 변경</Text></Pressable><Text style={[s.settingText,isDark&&{color:"#FFFFFF"}]}>닉네임</Text><TextInput value={editDisplay} onChangeText={setEditDisplay} maxLength={20} placeholder="닉네임 (2~20자)" placeholderTextColor={C.muted} style={{height:46,borderWidth:1,borderColor:isDark?"#383838":C.line,borderRadius:10,paddingHorizontal:12,color:isDark?"#FFFFFF":C.ink,marginTop:8}}/><Pressable onPress={saveProfile} disabled={profileSaving} style={{height:44,backgroundColor:C.purple,borderRadius:10,alignItems:"center",justifyContent:"center",marginTop:14}}><Text style={{color:"#FFFFFF",fontWeight:"900"}}>{profileSaving?"저장 중…":"변경사항 저장"}</Text></Pressable></Pressable></Pressable></Modal>
 </ScrollView>
  :menu==="notifications"?<ScrollView contentContainerStyle={s.content}>
- <Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>알림 설정</Text><View style={[s.settingGroup,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]}><Text style={[s.groupLabel,isDark&&{backgroundColor:"#1D1D1D",color:"#B9B2C8"}]}>기본</Text>
+ <Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>알림 설정</Text><View style={[s.settingGroup,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]}><View style={[s.settingRow,isDark&&{borderColor:"#383838"}]}><Text style={[s.settingText,isDark&&{color:"#FFFFFF",fontWeight:"800"}]}>푸시 알림</Text><Switch value={pushEnabled} onValueChange={v=>{void updatePushEnabled(v);}} trackColor={{false:"#777",true:"#315B85"}} thumbColor={pushEnabled?"#1687F8":"#BDBDC2"}/></View></View>
+ {pushEnabled&&<><View style={[s.settingGroup,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]}><Text style={[s.groupLabel,isDark&&{backgroundColor:"#1D1D1D",color:"#B9B2C8"}]}>기본</Text>
  {([{k:"announcements",t:"공지사항"},{k:"messages",t:"새 메시지"},{k:"replies",t:"새 댓글"},{k:"recommendations",t:"추천 글/정보"}] as const).map(x=><View key={x.k} style={s.settingRow}><Text style={[s.settingText,isDark&&{color:"#FFFFFF"}]}>{x.t}</Text><Switch value={alerts[x.k]} onValueChange={v=>{void updateAlert(x.k,v);}} trackColor={{false:"#777",true:"#315B85"}} thumbColor={alerts[x.k]?"#1687F8":"#BDBDC2"}/></View>)}</View>
  <Pressable onPress={configureNotificationPermission} style={[s.permissionButton,notificationPermission==="granted"&&s.permissionGranted]}><Text style={s.permissionButtonText}>{notificationPermission==="granted"?"기기 알림 권한 허용됨":"기기 알림 권한 설정"}</Text><Ionicons name="chevron-forward" size={16} color={C.purple}/></Pressable><Text style={s.notice}>알림을 받으려면 기기 알림 권한을 설정해야 합니다.</Text>
  <Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>찜한 학원 업데이트 알림</Text><View style={s.settingGroup}>
  {([{k:"favoriteNotices",t:"학원 공지사항 업데이트"},{k:"favoritePrices",t:"가격표 업데이트"},{k:"favoriteSchedules",t:"시간표 업데이트"}] as const).map(x=><View key={x.k} style={[s.settingRow,isDark&&{borderColor:"#383838"}]}><Text style={[s.settingText,isDark&&{color:"#FFFFFF"}]}>{x.t}</Text><Switch value={alerts[x.k]} onValueChange={v=>{void updateAlert(x.k,v);}} trackColor={{false:"#777",true:"#315B85"}} thumbColor={alerts[x.k]?"#1687F8":"#BDBDC2"}/></View>)}
- </View></ScrollView>
+ </View></>}
+ </ScrollView>
  :menu==="settings"?<ScrollView contentContainerStyle={s.content}>
  <Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>설정</Text>
  <Pressable style={[s.menuItem,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]} onPress={()=>setMenu("notifications")}><Ionicons name="notifications-outline" size={21} color={C.purple}/><Text style={[s.menuText,isDark&&{color:"#FFFFFF"}]}>알림 설정</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
