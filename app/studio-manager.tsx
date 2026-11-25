@@ -45,7 +45,6 @@ export default function StudioManager(){
  const [classLevel,setClassLevel]=useState("");
  const [classType,setClassType]=useState("");
  const [classDuration,setClassDuration]=useState("60");
- const [classPrice,setClassPrice]=useState("");
  const [couponTitle,setCouponTitle]=useState("");
  const [couponDiscount,setCouponDiscount]=useState("");
  const [couponDescription,setCouponDescription]=useState("");
@@ -133,14 +132,13 @@ export default function StudioManager(){
  };
  const saveClass=async()=>{
   if(!supabase||!owner||classTitle.trim().length<2){Alert.alert("수업 정보","수업명은 2자 이상 입력해 주세요.");return;}
-  const duration=Number(classDuration),price=classPrice.trim()?Number(classPrice.replace(/,/g,"")):null;
+  const duration=Number(classDuration);
   if(!Number.isInteger(duration)||duration<10||duration>240){Alert.alert("수업 시간","수업 시간은 10~240분으로 입력해 주세요.");return;}
-  if(price!==null&&(!Number.isInteger(price)||price<0)){Alert.alert("수업 가격","수업 가격을 확인해 주세요.");return;}
   setSaving(true);
   try{
-   const {error}=await supabase.from("classes").insert({studio_id:studioId,title:classTitle.trim(),audience:classAudience,level:classLevel.trim()||null,class_type:classType.trim()||null,duration_minutes:duration,price,is_active:true});
+   const {error}=await supabase.from("classes").insert({studio_id:studioId,title:classTitle.trim(),audience:classAudience,level:classLevel.trim()||null,class_type:classType.trim()||null,duration_minutes:duration,is_active:true});
    if(error)throw error;
-   setClassTitle("");setClassLevel("");setClassType("");setClassDuration("60");setClassPrice("");
+   setClassTitle("");setClassLevel("");setClassType("");setClassDuration("60");
    Alert.alert("수업 등록 완료","학원 수업 목록에 반영됩니다.");await load();
   }catch(error:any){Alert.alert("수업 등록 실패",error?.message||"수업을 저장하지 못했습니다.");}
   finally{setSaving(false);}
@@ -250,9 +248,8 @@ export default function StudioManager(){
      {field("수업 수준",classLevel,setClassLevel,"입문 / 초급 / 중급 / 고급")}
      {field("수업 유형",classType,setClassType,"기초 / 포인트 / 발레핏")}
      {field("수업 시간(분)",classDuration,setClassDuration,"60","numeric")}
-     {field("1회 수강료(원)",classPrice,setClassPrice,"선택 입력","numeric")}
      {button("수업 등록",saveClass,saving)}
-     {ownerClasses.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.audience==="kids"?"키즈":item.audience==="all"?"전체":"성인"} · {item.level||"수준 미입력"} · {item.duration_minutes||60}분{item.price!==null?" · ₩"+Number(item.price).toLocaleString("ko-KR"):""}</Text>{button(item.is_active?"수업 비공개":"수업 공개",()=>toggleOwnerClass(item),saving)}</View>)}
+     {ownerClasses.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.audience==="kids"?"키즈":item.audience==="all"?"전체":"성인"} · {item.level||"수준 미입력"} · {item.duration_minutes||60}분</Text>{button(item.is_active?"수업 비공개":"수업 공개",()=>toggleOwnerClass(item),saving)}</View>)}
      {!ownerClasses.length&&<Text style={s.body}>등록된 수업이 없습니다.</Text>}
     </View>
     <View style={s.card}><Text style={s.cardTitle}>할인·혜택 관리</Text>
