@@ -83,7 +83,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-\n  smoke-test:
+
+  smoke-test:
     needs: build-android
     runs-on: ubuntu-latest
     timeout-minutes: 30
