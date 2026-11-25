@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState , useMemo, useColorScheme} from "react";
-import { themeStyles } from "../lib/theme";
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, {useCallback, useEffect, useState, useMemo} from "react";
+import {themeStyles } from "../lib/theme";
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { invalidateStudioPublicMaterials } from "../lib/studio-public-materials";
