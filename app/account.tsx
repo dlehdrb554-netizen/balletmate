@@ -2,7 +2,7 @@ import React, {useEffect, useState, useMemo} from "react";
 import {themeStyles } from "../lib/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
@@ -14,6 +14,7 @@ export default function Account(){
  const isDark=useColorScheme()==="dark";
  const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
+ const routeParams=useLocalSearchParams<{returnTo?:string}>();
  const [name,setName]=useState("");
  const [pw,setPw]=useState("");
  const [loading,setLoading]=useState(false);
@@ -28,6 +29,8 @@ export default function Account(){
   const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,nextSession)=>setSession(nextSession));
   return()=>subscription.unsubscribe();
  },[]);
+
+ useEffect(()=>{if(session&&routeParams.returnTo){router.replace(routeParams.returnTo==="mypage-settings"?"/mypage?open=settings":"/mypage");}},[session,routeParams.returnTo,router]);
 
  useEffect(()=>{
   let active=true;
@@ -98,7 +101,7 @@ export default function Account(){
     if(error)throw error;
    }else{
     const {data,error}=await supabase.functions.invoke("username-login",{body:{username,password:pw}});
-    if(error)throw error;
+    if(error){let detail=error.message;try{const response=(error as any).context;const payload=response?.clone?await response.clone().json():null;if(payload?.error)detail=String(payload.error);}catch{}throw new Error(detail);}
     if(!data?.session?.access_token||!data?.session?.refresh_token)throw new Error(data?.error||"로그인 정보를 확인할 수 없습니다.");
     const {error:setSessionError}=await supabase.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});
     if(setSessionError)throw setSessionError;
@@ -189,8 +192,6 @@ export default function Account(){
      </View>
     }
     <View style={s.legalLinks}>
-     <Pressable onPress={()=>Linking.openURL("https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/privacy-policy")}><Text style={s.legalLink}>개인정보처리방침</Text></Pressable>
-     <Text style={s.note}>·</Text>
      <Pressable onPress={()=>router.push("/terms")}><Text style={s.legalLink}>서비스 이용약관</Text></Pressable>
     </View>
     <View style={s.info}>
