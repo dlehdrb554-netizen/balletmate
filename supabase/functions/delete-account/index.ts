@@ -57,6 +57,25 @@ Deno.serve(async (req) => {
     if (error) return json({ error: "비공개 사업자 서류를 삭제하지 못했습니다." }, 500);
   }
 
+  // Remove member-uploaded community photos before the auth user is deleted.
+  // community.tsx stores every object under the author's UUID folder.
+  let photoOffset = 0;
+  const photoPaths: string[] = [];
+  for (;;) {
+    const { data: objects, error: listError } = await adminClient.storage
+      .from("community-photos")
+      .list(userId, { limit: 1000, offset: photoOffset });
+    if (listError) return json({ error: "작성한 커뮤니티 사진을 확인하지 못했습니다." }, 500);
+    const page = objects || [];
+    photoPaths.push(...page.filter((item) => item.name).map((item) => `${userId}/${item.name}`));
+    if (page.length < 1000) break;
+    photoOffset += page.length;
+  }
+  if (photoPaths.length) {
+    const { error } = await adminClient.storage.from("community-photos").remove(photoPaths);
+    if (error) return json({ error: "작성한 커뮤니티 사진을 삭제하지 못했습니다." }, 500);
+  }
+
   // approved_by becomes NULL through account_deletion_setup.sql (ON DELETE SET NULL).
   const { error: noticesError } = await adminClient.from("studio_owner_notices")
     .delete().eq("created_by", userId);
