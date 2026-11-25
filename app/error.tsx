@@ -1,6 +1,6 @@
-import React, {useMemo, useColorScheme} from "react";
+import React, {useMemo} from "react";
 import {themeStyles} from "../lib/theme";
-import { SafeAreaView, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme} from "react-native";
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
  const isDark=useColorScheme()==="dark";
