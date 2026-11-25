@@ -123,7 +123,7 @@ begin
 
   select case
     when nullif(pg_catalog.btrim(p.display_name), '') is not null then pg_catalog.left(pg_catalog.btrim(p.display_name), 40)
-    when p.username is not null and p.username not like 'social\\_%' escape '\\' then pg_catalog.left(p.username, 40)
+    when p.username is not null and p.username not like 'social\_%' escape '\' then pg_catalog.left(p.username, 40)
     else null
   end into v_username
   from public.user_profiles p
