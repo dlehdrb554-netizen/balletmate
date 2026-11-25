@@ -10,32 +10,35 @@ export type StudioPublicSchedule={
 };
 const priceCache=new Map<string,{savedAt:number;rows:StudioPublicPrice[]}>();
 const priceRequests=new Map<string,Promise<StudioPublicPrice[]>>();
+const materialVersions=new Map<string,number>();
 export async function fetchStudioPublicPrices(studioId:string):Promise<StudioPublicPrice[]>{
  if(!supabase)return [];
  const cached=priceCache.get(studioId);if(cached&&Date.now()-cached.savedAt<CACHE_MS)return cached.rows;
  const pending=priceRequests.get(studioId);if(pending)return pending;
+ const version=materialVersions.get(studioId)||0;
  const request=(async()=>{
   const {data,error}=await supabase.from("studio_public_prices_app")
    .select("id,studio_id,amount_krw,price_period,frequency_per_week,image_path,published_at,expires_at")
    .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
   if(error)throw error;const rows=(data||[]).map((row:any)=>({...row,image_url:supabase.storage.from("studio-public-materials").getPublicUrl(row.image_path).data.publicUrl})) as StudioPublicPrice[];
-  priceCache.set(studioId,{savedAt:Date.now(),rows});return rows;
+  if((materialVersions.get(studioId)||0)===version)priceCache.set(studioId,{savedAt:Date.now(),rows});return rows;
  })().finally(()=>{if(priceRequests.get(studioId)===request)priceRequests.delete(studioId);});
  priceRequests.set(studioId,request);return request;
 }
 const scheduleCache=new Map<string,{savedAt:number;rows:StudioPublicSchedule[]}>();
 const scheduleRequests=new Map<string,Promise<StudioPublicSchedule[]>>();
-export function invalidateStudioPublicMaterials(studioId:string){priceCache.delete(studioId);scheduleCache.delete(studioId);priceRequests.delete(studioId);scheduleRequests.delete(studioId);}
+export function invalidateStudioPublicMaterials(studioId:string){materialVersions.set(studioId,(materialVersions.get(studioId)||0)+1);priceCache.delete(studioId);scheduleCache.delete(studioId);priceRequests.delete(studioId);scheduleRequests.delete(studioId);}
 export async function fetchStudioPublicSchedules(studioId:string):Promise<StudioPublicSchedule[]>{
  if(!supabase)return [];
  const cached=scheduleCache.get(studioId);if(cached&&Date.now()-cached.savedAt<CACHE_MS)return cached.rows;
  const pending=scheduleRequests.get(studioId);if(pending)return pending;
+ const version=materialVersions.get(studioId)||0;
  const request=(async()=>{
   const {data,error}=await supabase.from("studio_public_schedules_app")
    .select("id,studio_id,schedule_text,image_path,published_at,expires_at")
    .eq("studio_id",studioId).order("published_at",{ascending:false}).limit(10);
   if(error)throw error;const rows=(data||[]).map((row:any)=>({...row,image_url:supabase.storage.from("studio-public-materials").getPublicUrl(row.image_path).data.publicUrl})) as StudioPublicSchedule[];
-  scheduleCache.set(studioId,{savedAt:Date.now(),rows});return rows;
+  if((materialVersions.get(studioId)||0)===version)scheduleCache.set(studioId,{savedAt:Date.now(),rows});return rows;
  })().finally(()=>{if(scheduleRequests.get(studioId)===request)scheduleRequests.delete(studioId);});
  scheduleRequests.set(studioId,request);return request;
 }
