@@ -61,7 +61,10 @@ CREATE POLICY "owners upload studio material images"
   WITH CHECK (
     bucket_id='studio-public-materials'
     AND CASE
-      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      THEN public.is_studio_owner(((storage.foldername(name))[1])::uuid)
+      ELSE false
+    END
   );
 
 DROP POLICY IF EXISTS "owners delete studio material images" ON storage.objects;
