@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState , useMemo, useColorScheme} from "react";
+import {themeStyles} from "../lib/theme";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
@@ -6,6 +7,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 
 export default function AuthCallback(){
+ const isDark=useColorScheme()==="dark";
+ const styles=useMemo(()=>createStyles(isDark),[isDark]);
  const router=useRouter();
  const params=useLocalSearchParams<{code?:string|string[];error?:string|string[];error_description?:string|string[]}>();
  const [message,setMessage]=useState("로그인 정보를 확인하고 있어요.");
@@ -58,8 +61,8 @@ export default function AuthCallback(){
   </View>
  </SafeAreaView>;
 }
-const styles=StyleSheet.create({
+const createStyles=(dark:boolean)=>StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:"#FAF9FC"},content:{flex:1,alignItems:"center",justifyContent:"center",padding:28},
  title:{fontSize:20,fontWeight:"900",color:"#252238",marginTop:18},message:{fontSize:13,color:"#8B879A",textAlign:"center",lineHeight:20,marginTop:10},
  button:{backgroundColor:"#7661D8",borderRadius:13,paddingVertical:14,paddingHorizontal:28,marginTop:26},buttonText:{color:"#fff",fontWeight:"900"}
-});
+},dark));;
