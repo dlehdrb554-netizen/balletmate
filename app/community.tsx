@@ -16,7 +16,9 @@ const timeLabel=(value:string)=>{const date=new Date(value);return Number.isNaN(
 const cooldownMessage="도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.";
 
 export default function Community(){
- const router=useRouter();\n const params=useLocalSearchParams<{postId?:string}>();\n const [bookmarkedIds,setBookmarkedIds]=useState<string[]>([]);
+ const router=useRouter();
+ const params=useLocalSearchParams<{postId?:string}>();
+ const [bookmarkedIds,setBookmarkedIds]=useState<string[]>([]);
  const [posts,setPosts]=useState<Post[]>([]);
  const [category,setCategory]=useState<Category>("전체");
  const [selected,setSelected]=useState<Post|null>(null);
@@ -101,7 +103,10 @@ export default function Community(){
   setComments([]);
   await loadComments(post.id,requestId);
  };
- const toggleBookmark=async(post:Post)=>{if(!userId||!supabase){requireLogin();return;}const exists=bookmarkedIds.includes(post.id);if(exists){const {error}=await supabase.from("community_post_bookmarks").delete().eq("user_id",userId).eq("post_id",post.id);if(error){Alert.alert("북마크 해제 실패",error.message);return;}setBookmarkedIds(v=>v.filter(id=>id!==post.id));}else{const {error}=await supabase.from("community_post_bookmarks").insert({user_id:userId,post_id:post.id});if(error){Alert.alert("북마크 저장 실패",error.message);return;}setBookmarkedIds(v=>[...v,post.id]);}};\n useEffect(()=>{if(!supabase||!userId)return;supabase.from("community_post_bookmarks").select("post_id").eq("user_id",userId).then(({data})=>setBookmarkedIds((data||[]).map(x=>x.post_id)));},[userId]);\n useEffect(()=>{if(!params.postId||!supabase)return;let active=true;supabase.from("community_posts").select("id,author_id,author_name,category,title,content,image_urls,created_at").eq("id",params.postId).maybeSingle().then(({data,error})=>{if(active&&data&&!error)void openPost(data as Post);});return()=>{active=false;};},[params.postId]);\n const requireLogin=()=>{Alert.alert("로그인이 필요합니다","게시글과 댓글 작성은 가입한 회원만 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);};
+ const toggleBookmark=async(post:Post)=>{if(!userId||!supabase){requireLogin();return;}const exists=bookmarkedIds.includes(post.id);if(exists){const {error}=await supabase.from("community_post_bookmarks").delete().eq("user_id",userId).eq("post_id",post.id);if(error){Alert.alert("북마크 해제 실패",error.message);return;}setBookmarkedIds(v=>v.filter(id=>id!==post.id));}else{const {error}=await supabase.from("community_post_bookmarks").insert({user_id:userId,post_id:post.id});if(error){Alert.alert("북마크 저장 실패",error.message);return;}setBookmarkedIds(v=>[...v,post.id]);}};
+ useEffect(()=>{if(!supabase||!userId)return;supabase.from("community_post_bookmarks").select("post_id").eq("user_id",userId).then(({data})=>setBookmarkedIds((data||[]).map(x=>x.post_id)));},[userId]);
+ useEffect(()=>{if(!params.postId||!supabase)return;let active=true;supabase.from("community_posts").select("id,author_id,author_name,category,title,content,image_urls,created_at").eq("id",params.postId).maybeSingle().then(({data,error})=>{if(active&&data&&!error)void openPost(data as Post);});return()=>{active=false;};},[params.postId]);
+ const requireLogin=()=>{Alert.alert("로그인이 필요합니다","게시글과 댓글 작성은 가입한 회원만 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);};
  const explainError=(error:any)=>{
   const message=String(error?.message||"");
   if(message.includes("30초")||message.includes("P0001"))Alert.alert("잠시만 기다려 주세요",cooldownMessage);
