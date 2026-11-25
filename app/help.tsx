@@ -1,6 +1,6 @@
-import React, {useMemo, useColorScheme} from "react";
-import { themeStyles } from "../lib/theme";
-import {Pressable,ScrollView,StyleSheet,Text,View,Linking} from "react-native";
+import React, {useMemo} from "react";
+import {themeStyles } from "../lib/theme";
+import {Pressable, ScrollView, StyleSheet, Text, View, Linking, useColorScheme} from "react-native";
 import {SafeAreaView} from "react-native-safe-area-context";
 import {useRouter} from "expo-router";
 const rows=[["학원 정보가 잘못되어 있어요","학원 상세정보의 정보 오류 제보 기능을 이용해 주세요."],["학원 가격표·시간표가 보이지 않아요","학원 상세정보에 자료가 등록되지 않았거나 검토 중일 수 있습니다."],["로그인할 수 없어요","계정 화면에서 로그인 방식을 확인하고, 이메일 인증 여부와 계정 정보를 확인해 주세요."],["학원 찜 목록이 사라졌어요","로그인 상태와 네트워크 연결을 확인해 주세요. 로그인 회원의 찜 목록은 계정에 동기화됩니다."],["북마크는 어디서 확인하나요?","마이페이지의 북마크 메뉴에서 저장한 커뮤니티 글을 확인할 수 있습니다."]];
