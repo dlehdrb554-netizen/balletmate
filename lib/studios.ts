@@ -188,9 +188,15 @@ export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
 /** Fetch the canonical academy row by primary key before opening its detail panel. */
 export async function fetchStudioById(studioId: string): Promise<StudioRecord | null> {
   if (!supabase) return null;
-  const columns = "id,name,latitude,longitude,district,address,tags,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status,representative_image_path";
-  const { data, error } = await supabase.from("studios").select(columns)
+  const baseColumns = "id,name,latitude,longitude,district,address,tags,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status";
+  let detailResult = await supabase.from("studios").select(baseColumns + ",representative_image_path")
     .eq("id", studioId).eq("is_active", true).maybeSingle();
+  // Representative-image SQL is an optional enhancement; older DB schemas must still open details.
+  if (detailResult.error && /representative_image_path|column .* does not exist/i.test(detailResult.error.message)) {
+    detailResult = await supabase.from("studios").select(baseColumns)
+      .eq("id", studioId).eq("is_active", true).maybeSingle();
+  }
+  const { data, error } = detailResult;
   if (error) throw error;
   if (!data) return null;
 
