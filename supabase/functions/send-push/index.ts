@@ -51,6 +51,9 @@ Deno.serve(async (req) => {
     const defaultEnabled = preference !== "replies";
     userIds = userIds.filter(id => {
       const preferences = preferenceByUser.get(id);
+      // The master switch suppresses every push category, independently of
+      // each category's saved preference. Missing preference rows stay enabled.
+      if (preferences && preferences.pushEnabled === false) return false;
       return preferences ? preferences[preference] !== false : defaultEnabled;
     });
     if (!userIds.length) return json({ ok: true, recipients: 0, sent: 0 });
