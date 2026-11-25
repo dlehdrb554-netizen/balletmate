@@ -127,3 +127,25 @@ FOR EACH ROW EXECUTE FUNCTION public.notify_admin_of_studio_owner_change();
 DROP TRIGGER IF EXISTS notify_admin_studio_notice_change ON public.studio_owner_notices;
 CREATE TRIGGER notify_admin_studio_notice_change AFTER INSERT OR UPDATE ON public.studio_owner_notices
 FOR EACH ROW EXECUTE FUNCTION public.notify_admin_of_studio_owner_change();
+
+-- Keep representative image changes in the existing owner edit history.
+CREATE OR REPLACE FUNCTION public.record_studio_representative_image_history()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+BEGIN
+ IF NEW.representative_image_path IS DISTINCT FROM OLD.representative_image_path
+    AND public.is_studio_owner(NEW.id) THEN
+   INSERT INTO public.studio_owner_edit_history(
+     studio_id,actor_user_id,entity,entity_id,action,changed_fields,before_snapshot,after_snapshot
+   ) VALUES(
+     NEW.id,auth.uid(),'studios',NEW.id::text,'update',ARRAY['representative_image_path'],
+     jsonb_build_object('representative_image_path',OLD.representative_image_path),
+     jsonb_build_object('representative_image_path',NEW.representative_image_path)
+   );
+ END IF;
+ RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.record_studio_representative_image_history() FROM public,anon,authenticated;
+DROP TRIGGER IF EXISTS studio_owner_audit_representative_image ON public.studios;
+CREATE TRIGGER studio_owner_audit_representative_image AFTER UPDATE ON public.studios
+FOR EACH ROW EXECUTE FUNCTION public.record_studio_representative_image_history();
