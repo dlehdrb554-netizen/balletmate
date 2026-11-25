@@ -196,7 +196,7 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 BEGIN
  IF NOT public.is_balletmate_admin() THEN RAISE EXCEPTION 'Admin access required'; END IF;
  RETURN coalesce((SELECT jsonb_agg(jsonb_build_object(
-  'id',q.id,'review_id',q.review_id,'studio_id',q.studio_id,'studio_name',s.name,
+  'id',q.id,'review_id',q.review_id,'studio_id',r.studio_id,'studio_name',s.name,
   'reviewer_id',r.user_id,'review_content',r.content,'reason',q.reason,
   'details',q.details,'status',q.status,'created_at',q.created_at
  ) ORDER BY q.created_at DESC)
