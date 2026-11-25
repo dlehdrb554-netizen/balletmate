@@ -32,6 +32,7 @@ export default function Community(){
  const [body,setBody]=useState("");
  const [selectedPhotos,setSelectedPhotos]=useState<ImagePicker.ImagePickerAsset[]>([]);
  const [userId,setUserId]=useState<string|null>(null);
+  const [isAdmin,setIsAdmin]=useState(false);
  const [authorName,setAuthorName]=useState("발레메이트 회원");
  const [blockedUserIds,setBlockedUserIds]=useState<string[]>([]);
  const [termsConsentOpen,setTermsConsentOpen]=useState(false);
@@ -76,11 +77,12 @@ export default function Community(){
   };
   const loadAuthorName=async(user:any)=>{
    if(!user)return "발레메이트 회원";
-   try{const {data}=await client.from("user_profiles").select("display_name,username").eq("user_id",user.id).maybeSingle();const profileName=data?.display_name||data?.username;if(profileName&&!String(profileName).startsWith("social_"))return String(profileName).trim().slice(0,40);}catch{}
-   return resolveAuthorName(user);
+   try{const {data}=await client.from("user_profiles").select("display_name,username").eq("user_id",user.id).maybeSingle();const displayName=String(data?.display_name||"").trim();if(displayName)return displayName.slice(0,40);const profileName=data?.username;if(profileName&&!String(profileName).startsWith("social_"))return String(profileName).trim().slice(0,40);}catch{}
+   const fallback=resolveAuthorName(user);return fallback.startsWith("social_")?"발레메이트 회원":fallback;
   };
-  client.auth.getSession().then(async({data})=>{setUserId(data.session?.user?.id||null);setAuthorName(await loadAuthorName(data.session?.user));});
-  const {data:{subscription}}=client.auth.onAuthStateChange((_event,session)=>{setUserId(session?.user?.id||null);loadAuthorName(session?.user).then(setAuthorName);});
+  const syncSession=async(user:any)=>{setUserId(user?.id||null);setAuthorName(await loadAuthorName(user));if(user){const {data,error}=await client.rpc("is_balletmate_admin");setIsAdmin(!error&&data===true);}else setIsAdmin(false);};
+  client.auth.getSession().then(({data})=>syncSession(data.session?.user));
+  const {data:{subscription}}=client.auth.onAuthStateChange((_event,session)=>{void syncSession(session?.user);});
   return()=>subscription.unsubscribe();
  },[]);
 
@@ -223,7 +225,7 @@ export default function Community(){
  };
  const removePost=async(post:Post)=>{
   const client=supabase;
-  if(!client||post.author_id!==userId)return;
+  if(!client||(post.author_id!==userId&&!isAdmin))return;
   Alert.alert("게시글 삭제","이 게시글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
    const {error}=await client.from("community_posts").delete().eq("id",post.id);
    if(error){Alert.alert("삭제 실패",error.message);return;}
@@ -234,7 +236,7 @@ export default function Community(){
  };
  const removeComment=async(comment:Comment)=>{
   const client=supabase;
-  if(!client||comment.author_id!==userId)return;
+  if(!client||(comment.author_id!==userId&&!isAdmin))return;
   Alert.alert("댓글 삭제","이 댓글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
    const {error}=await client.from("community_comments").delete().eq("id",comment.id);
    if(error){Alert.alert("삭제 실패",error.message);return;}
