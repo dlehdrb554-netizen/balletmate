@@ -226,14 +226,14 @@ export default function Home() {
     if(!client){Alert.alert("리뷰","로그인이 필요한 기능입니다.");return;}
     const {data:{session}}=await client.auth.getSession();
     if(!session){Alert.alert("로그인 필요","리뷰 작성은 로그인 후 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);return;}
-    const {data:acceptance,error}=await client.from("service_terms_acceptances").select("terms_version").eq("user_id",session.user.id).eq("terms_version","2026-11-26").maybeSingle();
+    const {data:acceptance,error}=await client.from("service_terms_acceptances").select("terms_version").eq("user_id",session.user.id).eq("terms_version","2026-11-26-ads-1").maybeSingle();
     if(error){Alert.alert("약관 확인 실패","서비스 이용약관 동의 정보를 확인할 수 없습니다. Supabase에 서비스 약관 SQL을 먼저 적용해 주세요.");return;}
     if(acceptance){await saveStudioReview();return;}
     Alert.alert("서비스 이용약관 동의","리뷰를 등록하거나 수정하려면 서비스 이용약관에 동의해야 합니다.",[
       {text:"취소",style:"cancel"},
       {text:"약관 보기",onPress:()=>router.push("/terms")},
       {text:"동의하고 리뷰 등록",onPress:async()=>{
-        const {error:acceptError}=await client.from("service_terms_acceptances").insert({user_id:session.user.id,terms_version:"2026-11-26"});
+        const {error:acceptError}=await client.from("service_terms_acceptances").insert({user_id:session.user.id,terms_version:"2026-11-26-ads-1"});
         if(acceptError&&acceptError.code!=="23505"){Alert.alert("동의 처리 실패",acceptError.message);return;}
         await saveStudioReview();
       }}
