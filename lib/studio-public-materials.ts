@@ -25,6 +25,7 @@ export async function fetchStudioPublicPrices(studioId:string):Promise<StudioPub
 }
 const scheduleCache=new Map<string,{savedAt:number;rows:StudioPublicSchedule[]}>();
 const scheduleRequests=new Map<string,Promise<StudioPublicSchedule[]>>();
+export function invalidateStudioPublicMaterials(studioId:string){priceCache.delete(studioId);scheduleCache.delete(studioId);priceRequests.delete(studioId);scheduleRequests.delete(studioId);}
 export async function fetchStudioPublicSchedules(studioId:string):Promise<StudioPublicSchedule[]>{
  if(!supabase)return [];
  const cached=scheduleCache.get(studioId);if(cached&&Date.now()-cached.savedAt<CACHE_MS)return cached.rows;
