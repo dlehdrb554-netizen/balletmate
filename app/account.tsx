@@ -15,7 +15,7 @@ export default function Account(){
  const isDark=useColorScheme()==="dark";
  const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
- const routeParams=useLocalSearchParams<{returnTo?:string}>();
+ const routeParams=useLocalSearchParams<{returnTo?:string;studioId?:string;studioName?:string}>();
  const [name,setName]=useState("");
  const [pw,setPw]=useState("");
  const [loading,setLoading]=useState(false);
@@ -31,7 +31,7 @@ export default function Account(){
   return()=>subscription.unsubscribe();
  },[]);
 
- useEffect(()=>{if(session&&routeParams.returnTo){router.replace(routeParams.returnTo==="mypage-settings"?"/mypage?open=settings":"/mypage");}},[session,routeParams.returnTo,router]);
+ useEffect(()=>{if(session&&routeParams.returnTo){if(routeParams.returnTo==="studio-manager"&&routeParams.studioId){router.replace({pathname:"/studio-manager",params:{studioId:routeParams.studioId,studioName:routeParams.studioName||"선택한 학원"}});return;}router.replace(routeParams.returnTo==="mypage-settings"?"/mypage?open=settings":"/mypage");}},[session,routeParams.returnTo,routeParams.studioId,routeParams.studioName,router]);
 
  useEffect(()=>{
   let active=true;
