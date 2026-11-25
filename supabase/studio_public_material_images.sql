@@ -50,13 +50,13 @@ SET public=true,
     file_size_limit=8388608,
     allowed_mime_types=EXCLUDED.allowed_mime_types;
 
-DROP POLICY IF EXISTS "public read studio material images" ON storage.objects;
-CREATE POLICY "public read studio material images"
+DROP POLICY IF EXISTS "public read studio materials" ON storage.objects;
+CREATE POLICY "public read studio materials"
   ON storage.objects FOR SELECT TO anon,authenticated
   USING (bucket_id='studio-public-materials');
 
-DROP POLICY IF EXISTS "owners upload studio material images" ON storage.objects;
-CREATE POLICY "owners upload studio material images"
+DROP POLICY IF EXISTS "owners upload studio materials" ON storage.objects;
+CREATE POLICY "owners upload studio materials"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id='studio-public-materials'
@@ -67,8 +67,8 @@ CREATE POLICY "owners upload studio material images"
     END
   );
 
-DROP POLICY IF EXISTS "owners delete studio material images" ON storage.objects;
-CREATE POLICY "owners delete studio material images"
+DROP POLICY IF EXISTS "owners delete studio materials" ON storage.objects;
+CREATE POLICY "owners delete studio materials"
   ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id='studio-public-materials'
