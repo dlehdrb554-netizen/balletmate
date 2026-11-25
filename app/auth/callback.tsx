@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState , useMemo, useColorScheme} from "react";
+import React, {useEffect, useRef, useState, useMemo} from "react";
 import {themeStyles} from "../lib/theme";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { SafeAreaView } from "react-native-safe-area-context";
