@@ -10,6 +10,8 @@ create table if not exists public.user_push_tokens (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.user_push_tokens drop constraint if exists user_push_tokens_expo_push_token_key;
+create unique index if not exists user_push_tokens_user_token_uidx on public.user_push_tokens(user_id,expo_push_token);
 create index if not exists user_push_tokens_user_idx on public.user_push_tokens(user_id);
 alter table public.user_push_tokens enable row level security;
 revoke all on public.user_push_tokens from anon;
