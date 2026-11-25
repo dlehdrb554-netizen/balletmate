@@ -1,4 +1,4 @@
--- Enforce unique member display names (nicknames), case-insensitively.
+-- Enforce unique member display names (nicknames), case-sensitively.
 -- Safe to re-run. Existing duplicate nicknames are not silently rewritten.
 create or replace function public.is_display_name_available(candidate text)
 returns boolean
@@ -12,8 +12,8 @@ as $$
     and not exists (
       select 1
       from public.user_profiles p
-      where pg_catalog.lower(pg_catalog.btrim(coalesce(p.display_name, '')))
-            = pg_catalog.lower(pg_catalog.btrim(coalesce(candidate, '')))
+      where pg_catalog.btrim(coalesce(p.display_name, ''))
+            = pg_catalog.btrim(coalesce(candidate, ''))
         and p.user_id <> auth.uid()
     );
 $$;
@@ -62,7 +62,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  normalized_name text := pg_catalog.lower(pg_catalog.btrim(coalesce(new.display_name, '')));
+  normalized_name text := pg_catalog.btrim(coalesce(new.display_name, ''));
 begin
   if normalized_name = '' then
     return new;
@@ -80,7 +80,7 @@ begin
   if exists (
     select 1
     from public.user_profiles p
-    where pg_catalog.lower(pg_catalog.btrim(coalesce(p.display_name, ''))) = normalized_name
+    where pg_catalog.btrim(coalesce(p.display_name, '')) = normalized_name
       and p.user_id <> new.user_id
   ) then
     raise exception '이미 사용 중인 닉네임입니다.';
