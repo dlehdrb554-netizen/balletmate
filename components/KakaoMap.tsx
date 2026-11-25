@@ -83,8 +83,15 @@ function buildHtml(initialRegion: MapRegion) {
   function moveTo(region,duration){
     if(!map||!region)return;
     var center=new kakao.maps.LatLng(region.latitude,region.longitude);
-    map.setLevel(levelFor(region.latitudeDelta),{anchor:center,animate:{duration:duration||400}});
-    map.panTo(center);
+    var targetLevel=levelFor(region.latitudeDelta);
+    var currentLevel=map.getLevel();
+    if(currentLevel!==targetLevel){
+      map.setLevel(targetLevel,{animate:false});
+      map.setCenter(center);
+    }else{
+      map.panTo(center);
+    }
+    window.setTimeout(emitRegion,Math.max(80,Math.min(250,duration||120)));
   }
   function emitRegion(){
     if(!map)return;
@@ -158,6 +165,8 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   const sendToMap = (message: unknown) => {
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
+      const type=(message as any)?.type;
+      if(type==="markers"||type==="animate") pendingMessages.current=pendingMessages.current.filter(item=>JSON.parse(item).type!==type);
       pendingMessages.current.push(serialized);
       return;
     }
