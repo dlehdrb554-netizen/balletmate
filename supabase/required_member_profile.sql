@@ -47,7 +47,7 @@ begin
   if profile_name is null and pg_catalog.left(uname,7)='social_' then
     profile_name:=public.generate_member_display_name();
   end if;
-  insert into public.user_profiles(user_id,username,display_name,phone_number,phone_verified_at,updated_at)
+  insert into public.user_profiles as existing(user_id,username,display_name,phone_number,phone_verified_at,updated_at)
   values(new.id,uname,profile_name,case when new.phone_confirmed_at is not null then new.phone else null end,new.phone_confirmed_at,now())
   on conflict(user_id) do update set
     username=case when pg_catalog.left(existing.username,7)='social_' and pg_catalog.left(excluded.username,7)<>'social_' then excluded.username else existing.username end,
