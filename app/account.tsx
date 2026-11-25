@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState , useMemo, useColorScheme} from "react";
+import { themeStyles } from "../lib/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -10,6 +11,8 @@ const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0
 const OAUTH_REDIRECT_URL="balletmate://auth/callback";
 
 export default function Account(){
+ const isDark=useColorScheme()==="dark";
+ const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
  const [name,setName]=useState("");
  const [pw,setPw]=useState("");
@@ -201,7 +204,7 @@ export default function Account(){
  </SafeAreaView>;
 }
 
-const s=StyleSheet.create({
+const createS = (dark:boolean) => StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:8,paddingBottom:24},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
  brand:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:18},title:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:14},
  sub:{fontSize:13,color:C.muted,marginTop:8,lineHeight:19},card:{backgroundColor:"#fff",borderRadius:18,borderWidth:1,borderColor:C.line,padding:16,marginTop:20},
@@ -222,4 +225,4 @@ const s=StyleSheet.create({
  info:{backgroundColor:C.pale,padding:13,borderRadius:14,marginTop:18},infoTitle:{fontWeight:"900",color:C.purple,marginBottom:6},
  deleteAccount:{alignItems:"center",paddingVertical:14,marginTop:8},deleteAccountText:{fontSize:12,color:"#B33A45",fontWeight:"800"},
  legalLinks:{flexDirection:"row",justifyContent:"center",alignItems:"center",gap:10,marginTop:20},legalLink:{fontSize:12,color:C.purple,fontWeight:"800"}
-});
+},dark));
