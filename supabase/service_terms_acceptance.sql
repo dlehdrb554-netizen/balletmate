@@ -1,4 +1,5 @@
--- Service terms acceptance for user-generated content (reviews).\n-- Current terms version: 2026-11-26-ads-1 (advertising clause added).
+-- Service terms acceptance for user-generated content (reviews).
+-- Current terms version: 2026-11-26-ads-1 (advertising clause added).
 -- Run once in Supabase SQL Editor. Safe to re-run.
 create table if not exists public.service_terms_acceptances (
   user_id uuid not null references auth.users(id) on delete cascade,
