@@ -540,6 +540,8 @@ export default function Admin() {
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 export function ErrorBoundary({error,retry}:{error:any;retry:()=>void}){
+  const isDark=useColorScheme()==="dark";
+  const styles=useMemo(()=>createStyles(isDark),[isDark]);
   const detail=String(error?.stack||error?.message||error||"알 수 없는 오류");
   return <SafeAreaView style={styles.safe}><View style={styles.login}><Text style={styles.brand}>관리자 화면 오류</Text><Text style={styles.hint}>오류 위치를 확인할 수 있도록 상세 내용을 표시합니다.</Text><ScrollView style={{maxHeight:320}}><Text selectable style={styles.errorHint}>{detail}</Text></ScrollView><Pressable style={[styles.button,styles.loginButton]} onPress={retry}><Text style={styles.buttonText}>다시 시도</Text></Pressable></View></SafeAreaView>;
 }
