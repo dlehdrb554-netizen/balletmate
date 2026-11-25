@@ -26,8 +26,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
-declare
+as $1
   current_user_id uuid := auth.uid();
   normalized_name text := pg_catalog.btrim(coalesce(p_display_name, ''));
 begin
