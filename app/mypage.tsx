@@ -1,11 +1,13 @@
 import React,{useEffect,useState} from "react";
-import {Alert,Appearance,Modal,Pressable,ScrollView,StyleSheet,Switch,Text,View} from "react-native";
+import {Alert,Appearance,Modal,Platform,Pressable,ScrollView,StyleSheet,Switch,Text,View} from "react-native";
 import Constants from "expo-constants";
 import {Ionicons} from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {SafeAreaView} from "react-native-safe-area-context";
 import {useRouter} from "expo-router";
 import {supabase} from "../lib/supabase";
+import * as Notifications from "expo-notifications";
+Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowAlert:true,shouldPlaySound:true,shouldSetBadge:false,shouldShowBanner:true,shouldShowList:true})});
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0"};
 type Mode="system"|"light"|"dark";
 export default function MyPage(){
@@ -19,8 +21,22 @@ export default function MyPage(){
   else if(menu==="activity"&&activity==="posts"){r=await supabase.from("community_posts").select("id,title,content,category,created_at").eq("author_id",user.id).order("created_at",{ascending:false});data=r.data||[];}
   else if(menu==="activity"&&activity==="comments"){r=await supabase.from("community_comments").select("id,post_id,content,created_at,community_posts(title)").eq("author_id",user.id).order("created_at",{ascending:false});data=r.data||[];}
   else if(menu==="activity"&&activity==="reviews"){r=await supabase.from("studio_reviews").select("id,studio_id,rating,content,created_at,studios(name)").eq("user_id",user.id).order("created_at",{ascending:false});data=r.data||[];}
+  else if(menu==="notices"){r=await supabase.from("app_notices").select("id,title,body,created_at").eq("is_active",true).order("created_at",{ascending:false}).limit(50);data=r.data||[];}
   if(r?.error){Alert.alert("목록 조회 실패",r.error.message);return;}if(active)setItems(data);
  })();return()=>{active=false;};},[menu,activity,user]);
+ useEffect(()=>{if(menu!=="settings"||!user||!supabase)return;let active=true;(async()=>{try{
+  const projectId=Constants.easConfig?.projectId||Constants.expoConfig?.extra?.eas?.projectId;
+  if(!projectId){console.warn("Expo push registration skipped: EAS projectId is not configured.");return;}
+  if(Platform.OS==="android")await Notifications.setNotificationChannelAsync("default",{name:"기본 알림",importance:Notifications.AndroidImportance.DEFAULT});
+  const current=await Notifications.getPermissionsAsync();let status=current.status;
+  if(status!=="granted")status=(await Notifications.requestPermissionsAsync()).status;
+  if(status!=="granted")return;
+  const token=(await Notifications.getExpoPushTokenAsync({projectId})).data;
+  if(!active)return;
+  const {error}=await supabase.from("user_push_tokens").upsert({user_id:user.id,expo_push_token:token,platform:Platform.OS,updated_at:new Date().toISOString()},{onConflict:"expo_push_token"});
+  if(error)console.warn("Push token registration failed:",error.message);
+ }catch(error){console.warn("Push registration unavailable:",error);}})();return()=>{active=false;};},[menu,user]);
+ useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const data=response.notification.request.content.data as any;if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});else if(data?.noticeId)setMenu("notices");});return()=>sub.remove();},[router]);
  useEffect(()=>{if(!user||!supabase)return;let active=true;supabase.from("user_notification_preferences").select("preferences").eq("user_id",user.id).maybeSingle().then(({data})=>{if(active&&data?.preferences)setAlerts(v=>({...v,...data.preferences}));});return()=>{active=false;};},[user]);
  const updateAlert=async(key:keyof typeof alerts,value:boolean)=>{const next={...alerts,[key]:value};setAlerts(next);await AsyncStorage.setItem("balletmate.notification.preferences",JSON.stringify(next));if(user&&supabase){const {error}=await supabase.from("user_notification_preferences").upsert({user_id:user.id,preferences:next,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error)Alert.alert("알림 설정 저장 실패",error.message);}};
  const chooseMode=async(v:Mode)=>{setMode(v);setModeOpen(false);await AsyncStorage.setItem("balletmate.theme.mode",v);Appearance.setColorScheme(v==="system"?null:v);};
@@ -36,7 +52,7 @@ export default function MyPage(){
  {([{k:"announcements",t:"공지사항"},{k:"messages",t:"새 메시지"},{k:"replies",t:"새 댓글"},{k:"recommendations",t:"추천 글/정보"}] as const).map(x=><View key={x.k} style={s.settingRow}><Text style={s.settingText}>{x.t}</Text><Switch value={alerts[x.k]} onValueChange={v=>{void updateAlert(x.k,v);}} trackColor={{false:"#777",true:"#315B85"}} thumbColor={alerts[x.k]?"#1687F8":"#BDBDC2"}/></View>)}</View>
  <Text style={s.section}>찜한 학원 업데이트 알림</Text><View style={s.settingGroup}>
  {([{k:"favoriteNotices",t:"학원 공지사항 업데이트"},{k:"favoritePrices",t:"가격표 업데이트"},{k:"favoriteSchedules",t:"시간표 업데이트"}] as const).map(x=><View key={x.k} style={s.settingRow}><Text style={s.settingText}>{x.t}</Text><Switch value={alerts[x.k]} onValueChange={v=>{void updateAlert(x.k,v);}} trackColor={{false:"#777",true:"#315B85"}} thumbColor={alerts[x.k]?"#1687F8":"#BDBDC2"}/></View>)}
- <Text style={s.notice}>알림 수신 설정을 저장합니다. 실제 푸시 발송은 기기 알림 권한과 푸시 서버 연동이 완료된 뒤 제공됩니다.</Text></View>
+ <Text style={s.notice}>알림을 받으려면 기기 알림 권한을 허용해야 합니다. 푸시 등록은 EAS 프로젝트 ID가 설정된 앱 빌드에서 진행됩니다.</Text></View>
  <Text style={s.section}>화면 설정</Text><Pressable style={s.menuItem} onPress={()=>setModeOpen(true)}><Ionicons name="moon-outline" size={21} color={C.purple}/><Text style={s.menuText}>다크모드</Text><Text style={s.small}>{mode==="system"?"기기 옵션에 따름":mode==="dark"?"설정":"해제"}</Text></Pressable>
  <Text style={s.section}>계정 및 보안</Text><Pressable style={s.menuItem} onPress={()=>router.push("/password")}><Ionicons name="key-outline" size={21} color={C.purple}/><Text style={s.menuText}>비밀번호 변경</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
  <Pressable style={s.menuItem} onPress={toggleLock}><Ionicons name={locked?"lock-closed-outline":"lock-open-outline"} size={21} color={C.purple}/><Text style={s.menuText}>화면 잠금</Text><Text style={s.small}>{locked?"잠금 설정됨":"해제됨"}</Text></Pressable>
@@ -49,7 +65,7 @@ export default function MyPage(){
  <Pressable style={s.menuItem} onPress={()=>Alert.alert("인증 초기화","현재 로그인 인증을 초기화하고 로그아웃합니다. 다시 이용하려면 계정으로 로그인해야 합니다.",[{text:"취소",style:"cancel"},{text:"초기화",style:"destructive",onPress:async()=>{if(supabase){const {error}=await supabase.auth.signOut({scope:"local"});if(error)Alert.alert("초기화 실패",error.message);else router.replace("/account");}}}])}><Ionicons name="refresh-circle-outline" size={21} color={C.purple}/><Text style={s.menuText}>인증 초기화</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
  <Modal transparent visible={modeOpen} animationType="fade" onRequestClose={()=>setModeOpen(false)}><Pressable style={s.shade} onPress={()=>setModeOpen(false)}><View style={s.picker}><Text style={s.section}>다크모드</Text>{([{v:"system",t:"기기 옵션에 따름"},{v:"light",t:"해제"},{v:"dark",t:"설정"}] as const).map(x=><Pressable key={x.v} style={s.choice} onPress={()=>chooseMode(x.v)}><Text style={s.menuText}>{x.t}</Text>{mode===x.v&&<Ionicons name="checkmark" color={C.purple} size={20}/>}</Pressable>)}</View></Pressable></Modal>
  </ScrollView>
- :menu==="notices"?<View style={s.empty}><Ionicons name="megaphone-outline" size={30} color={C.muted}/><Text style={s.emptyText}>등록된 공지사항이 없습니다.</Text></View>
+ :menu==="notices"?<ScrollView contentContainerStyle={s.content}>{!items.length?<View style={s.empty}><Ionicons name="megaphone-outline" size={30} color={C.muted}/><Text style={s.emptyText}>등록된 공지사항이 없습니다.</Text></View>:items.map((x,i)=><Pressable key={String(x.id||i)} style={s.item} onPress={()=>Alert.alert(x.title,x.body)}><Text style={s.itemTitle}>{x.title}</Text><Text style={s.itemBody} numberOfLines={3}>{x.body}</Text><Text style={s.small}>{x.created_at?new Date(x.created_at).toLocaleDateString("ko-KR"):""}</Text></Pressable>)}</ScrollView>
  :<ScrollView contentContainerStyle={s.content}>{menu==="activity"&&<View style={s.tabs}>{(["posts","comments","reviews"] as const).map((v,i)=><Pressable key={v} style={[s.tab,activity===v&&s.tabActive]} onPress={()=>setActivity(v)}><Text style={[s.tabText,activity===v&&s.tabTextActive]}>{["작성 글","댓글","리뷰"][i]}</Text></Pressable>)}</View>}
  {!items.length?<Text style={s.emptyText}>표시할 내용이 없습니다.</Text>:items.map((x,i)=><Pressable key={String(x.id||i)} style={s.item} onPress={()=>{if(menu==="bookmarks"||activity==="posts")openPost(x.id);else if(activity==="comments")openPost(x.post_id);else router.push({pathname:"/",params:{studioId:x.studio_id}});}}><Text style={s.itemTitle}>{activity==="comments"?(x.community_posts?.title||"댓글 작성 글"):activity==="reviews"?(x.studios?.name||"학원 리뷰"):x.title}</Text><Text style={s.itemBody} numberOfLines={2}>{x.content}</Text><Text style={s.small}>{x.created_at?new Date(x.created_at).toLocaleDateString("ko-KR"):""}</Text></Pressable>)}</ScrollView>}
  </SafeAreaView>;
