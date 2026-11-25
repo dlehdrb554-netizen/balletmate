@@ -758,11 +758,32 @@ export default function Home() {
   </Pressable>;
 
   useEffect(()=>{const id=String(routeParams.studioId||"");if(!id||!supabaseConfigured)return;let active=true;fetchStudioById(id).then(row=>{if(active&&row)openDetail(mapStudioRecord(row));}).catch(error=>console.warn("Review destination lookup failed:",error));return()=>{active=false;};},[routeParams.studioId]);
+  useEffect(()=>{
+    if(Platform.OS!=="android")return;
+    let active=true;
+    const prompt=async()=>{
+      try{
+        const key="balletmate.reviewPrompt.lastShown.v1";
+        const last=Number(await AsyncStorage.getItem(key)||0);
+        if(Date.now()-last<30*24*60*60*1000||Math.random()>0.16)return;
+        await new Promise(resolve=>setTimeout(resolve,45000));
+        if(!active)return;
+        await AsyncStorage.setItem(key,String(Date.now()));
+        Alert.alert("Balletmate 이용 경험","발레 생활을 더 편리하게 이용하고 계신가요? Play 스토어에서 솔직한 의견을 들려주세요.",[
+          {text:"나중에",style:"cancel"},
+          {text:"평가하기",onPress:()=>{void Linking.openURL("https://play.google.com/store/apps/details?id=com.dlehdrb554.balletmate").catch(()=>Alert.alert("스토어 연결","Play 스토어에서 Balletmate를 검색해 주세요."));}}
+        ]);
+      }catch{}
+    };
+    void prompt();
+    return()=>{active=false;};
+  },[]);
+
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}>
     <View style={styles.header}>
       <Text style={styles.brand}>balletmate <Text style={styles.brandDot}>✦</Text></Text>
-      <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>{setMenuOpen(true);refreshAdminAccess();}} accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/mypage")} accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={COLORS.ink} /></Pressable></View>
+      <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>{setMenuOpen(true);refreshAdminAccess();}} accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/mypage?open=settings")} accessibilityLabel="알림 설정"><Ionicons name="settings-outline" size={21} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/mypage")} accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
       <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={value=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setSearch(value);setGlobalSearchStudios([]);setSearchMatches([]);}} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#A5A1B0" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={submitSearch}/>{!!search&&<Pressable onPress={()=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setSearch("");setGlobalSearchStudios([]);setSearchMatches([]);Keyboard.dismiss();}}><Text style={styles.clear}>×</Text></Pressable>}</View><Pressable style={[styles.searchSubmitButton,searchSubmitting&&{opacity:0.6}]} onPress={submitSearch} disabled={searchSubmitting}><Ionicons name={searchSubmitting?"hourglass-outline":"search"} size={19} color="#fff"/></Pressable>
