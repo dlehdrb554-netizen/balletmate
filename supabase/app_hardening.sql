@@ -410,20 +410,24 @@ ALTER TABLE public.studio_public_prices
   DROP COLUMN IF EXISTS source_title,
   DROP COLUMN IF EXISTS source_url,
   DROP COLUMN IF EXISTS source_post_date,
-  DROP COLUMN IF EXISTS image_urls;
+  DROP COLUMN IF EXISTS image_urls,
+  ADD COLUMN IF NOT EXISTS image_path text;
 ALTER TABLE public.studio_public_schedules
   DROP COLUMN IF EXISTS candidate_id,
   DROP COLUMN IF EXISTS evidence_text,
   DROP COLUMN IF EXISTS source_title,
   DROP COLUMN IF EXISTS source_url,
   DROP COLUMN IF EXISTS source_post_date,
-  DROP COLUMN IF EXISTS image_urls;
+  DROP COLUMN IF EXISTS image_urls,
+  ADD COLUMN IF NOT EXISTS image_path text;
 CREATE VIEW public.studio_public_prices_app WITH (security_invoker=true) AS
- SELECT id,studio_id,amount_krw,price_period,frequency_per_week,published_at,expires_at
- FROM public.studio_public_prices WHERE is_active=true AND expires_at>=CURRENT_DATE;
+ SELECT id,studio_id,amount_krw,price_period,frequency_per_week,published_at,expires_at,image_path
+ FROM public.studio_public_prices
+ WHERE is_active=true AND expires_at>=CURRENT_DATE AND image_path IS NOT NULL AND length(trim(image_path))>0;
 CREATE VIEW public.studio_public_schedules_app WITH (security_invoker=true) AS
- SELECT id,studio_id,schedule_text,published_at,expires_at
- FROM public.studio_public_schedules WHERE is_active=true AND expires_at>=CURRENT_DATE;
+ SELECT id,studio_id,schedule_text,published_at,expires_at,image_path
+ FROM public.studio_public_schedules
+ WHERE is_active=true AND expires_at>=CURRENT_DATE AND image_path IS NOT NULL AND length(trim(image_path))>0;
 GRANT SELECT ON public.studio_public_prices_app,public.studio_public_schedules_app TO anon,authenticated;
 
 -- Remove legacy non-admin write policies before applying the current owner-only rules.
