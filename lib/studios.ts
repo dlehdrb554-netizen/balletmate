@@ -189,14 +189,17 @@ export function fetchStudios(bounds?: SearchBounds): Promise<StudioRecord[]> {
 export async function fetchStudioById(studioId: string): Promise<StudioRecord | null> {
   if (!supabase) return null;
   const baseColumns = "id,name,latitude,longitude,district,address,tags,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status";
-  let detailResult = await supabase.from("studios").select(baseColumns + ",representative_image_path")
+  const initialDetail = await supabase.from("studios").select(baseColumns + ",representative_image_path")
     .eq("id", studioId).eq("is_active", true).maybeSingle();
+  let data: any = initialDetail.data;
+  let error: any = initialDetail.error;
   // Representative-image SQL is an optional enhancement; older DB schemas must still open details.
-  if (detailResult.error && /representative_image_path|column .* does not exist/i.test(detailResult.error.message)) {
-    detailResult = await supabase.from("studios").select(baseColumns)
+  if (error && /representative_image_path|column .* does not exist/i.test(error.message)) {
+    const fallbackDetail = await supabase.from("studios").select(baseColumns)
       .eq("id", studioId).eq("is_active", true).maybeSingle();
+    data = fallbackDetail.data;
+    error = fallbackDetail.error;
   }
-  const { data, error } = detailResult;
   if (error) throw error;
   if (!data) return null;
 
