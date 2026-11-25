@@ -122,6 +122,7 @@ export default function Home() {
 
   const [selectedListRegion,setSelectedListRegion]=useState("전체");
   const [rankMode,setRankMode]=useState<"views"|"favorites">("views");
+  const [visibleListCount,setVisibleListCount]=useState(25);
   const [regionPickerOpen,setRegionPickerOpen]=useState(false);
   const [regionProvince,setRegionProvince]=useState("전체");
   const [regionCity,setRegionCity]=useState("전체");
@@ -473,6 +474,9 @@ export default function Home() {
     const rows=view==="favorites"?favoriteStudios:directoryResults.filter(studio=>selectedListRegion!=="전체"?canonicalArea(studio.area)===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
     return [...rows].sort((a,b)=>distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng));
   },[view,favoriteStudios,directoryResults,searchedRegion,selectedListRegion,regionProvince,regionCity]);
+   const visibleListRows=useMemo(()=>listRows.slice(0,visibleListCount),[listRows,visibleListCount]);
+   useEffect(()=>{setVisibleListCount(25);},[view,selectedListRegion,regionProvince,regionCity,search,adult,kids,coupon,neisOnlyFilter,hasClassLevelFilters,level,dayFilter,timeFilter,durationFilter,maxDistance]);
+   const loadMoreListRows=useCallback(()=>{setVisibleListCount(current=>Math.min(current+25,listRows.length));},[listRows.length]);
   useEffect(()=>{
     if(view!=="list"||!supabase)return;
     let active=true;setRankLoading(true);
@@ -485,7 +489,7 @@ export default function Home() {
       setFavoriteRank(favoritesRes.error?[]:(favoritesRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"?canonicalArea(directoryStudios.find(studio=>studio.id===r.studio_id)?.area||"")===selectedListRegion:((regionProvince==="전체"||parseArea(directoryStudios.find(studio=>studio.id===r.studio_id)?.area||"").province===regionProvince)&&(regionCity==="전체"||parseArea(directoryStudios.find(studio=>studio.id===r.studio_id)?.area||"").city===regionCity))));
     }).finally(()=>{if(active)setRankLoading(false);});
     return()=>{active=false;};
-  },[view,selectedListRegion,regionProvince,regionCity,studios]);
+  },[view,selectedListRegion,regionProvince,regionCity,studios,directoryStudios]);
   const rankItems=rankMode==="views"?popularViewRank.filter((r:any)=>Number(r.view_count)>10):favoriteRank;
   const REGIONAL_SEARCH:Record<string,{latitude:number;longitude:number}> = {
     "화곡":{latitude:37.5416,longitude:126.8466},"화곡동":{latitude:37.5416,longitude:126.8466},"화곡역":{latitude:37.5423,longitude:126.8403},
@@ -911,7 +915,7 @@ export default function Home() {
       <View style={{flexDirection:"row",alignItems:"center",justifyContent:"flex-end",marginTop:7}}><Text style={{fontSize:11,fontWeight:"900",color:COLORS.purple}}>지도에서 위치 확인  ›</Text></View>
     </Pressable>}
   </View>
-</View>}<FlatList data={listRows} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" ListEmptyComponent={<View style={{alignItems:"center",paddingHorizontal:24,paddingVertical:30,gap:9}}><Ionicons name="search-outline" size={28} color={COLORS.muted}/><Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"조건에 맞는 학원이 없어요."}</Text>{view==="list"&&<><Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>지역이나 수업 필터 때문에 결과가 없을 수 있어요.</Text><Pressable onPress={resetListFilters} style={{marginTop:4,paddingHorizontal:16,paddingVertical:9,borderRadius:10,backgroundColor:COLORS.pale}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>지역·검색·필터 초기화</Text></Pressable></>}</View>}/></>}
+</View>}<FlatList data={visibleListRows} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" initialNumToRender={25} maxToRenderPerBatch={25} windowSize={7} onEndReached={loadMoreListRows} onEndReachedThreshold={0.45} ListFooterComponent={listRows.length>visibleListRows.length?<Pressable onPress={loadMoreListRows} style={{padding:16,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>학원 더 불러오기 · {visibleListRows.length}/{listRows.length}</Text></Pressable>:listRows.length>0?<Text style={{padding:16,textAlign:"center",fontSize:11,color:COLORS.muted}}>모든 학원을 확인했습니다.</Text>:null} ListEmptyComponent={<View style={{alignItems:"center",paddingHorizontal:24,paddingVertical:30,gap:9}}><Ionicons name="search-outline" size={28} color={COLORS.muted}/><Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"조건에 맞는 학원이 없어요."}</Text>{view==="list"&&<><Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>지역이나 수업 필터 때문에 결과가 없을 수 있어요.</Text><Pressable onPress={resetListFilters} style={{marginTop:4,paddingHorizontal:16,paddingVertical:9,borderRadius:10,backgroundColor:COLORS.pale}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>지역·검색·필터 초기화</Text></Pressable></>}</View>}/></>}
     </View>
     {compareIds.length>0&&<Pressable style={styles.compareFloating} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>비교 목록 · {compareIds.length}/3</Text></Pressable>}
     <Modal visible={searchResultsOpen} transparent animationType="fade" onRequestClose={()=>setSearchResultsOpen(false)}>
