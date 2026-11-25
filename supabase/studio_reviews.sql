@@ -244,7 +244,7 @@ BEGIN
  WHERE id=v_review_id
  FOR UPDATE;
 
- IF v_pending_count>=3 THEN
+ IF v_pending_count>0 THEN
   UPDATE public.studio_reviews
   SET is_hidden=true,
       hidden_reason=coalesce(v_hidden_reason,'신고 3건 이상 · 관리자 검토 대기')
