@@ -122,7 +122,7 @@ export default function Home() {
   const [regionProvince,setRegionProvince]=useState("전체");
   const [regionCity,setRegionCity]=useState("전체");
   const [directoryAreas,setDirectoryAreas]=useState<string[]>(DATA.map(studio=>studio.area));
-  const [directoryStudios,setDirectoryStudios]=useState<Studio[]>([]);
+  const [directoryStudios,setDirectoryStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
   const [popularViewRank,setPopularViewRank]=useState<any[]>([]);
   const [favoriteRank,setFavoriteRank]=useState<any[]>([]);
   const [rankLoading,setRankLoading]=useState(false);
@@ -355,7 +355,7 @@ export default function Home() {
   const listCities=useMemo(()=>["전체",...new Set(allListAreas.filter(area=>regionProvince==="전체"||parseArea(area).province===regionProvince).map(area=>parseArea(area).city).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko")),[allListAreas,regionProvince]);
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active){setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);setDirectoryStudios(rows.map(mapStudioRecord));}}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
   const listDistricts=useMemo(()=>allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity)),[allListAreas,regionProvince,regionCity]);
-  const directoryResults=useMemo(()=>directoryStudios.filter(s=>{
+  const directoryResults=useMemo(()=>[...new Map([...directoryStudios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()].filter(s=>{
     const q=search.trim().toLowerCase();
     if(q&&!globalSearchIdSet.has(s.id)&&!s.name.toLowerCase().includes(q)&&!s.area.toLowerCase().includes(q)&&!s.tags.some(t=>t.toLowerCase().includes(q))&&!classSearchIdSet.has(s.id))return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
@@ -368,7 +368,7 @@ export default function Home() {
     if(durationFilter!==null&&!(s.classDurations?.length?s.classDurations.includes(durationFilter):s.duration===durationFilter))return false;
     if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
     return true;
-  }),[directoryStudios,search,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,neisOnlyFilter,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,searchedRegion]);
+  }),[directoryStudios,globalSearchStudios,search,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,neisOnlyFilter,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,searchedRegion]);
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:directoryResults.filter(studio=>selectedListRegion!=="전체"?canonicalArea(studio.area)===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
     return [...rows].sort((a,b)=>distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng));
