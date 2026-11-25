@@ -476,22 +476,21 @@ export default function Home() {
     const q=query.toLowerCase();
     const regionKey=Object.keys(REGIONAL_SEARCH).sort((a,b)=>b.length-a.length).find(key=>q.includes(key));
     let remoteRows:any[]=[];
+    let kakaoSearchFailure:string|null=null;
     if(supabase&&query.length>=2){
       // Always query Kakao as well as the local DB: a partial DB hit must not
-      // suppress a nationwide exact-place search.
-      try{
-        const [dbRows,kakaoRows]=await Promise.all([
-          searchStudiosByName(query).catch(error=>{console.warn("Database studio search failed:",error);return [] as any[];}),
-          searchStudiosByKakao(query).catch(error=>{console.warn("Kakao studio search failed:",error);return [] as any[];})
-        ]);
-        const byId=new Map<string,any>();
-        [...dbRows,...kakaoRows].forEach(row=>{if(row?.id)byId.set(String(row.id),row);});
-        remoteRows=[...byId.values()];
-      }catch(error){
-        if(requestId!==searchSubmitRequestId.current)return;
-        console.warn("Nationwide studio search failed:",error);
-        try{remoteRows=await searchStudiosByName(query);}catch{}
-      }
+      // suppress a nationwide exact-place search. Preserve provider errors for the user.
+      const [dbRows,kakaoResult]=await Promise.all([
+        searchStudiosByName(query).catch(error=>{console.warn("Database studio search failed:",error);return [] as any[];}),
+        searchStudiosByKakao(query).then(rows=>({rows,error:null as string|null})).catch(error=>{
+          console.warn("Kakao studio search failed:",error);
+          return {rows:[] as any[],error:error?.message||"카카오 학원 검색에 실패했습니다."};
+        })
+      ]);
+      kakaoSearchFailure=kakaoResult.error;
+      const byId=new Map<string,any>();
+      [...dbRows,...kakaoResult.rows].forEach(row=>{if(row?.id)byId.set(String(row.id),row);});
+      remoteRows=[...byId.values()];
       if(requestId!==searchSubmitRequestId.current)return;
     }
     const mapped:Studio[]=remoteRows.map(mapStudioRecord);
@@ -500,6 +499,11 @@ export default function Home() {
     if(!mapped.length&&supabase&&query.length>=2){try{matchingClassIds=await searchStudioIdsByClassName(query);if(requestId!==searchSubmitRequestId.current)return;setClassSearchIds(matchingClassIds);}catch{}}
     if(requestId!==searchSubmitRequestId.current)return;
     const matching=[...new Map([...mapped,...studios.filter(studio=>studio.name.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.area.toLowerCase().includes(q))].filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
+    if(!matching.length&&kakaoSearchFailure&&!regionKey){
+      Alert.alert("학원 검색 연결 오류",kakaoSearchFailure+"\n\n잠시 후 다시 시도해 주세요.");
+      setSearchSubmitting(false);
+      return;
+    }
     if(matching.length){
       setAreaLocked(false);
       const ordered=matching.sort((a,b)=>a.name.localeCompare(b.name,"ko")||String(a.address||a.area).localeCompare(String(b.address||b.area),"ko"));
