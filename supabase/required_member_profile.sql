@@ -9,8 +9,8 @@ set search_path = ''
 as $$
 declare
   uid uuid := auth.uid();
-  normalized_username text := pg_catalog.lower(pg_catalog.trim(coalesce(p_username,'')));
-  normalized_display text := pg_catalog.trim(coalesce(p_display_name,''));
+  normalized_username text := pg_catalog.lower(pg_catalog.btrim(coalesce(p_username,'')));
+  normalized_display text := pg_catalog.btrim(coalesce(p_display_name,''));
 begin
   if uid is null then raise exception '로그인이 필요합니다.'; end if;
   if normalized_username !~ '^[a-z0-9_]{3,24}$' or pg_catalog.left(normalized_username,7)='social_' then
@@ -39,7 +39,7 @@ declare
   profile_name text;
 begin
   uname := pg_catalog.lower(coalesce(new.raw_user_meta_data ->> 'username',''));
-  profile_name := pg_catalog.trim(coalesce(new.raw_user_meta_data ->> 'display_name',''));
+  profile_name := pg_catalog.btrim(coalesce(new.raw_user_meta_data ->> 'display_name',''));
   if uname !~ '^[a-z0-9_]{3,24}$' then
     uname := 'social_' || pg_catalog.substr(pg_catalog.replace(new.id::text,'-',''),1,12);
   end if;
