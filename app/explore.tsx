@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, Animated, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView,
@@ -96,7 +96,7 @@ function Chip({label,active,onPress}: {label:string;active?:boolean;onPress:()=>
   return <Pressable onPress={onPress} style={[styles.chip,active&&styles.chipActive]}><Text style={[styles.chipText,active&&styles.chipTextActive]}>{label}</Text></Pressable>;
 }
 export default function Home() {
-  const router = useRouter();
+  const router = useRouter();\n  const routeParams = useLocalSearchParams<{studioId?:string}>();
   const insets = useSafeAreaInsets();
   const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
@@ -753,7 +753,7 @@ export default function Home() {
     <View style={styles.cardBottom}><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();router.push("/studio-manager?studioId="+encodeURIComponent(s.id)+"&studioName="+encodeURIComponent(s.name));}} style={styles.actionChip}><Text style={styles.actionText}>학원 관리 신청/정보 수정</Text></Pressable></View>
   </Pressable>;
 
-  return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}>
+  useEffect(()=>{const id=String(routeParams.studioId||"");if(!id||!supabaseConfigured)return;let active=true;fetchStudioById(id).then(row=>{if(active&&row)openDetail(mapStudioRecord(row));}).catch(error=>console.warn("Review destination lookup failed:",error));return()=>{active=false;};},[routeParams.studioId]);\n\n  return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}>
     <View style={styles.header}>
       <Text style={styles.brand}>balletmate <Text style={styles.brandDot}>✦</Text></Text>
       <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>{setMenuOpen(true);refreshAdminAccess();}} accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/mypage")} accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={COLORS.ink} /></Pressable></View>
