@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState , useMemo, useColorScheme} from "react";
+import { themeStyles } from "../lib/theme";
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -11,6 +12,8 @@ const C={ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#E9
 const dateAfterDays=(days:number)=>{const d=new Date();d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);};
 
 export default function StudioManager(){
+ const isDark=useColorScheme()==="dark";
+ const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
  const params=useLocalSearchParams<{studioId?:string;studioName?:string}>();
  const studioId=String(params.studioId||"");
@@ -283,7 +286,7 @@ export default function StudioManager(){
  </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 
-const s=StyleSheet.create({
+const createS = (dark:boolean) => StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:C.bg},content:{padding:16,paddingBottom:40},back:{color:C.muted,fontWeight:"700",paddingVertical:8},
  brand:{fontSize:13,fontWeight:"900",color:C.purple,marginTop:12},title:{fontSize:23,fontWeight:"900",color:C.ink,marginTop:5,marginBottom:14},
  card:{backgroundColor:"#fff",borderRadius:16,borderWidth:1,borderColor:C.line,padding:15,marginTop:12},
@@ -292,4 +295,4 @@ const s=StyleSheet.create({
  button:{backgroundColor:C.pale,borderRadius:11,padding:13,alignItems:"center",marginTop:12},buttonText:{fontSize:12,fontWeight:"900",color:C.purple},
  danger:{backgroundColor:"#FFF5F5",borderWidth:1,borderColor:"#E6C5C9"},status:{fontSize:17,fontWeight:"900",color:C.purple,marginVertical:6},
  item:{borderTopWidth:1,borderTopColor:C.line,paddingTop:10,marginTop:10},itemTitle:{fontSize:13,fontWeight:"800",color:C.ink}
-});
+},dark));
