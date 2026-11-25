@@ -118,8 +118,8 @@ export default function Admin() {
   const checkAdmin=useCallback(async(s:any)=>{
     if(!s){setAuthorized(false);setChecking(false);return;}
     setChecking(true);
-    const {data,error}=await supabase!.rpc("is_balletmate_admin");
-    setAuthorized(!error&&data===true);
+    const {data,error}=await supabase!.from("admin_users").select("user_id").eq("user_id",s.user.id).maybeSingle();
+    setAuthorized(!error&&data?.user_id===s.user.id);
     setChecking(false);
     if(error)Alert.alert("관리자 권한 확인 실패",error.message||"관리자 권한을 확인하지 못했습니다.");
   },[]);
