@@ -10,12 +10,12 @@ import AdminStudioReviewReports from "../components/AdminStudioReviewReports";
 
 type StudioRow = {
   id:string; name:string; latitude:number; longitude:number; district:string|null;
-  address:string|null; phone:string|null; price_per_class:number|null; website_url:string|null;
+  address:string|null; phone:string|null; website_url:string|null;
   source_url:string|null; source_name:string|null; verified_at:string|null;
   adult_classes:boolean; kids_classes:boolean; is_active:boolean;
 };
 
-const blank = {name:"",latitude:"",longitude:"",district:"",address:"",phone:"",website_url:"",source_url:"",source_name:"",verified_at:"",price_per_class:"",adult_classes:true,kids_classes:false,is_active:false};
+const blank = {name:"",latitude:"",longitude:"",district:"",address:"",phone:"",website_url:"",source_url:"",source_name:"",verified_at:"",adult_classes:true,kids_classes:false,is_active:false};
 const STUDIO_PAGE_SIZE = 20;
 const c = {ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",white:"#FFFFFF",bg:"#FBF9FF"};
 const isValidStudioHomepageUrl=(value:string):boolean=>{
@@ -99,7 +99,7 @@ export default function Admin() {
   const [classRows,setClassRows]=useState<any[]>([]);
   const [classEditing,setClassEditing]=useState<string|null>(null);
   const [classBusy,setClassBusy]=useState(false);
-  const [classForm,setClassForm]=useState({title:"",audience:"adult" as "adult"|"kids"|"all",level:"",class_type:"",duration_minutes:"60",price:"",sessions:""});
+  const [classForm,setClassForm]=useState({title:"",audience:"adult" as "adult"|"kids"|"all",level:"",class_type:"",duration_minutes:"60",sessions:""});
   const [dashboard,setDashboard]=useState<any>(null);
   const [dashboardBusy,setDashboardBusy]=useState(false);
   const [dashboardError,setDashboardError]=useState<string|null>(null);
@@ -167,7 +167,7 @@ export default function Admin() {
     setDashboardBusy(false);
   },[authorized]);
 
-  const studioColumns="id,name,latitude,longitude,district,address,phone,website_url,source_url,source_name,verified_at,price_per_class,adult_classes,kids_classes,is_active,created_at";
+  const studioColumns="id,name,latitude,longitude,district,address,phone,website_url,source_url,source_name,verified_at,adult_classes,kids_classes,is_active,created_at";
   const load=useCallback(async()=>{
     if(!supabase||!authorized)return;
     setStudioAppliedSearch("");setStudioSearch("");
@@ -285,7 +285,7 @@ export default function Admin() {
   };
   const logout=async()=>{await supabase?.auth.signOut();setSession(null);setAuthorized(false);};
   const startEdit=(r:StudioRow)=>{
-    setEditing(r.id);setForm({name:r.name,latitude:String(r.latitude),longitude:String(r.longitude),district:r.district||"",address:r.address||"",phone:r.phone||"",website_url:r.website_url||"",source_url:r.source_url||"",source_name:r.source_name||"",verified_at:r.verified_at?r.verified_at.slice(0,10):"",price_per_class:r.price_per_class==null?"":String(r.price_per_class),adult_classes:r.adult_classes,kids_classes:r.kids_classes,is_active:r.is_active});
+    setEditing(r.id);setForm({name:r.name,latitude:String(r.latitude),longitude:String(r.longitude),district:r.district||"",address:r.address||"",phone:r.phone||"",website_url:r.website_url||"",source_url:r.source_url||"",source_name:r.source_name||"",verified_at:r.verified_at?r.verified_at.slice(0,10):"",adult_classes:r.adult_classes,kids_classes:r.kids_classes,is_active:r.is_active});
   };
   useEffect(()=>{
     if(!editing||adminTab!=="studios")return;
@@ -333,9 +333,9 @@ export default function Admin() {
     if(form.source_url.trim()&&!/^https?:\/\//i.test(form.source_url.trim())){Alert.alert("출처 주소","출처 URL은 http:// 또는 https:// 주소로 입력하세요.");return;}
     const verifiedAt=form.verified_at.trim()?new Date(form.verified_at.trim()):null;
     if(verifiedAt&&!Number.isFinite(verifiedAt.getTime())){Alert.alert("확인 날짜","확인 날짜는 YYYY-MM-DD 형식으로 입력하세요.");return;}
-    const lat=Number(form.latitude),lng=Number(form.longitude),price=form.price_per_class.trim()?Number(form.price_per_class):null;
-    if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lng)||lng < -180||lng > 180|| (price!==null&&(!Number.isFinite(price)||price<0))){Alert.alert("입력 확인","좌표 또는 가격이 올바르지 않습니다.");return;}
-    const payload={name:form.name.trim(),latitude:lat,longitude:lng,district:form.district.trim()||null,address:form.address.trim()||null,phone:form.phone.trim()||null,website_url:form.website_url.trim()||null,source_url:form.source_url.trim()||null,source_name:form.source_name.trim()||null,verified_at:verifiedAt?verifiedAt.toISOString():null,price_per_class:price,adult_classes:form.adult_classes,kids_classes:form.kids_classes,is_active:form.is_active,updated_at:new Date().toISOString()};
+    const lat=Number(form.latitude),lng=Number(form.longitude);
+    if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lng)||lng < -180||lng > 180){Alert.alert("입력 확인","좌표 또는 가격이 올바르지 않습니다.");return;}
+    const payload={name:form.name.trim(),latitude:lat,longitude:lng,district:form.district.trim()||null,address:form.address.trim()||null,phone:form.phone.trim()||null,website_url:form.website_url.trim()||null,source_url:form.source_url.trim()||null,source_name:form.source_name.trim()||null,verified_at:verifiedAt?verifiedAt.toISOString():null,adult_classes:form.adult_classes,kids_classes:form.kids_classes,is_active:form.is_active,updated_at:new Date().toISOString()};
     setBusy(true);
     const completedReportId=reportEditingId;
     const q=editing?supabase.from("studios").update(payload).eq("id",editing):supabase.from("studios").insert(payload);
@@ -378,9 +378,9 @@ export default function Admin() {
       if(!isValidStudioHomepageUrl(website)||(source&&!/^https:\/\//i.test(source))){skipped++;continue;}
       const imgs:string[]=[];
       
-      const price=get(row,"price_per_class"),verifiedRaw=get(row,"verified_at"),verifiedDate=verifiedRaw?new Date(verifiedRaw):null;
-      if((price&&(!Number.isFinite(Number(price))||Number(price)<0))||(verifiedDate&&!Number.isFinite(verifiedDate.getTime()))){skipped++;continue;}
-      payload.push({name,latitude,longitude,district:get(row,"district")||null,address:address||null,phone:phone||null,website_url:website||null,source_url:source||null,source_name:get(row,"source_name")||null,verified_at:verifiedDate?verifiedDate.toISOString():null,price_per_class:price?Number(price):null,adult_classes:/^(1|true|yes|y)$/i.test(get(row,"adult_classes")),kids_classes:/^(1|true|yes|y)$/i.test(get(row,"kids_classes")),is_active:/^(1|true|yes|y)$/i.test(get(row,"is_active"))});
+      const verifiedRaw=get(row,"verified_at"),verifiedDate=verifiedRaw?new Date(verifiedRaw):null;
+      if(verifiedDate&&!Number.isFinite(verifiedDate.getTime())){skipped++;continue;}
+      payload.push({name,latitude,longitude,district:get(row,"district")||null,address:address||null,phone:phone||null,website_url:website||null,source_url:source||null,source_name:get(row,"source_name")||null,verified_at:verifiedDate?verifiedDate.toISOString():null,adult_classes:/^(1|true|yes|y)$/i.test(get(row,"adult_classes")),kids_classes:/^(1|true|yes|y)$/i.test(get(row,"kids_classes")),is_active:/^(1|true|yes|y)$/i.test(get(row,"is_active"))});
     }
     if(!payload.length){Alert.alert("등록할 데이터 없음","중복 또는 형식 오류로 제외 "+skipped+"개");return;}
     setImporting(true);
@@ -392,17 +392,17 @@ export default function Admin() {
   const loadClasses=useCallback(async(studioId:string)=>{
     if(!supabase)return;
     setClassBusy(true);
-    const {data,error}=await supabase.from("classes").select("id,studio_id,title,audience,level,class_type,duration_minutes,price,is_active,class_sessions(id,weekday,start_time,end_time,note,is_active)").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(100);
+    const {data,error}=await supabase.from("classes").select("id,studio_id,title,audience,level,class_type,duration_minutes,is_active,class_sessions(id,weekday,start_time,end_time,note,is_active)").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(100);
     if(error)Alert.alert("수업 조회 실패",error.message);else setClassRows(data||[]);
     setClassBusy(false);
   },[]);
   useEffect(()=>{if(classStudio)loadClasses(classStudio.id);else setClassRows([]);},[classStudio,loadClasses]);
-  const resetClass=()=>{setClassEditing(null);setClassForm({title:"",audience:"adult",level:"",class_type:"",duration_minutes:"60",price:"",sessions:""});};
+  const resetClass=()=>{setClassEditing(null);setClassForm({title:"",audience:"adult",level:"",class_type:"",duration_minutes:"60",sessions:""});};
   const editClass=(row:any)=>{
     setClassEditing(row.id);
     setClassForm({
       title:row.title||"",audience:row.audience||"adult",level:row.level||"",class_type:row.class_type||"",
-      duration_minutes:row.duration_minutes==null?"":String(row.duration_minutes),price:row.price==null?"":String(row.price),
+      duration_minutes:row.duration_minutes==null?"":String(row.duration_minutes),
       sessions:(row.class_sessions||[]).filter((x:any)=>x.is_active!==false).map((x:any)=>[x.weekday,(x.start_time||"").slice(0,5),(x.end_time||"").slice(0,5),x.note||""].join(",")).join("\n")
     });
   };
@@ -410,8 +410,7 @@ export default function Admin() {
     if(!supabase||!classStudio)return;
     if(!classForm.title.trim()){Alert.alert("필수 정보","수업명을 입력하세요.");return;}
     const duration=classForm.duration_minutes.trim()?Number(classForm.duration_minutes):null;
-    const price=classForm.price.trim()?Number(classForm.price):null;
-    if((duration!==null&&(!Number.isInteger(duration)||duration<=0))||(price!==null&&(!Number.isFinite(price)||price<0))){Alert.alert("입력 확인","수업 시간은 양의 정수, 가격은 0 이상의 숫자여야 합니다.");return;}
+    if(duration!==null&&(!Number.isInteger(duration)||duration<=0)){Alert.alert("입력 확인","수업 시간은 양의 정수로 입력해 주세요.");return;}
     const sessions=classForm.sessions.split(/\r?\n/).map(v=>v.trim()).filter(Boolean).map(line=>{
       const [weekdayRaw,startRaw,endRaw,noteRaw]=line.split(",").map(v=>v.trim());
       const weekday=Number(weekdayRaw);
@@ -421,7 +420,7 @@ export default function Admin() {
     if(sessions.some(v=>v===null)){Alert.alert("시간표 형식","요일(0=일~6=토),시작시간,종료시간,메모 형식으로 한 줄씩 입력하세요. 예: 1,19:00,20:00,성인 초급");return;}
     setClassBusy(true);
     try{
-      const payload={studio_id:classStudio.id,title:classForm.title.trim(),audience:classForm.audience,level:classForm.level.trim()||null,class_type:classForm.class_type.trim()||null,duration_minutes:duration,price,is_active:true};
+      const payload={studio_id:classStudio.id,title:classForm.title.trim(),audience:classForm.audience,level:classForm.level.trim()||null,class_type:classForm.class_type.trim()||null,duration_minutes:duration,is_active:true};
       let classId=classEditing;
       if(classEditing){
         const {error}=await supabase.from("classes").update(payload).eq("id",classEditing);
@@ -503,7 +502,7 @@ export default function Admin() {
     <View style={styles.panel}><View style={styles.listHead}><View style={{flex:1,minWidth:0}}><Text style={styles.heading}>탐색 오류 기록</Text><Text style={styles.hint}>최근 40회 중복 제외 {discoveryDuplicateTotal.toLocaleString("ko-KR")}건 · 오류 {discoveryErrorRows.length}종</Text></View><View style={{flexDirection:"row",gap:12}}><Pressable onPress={loadDashboard}><Text style={styles.refresh}>새로고침</Text></Pressable></View></View>{discoveryErrorRows.map((item:any,index:number)=><View key={"discovery-error-"+index} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{item.region_name} · {new Date(item.queried_at).toLocaleString("ko-KR")} · 최근 40건 중 {item.count}회</Text><Text style={styles.errorHint}>{item.error}</Text></View>)}{!discoveryErrorRows.length&&!dashboardBusy&&<Text style={styles.hint}>최근 탐색 오류가 없습니다.</Text>}</View><View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>학원 정보 사용자 제보 ({reportRows.filter(r=>r.status==="pending"||r.status==="in_review").length})</Text><Pressable onPress={loadReports}><Text style={styles.refresh}>{reportsBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{reportsError?<View><Text style={styles.hint}>제보 조회 오류: {reportsError}</Text><Pressable onPress={loadReports}><Text style={styles.action}>다시 시도</Text></Pressable></View>:reportRows.length?reportRows.map(report=><View key={"report-"+report.id} style={styles.evidenceCard}><Text style={styles.evidenceStudio}>{report.studio_name||"학원"} · {report.category} · {new Date(report.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.evidenceText}>{report.description}</Text><Text style={styles.rowMeta}>상태: {report.status==="pending"?"대기":report.status==="in_review"?"검토 중":report.status==="resolved"?"처리 완료":"기각"}</Text><View style={styles.rowActions}><Pressable onPress={()=>openReportStudioEdit(report)}><Text style={styles.action}>학원 정보 수정</Text></Pressable><Pressable onPress={()=>showStudioChangeHistory(report)}><Text style={styles.action}>변경 이력</Text></Pressable>{(report.status==="pending"||report.status==="in_review")&&<><Pressable onPress={()=>updateReportStatus(report.id,"in_review")}><Text style={styles.action}>검토 중</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"resolved")}><Text style={styles.action}>처리 완료</Text></Pressable><Pressable onPress={()=>updateReportStatus(report.id,"rejected")}><Text style={styles.reject}>기각</Text></Pressable></>}</View></View>):<Text style={styles.hint}>접수된 제보가 없습니다.</Text>}</View>
         </>}
     {adminTab==="studios"&&<>
-<View style={styles.panel} onLayout={event=>{studioEditPanelY.current=event.nativeEvent.layout.y;}}><Text style={styles.heading}>{reportEditingId!==null?"제보 기반 학원 정보 수정":editing?"학원 정보 수정":"학원 등록"}</Text>{reportEditingId!==null&&<Text style={styles.hint}>제보 내용을 확인해 학원 정보를 수정하고 저장하면 해당 제보가 처리 완료로 변경됩니다. 폐업·이전이 확인된 경우 앱에 공개 토글을 끄세요.</Text>}{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("대표 홈페이지 URL (일반 홈페이지 · 네이버 블로그 · 인스타그램)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}<Text style={styles.hint}>대표 홈페이지 URL에는 일반 홈페이지, 네이버 블로그 또는 인스타그램 주소를 입력하세요. NEIS 등록 정보는 홈페이지로 사용하지 않습니다.</Text>{field("1회 수업 가격 (원)","price_per_class","numeric")}
+<View style={styles.panel} onLayout={event=>{studioEditPanelY.current=event.nativeEvent.layout.y;}}><Text style={styles.heading}>{reportEditingId!==null?"제보 기반 학원 정보 수정":editing?"학원 정보 수정":"학원 등록"}</Text>{reportEditingId!==null&&<Text style={styles.hint}>제보 내용을 확인해 학원 정보를 수정하고 저장하면 해당 제보가 처리 완료로 변경됩니다. 폐업·이전이 확인된 경우 앱에 공개 토글을 끄세요.</Text>}{field("학원명 *","name")}{field("위도 *","latitude","decimal-pad")}{field("경도 *","longitude","decimal-pad")}{field("지역/구","district")}{field("주소","address")}{field("전화번호","phone","phone-pad")}{field("대표 홈페이지 URL (일반 홈페이지 · 네이버 블로그 · 인스타그램)","website_url")}{field("정보 출처 URL (https://)","source_url")}{field("정보 출처명","source_name")}{field("정보 확인일 (YYYY-MM-DD)","verified_at")}<Text style={styles.hint}>대표 홈페이지 URL에는 일반 홈페이지, 네이버 블로그 또는 인스타그램 주소를 입력하세요. NEIS 등록 정보는 홈페이지로 사용하지 않습니다.</Text>
       <View style={styles.toggles}>{toggle("성인 수업","adult_classes")}{toggle("키즈 수업","kids_classes")}{toggle("앱에 공개","is_active")}</View>
       <View style={styles.buttons}>{editing&&<Pressable style={styles.secondary} onPress={reset}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} onPress={save} disabled={busy}><Text style={styles.buttonText}>{busy?"저장 중…":editing?"수정 저장":"학원 등록"}</Text></Pressable></View>
     </View>
@@ -515,7 +514,6 @@ export default function Admin() {
       {classField("수준 (입문/초급/중급/고급)","level")}
       {classField("수업 유형 (기초/포인트/발레핏 등)","class_type")}
       {classField("수업 시간(분)","duration_minutes","numeric")}
-      {classField("1회 수강료(원)","price","numeric")}
       {classField("시간표 (요일,시작,종료,메모 / 한 줄씩)","sessions")}
       <Text style={styles.hint}>요일 번호: 0 일요일 · 1 월요일 · 2 화요일 · 3 수요일 · 4 목요일 · 5 금요일 · 6 토요일. 예: 1,19:00,20:00,성인 초급</Text>
       <View style={styles.buttons}>{classEditing&&<Pressable style={styles.secondary} onPress={resetClass}><Text style={styles.secondaryText}>취소</Text></Pressable>}<Pressable style={styles.button} disabled={classBusy||busy} onPress={saveClass}><Text style={styles.buttonText}>{classBusy?"저장 중…":classEditing?"수업 수정 저장":"수업 등록"}</Text></Pressable></View>
@@ -524,7 +522,7 @@ export default function Admin() {
       {classRows.map(row=><View key={row.id} style={styles.row}><View style={{flex:1,minWidth:120}}><Text style={styles.rowName}>{row.title}</Text><Text style={styles.rowMeta}>{row.audience==="kids"?"키즈":row.audience==="all"?"전체":"성인"} · {row.level||"수준 미입력"} · {(row.class_sessions||[]).filter((x:any)=>x.is_active!==false).length}개 시간표</Text></View><Pressable onPress={()=>editClass(row)}><Text style={styles.action}>수정</Text></Pressable><Pressable onPress={()=>deleteClass(row.id,row.title)}><Text style={[styles.action,{color:"#B95764"}]}>삭제</Text></Pressable></View>)}
       {!classRows.length&&!classBusy&&<Text style={styles.hint}>등록된 수업이 없습니다.</Text>}
     </View>}
-    <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,price_per_class,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,25000,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
+    <View style={styles.panel}><Text style={styles.heading}>학원 일괄 등록 (CSV)</Text><Text style={styles.hint}>필수 열: name, latitude, longitude · 선택 열: district,address,phone,website_url,source_url,source_name,adult_classes,kids_classes,is_active · 최대 50개</Text><TextInput style={[styles.input,{minHeight:120,textAlignVertical:"top"}]} multiline value={csvText} onChangeText={setCsvText} placeholder={"name,latitude,longitude,district,address,phone,website_url,source_url,source_name,adult_classes,kids_classes,is_active\n발레학원,37.56,126.97,중구,서울 중구,02-000-0000,https://example.com,https://example.com,공식 홈페이지,true,false,false"} /><Pressable style={styles.button} onPress={importCsv} disabled={importing||busy}><Text style={styles.buttonText}>{importing?"등록 중…":"CSV 데이터 등록"}</Text></Pressable></View>
     <View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>등록 학원 · 화면 {visibleStudioRows.length}/{filteredStudioRows.length} · 조회 {rows.length}개</Text><Pressable onPress={load}><Text style={styles.refresh}>새로고침</Text></Pressable></View><Pressable style={[styles.secondary,{marginBottom:10}]} disabled={busy} onPress={cleanupUnrelatedStudios}><Text style={styles.secondaryText}>발레 무관 업체 자동 삭제</Text></Pressable>
       <TextInput style={styles.input} value={studioSearch} onChangeText={value=>{setStudioSearch(value);setStudioVisibleLimit(100);}} placeholder="학원명·지역·주소·전화 검색" autoCapitalize="none"/><View style={styles.buttons}><Pressable style={styles.button} disabled={busy} onPress={searchStudiosServer}><Text style={styles.buttonText}>전체 학원 검색</Text></Pressable><Pressable style={styles.secondary} disabled={busy} onPress={()=>{setStudioSearch("");setStudioAppliedSearch("");load();}}><Text style={styles.secondaryText}>초기화</Text></Pressable></View>
       <View style={styles.toggles}>{([{key:"all",label:"전체"},{key:"missing_website",label:"홈페이지 없음"},{key:"active",label:"공개"},{key:"inactive",label:"비공개"}] as const).map(option=><Pressable key={option.key} style={[styles.toggle,studioListFilter===option.key&&{borderColor:c.purple,backgroundColor:c.pale}]} onPress={()=>{setStudioListFilter(option.key);setStudioVisibleLimit(100);}}><Text style={[styles.toggleText,studioListFilter===option.key&&styles.toggleOn]}>{option.label}</Text></Pressable>)}</View>{busy&&<ActivityIndicator color={c.purple}/>}
