@@ -242,8 +242,6 @@ export default function Home() {
   const [maxDistance,setMaxDistance]=useState<number|null>(null);
   const [locationLoading,setLocationLoading]=useState(false);
   const [locationGranted,setLocationGranted]=useState(false);
-  const [locationConsentStatus,setLocationConsentStatus]=useState<"loading"|"unknown"|"accepted"|"declined">("loading");
-  const [locationConsentVisible,setLocationConsentVisible]=useState(false);
   const [currentLocation,setCurrentLocation]=useState<{latitude:number;longitude:number}|null>(null);
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);
   const [areaLocked,setAreaLocked]=useState(false);
@@ -357,13 +355,24 @@ export default function Home() {
   const listCities=useMemo(()=>["전체",...new Set(allListAreas.filter(area=>regionProvince==="전체"||parseArea(area).province===regionProvince).map(area=>parseArea(area).city).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko")),[allListAreas,regionProvince]);
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active){setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);setDirectoryStudios(rows.map(mapStudioRecord));}}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
   const listDistricts=useMemo(()=>allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity)),[allListAreas,regionProvince,regionCity]);
+  const directoryResults=useMemo(()=>directoryStudios.filter(s=>{
+    const q=search.trim().toLowerCase();
+    if(q&&!globalSearchIdSet.has(s.id)&&!s.name.toLowerCase().includes(q)&&!s.area.toLowerCase().includes(q)&&!s.tags.some(t=>t.toLowerCase().includes(q))&&!classSearchIdSet.has(s.id))return false;
+    if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
+    if(coupon&&!s.coupon)return false;
+    if(neisOnlyFilter&&s.sourceStatus!=="both"&&s.sourceStatus!=="neis_only")return false;
+    if(hasClassLevelFilters&&!classFilterIdSet.has(s.id))return false;
+    if(level&&!s.level.includes(level))return false;
+    if(dayFilter&&!s.days.includes(dayFilter))return false;
+    if(timeFilter&&!s.time.includes(timeFilter))return false;
+    if(durationFilter!==null&&!(s.classDurations?.length?s.classDurations.includes(durationFilter):s.duration===durationFilter))return false;
+    if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
+    return true;
+  }),[directoryStudios,search,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,neisOnlyFilter,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,searchedRegion]);
   const listRows=useMemo(()=>{
-    const rows=view==="favorites"?favoriteStudios:results.filter(studio=>selectedListRegion!=="전체"?canonicalArea(studio.area)===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
-    return [...rows].sort((a,b)=>{
-
-      return distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng);
-    });
-  },[view,favoriteStudios,results,searchedRegion,selectedListRegion,regionProvince,regionCity]);
+    const rows=view==="favorites"?favoriteStudios:directoryResults.filter(studio=>selectedListRegion!=="전체"?canonicalArea(studio.area)===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
+    return [...rows].sort((a,b)=>distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng));
+  },[view,favoriteStudios,directoryResults,searchedRegion,selectedListRegion,regionProvince,regionCity]);
   useEffect(()=>{
     if(view!=="list"||!supabase)return;
     let active=true;setRankLoading(true);
@@ -372,8 +381,8 @@ export default function Home() {
       supabase.rpc("get_studio_favorite_rank",{p_region:selectedListRegion})
     ]).then(([viewsRes,favoritesRes])=>{
       if(!active)return;
-      setPopularViewRank(viewsRes.error?[]:(viewsRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"||((regionProvince==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").province===regionProvince)&&(regionCity==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").city===regionCity))));
-      setFavoriteRank(favoritesRes.error?[]:(favoritesRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"?canonicalArea(studios.find(studio=>studio.id===r.studio_id)?.area||"")===selectedListRegion:((regionProvince==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").province===regionProvince)&&(regionCity==="전체"||parseArea(studios.find(studio=>studio.id===r.studio_id)?.area||"").city===regionCity))));
+      setPopularViewRank(viewsRes.error?[]:(viewsRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"||((regionProvince==="전체"||parseArea(directoryStudios.find(studio=>studio.id===r.studio_id)?.area||"").province===regionProvince)&&(regionCity==="전체"||parseArea(directoryStudios.find(studio=>studio.id===r.studio_id)?.area||"").city===regionCity))));
+      setFavoriteRank(favoritesRes.error?[]:(favoritesRes.data||[]).filter((r:any)=>selectedListRegion!=="전체"?canonicalArea(directoryStudios.find(studio=>studio.id===r.studio_id)?.area||"")===selectedListRegion:((regionProvince==="전체"||parseArea(directoryStudios.find(studio=>studio.id===r.studio_id)?.area||"").province===regionProvince)&&(regionCity==="전체"||parseArea(directoryStudios.find(studio=>studio.id===r.studio_id)?.area||"").city===regionCity))));
     }).finally(()=>{if(active)setRankLoading(false);});
     return()=>{active=false;};
   },[view,selectedListRegion,regionProvince,regionCity,studios]);
@@ -473,8 +482,7 @@ export default function Home() {
     }catch(error){if(requestId===searchSubmitRequestId.current){console.warn("Search location geocoding failed:",error);Alert.alert("지역 검색","지역 위치를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");}}
     finally{if(requestId===searchSubmitRequestId.current)setSearchSubmitting(false);}
   };
-  const locate=async(forceConsent=false)=>{
-    if(!forceConsent&&locationConsentStatus!=="accepted"){setLocationConsentVisible(true);return;}
+  const locate=async()=>{
     setLocationLoading(true);
     try {
       const {status}=await Location.requestForegroundPermissionsAsync();
@@ -482,18 +490,10 @@ export default function Home() {
       const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
       const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
       setPendingMapTarget(r);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setCurrentLocation({latitude:p.coords.latitude,longitude:p.coords.longitude});setMapMoved(false);
+      map.current?.animateToRegion(r,650);
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
-  useEffect(()=>{
-    let active=true;
-    AsyncStorage.getItem("balletmate.locationConsent.v1").then(value=>{
-      if(!active)return;
-      if(value==="accepted"||value==="declined")setLocationConsentStatus(value);
-      else {setLocationConsentStatus("unknown");setLocationConsentVisible(true);}
-    }).catch(()=>{if(active){setLocationConsentStatus("unknown");setLocationConsentVisible(true);}});
-    return()=>{active=false;};
-  },[]);
   // Location permissions and GPS are requested only after the user taps the location button.
   useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,legacyCache])=>{let savedIds:string[]=[];let legacyStudios:Studio[]=[];if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))savedIds=[...new Set(parsed.filter(x=>typeof x==="string"))];}if(legacyCache){const parsed=JSON.parse(legacyCache);if(Array.isArray(parsed))legacyStudios=parsed.filter((x:any)=>x&&typeof x.id==="string");}guestFavoritesRef.current={ids:savedIds,studios:legacyStudios.filter(studio=>savedIds.includes(studio.id))};setFavoriteIds(savedIds);setFavoriteStudios(guestFavoritesRef.current.studios);}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
   useEffect(()=>{if(favoritesReady){AsyncStorage.setItem("balletmate.favorites.v1",JSON.stringify(favoriteIds)).catch(()=>{});AsyncStorage.removeItem("balletmate.favoriteStudios.v1").catch(()=>{});}},[favoriteIds,favoriteStudios,favoritesReady]);
@@ -742,7 +742,7 @@ export default function Home() {
     <View style={styles.cardBottom}><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();openDetail(s);}} style={styles.actionChip}><Text style={styles.actionText}>상세정보</Text></Pressable></View>
   </Pressable>;
 
-  return <SafeAreaView style={styles.safe}><Modal visible={locationConsentVisible} transparent animationType="fade" onRequestClose={()=>setLocationConsentVisible(false)}><View style={{flex:1,backgroundColor:"rgba(20,16,30,0.55)",justifyContent:"center",padding:22}}><View style={{backgroundColor:"#fff",borderRadius:20,padding:20}}><Text style={{fontSize:19,fontWeight:"900",color:COLORS.ink}}>위치정보 이용 동의</Text><Text style={{fontSize:13,lineHeight:21,color:COLORS.ink,marginTop:13}}>발레메이트는 현재 위치를 지도에 표시하기 위해 기기 위치정보를 이용합니다. 길찾기는 선택한 외부 지도 앱에서 출발지를 현재 위치로 설정할 수 있으며, 이때 해당 지도 앱의 위치 권한과 정책이 적용됩니다.</Text><View style={{backgroundColor:"#F7F4FC",borderRadius:12,padding:13,marginTop:14}}><Text style={{fontSize:12,lineHeight:19,color:COLORS.ink}}>• 이용 항목: 기기에서 확인한 현재 위치(위도·경도){"\n"}• 이용 목적: 현재 위치 표시 및 현재 위치 중심으로 지도 이동{"\n"}• 이용 시점·방법: 동의 후 현재 위치 기능 실행 시 기기 GPS/네트워크 위치를 일회성으로 확인합니다.{"\n"}• 보유·저장 기간: 현재 위치 좌표는 기능 수행 중에만 일시 이용하며 앱 서버나 계정에 별도 저장하지 않습니다.{"\n"}• 주변 학원 검색: 사용자가 보고 있는 지도 범위 좌표가 학원 검색 요청에 포함됩니다.{"\n"}• 동의 거부: 동의하지 않아도 지역 검색과 지도 이동 등 위치를 사용하지 않는 기능은 이용할 수 있습니다.</Text></View><Text style={{fontSize:11,lineHeight:17,color:COLORS.muted,marginTop:12}}>앱 내 동의 후 Android/iOS 기기 위치 권한을 별도로 요청합니다. 기기 권한을 허용하지 않으면 현재 위치 기반 기능을 사용할 수 없습니다.</Text><Pressable onPress={()=>{AsyncStorage.setItem("balletmate.locationConsent.v1","accepted").catch(()=>{});setLocationConsentStatus("accepted");setLocationConsentVisible(false);void locate(true);}} style={{backgroundColor:COLORS.purple,borderRadius:12,padding:14,alignItems:"center",marginTop:17}}><Text style={{color:"#fff",fontWeight:"900",fontSize:14}}>동의하고 위치 기능 사용</Text></Pressable><Pressable onPress={()=>{AsyncStorage.setItem("balletmate.locationConsent.v1","declined").catch(()=>{});setLocationConsentStatus("declined");setLocationConsentVisible(false);}} style={{padding:13,alignItems:"center"}}><Text style={{color:COLORS.muted,fontWeight:"800",fontSize:13}}>동의하지 않고 계속 이용</Text></Pressable><Pressable onPress={()=>{setLocationConsentVisible(false);router.push("/privacy");}} style={{alignItems:"center",paddingBottom:3}}><Text style={{color:COLORS.purple,fontSize:12,fontWeight:"800"}}>개인정보처리방침 보기</Text></Pressable></View></View></Modal><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}>
+  return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined}>
     <View style={styles.header}>
       <Text style={styles.brand}>balletmate <Text style={styles.brandDot}>✦</Text></Text>
       <View style={styles.headerActions}><Pressable style={styles.menuButton} onPress={()=>{setMenuOpen(true);refreshAdminAccess();}} accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={COLORS.ink} /></Pressable><Pressable style={styles.profileButton} onPress={()=>router.push("/account")} accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={COLORS.ink} /></Pressable></View>
