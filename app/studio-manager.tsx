@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
@@ -26,10 +28,8 @@ export default function StudioManager(){
  const [profilePhone,setProfilePhone]=useState("");
  const [profileWebsite,setProfileWebsite]=useState("");
  const [profileDescription,setProfileDescription]=useState("");
- const [scheduleText,setScheduleText]=useState("");
- const [priceAmount,setPriceAmount]=useState("");
- const [pricePeriod,setPricePeriod]=useState("월 수강료");
- const [priceFrequency,setPriceFrequency]=useState("");
+ const [scheduleImage,setScheduleImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
+ const [priceImage,setPriceImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
  const [noticeTitle,setNoticeTitle]=useState("");
  const [noticeBody,setNoticeBody]=useState("");
  const [materials,setMaterials]=useState<any[]>([]);
@@ -67,8 +67,8 @@ export default function StudioManager(){
   if(studioResult.data){setProfileName(studioResult.data.name||studioName);setProfileDistrict(studioResult.data.district||"");setProfileAddress(studioResult.data.address||"");setProfilePhone(studioResult.data.phone||"");setProfileWebsite(studioResult.data.website_url||"");setProfileDescription(studioResult.data.description||"");}
   if(ownerResult.data){
    const [scheduleResult,priceResult,noticeResult,historyResult,classResult,couponResult]=await Promise.all([
-    supabase.from("studio_public_schedules").select("id,schedule_text,is_active,published_at").eq("studio_id",studioId).order("published_at",{ascending:false}).limit(20),
-    supabase.from("studio_public_prices").select("id,amount_krw,price_period,is_active,published_at").eq("studio_id",studioId).order("published_at",{ascending:false}).limit(20),
+    supabase.from("studio_public_schedules").select("id,schedule_text,image_path,is_active,published_at").eq("studio_id",studioId).order("published_at",{ascending:false}).limit(20),
+    supabase.from("studio_public_prices").select("id,amount_krw,price_period,image_path,is_active,published_at").eq("studio_id",studioId).order("published_at",{ascending:false}).limit(20),
     supabase.from("studio_owner_notices").select("id,title,body,is_active,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20),
     supabase.from("studio_owner_edit_history").select("id,entity,action,changed_fields,created_at").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(20)
     ,supabase.from("classes").select("id,title,audience,level,class_type,duration_minutes,price,is_active").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(50)
@@ -165,28 +165,42 @@ export default function StudioManager(){
   const {error}=await supabase.from("coupons").update({is_active:!item.is_active}).eq("id",item.id).eq("studio_id",studioId);
   if(error)Alert.alert("혜택 변경 실패",error.message);else await load();
  };
+ const pickMaterialImage=async(kind:"schedule"|"price")=>{
+  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:false,quality:0.9});
+  if(result.canceled||!result.assets[0])return;
+  if(kind==="schedule")setScheduleImage(result.assets[0]);else setPriceImage(result.assets[0]);
+ };
+ const uploadMaterialImage=async(asset:ImagePicker.ImagePickerAsset,kind:"schedule"|"price")=>{
+  if(!supabase||!session?.user?.id)throw new Error("로그인이 필요합니다.");
+  const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1800}}],{compress:0.86,format:ImageManipulator.SaveFormat.JPEG});
+  const response=await fetch(optimized.uri);
+  if(!response.ok)throw new Error("이미지 파일을 읽지 못했습니다.");
+  const bytes=await response.arrayBuffer();
+  const path=`${studioId}/${kind}/${Date.now()}-${Math.random().toString(36).slice(2,9)}.jpg`;
+  const {error}=await supabase.storage.from("studio-public-materials").upload(path,bytes,{contentType:"image/jpeg",upsert:false});
+  if(error)throw error;
+  return path;
+ };
  const saveSchedule=async()=>{
-  if(!supabase||!owner||!scheduleText.trim()){Alert.alert("시간표 입력","시간표 설명을 입력해 주세요.");return;}
-  setSaving(true);
+  if(!supabase||!owner||!scheduleImage){Alert.alert("시간표 이미지","시간표 이미지를 선택해 주세요.");return;}
+  setSaving(true);let uploadedPath:string|null=null;
   try{
-    const {error}=await supabase.from("studio_public_schedules").insert({studio_id:studioId,schedule_text:scheduleText.trim(),published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
+   uploadedPath=await uploadMaterialImage(scheduleImage,"schedule");
+   const {error}=await supabase.from("studio_public_schedules").insert({studio_id:studioId,schedule_text:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
    if(error)throw error;
-   setScheduleText("");Alert.alert("시간표 등록 완료","학원 상세 페이지에 시간표가 공개됩니다.");await load();
-  }catch(e:any){Alert.alert("시간표 등록 실패",e.message||"시간표를 저장하지 못했습니다.");}
+   setScheduleImage(null);Alert.alert("시간표 등록 완료","이미지 시간표가 학원 상세 페이지에 공개됩니다.");await load();
+  }catch(e:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("시간표 등록 실패",e.message||"시간표를 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
-
  const savePrice=async()=>{
-  const amount=Number(priceAmount.replace(/,/g,""));
-  if(!supabase||!owner||!Number.isInteger(amount)||amount<=0||!pricePeriod.trim()){Alert.alert("가격 정보 확인","가격과 이용 기간을 정확히 입력해 주세요.");return;}
-  setSaving(true);
+  if(!supabase||!owner||!priceImage){Alert.alert("가격표 이미지","가격표 이미지를 선택해 주세요.");return;}
+  setSaving(true);let uploadedPath:string|null=null;
   try{
-   const frequency=priceFrequency.trim()?Number(priceFrequency):null;
-   if(frequency!==null&&(!Number.isInteger(frequency)||frequency<1||frequency>14))throw new Error("주당 횟수는 1~14회로 입력해 주세요.");
-   const {error}=await supabase.from("studio_public_prices").insert({studio_id:studioId,amount_krw:amount,price_period:pricePeriod.trim(),frequency_per_week:frequency,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
+   uploadedPath=await uploadMaterialImage(priceImage,"price");
+   const {error}=await supabase.from("studio_public_prices").insert({studio_id:studioId,amount_krw:null,price_period:null,frequency_per_week:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
    if(error)throw error;
-   setPriceAmount("");setPriceFrequency("");Alert.alert("가격 등록 완료","학원 상세 페이지에 가격 정보가 공개됩니다.");await load();
-  }catch(e:any){Alert.alert("가격 등록 실패",e.message||"가격을 저장하지 못했습니다.");}
+   setPriceImage(null);Alert.alert("가격표 등록 완료","이미지 가격표가 학원 상세 페이지에 공개됩니다.");await load();
+  }catch(e:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("가격표 등록 실패",e.message||"가격표를 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
 
@@ -225,10 +239,10 @@ export default function StudioManager(){
    <>
     <View style={s.card}><Text style={s.cardTitle}>승인된 원장님 계정</Text><Text style={s.body}>이 학원의 정보와 공개 자료를 관리할 수 있습니다. 등록한 내용은 학원 상세 페이지에 바로 공개됩니다.</Text></View>
     <View style={s.card}><Text style={s.cardTitle}>학원 기본 정보 수정</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("대표 홈페이지 URL",profileWebsite,setProfileWebsite,"일반 홈페이지·네이버 블로그·인스타그램 URL (https://)") }<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:90,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
-    <View style={s.card}><Text style={s.cardTitle}>시간표 안내 등록</Text>{field("시간표 설명",""+scheduleText,setScheduleText,"예: 성인 초급반 월·수 19:00")}{button("시간표 등록",saveSchedule,saving)}</View>
-    <View style={s.card}><Text style={s.cardTitle}>수강료 안내 등록</Text>{field("가격",""+priceAmount,setPriceAmount,"예: 150000","numeric")}{field("이용 기간",""+pricePeriod,setPricePeriod,"예: 월 8회 / 1개월")}{field("주당 횟수 (선택)",""+priceFrequency,setPriceFrequency,"예: 2","numeric")}{button("가격 등록",savePrice,saving)}</View>
+    <View style={s.card}><Text style={s.cardTitle}>시간표 이미지 등록</Text><Text style={s.body}>글자 입력은 지원하지 않습니다. 시간표가 보이는 이미지 한 장을 선택해 주세요.</Text>{scheduleImage&&<Image source={{uri:scheduleImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(scheduleImage?"시간표 이미지 다시 선택":"시간표 이미지 선택",()=>pickMaterialImage("schedule"),saving)}{button("시간표 이미지 공개",saveSchedule,saving||!scheduleImage)}</View>
+    <View style={s.card}><Text style={s.cardTitle}>가격표 이미지 등록</Text><Text style={s.body}>가격과 이용 조건이 표시된 이미지로만 등록할 수 있습니다.</Text>{priceImage&&<Image source={{uri:priceImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(priceImage?"가격표 이미지 다시 선택":"가격표 이미지 선택",()=>pickMaterialImage("price"),saving)}{button("가격표 이미지 공개",savePrice,saving||!priceImage)}</View>
     <View style={s.card}><Text style={s.cardTitle}>공지사항 작성</Text>{field("제목",noticeTitle,setNoticeTitle,"공지 제목") }<TextInput value={noticeBody} onChangeText={setNoticeBody} placeholder="휴강, 모집, 행사 등 공지 내용을 입력하세요." multiline style={[s.input,{height:110,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("공지사항 등록",saveNotice,saving)}</View>
-    <View style={s.card}><Text style={s.cardTitle}>등록한 시간표 및 가격</Text>{materials.length?materials.map(item=><View key={item.kind+"-"+item.id} style={s.item}><Text style={s.itemTitle}>{item.kind==="schedule"?"시간표":"가격표"} · {item.kind==="schedule"?item.schedule_text:"₩"+Number(item.amount_krw).toLocaleString("ko-KR")+" · "+item.price_period}</Text><Text style={s.body}>{item.is_active?"공개 중":"비공개"}</Text>{item.is_active&&button("공개 중단",()=>Alert.alert("공개 중단","이 자료를 비공개로 전환할까요?",[{text:"취소",style:"cancel"},{text:"중단",style:"destructive",onPress:()=>deactivateMaterial(item)}]),saving,true)}</View>):<Text style={s.body}>등록한 자료가 없습니다.</Text>}</View>
+    <View style={s.card}><Text style={s.cardTitle}>등록한 시간표 및 가격표</Text>{materials.length?materials.map(item=>{const imagePath=item.image_path?supabase?.storage.from("studio-public-materials").getPublicUrl(item.image_path).data.publicUrl:null;return <View key={item.kind+"-"+item.id} style={s.item}><Text style={s.itemTitle}>{item.kind==="schedule"?"시간표 이미지":"가격표 이미지"}</Text>{imagePath&&<Image source={{uri:imagePath}} style={{width:"100%",height:180,borderRadius:10,marginTop:8}} resizeMode="contain"/>}<Text style={s.body}>{item.is_active?"공개 중":"비공개"}</Text>{item.is_active&&button("공개 중단",()=>Alert.alert("공개 중단","이 자료를 비공개로 전환할까요?",[{text:"취소",style:"cancel"},{text:"중단",style:"destructive",onPress:()=>deactivateMaterial(item)}]),saving,true)}</View>}):<Text style={s.body}>등록한 자료가 없습니다.</Text>}</View>
     <View style={s.card}><Text style={s.cardTitle}>수업 관리</Text>
      {field("수업명 *",classTitle,setClassTitle,"예: 성인 기초 발레")}
      <Text style={s.label}>수업 대상</Text><View style={{flexDirection:"row",gap:7,marginTop:6}}>{([{value:"adult",label:"성인"},{value:"kids",label:"키즈"},{value:"all",label:"전체"}] as const).map(option=><Pressable key={option.value} onPress={()=>setClassAudience(option.value)} style={{paddingHorizontal:12,paddingVertical:9,borderRadius:9,backgroundColor:classAudience===option.value?C.purple:C.pale}}><Text style={{fontSize:11,fontWeight:"800",color:classAudience===option.value?"#fff":C.purple}}>{option.label}</Text></Pressable>)}</View>
