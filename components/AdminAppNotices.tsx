@@ -1,6 +1,6 @@
-import React, {useCallback,useEffect,useState, useMemo, useColorScheme} from "react";
-import { themeStyles } from "../lib/theme";
-import {Alert,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from "react-native";
+import React, {useCallback, useEffect, useState, useMemo} from "react";
+import {themeStyles } from "../lib/theme";
+import {Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import {supabase} from "../lib/supabase";
 const c={ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",white:"#FFFFFF"};
 export default function AdminAppNotices(){
