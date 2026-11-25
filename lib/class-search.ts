@@ -63,7 +63,7 @@ function matchesTime(value: string, period: "오전" | "오후" | "저녁") {
 
 /**
  * Returns studios with at least one class matching every selected class-level filter.
- * Unknown price/schedule values never count as a match for the corresponding filter.
+ * A studio matches only when its stored class and schedule data meet every selected filter.
  */
 export async function searchStudiosByClassFilters(filters: ClassSearchFilters): Promise<string[]> {
   if (!supabase || !hasClassFilter(filters)) return [];
