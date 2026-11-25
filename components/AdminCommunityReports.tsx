@@ -1,10 +1,13 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState , useMemo, useColorScheme} from "react";
+import { themeStyles } from "../lib/theme";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { supabase } from "../lib/supabase";
 
 type Report={id:number;reporter_id:string;target_user_id:string|null;content_type:"post"|"comment";content_id:string;reason:string;details:string;status:string;created_at:string;content_preview?:string;target_author?:string};
 
 export default function AdminCommunityReports(){
+ const isDark=useColorScheme()==="dark";
+ const s=useMemo(()=>createS(isDark),[isDark]);
  const [rows,setRows]=useState<Report[]>([]);
  const [loading,setLoading]=useState(true);
  const [busyId,setBusyId]=useState<number|null>(null);
@@ -61,4 +64,4 @@ export default function AdminCommunityReports(){
   </View>)}
  </View>;
 }
-const s=StyleSheet.create({wrap:{flex:1},head:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:12},title:{fontSize:16,fontWeight:"900",color:"#252238"},refresh:{fontSize:12,fontWeight:"800",color:"#653BB7"},empty:{padding:24,textAlign:"center",color:"#8B879A"},card:{backgroundColor:"#fff",borderColor:"#E9E2F2",borderWidth:1,borderRadius:12,padding:12,marginBottom:10},meta:{fontSize:10,color:"#8B879A",marginBottom:6},body:{fontSize:12,color:"#252238",marginBottom:8},actions:{flexDirection:"row",gap:18,justifyContent:"flex-end",marginTop:8},action:{fontSize:11,fontWeight:"800",color:"#653BB7"}});
+const createS = (dark:boolean) => StyleSheet.create(themeStyles({wrap:{flex:1},head:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:12},title:{fontSize:16,fontWeight:"900",color:"#252238"},refresh:{fontSize:12,fontWeight:"800",color:"#653BB7"},empty:{padding:24,textAlign:"center",color:"#8B879A"},card:{backgroundColor:"#fff",borderColor:"#E9E2F2",borderWidth:1,borderRadius:12,padding:12,marginBottom:10},meta:{fontSize:10,color:"#8B879A",marginBottom:6},body:{fontSize:12,color:"#252238",marginBottom:8},actions:{flexDirection:"row",gap:18,justifyContent:"flex-end",marginTop:8},action:{fontSize:11,fontWeight:"800",color:"#653BB7"}},dark));;
