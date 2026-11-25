@@ -11,7 +11,6 @@ const OAUTH_REDIRECT_URL="balletmate://auth/callback";
 
 export default function Account(){
  const router=useRouter();
- const [legacyLogin,setLegacyLogin]=useState(false);
  const [name,setName]=useState("");
  const [pw,setPw]=useState("");
  const [loading,setLoading]=useState(false);
@@ -144,7 +143,7 @@ export default function Account(){
     <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
     <Text style={s.brand}>Balletmate<Text style={{color:C.purple}}>.</Text></Text>
     <Text style={s.title}>{session?"내 계정":"간편하게 시작하기"}</Text>
-    <Text style={s.sub}>{session?"로그인 정보와 연결된 계정을 관리할 수 있어요.":"Google 또는 Kakao 계정으로 빠르게 가입하고 로그인하세요."}</Text>
+    <Text style={s.sub}>{session?"로그인 정보와 연결된 계정을 관리할 수 있어요." :"아이디 또는 이메일로 로그인하거나 소셜 계정으로 간편하게 시작하세요."}</Text>
     {session?
      <View style={s.card}>
       <View style={s.avatar}><MaterialCommunityIcons name="human-female-dance" size={30} color={C.purple} /></View>
@@ -165,32 +164,25 @@ export default function Account(){
      </View>
      :
      <View style={s.card}>
-      {!legacyLogin?
-       <>
-        <Pressable style={s.googleButton} disabled={!!loadingProvider} onPress={()=>signInSocial("google")}>
-         <Text style={s.googleMark}>G</Text>
-         <Text style={s.googleText}>{loadingProvider==="google"?"Google 연결 중…":"Google로 계속하기"}</Text>
-        </Pressable>
-        <Pressable style={s.kakaoButton} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")}>
-         <MaterialCommunityIcons name="chat" size={19} color="#191600"/>
-         <Text style={s.kakaoText}>{loadingProvider==="kakao"?"카카오 연결 중…":"카카오로 계속하기"}</Text>
-        </Pressable>
-        <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
-        <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는</Text><View style={s.separatorLine}/></View>
-        <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
-        <Pressable style={s.legacyLink} onPress={()=>setLegacyLogin(true)}><Text style={s.legacyLinkText}>기존 아이디 또는 이메일로 로그인</Text></Pressable>
-       </>
-       :
-       <>
-        <Text style={s.legacyTitle}>아이디 또는 이메일 로그인</Text>
-        <Text style={s.label}>아이디</Text>
-        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={254}/>
-        <Text style={s.label}>비밀번호</Text>
-        <TextInput style={s.input} value={pw} onChangeText={setPw} placeholder="비밀번호" secureTextEntry autoCapitalize="none"/>
-        <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
-        <Pressable style={s.legacyLink} onPress={()=>setLegacyLogin(false)}><Text style={s.legacyLinkText}>‹ 소셜 로그인으로 돌아가기</Text></Pressable>
-       </>
-      }
+      <>
+       <Text style={s.legacyTitle}>아이디 또는 이메일 로그인</Text>
+       <Text style={s.label}>아이디 또는 이메일</Text>
+       <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={254} returnKeyType="next"/>
+       <Text style={s.label}>비밀번호</Text>
+       <TextInput style={s.input} value={pw} onChangeText={setPw} placeholder="비밀번호" secureTextEntry autoCapitalize="none" onSubmitEditing={submitLegacyLogin} returnKeyType="go"/>
+       <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
+       <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
+       <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 소셜 계정으로 로그인</Text><View style={s.separatorLine}/></View>
+       <Pressable style={s.googleButton} disabled={!!loadingProvider} onPress={()=>signInSocial("google")}>
+        <Text style={s.googleMark}>G</Text>
+        <Text style={s.googleText}>{loadingProvider==="google"?"Google 연결 중…":"Google로 계속하기"}</Text>
+       </Pressable>
+       <Pressable style={s.kakaoButton} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")}>
+        <MaterialCommunityIcons name="chat" size={19} color="#191600"/>
+        <Text style={s.kakaoText}>{loadingProvider==="kakao"?"카카오 연결 중…":"카카오로 계속하기"}</Text>
+       </Pressable>
+       <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
+      </>
      </View>
     }
     <View style={s.legalLinks}>
