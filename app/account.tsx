@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",green:"#18875B",yellow:"#FEE500"};
 const OAUTH_REDIRECT_URL="balletmate://auth/callback";
@@ -56,6 +57,7 @@ export default function Account(){
   if(!supabase){Alert.alert("설정 확인","Supabase 설정을 확인하세요.");return;}
   setLoadingProvider(provider);
   try{
+   if(routeParams.returnTo)await AsyncStorage.setItem("balletmate.auth.returnTo",routeParams.returnTo);
    const {data,error}=await supabase.auth.signInWithOAuth({
     provider,
     options:{
