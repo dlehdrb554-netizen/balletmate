@@ -5,6 +5,7 @@ import {Ionicons} from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {SafeAreaView} from "react-native-safe-area-context";
 import {useRouter} from "expo-router";
+import * as Linking from "expo-linking";
 import {supabase} from "../lib/supabase";
 import * as Notifications from "expo-notifications";
 Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowAlert:true,shouldPlaySound:true,shouldSetBadge:false,shouldShowBanner:true,shouldShowList:true})});
@@ -45,6 +46,7 @@ export default function MyPage(){
  const chooseMode=async(v:Mode)=>{setMode(v);setModeOpen(false);await AsyncStorage.setItem("balletmate.theme.mode",v);Appearance.setColorScheme(v==="system"?null:v);};
  const toggleLock=()=>Alert.alert(locked?"화면 잠금 해제":"화면 잠금 설정",locked?"화면 잠금 설정을 해제할까요?":"화면 잠금을 설정하면 현재 로그아웃되며 다음 이용 시 다시 로그인해야 합니다.",[{text:"취소",style:"cancel"},{text:locked?"해제":"잠금 설정",onPress:async()=>{const next=!locked;setLocked(next);await AsyncStorage.setItem("balletmate.screen_lock",next?"1":"0");if(next&&supabase){const {error}=await supabase.auth.signOut({scope:"local"});if(error)Alert.alert("잠금 설정 실패",error.message);else Alert.alert("화면 잠금","로그아웃되었습니다. 다시 이용하려면 로그인해 주세요.");}}}]);
  const openPost=(id:string)=>router.push({pathname:"/community",params:{postId:id}});
+ const openPrivacyPolicy=async()=>{try{await Linking.openURL("https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/privacy-policy");}catch{Alert.alert("페이지 열기 실패","개인정보처리방침 페이지를 열 수 없습니다. 잠시 후 다시 시도해 주세요.");}};
  const title=menu==="activity"?"내가 작성한 글":menu==="bookmarks"?"북마크":menu==="settings"?"설정":"공지사항";
  return <SafeAreaView style={[s.safe,isDark&&{backgroundColor:"#17151E"}]}><View style={[s.header,isDark&&{backgroundColor:"#17151E",borderColor:"#383443"}]}><Pressable onPress={()=>menu?setMenu(null):router.back()}><Ionicons name="chevron-back" size={23} color={C.ink}/></Pressable><Text style={[s.heading,isDark&&{color:"#F4F1FA"}]}>{menu?title:"마이페이지"}</Text><View style={{width:24}}/></View>
  {!menu?<ScrollView contentContainerStyle={s.content}><Text style={[s.section,isDark&&{color:"#F4F1FA"}]}>내 계정</Text><View style={[s.account,isDark&&{backgroundColor:"#24212D",borderColor:"#3B3748"}]}><View style={s.avatar}><Ionicons name="person" size={25} color={C.purple}/></View><View style={{flex:1}}><Text style={[s.display,isDark&&{color:"#F4F1FA"}]}>{display}</Text><Text style={s.small}>계정 · {username||"확인되지 않음"}</Text></View><View>{providers.map(p=><Text key={p} style={s.provider}>{p==="google"?"Google 인증":"카카오 인증"}</Text>)}</View></View>
@@ -62,7 +64,7 @@ export default function MyPage(){
  <Text style={s.notice}>화면 잠금을 설정하면 현재 로그인 세션이 종료됩니다. 다음 앱 실행 시 다시 로그인해야 합니다.</Text>
  <Text style={s.section}>이용 안내</Text><Pressable style={s.menuItem} onPress={()=>router.push("/help")}><Ionicons name="help-circle-outline" size={21} color={C.purple}/><Text style={s.menuText}>도움말</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
  <Pressable style={s.menuItem} onPress={()=>router.push("/terms")}><Ionicons name="document-text-outline" size={21} color={C.purple}/><Text style={s.menuText}>이용약관</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
- <Pressable style={s.menuItem} onPress={()=>router.push("/privacy")}><Ionicons name="shield-checkmark-outline" size={21} color={C.purple}/><Text style={s.menuText}>개인정보처리방침</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
+ <Pressable style={s.menuItem} onPress={openPrivacyPolicy}><Ionicons name="shield-checkmark-outline" size={21} color={C.purple}/><Text style={s.menuText}>개인정보처리방침</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
  <View style={s.menuItem}><Text style={s.menuText}>버전</Text><Text style={s.small}>{Constants.expoConfig?.version||"확인되지 않음"}</Text></View>
  <Pressable style={s.menuItem} onPress={()=>router.push("/licenses")}><Ionicons name="code-slash-outline" size={21} color={C.purple}/><Text style={s.menuText}>오픈소스 라이선스</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
  <Pressable style={s.menuItem} onPress={()=>Alert.alert("인증 초기화","현재 로그인 인증을 초기화하고 로그아웃합니다. 다시 이용하려면 계정으로 로그인해야 합니다.",[{text:"취소",style:"cancel"},{text:"초기화",style:"destructive",onPress:async()=>{if(supabase){const {error}=await supabase.auth.signOut({scope:"local"});if(error)Alert.alert("초기화 실패",error.message);else router.replace("/account");}}}])}><Ionicons name="refresh-circle-outline" size={21} color={C.purple}/><Text style={s.menuText}>인증 초기화</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
