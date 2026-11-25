@@ -186,7 +186,7 @@ export default function Account(){
      </View>
     }
     <View style={s.legalLinks}>
-     <Pressable onPress={()=>router.push("/privacy")}><Text style={s.legalLink}>개인정보처리방침</Text></Pressable>
+     <Pressable onPress={()=>Linking.openURL("https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/privacy-policy")}><Text style={s.legalLink}>개인정보처리방침</Text></Pressable>
      <Text style={s.note}>·</Text>
      <Pressable onPress={()=>router.push("/terms")}><Text style={s.legalLink}>서비스 이용약관</Text></Pressable>
     </View>
