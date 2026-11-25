@@ -1,6 +1,6 @@
-import React, {useEffect,useState, useMemo, useColorScheme} from "react";
+import React, {useEffect, useState, useMemo} from "react";
 import {themeStyles} from "../lib/theme";
-import {Alert,KeyboardAvoidingView,Platform,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from "react-native";
+import {Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import {SafeAreaView} from "react-native-safe-area-context";
 import {useRouter} from "expo-router";
 import {supabase} from "../lib/supabase";
