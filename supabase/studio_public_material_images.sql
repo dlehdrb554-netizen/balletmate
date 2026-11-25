@@ -72,8 +72,11 @@ CREATE POLICY "owners delete studio material images"
   ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id='studio-public-materials'
-    AND (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    AND public.is_studio_owner(((storage.foldername(name))[1])::uuid)
+    AND CASE
+      WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      THEN public.is_studio_owner(((storage.foldername(name))[1])::uuid)
+      ELSE false
+    END
   );
 
 CREATE OR REPLACE VIEW public.studio_public_prices_app
