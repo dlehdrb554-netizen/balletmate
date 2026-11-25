@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState, useMemo} from "react";
-import {themeStyles} from "../lib/theme";
+import {themeStyles} from "../../lib/theme";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
