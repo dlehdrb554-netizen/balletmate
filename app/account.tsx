@@ -91,7 +91,7 @@ export default function Account(){
   if(!/^[a-z0-9_]{3,24}$/.test(username)||!pw){Alert.alert("입력 확인","기존 계정 아이디와 비밀번호를 입력해 주세요.");return;}
   setLoading(true);
   try{
-   const {error}=await supabase.auth.signInWithPassword({email:username+"@balletmate.app",password:pw});
+   const loginEmail=username.includes("@")?username:username+"@balletmate.app";\n   const {error}=await supabase.auth.signInWithPassword({email:loginEmail,password:pw});
    if(error)throw error;
   }catch(error:any){
    Alert.alert("로그인 실패",error?.message||"아이디와 비밀번호를 확인해 주세요.");
@@ -169,13 +169,13 @@ export default function Account(){
         </Pressable>
         <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
         <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는</Text><View style={s.separatorLine}/></View>
-        <Pressable style={s.legacyLink} onPress={()=>setLegacyLogin(true)}><Text style={s.legacyLinkText}>기존 아이디 계정으로 로그인</Text></Pressable>
+        <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>\n        <Pressable style={s.legacyLink} onPress={()=>setLegacyLogin(true)}><Text style={s.legacyLinkText}>기존 아이디 또는 이메일로 로그인</Text></Pressable>
        </>
        :
        <>
-        <Text style={s.legacyTitle}>기존 계정 로그인</Text>
+        <Text style={s.legacyTitle}>아이디 또는 이메일 로그인</Text>
         <Text style={s.label}>아이디</Text>
-        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="기존 아이디" autoCapitalize="none" autoCorrect={false} maxLength={24}/>
+        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={24}/>
         <Text style={s.label}>비밀번호</Text>
         <TextInput style={s.input} value={pw} onChangeText={setPw} placeholder="비밀번호" secureTextEntry autoCapitalize="none"/>
         <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
