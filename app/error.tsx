@@ -1,7 +1,10 @@
-import React from "react";
+import React, {useMemo, useColorScheme} from "react";
+import {themeStyles} from "../lib/theme";
 import { SafeAreaView, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+ const isDark=useColorScheme()==="dark";
+ const styles=useMemo(()=>createStyles(isDark),[isDark]);
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -16,7 +19,7 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles=(dark:boolean)=>StyleSheet.create(themeStyles({
   safe: { flex: 1, backgroundColor: "#FAF9FC" },
   content: { flexGrow: 1, justifyContent: "center", padding: 28 },
   icon: { width: 54, height: 54, borderRadius: 18, backgroundColor: "#F3F0FF", alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 18 },
@@ -27,4 +30,4 @@ const styles = StyleSheet.create({
   buttonText: { color: "#fff", fontSize: 14, fontWeight: "800" },
   detailsTitle: { fontSize: 12, fontWeight: "800", color: "#252238", marginTop: 24, marginBottom: 8 },
   details: { fontSize: 11, color: "#8B879A", backgroundColor: "#F1EEF5", padding: 12, borderRadius: 10 },
-});
+},dark));;
