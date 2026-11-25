@@ -1,5 +1,6 @@
 type StyleValue = any;
-const isHex=(value:unknown):value is string=>typeof value==="string"&&/^#[0-9a-f]{6}$/i.test(value);
+const isHex=(value:unknown):value is string=>typeof value==="string"&&/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value);
+const normalizeHex=(hex:string)=>hex.length===4?"#"+hex.slice(1).split("").map(ch=>ch+ch).join(""):hex;
 const luminance=(hex:string)=>{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return (0.2126*r+0.7152*g+0.0722*b)/255;};
 export function themeStyles<T>(styles:T,dark:boolean):T{
  if(!dark)return styles;
@@ -7,7 +8,7 @@ export function themeStyles<T>(styles:T,dark:boolean):T{
   if(Array.isArray(value))return value.map(item=>walk(item,key));
   if(value&&typeof value==="object"){const out:any={};for(const [k,v] of Object.entries(value))out[k]=walk(v,k);return out;}
   if(!isHex(value))return value;
-  const light=luminance(value);
+  const light=luminance(normalizeHex(value));
   if(key==="backgroundColor"){
    if(light>0.88)return "#111111";
    if(light>0.68)return "#1D1D1D";
