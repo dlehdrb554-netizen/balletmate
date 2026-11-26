@@ -1081,7 +1081,7 @@ export default function Home() {
       </View></View>
     </Modal>
     <Modal visible={compareOpen} animationType="slide" transparent onRequestClose={()=>setCompareOpen(false)}>
-      <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}><View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
+      <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
         <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}>{compareIds.length>0&&<Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable>}<Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
         {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
