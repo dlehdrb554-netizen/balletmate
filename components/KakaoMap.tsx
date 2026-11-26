@@ -47,7 +47,7 @@ function buildHtml(initialRegion: MapRegion) {
   function pinImage(selected){
     var key=selected?'selected':'default';
     if(cachedPinImages[key])return cachedPinImages[key];
-    var color=selected?'#7661D8':'#A58BEA';
+    var color=selected?'#FF5A1F':'#A58BEA';
     var svg='<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11 16 24 16 24s16-13 16-24C33 8.2 25.8 1 17 1z" fill="'+color+'" stroke="white" stroke-width="2"/><circle cx="17" cy="17" r="5" fill="white"/></svg>';
     cachedPinImages[key]=new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
     return cachedPinImages[key];
