@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
 
 
   const found = new Map<string, any>();
-  const queries = queryVariants(query);
+  const queries = queryVariants(query).slice(0, 2);
   let requestCount = 0;
   const errors: string[] = [];
 
@@ -174,6 +174,7 @@ Deno.serve(async (req) => {
         break;
       }
     }
+    if (found.size >= 5) break;
   }
 
   const registered: string[] = [];
