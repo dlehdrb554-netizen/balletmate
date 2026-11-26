@@ -110,6 +110,6 @@ jobs:
             sleep 20
             adb shell pidof com.dlehdrb554.balletmate >/dev/null
             adb logcat -d -s AndroidRuntime:E > /tmp/android-runtime.log
-            grep -q "FATAL EXCEPTION" /tmp/android-runtime.log && { cat /tmp/android-runtime.log; exit 1; } || true
+            ! grep -q "FATAL EXCEPTION" /tmp/android-runtime.log
 
 # Build the standalone APK whenever this workflow is updated or app source changes.
