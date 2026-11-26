@@ -52,8 +52,22 @@ function buildHtml(initialRegion: MapRegion) {
     cachedPinImages[key]=new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
     return cachedPinImages[key];
   }
+  function setSelectedMarker(id){
+    currentSelected=id||null;
+    Object.keys(markers).forEach(function(markerId){
+      var selected=markerId===currentSelected;
+      var marker=markers[markerId];
+      var meta=markerMeta[markerId]||{};
+      if(meta.selected!==selected){
+        marker.setImage(pinImage(selected));
+        meta.selected=selected;
+        markerMeta[markerId]=meta;
+      }
+    });
+  }
   function updateMarkers(list, selectedId, location){
     if(!map)return;
+    currentSelected=selectedId||null;
     var keep={};
     (list||[]).forEach(function(item){
       keep[item.id]=true;
@@ -61,7 +75,7 @@ function buildHtml(initialRegion: MapRegion) {
       if(!markers[item.id]){
         var marker=new kakao.maps.Marker({position:pos,image:pinImage(item.id===selectedId),title:item.name});
         marker.setMap(map);
-        kakao.maps.event.addListener(marker,'click',function(){post({type:'marker',id:item.id});});
+        kakao.maps.event.addListener(marker,'click',function(){setSelectedMarker(item.id);post({type:'marker',id:item.id});});
         markers[item.id]=marker;
         markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,selected:item.id===selectedId};
       }else{
