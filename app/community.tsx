@@ -44,6 +44,7 @@ export default function Community(){
  const [termsAccepting,setTermsAccepting]=useState(false);
  const [termsReturnTo,setTermsReturnTo]=useState<"post"|"comment">("post");
  const commentRequestId=useRef(0);
+ const selectedPostIdRef=useRef<string|null>(null);
 
  const postRequestId=useRef(0);
  const loadPosts=useCallback(async()=>{
@@ -96,12 +97,13 @@ export default function Community(){
   let query=supabase.from("community_comments").select("id,post_id,author_id,author_name,content,created_at").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
 
   const {data,error}=await query;
-  if(requestId!==commentRequestId.current)return;
+  if(requestId!==commentRequestId.current||selectedPostIdRef.current!==postId)return;
   if(error){Alert.alert("댓글 불러오기 실패",error.message);return;}
   setComments((data||[]) as Comment[]);
  };
  const openPost=async(post:Post)=>{
   const requestId=++commentRequestId.current;
+  selectedPostIdRef.current=post.id;
   setSelected(post);
   setComments([]);
   await loadComments(post.id,requestId);
@@ -227,7 +229,7 @@ export default function Community(){
     const {error}=await client.from("community_user_blocks").insert({blocker_id:userId,blocked_user_id:targetUserId});
     if(error&&error.code!=="23505"){Alert.alert("차단 실패",error.message);return;}
     setBlockedUserIds(current=>current.includes(targetUserId)?current:[...current,targetUserId]);
-    if(selected?.author_id===targetUserId){commentRequestId.current++;setSelected(null);setComments([]);}
+    if(selected?.author_id===targetUserId){commentRequestId.current++;selectedPostIdRef.current=null;setSelected(null);setComments([]);}
     else if(selected){setComments(current=>current.filter(comment=>comment.author_id!==targetUserId));}
     Alert.alert("차단 완료","해당 회원의 콘텐츠를 숨겼습니다.");
    }}
@@ -241,22 +243,24 @@ export default function Community(){
    if(error){Alert.alert("삭제 실패",error.message);return;}
    const paths=(post.image_urls||[]).map(url=>{const marker="/community-photos/";const index=url.indexOf(marker);return index>=0?decodeURIComponent(url.slice(index+marker.length)):"";}).filter(Boolean);
    if(paths.length)await client.storage.from("community-photos").remove(paths);
-   commentRequestId.current++;setSelected(null);loadPosts();
+   commentRequestId.current++;selectedPostIdRef.current=null;setSelected(null);setComments([]);loadPosts();
   }}]);
  };
  const removeComment=async(comment:Comment)=>{
   const client=supabase;
   if(!client||(comment.author_id!==userId&&!isAdmin))return;
+  const postId=selectedPostIdRef.current;
+  if(!postId||comment.post_id!==postId)return;
   Alert.alert("댓글 삭제","이 댓글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
    const {error}=await client.from("community_comments").delete().eq("id",comment.id);
    if(error){Alert.alert("삭제 실패",error.message);return;}
-   if(selected)loadComments(selected.id);
+   if(selectedPostIdRef.current===postId)await loadComments(postId);
   }}]);
  };
 
  return <SafeAreaView style={s.safe}>
   <View style={s.header}>
-   <Pressable onPress={()=>{if(selected){commentRequestId.current++;setSelected(null);setComments([]);}else router.push("/");}}><><Ionicons name="chevron-back" size={16} color={C.muted} /><Text style={s.back}>{selected?"목록":"지도"}</Text></></Pressable>
+   <Pressable onPress={()=>{if(selected){commentRequestId.current++;selectedPostIdRef.current=null;setSelected(null);setComments([]);}else router.push("/");}}><><Ionicons name="chevron-back" size={16} color={C.muted} /><Text style={s.back}>{selected?"목록":"지도"}</Text></></Pressable>
    <Text style={s.heading}>발레 커뮤니티</Text>
    <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={openComposer}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>{if(router.canGoBack())router.back();else router.replace("/");}}><Ionicons name="menu-outline" size={22} color={C.ink} /></Pressable></View>
   </View>
