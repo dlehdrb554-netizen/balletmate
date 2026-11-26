@@ -173,8 +173,6 @@ export default function Home() {
   const [reviewSubmitting,setReviewSubmitting]=useState(false);
   const [reviewUserId,setReviewUserId]=useState<string|null>(null);
   const [reviewVerified,setReviewVerified]=useState(false);
-  const [reviewVerificationCode,setReviewVerificationCode]=useState("");
-  const [reviewVerifySubmitting,setReviewVerifySubmitting]=useState(false);
   const [verifiedReviewsOnly,setVerifiedReviewsOnly]=useState(false);
   const [mapProvider,setMapProvider]=useState<"google"|"kakao"|null>(null);
   const [mapSettingsOpen,setMapSettingsOpen]=useState(false);
@@ -896,7 +894,7 @@ export default function Home() {
     <View style={styles.cardTop}><View style={styles.studioIcon}><MaterialCommunityIcons name="human-female-dance" size={28} color={COLORS.purple}/></View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
     <View style={styles.cardBottom}><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();router.push({pathname:"/studio-manager",params:{studioId:s.id,studioName:s.name}});}} style={styles.actionChip}><Text style={styles.actionText}>학원 관리자 등록</Text></Pressable></View>
-  </Pressable>,[studios,favoriteIds,compareIds,toggleFavorite,toggleCompare,router]);
+  </Pressable>,[studios,favoriteIds,compareIds,toggleFavorite,toggleCompare,router,styles]);
   const renderStudioListItem=useCallback(({item}:{item:Studio})=>studioCard(item),[studioCard]);
 
   useEffect(()=>{const id=String(routeParams.studioId||"");if(!id||!supabaseConfigured)return;let active=true;fetchStudioById(id).then(row=>{if(active&&row)openDetail(mapStudioRecord(row));}).catch(error=>console.warn("Review destination lookup failed:",error));return()=>{active=false;};},[routeParams.studioId]);
