@@ -217,7 +217,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
         domStorageEnabled
         setSupportMultipleWindows={false}
         onMessage={handleMessage}
-        onLoadStart={() => { mapReady.current = false; pendingMessages.current = []; }}
+        onLoadStart={() => { mapReady.current = false; }}
         onLoadEnd={() => {
           // The page may have loaded while the Kakao SDK is still initializing.
           // The explicit {type:"ready"} message flushes all queued commands.
