@@ -29,10 +29,11 @@ export default function RootLayout() {
   );
 }
 export function ErrorBoundary({ error, retry }: any) {
+  const dark = useColorScheme() === "dark";
   return (
-    <View style={styles.crashFallback}>
-      <Text style={styles.title}>앱 화면을 불러오지 못했습니다</Text>
-      <Text style={styles.message}>{String(error?.message || error || "알 수 없는 오류")}</Text>
+    <View style={[styles.crashFallback,dark&&{backgroundColor:"#101010"}]}>
+      <Text style={[styles.title,dark&&{color:"#FFFFFF"}]}>앱 화면을 불러오지 못했습니다</Text>
+      <Text style={[styles.message,dark&&{color:"#C2BDCC"}]}>{String(error?.message || error || "알 수 없는 오류")}</Text>
       <Pressable style={styles.button} onPress={retry}>
         <Text style={styles.buttonText}>다시 시도</Text>
       </Pressable>
