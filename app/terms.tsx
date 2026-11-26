@@ -27,7 +27,6 @@ export default function Terms(){
  const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
  return <SafeAreaView style={s.safe}><View style={s.header}><Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable><Text style={s.title}>서비스 이용약관</Text></View><ScrollView contentContainerStyle={s.body}>
-  <View style={s.notice}><Text style={s.noticeText}>시행일: 2026년 11월 26일 · 약관 문의: dlehdrb554@gmail.com</Text></View>
   {sections.map(([title,body])=><View key={title} style={s.section}><Text style={s.heading}>{title}</Text><Text style={s.text}>{body}</Text></View>)}
  </ScrollView></SafeAreaView>;
 }
