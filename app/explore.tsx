@@ -174,6 +174,7 @@ export default function Home() {
   const studioOwnerNoticesOffset=useRef(0);
   const studioOwnerNoticesLoadingRef=useRef(false);
   const [studioCoupons,setStudioCoupons]=useState<StudioCoupon[]>([]);
+  const [couponLoadState,setCouponLoadState]=useState<"idle"|"loading"|"available"|"none"|"unverified">("idle");
   const detailRequestId=useRef(0);
   const [detailExpanded,setDetailExpanded]=useState(false);
   const [detailContentError,setDetailContentError]=useState<string|null>(null);
@@ -210,8 +211,9 @@ export default function Home() {
   const detailTabRef=useRef(detailTab);detailTabRef.current=detailTab;
   const detailSwipePan=useRef(PanResponder.create({
     onStartShouldSetPanResponder:()=>false,
-    onMoveShouldSetPanResponder:(_,gesture)=>Math.abs(gesture.dx)>14&&Math.abs(gesture.dx)>Math.abs(gesture.dy)*1.35,
-    onMoveShouldSetPanResponderCapture:(_,gesture)=>Math.abs(gesture.dx)>14&&Math.abs(gesture.dx)>Math.abs(gesture.dy)*1.35,
+    // Only claim a clearly horizontal gesture; let Android ScrollView own vertical drags.
+    onMoveShouldSetPanResponder:(_,gesture)=>Math.abs(gesture.dx)>18&&Math.abs(gesture.dx)>Math.abs(gesture.dy)*1.45,
+    onShouldBlockNativeResponder:()=>false,
     onPanResponderRelease:(_,gesture)=>{
       if(Math.abs(gesture.dx)<60||Math.abs(gesture.dx)<Math.abs(gesture.dy)*1.35)return;
       const index=detailTabs.indexOf(detailTabRef.current);
@@ -219,6 +221,7 @@ export default function Home() {
       const next=Math.max(0,Math.min(detailTabs.length-1,index+(gesture.dx<0?1:-1)));
       if(next!==index)setDetailTab(detailTabs[next]);
     },
+    onPanResponderTerminate:()=>{},
     onPanResponderTerminationRequest:()=>true,
   })).current;
   const detailPan=useRef(PanResponder.create({
@@ -944,6 +947,7 @@ export default function Home() {
     setStudioPublicSchedules([]);
     setStudioOwnerNotices([]);
     setStudioCoupons([]);
+    setCouponLoadState(supabaseConfigured?"loading":"unverified");
     if(supabaseConfigured){
       setClassesLoading(true);
       retryDetailRequest(()=>fetchStudioById(s.id)).then(row=>{
@@ -963,8 +967,8 @@ export default function Home() {
         .catch(error=>{console.warn("Approved studio prices unavailable:",error);if(requestId===detailRequestId.current){setStudioPublicPrices([]);setDetailContentError("가격표 자료를 불러오지 못했습니다.");}});
       retryDetailRequest(()=>fetchStudioPublicSchedules(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioPublicSchedules(rows);})
         .catch(error=>{console.warn("Approved studio schedules unavailable:",error);if(requestId===detailRequestId.current){setStudioPublicSchedules([]);setDetailContentError("시간표 자료를 불러오지 못했습니다.");}});
-      retryDetailRequest(()=>fetchCouponsForStudio(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioCoupons(rows);})
-        .catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});
+      retryDetailRequest(()=>fetchCouponsForStudio(s.id)).then(rows=>{if(requestId===detailRequestId.current){setStudioCoupons(rows);setCouponLoadState(rows.length?"available":"none");}})
+        .catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current){setStudioCoupons([]);setCouponLoadState("unverified");}});
     }
   };
   openDetailAction.current=openDetail;
@@ -1142,16 +1146,20 @@ export default function Home() {
      <View style={{position:"absolute",right:12,bottom:12,backgroundColor:"rgba(20,16,32,0.72)",paddingHorizontal:11,paddingVertical:7,borderRadius:18,flexDirection:"row",alignItems:"center",gap:5}}><Ionicons name="images-outline" size={14} color="#FFFFFF"/><Text style={{fontSize:11,color:"#FFFFFF",fontWeight:"800"}}>사진 보기 ›</Text></View>
    </Pressable>
    <View style={{marginTop:10}}>{studioCard(detailStudio,true)}</View>
-   {studioCoupons.length>0?<View style={{marginHorizontal:12,marginTop:12,padding:14,borderRadius:14,backgroundColor:isDark?"#302719":"#FFF7E8",borderWidth:1,borderColor:isDark?"#594629":"#F0DDB8"}}>
-     <View style={{flexDirection:"row",alignItems:"center",gap:7,marginBottom:9}}><Ionicons name="ticket-outline" size={19} color={isDark?"#F5C76B":"#A66B13"}/><Text style={{fontSize:14,fontWeight:"900",color:isDark?"#F5D99E":"#81520C"}}>사용 가능한 쿠폰 · {studioCoupons.length}개</Text></View>
-     {studioCoupons.slice(0,2).map(coupon=><View key={"top-coupon-"+coupon.id} style={{paddingVertical:7,borderTopWidth:1,borderTopColor:isDark?"#594629":"#F0E4CC"}}><Text style={{fontSize:13,fontWeight:"800",color:isDark?"#FFF1D0":"#493719"}}>{coupon.title}</Text>{!!coupon.discount_text&&<Text style={{fontSize:12,fontWeight:"800",color:isDark?"#F5C76B":"#A66B13",marginTop:3}}>{coupon.discount_text}</Text>}{!!coupon.description&&<Text style={{fontSize:11,color:isDark?"#E4D6B9":"#75664D",marginTop:3}}>{coupon.description}</Text>}</View>)}
-     {studioCoupons.length>2&&<Text style={{fontSize:11,color:isDark?"#E4D6B9":"#75664D",marginTop:5}}>외 {studioCoupons.length-2}개 쿠폰</Text>}
-   </View>:<View style={{marginHorizontal:12,marginTop:12,padding:12,borderRadius:12,backgroundColor:isDark?"#242424":"#F7F5FA",flexDirection:"row",alignItems:"center",gap:8}}><Ionicons name="ticket-outline" size={17} color={COLORS.muted}/><Text style={{fontSize:12,color:isDark?"#C2BDCC":COLORS.muted}}>현재 등록된 쿠폰이 없습니다.</Text></View>}
+   <View style={{marginHorizontal:12,marginTop:12,padding:14,borderRadius:14,backgroundColor:isDark?"#29292F":"#E9E9ED",borderWidth:1,borderColor:isDark?"#3B3B44":"#DEDEE4"}}>
+     <View style={{flexDirection:"row",alignItems:"center",gap:7,marginBottom:couponLoadState==="available"?8:0}}><Ionicons name="ticket-outline" size={19} color={isDark?"#F2F2F5":"#454550"}/><Text style={{fontSize:14,fontWeight:"900",color:isDark?"#F2F2F5":"#34343D"}}>쿠폰 혜택</Text></View>
+     {couponLoadState==="available"&&studioCoupons.slice(0,2).map(coupon=><View key={"top-coupon-"+coupon.id} style={{paddingVertical:8,borderTopWidth:1,borderTopColor:isDark?"#45454D":"#D7D7DE"}}><Text style={{fontSize:13,fontWeight:"800",color:isDark?"#F2F2F5":"#34343D"}}>{coupon.title}</Text>{!!coupon.discount_text&&<Text style={{fontSize:12,fontWeight:"800",color:isDark?"#D8D8E0":"#555560",marginTop:3}}>{coupon.discount_text}</Text>}{!!coupon.description&&<Text style={{fontSize:11,color:isDark?"#C1C1CA":"#666671",marginTop:3}}>{coupon.description}</Text>}</View>)}
+     {couponLoadState==="available"&&studioCoupons.length>2&&<Text style={{fontSize:11,color:isDark?"#C1C1CA":"#666671",marginTop:5}}>외 {studioCoupons.length-2}개 쿠폰</Text>}
+     {couponLoadState==="loading"&&<Text style={{fontSize:12,color:isDark?"#C1C1CA":"#666671"}}>쿠폰 정보를 확인하고 있습니다.</Text>}
+     {couponLoadState==="none"&&<Text style={{fontSize:12,color:isDark?"#C1C1CA":"#666671"}}>현재 제공 중인 쿠폰이 확인되지 않았습니다.</Text>}
+     {couponLoadState==="unverified"&&<Text style={{fontSize:12,color:isDark?"#C1C1CA":"#666671"}}>쿠폰 등록 여부를 확인할 수 없습니다. 학원에 문의해 주세요.</Text>}
+     {couponLoadState==="idle"&&<Text style={{fontSize:12,color:isDark?"#C1C1CA":"#666671"}}>쿠폰 정보를 아직 확인하지 않았습니다.</Text>}
+   </View>
    {(()=>{const durations=Array.from(new Set([...studioClasses.map(item=>Number(item.duration_minutes||0)),...(detailStudio.classDurations||[]).map(Number),Number(detailStudio.duration||0)].filter(value=>value>0))).sort((a,b)=>a-b);const classPrices=studioClasses.map(item=>Number(item.price||0)).filter(value=>value>0);const publicPrices=studioPublicPrices.map(item=>Number(item.amount_krw||0)).filter(value=>value>0);const amounts=classPrices.length?classPrices:publicPrices;const priceLabel=amounts.length?(amounts.length===1?"₩"+amounts[0].toLocaleString("ko-KR"):"₩"+Math.min(...amounts).toLocaleString("ko-KR")+" ~ ₩"+Math.max(...amounts).toLocaleString("ko-KR")):"가격표 확인 필요";const pricePeriod=classPrices.length?"수업 등록 가격":(studioPublicPrices.find(item=>Number(item.amount_krw||0)>0)?.price_period||"등록된 가격표");return <View style={{marginHorizontal:12,marginTop:14}}>
      <Text style={{fontSize:15,fontWeight:"900",color:isDark?"#F4F0FA":COLORS.ink,marginBottom:9}}>등록 전 핵심 정보</Text>
      <View style={{flexDirection:"row",gap:8}}>
-       <Pressable onPress={()=>setDetailInfoTab("schedule")} style={{flex:1,minHeight:94,padding:11,borderRadius:13,backgroundColor:isDark?"#282333":"#F2ECFF",borderWidth:1,borderColor:isDark?"#4B3B65":"#E2D5FA"}}><Ionicons name="time-outline" size={19} color={COLORS.purple}/><Text style={{fontSize:11,color:isDark?"#CFC3E6":COLORS.muted,marginTop:6}}>수업 시간</Text><Text numberOfLines={1} style={{fontSize:17,fontWeight:"900",color:isDark?"#F0E8FF":COLORS.purple,marginTop:2}}>{durations.length?durations.map(value=>value+"분").join(" · "):"미등록"}</Text></Pressable>
-       <Pressable onPress={()=>setDetailInfoTab("price")} style={{flex:1,minHeight:94,padding:11,borderRadius:13,backgroundColor:isDark?"#242A26":"#EDF7F0",borderWidth:1,borderColor:isDark?"#38513E":"#D6EBDD"}}><Ionicons name="wallet-outline" size={19} color={isDark?"#91D5A4":"#287A43"}/><Text style={{fontSize:11,color:isDark?"#C3D8C8":COLORS.muted,marginTop:6}}>수업 가격</Text><Text numberOfLines={1} adjustsFontSizeToFit style={{fontSize:16,fontWeight:"900",color:isDark?"#A9E2B7":"#287A43",marginTop:2}}>{priceLabel}</Text><Text numberOfLines={1} style={{fontSize:10,color:isDark?"#C3D8C8":COLORS.muted,marginTop:2}}>{pricePeriod}</Text></Pressable>
+       <Pressable onPress={()=>setDetailInfoTab("schedule")} style={{flex:1,minHeight:94,padding:11,borderRadius:13,backgroundColor:isDark?"#29292F":"#E9E9ED",borderWidth:1,borderColor:isDark?"#3B3B44":"#DEDEE4"}}><Ionicons name="time-outline" size={19} color={isDark?"#E2E2E8":"#555560"}/><Text style={{fontSize:11,color:isDark?"#C1C1CA":"#666671",marginTop:6}}>수업 시간</Text><Text numberOfLines={1} style={{fontSize:17,fontWeight:"900",color:isDark?"#F2F2F5":"#34343D",marginTop:2}}>{durations.length?durations.map(value=>value+"분").join(" · "):"정보 미등록"}</Text></Pressable>
+       <Pressable onPress={()=>setDetailInfoTab("price")} style={{flex:1,minHeight:94,padding:11,borderRadius:13,backgroundColor:isDark?"#29292F":"#E9E9ED",borderWidth:1,borderColor:isDark?"#3B3B44":"#DEDEE4"}}><Ionicons name="wallet-outline" size={19} color={isDark?"#E2E2E8":"#555560"}/><Text style={{fontSize:11,color:isDark?"#C1C1CA":"#666671",marginTop:6}}>수업 가격</Text><Text numberOfLines={1} adjustsFontSizeToFit style={{fontSize:16,fontWeight:"900",color:isDark?"#F2F2F5":"#34343D",marginTop:2}}>{amounts.length?priceLabel:"정보 미등록"}</Text><Text numberOfLines={1} style={{fontSize:10,color:isDark?"#C1C1CA":"#666671",marginTop:2}}>{amounts.length?pricePeriod:"학원 문의 필요"}</Text></Pressable>
      </View>
      <View style={{flexDirection:"row",gap:8,marginTop:8}}>
        <Pressable onPress={()=>setDetailTab("photos")} style={{flex:1,padding:11,borderRadius:12,backgroundColor:isDark?"#252525":"#F7F5FA",flexDirection:"row",alignItems:"center",gap:7}}><Ionicons name="images-outline" size={18} color={COLORS.purple}/><Text style={{fontSize:12,fontWeight:"800",color:isDark?"#E4DDF0":COLORS.ink}}>학원 사진 보기</Text></Pressable>
