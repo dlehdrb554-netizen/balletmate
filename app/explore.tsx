@@ -642,30 +642,39 @@ export default function Home() {
     const client=supabase;
     if(!client||!favoritesReady)return;
     let active=true;
+    let syncVersion=0;
+    let syncingUid:string|null=null;
     const syncForSession=async(session:any)=>{
       const uid=session?.user?.id||null;
+      const requestVersion=++syncVersion;
       if(!uid){
+        syncingUid=null;
         favoriteSyncUser.current=null;
         setFavoriteIds(guestFavoritesRef.current.ids);
         setFavoriteStudios(guestFavoritesRef.current.studios);
         return;
       }
-      if(favoriteSyncUser.current===uid)return;
+      if(favoriteSyncUser.current===uid||syncingUid===uid)return;
+      syncingUid=uid;
+      favoriteSyncUser.current=null;
+      const isCurrent=()=>active&&requestVersion===syncVersion;
       try{
         const {data:memberProfile,error:profileError}=await client.from("user_profiles").select("display_name").eq("user_id",uid).maybeSingle();
+        if(!isCurrent())return;
         if(profileError)throw profileError;
         if(!String(memberProfile?.display_name||"").trim())return;
-        favoriteSyncUser.current=uid;
         const {data:remote,error}=await client.from("user_favorites").select("studio_id,studio_snapshot").eq("user_id",uid);
+        if(!isCurrent())return;
         if(error)throw error;
-        if(!active)return;
         const remoteRows=remote||[];
         const remoteStudios=remoteRows.map((r:any)=>r.studio_snapshot).filter((s:any)=>s&&typeof s.id==="string");
         const remoteIds=[...new Set(remoteRows.map((r:any)=>r.studio_id).filter((id:any)=>typeof id==="string"))];
         const remoteIdSet=new Set(remoteIds);
         const localStudios=guestFavoritesRef.current.studios;
-        const mergedIds=[...new Set([...remoteIds,...guestFavoritesRef.current.ids])];
+        const localIds=guestFavoritesRef.current.ids;
+        const mergedIds=[...new Set([...remoteIds,...localIds])];
         const mergedStudios=[...remoteStudios,...localStudios.filter((studio:any)=>!remoteIdSet.has(studio.id))];
+        favoriteSyncUser.current=uid;
         setFavoriteStudios(mergedStudios);
         setFavoriteIds(mergedIds);
         const localRows=localStudios.filter((studio:any)=>!remoteIdSet.has(studio.id)).map((studio:any)=>({
@@ -673,16 +682,21 @@ export default function Home() {
         }));
         if(localRows.length){
           const {error:mergeError}=await client.from("user_favorites").upsert(localRows,{onConflict:"user_id,studio_id"});
+          if(!isCurrent())return;
           if(mergeError)console.warn("Guest favorite merge skipped:",mergeError);
         }
       }catch(e){
-        favoriteSyncUser.current=null;
-        console.warn("Favorite sync skipped:",e);
+        if(isCurrent()){
+          favoriteSyncUser.current=null;
+          console.warn("Favorite sync skipped:",e);
+        }
+      }finally{
+        if(syncingUid===uid)syncingUid=null;
       }
     };
-    client.auth.getSession().then(({data})=>syncForSession(data.session));
-    const {data:{subscription}}=client.auth.onAuthStateChange((_event,session)=>{syncForSession(session);});
-    return()=>{active=false;subscription.unsubscribe();};
+    client.auth.getSession().then(({data})=>{if(active)void syncForSession(data.session);});
+    const {data:{subscription}}=client.auth.onAuthStateChange((_event,session)=>{void syncForSession(session);});
+    return()=>{active=false;syncVersion++;subscription.unsubscribe();};
   },[favoritesReady]);
 
   useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(mapStudioRecord);setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted){setStudios([]);setBackendState("error");}});return()=>{mounted=false;};},[searchedRegion]);
