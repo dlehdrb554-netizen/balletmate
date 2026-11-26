@@ -108,7 +108,8 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>([]);
-  const [backendState,setBackendState]=useState<"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"error");
+  const [backendState,setBackendState]=useState<"loading"|"connected"|"empty"|"error">(supabaseConfigured?"empty":"error");
+  const [hasMapSearchRequested,setHasMapSearchRequested]=useState(false);
   const [backendErrorMessage,setBackendErrorMessage]=useState("학원 정보를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요.");
   const [region,setRegion]=useState(INITIAL);
   const [mapMoved,setMapMoved]=useState(false);
@@ -766,7 +767,7 @@ export default function Home() {
     return()=>{active=false;syncVersion++;subscription.unsubscribe();};
   },[favoritesReady]);
 
-  useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");setBackendErrorMessage("");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(mapStudioRecord);setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch((error:any)=>{if(mounted){setStudios([]);setBackendState("error");setBackendErrorMessage(getStudioLoadErrorMessage(error));}});return()=>{mounted=false;};},[searchedRegion]);
+  useEffect(()=>{if(!supabaseConfigured||!hasMapSearchRequested)return;let mounted=true;setBackendState("loading");setBackendErrorMessage("");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(mapStudioRecord);setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch((error:any)=>{if(mounted){setStudios([]);setBackendState("error");setBackendErrorMessage(getStudioLoadErrorMessage(error));}});return()=>{mounted=false;};},[searchedRegion,hasMapSearchRequested]);
   const searchArea=async()=>{
     const requestId=++areaSearchRequestId.current;
     const target=region;
@@ -981,7 +982,7 @@ export default function Home() {
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
         <KakaoMap ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} />
-        {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":"이 지역에서 재검색"}</Text></View></Pressable>}
+        {(!hasMapSearchRequested||mapMoved&&isAreaChanged)&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":hasMapSearchRequested?"이 지역에서 재검색":"현재 지역 학원 검색"}</Text></View></Pressable>}
         <Pressable style={styles.locateButton} onPress={()=>locate()}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
         <Pressable style={styles.mapCount} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}곳</Text>{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
         {selected&&<View style={styles.selectedCard} {...selectedCardPan.panHandlers}>{studioCard(selected,true)}<Pressable style={styles.dismiss} hitSlop={8} onPress={()=>setSelected(null)}><Text style={[styles.dismissText,{fontSize:28}]}>×</Text></Pressable></View>}
