@@ -28,6 +28,7 @@ type Props = {
   currentLocation?: { latitude: number; longitude: number } | null;
   onRegionChangeComplete?: (region: MapRegion) => void;
   onMarkerPress?: (id: string) => void;
+  darkMode?: boolean;
 };
 
 const JS_KEY = String(Constants.expoConfig?.extra?.kakaoJavascriptKey ?? "");
@@ -42,7 +43,7 @@ function buildHtml(initialRegion: MapRegion) {
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
-  var map=null, markers={}, markerMeta={}, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[];
+  var map=null, markers={}, markerMeta={}, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkOverlayAdded=false;
   var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
@@ -126,10 +127,37 @@ function buildHtml(initialRegion: MapRegion) {
     var center=map.getCenter(), bounds=map.getBounds(), sw=bounds.getSouthWest(), ne=bounds.getNorthEast();
     post({type:'region',region:{latitude:center.getLat(),longitude:center.getLng(),latitudeDelta:Math.max(0.002,ne.getLat()-sw.getLat()),longitudeDelta:Math.max(0.002,ne.getLng()-sw.getLng())}});
   }
+  function setDarkMode(enabled){
+    var load=document.getElementById('load');
+    var surface=enabled?'#18181B':'#f4f1f8';
+    document.body.style.background=surface;
+    document.getElementById('map').style.background=surface;
+    if(load)load.style.background=surface;
+    if(!map)return;
+    if(enabled&&!darkOverlayAdded){
+      if(!kakao.maps.MapTypeId.BALLET_DARK_DIM){
+        var dimTiles=new kakao.maps.Tileset({width:256,height:256,dark:true,getTile:function(){
+          var tile=document.createElement('div');
+          tile.style.width='256px';
+          tile.style.height='256px';
+          tile.style.background='rgba(18,20,24,0.46)';
+          tile.style.pointerEvents='none';
+          return tile;
+        }});
+        kakao.maps.Tileset.add('BALLET_DARK_DIM',dimTiles);
+      }
+      map.addOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
+      darkOverlayAdded=true;
+    }else if(!enabled&&darkOverlayAdded){
+      map.removeOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
+      darkOverlayAdded=false;
+    }
+  }
   function apply(message){
     if(!map){pending.push(message);return;}
     if(message.type==='markers')updateMarkers(message.markers,message.selectedId,message.searchedIds,message.compareIds,message.currentLocation);
     if(message.type==='animate')moveTo(message.region,message.duration);
+    if(message.type==='theme')setDarkMode(!!message.darkMode);
   }
   window.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
   document.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
@@ -183,7 +211,7 @@ function buildHtml(initialRegion: MapRegion) {
 }
 
 const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
-  { initialRegion, markers, selectedId, searchedIds, compareIds, currentLocation, onRegionChangeComplete, onMarkerPress },
+  { initialRegion, markers, selectedId, searchedIds, compareIds, currentLocation, onRegionChangeComplete, onMarkerPress, darkMode = false },
   ref
 ) {
   const webRef = useRef<WebView>(null);
@@ -194,7 +222,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
       const type=(message as any)?.type;
-      if(type==="markers"||type==="animate") pendingMessages.current=pendingMessages.current.filter(item=>JSON.parse(item).type!==type);
+      if(type==="markers"||type==="animate"||type==="theme") pendingMessages.current=pendingMessages.current.filter(item=>JSON.parse(item).type!==type);
       pendingMessages.current.push(serialized);
       return;
     }
@@ -205,6 +233,9 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
       sendToMap({ type: "animate", region, duration });
     },
   }), [sendToMap]);
+  useEffect(() => {
+    sendToMap({ type: "theme", darkMode });
+  }, [darkMode, sendToMap]);
   useEffect(() => {
     sendToMap({
       type: "markers",
@@ -232,6 +263,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
           compareIds: compareIds ?? [],
           currentLocation: currentLocation ?? null,
         }));
+        webRef.current?.postMessage(JSON.stringify({type:"theme",darkMode}));
       }
       if (message.type === "region" && message.region) onRegionChangeComplete?.(message.region);
       if (message.type === "marker" && typeof message.id === "string") onMarkerPress?.(message.id);
