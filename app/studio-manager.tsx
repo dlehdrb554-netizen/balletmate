@@ -21,6 +21,9 @@ export default function StudioManager(){
  const [session,setSession]=useState<any>(null);
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
+ const [studioSearch,setStudioSearch]=useState("");
+ const [studioSearchResults,setStudioSearchResults]=useState<any[]>([]);
+ const [studioSearchBusy,setStudioSearchBusy]=useState(false);
  const [owner,setOwner]=useState(false);
  const [application,setApplication]=useState<any>(null);
  const [verificationMethod,setVerificationMethod]=useState<"phone"|"blog"|"instagram"|"manual">("phone");
@@ -90,6 +93,19 @@ export default function StudioManager(){
  },[studioId]);
 
  useEffect(()=>{load();if(!supabase)return;const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>load());return()=>subscription.unsubscribe();},[load]);
+
+ const searchStudiosForApplication=async()=>{
+  const query=studioSearch.trim();
+  if(!supabase||query.length<2){Alert.alert("학원 검색","학원명을 2자 이상 입력해 주세요.");return;}
+  setStudioSearchBusy(true);
+  try{
+   const {data,error}=await supabase.from("studios").select("id,name,district,address").ilike("name","%"+query+"%").order("name").limit(30);
+   if(error)throw error;
+   setStudioSearchResults(data||[]);
+   if(!data?.length)Alert.alert("검색 결과","일치하는 학원을 찾지 못했습니다. 학원명을 다시 확인해 주세요.");
+  }catch(error:any){Alert.alert("학원 검색 실패",error?.message||"학원 목록을 불러오지 못했습니다.");}
+  finally{setStudioSearchBusy(false);}
+ };
 
  const saveProfile=async()=>{
   if(!supabase||!owner)return;
@@ -239,13 +255,25 @@ export default function StudioManager(){
   if(error)Alert.alert("공지 변경 실패",error.message);else await load();
  };
 
- const button=(label:string,onPress:()=>void,disabled=false,destructive=false)=><Pressable disabled={disabled} onPress={onPress} style={[s.button,destructive&&s.danger,disabled&&{opacity:0.5}]}><Text style={[s.buttonText,destructive&&{color:C.red}]}>{label}</Text></Pressable>;
+ const button=(label:string,onPress:()=>void,disabled=false,destructive=false)=><Pressable disabled={disabled} onPress={onPress} style={[s.button,{backgroundColor:isDark?"#493467":C.pale},destructive&&s.danger,disabled&&{opacity:0.5}]}><Text style={[s.buttonText,{color:isDark?"#FFFFFF":C.purple},destructive&&{color:C.red}]}>{label}</Text></Pressable>;
  const field=(label:string,value:string,onChangeText:(v:string)=>void,placeholder:string="",keyboardType:any="default")=><View style={{marginTop:12}}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} keyboardType={keyboardType} style={s.input}/></View>;
 
  return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
   <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
   <Text style={s.brand}>Balletmate · 학원 관리</Text><Text style={s.title}>{studioName}</Text>
-  {loading?<ActivityIndicator color={C.purple} style={{marginTop:28}}/>:!session?
+  {!studioId?
+   <View style={s.card}>
+    <Text style={s.cardTitle}>관리할 학원 검색</Text>
+    <Text style={s.body}>학원명을 검색한 뒤 해당 학원을 선택하면 관리자 권한 신청서를 작성할 수 있습니다.</Text>
+    {field("학원명",studioSearch,setStudioSearch,"학원 이름을 입력하세요")}
+    {button(studioSearchBusy?"검색 중…":"학원 검색",searchStudiosForApplication,studioSearchBusy)}
+    {studioSearchResults.map(item=><View key={item.id} style={s.item}>
+     <Text style={s.itemTitle}>{item.name}</Text>
+     <Text style={s.body}>{[item.district,item.address].filter(Boolean).join(" · ")||"주소 정보 없음"}</Text>
+     {button("이 학원 신청하기",()=>router.replace({pathname:"/studio-manager",params:{studioId:item.id,studioName:item.name}}))}
+    </View>)}
+   </View>
+  :loading?<ActivityIndicator color={C.purple} style={{marginTop:28}}/>:!session?
    <View style={s.card}><Text style={s.body}>학원 관리 권한을 신청하거나 관리 기능을 사용하려면 먼저 로그인해 주세요.</Text>{button("로그인하기",()=>router.push({pathname:"/account",params:{returnTo:"studio-manager",studioId,studioName}}))}</View>
   :owner?
    <>
@@ -304,7 +332,7 @@ const createS = (dark:boolean) => StyleSheet.create(themeStyles({
  card:{backgroundColor:"#fff",borderRadius:16,borderWidth:1,borderColor:C.line,padding:15,marginTop:12},
  cardTitle:{fontSize:15,fontWeight:"900",color:C.ink,marginBottom:7},body:{fontSize:12,lineHeight:19,color:C.muted,marginTop:5},
  label:{fontSize:12,fontWeight:"800",color:C.ink,marginBottom:6},input:{borderWidth:1,borderColor:C.line,borderRadius:11,paddingHorizontal:12,paddingVertical:11,fontSize:13,color:C.ink,backgroundColor:"#fff"},
- button:{backgroundColor:C.pale,borderRadius:11,padding:13,alignItems:"center",marginTop:12},buttonText:{fontSize:12,fontWeight:"900",color:C.purple},
+ button:{backgroundColor:C.pale,borderRadius:11,minHeight:50,paddingHorizontal:16,paddingVertical:14,alignItems:"center",justifyContent:"center",marginTop:12},buttonText:{fontSize:14,fontWeight:"900",color:C.purple},
  danger:{backgroundColor:"#FFF5F5",borderWidth:1,borderColor:"#E6C5C9"},status:{fontSize:17,fontWeight:"900",color:C.purple,marginVertical:6},
  item:{borderTopWidth:1,borderTopColor:C.line,paddingTop:10,marginTop:10},itemTitle:{fontSize:13,fontWeight:"800",color:C.ink}
 },dark));
