@@ -9,7 +9,11 @@ export function themeStyles<T>(styles:T,dark:boolean):T{
   if(value&&typeof value==="object"){const out:any={};for(const [k,v] of Object.entries(value))out[k]=walk(v,k);return out;}
   if(!isHex(value))return value;
   const light=luminance(value);
+  const rgb=normalizeHex(value);
+  const channels=[parseInt(rgb.slice(1,3),16),parseInt(rgb.slice(3,5),16),parseInt(rgb.slice(5,7),16)];
+  const chroma=(Math.max(...channels)-Math.min(...channels))/255;
   if(key==="backgroundColor"){
+   if(chroma>0.25&&light>0.25)return value;
    if(light>=0.88)return "#1E1E22";
    if(light>=0.55)return "#29292F";
    if(light>=0.18)return "#303036";
