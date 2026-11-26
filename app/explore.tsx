@@ -84,7 +84,7 @@ const parseArea=(area:string)=>{
  if(province==="세종시")return {province,city:"",detail:""};
  const inferredUnprefixedCity=UNPREFIXED_CITY_PROVINCES[normalizedFirst]===province;
  const cityToken=parts.slice(1).find(token=>/(시|군)$/.test(token))||"";
- const city=normalizedFirst==="세종"?"세종시":(cityToken||(inferredUnprefixedCity?normalizedFirst+"시":(parts[1]&&!/(구|군|도|시)$/.test(parts[1])?parts[1]+"시":"")));
+ const city=first.startsWith("세종")?"세종시":(cityToken||(inferredUnprefixedCity?normalizedFirst+"시":(parts[1]&&!/(구|군|도|시)$/.test(parts[1])?parts[1]+"시":"")));
  const district=parts.slice(1).find(token=>/(구|군)$/.test(token)&&token!==cityToken)||"";
  return {province,city,detail:district};
 };
