@@ -153,7 +153,7 @@ export default function Account(){
     <Pressable onPress={()=>router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="뒤로가기"><Text style={s.back}>‹ 돌아가기</Text></Pressable>
     <Text style={s.brand}>Balletmate<Text style={{color:C.purple}}>.</Text></Text>
     <Text style={s.title}>{session?"내 계정":"간편하게 시작하기"}</Text>
-    <Text style={s.sub}>{session?"로그인 정보와 연결된 계정을 관리할 수 있어요." :"아이디 또는 이메일로 로그인하거나 소셜 계정으로 간편하게 시작하세요."}</Text>
+    <Text style={s.sub}>{session?"로그인 정보와 연결된 계정을 관리할 수 있어요." :"소셜 계정으로 간편하게 시작하거나 기존 계정으로 로그인하세요."}</Text>
     {session?
      <View style={s.card}>
       <View style={s.avatar}><MaterialCommunityIcons name="human-female-dance" size={30} color={C.purple} /></View>
@@ -178,14 +178,7 @@ export default function Account(){
      :
      <View style={s.card}>
       <>
-       <Text style={s.legacyTitle}>아이디 또는 이메일 로그인</Text>
-       <Text style={s.label}>아이디 또는 이메일</Text>
-       <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={254} returnKeyType="next"/>
-       <Text style={s.label}>비밀번호</Text>
-       <View style={[s.input,{flexDirection:"row",alignItems:"center"}]}><TextInput style={{flex:1,height:"100%",padding:0,color:isDark?"#FFFFFF":C.ink}} value={pw} onChangeText={setPw} placeholder="비밀번호" placeholderTextColor={C.muted} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} onSubmitEditing={submitLegacyLogin} returnKeyType="go"/><Pressable onPress={()=>setShowPassword(value=>!value)} hitSlop={8} accessibilityRole="button" accessibilityLabel={showPassword?"비밀번호 숨기기":"비밀번호 표시"} accessibilityState={{selected:showPassword}} style={{width:40,height:44,alignItems:"center",justifyContent:"center"}}><MaterialCommunityIcons name={showPassword?"eye-off-outline":"eye-outline"} size={21} color={isDark?"#D0D0D0":C.muted}/></Pressable></View>
-       <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
-       <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
-       <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 소셜 계정으로 로그인</Text><View style={s.separatorLine}/></View>
+       <Text style={s.legacyTitle}>간편 로그인</Text>
        <View style={s.socialRow}>
         <Pressable style={[s.googleLoginButton,isDark&&s.googleLoginButtonDark]} disabled={!!loadingProvider} onPress={()=>signInSocial("google")} accessibilityRole="button" accessibilityLabel="Google 계정으로 계속">
          <View style={s.googleLogoWrap}><Image source={{uri:"https://developers.google.com/static/identity/images/g-logo.png"}} contentFit="contain" style={s.googleLogo}/></View>
@@ -196,6 +189,13 @@ export default function Account(){
          {loadingProvider==="kakao"&&<Text style={s.kakaoLoading}>연결 중…</Text>}
         </Pressable>
        </View>
+       <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 기존 계정으로 로그인</Text><View style={s.separatorLine}/></View>
+       <Text style={s.label}>아이디 또는 이메일</Text>
+       <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={254} returnKeyType="next"/>
+       <Text style={s.label}>비밀번호</Text>
+       <View style={[s.input,{flexDirection:"row",alignItems:"center"}]}><TextInput style={{flex:1,height:"100%",padding:0,color:isDark?"#FFFFFF":C.ink}} value={pw} onChangeText={setPw} placeholder="비밀번호" placeholderTextColor={C.muted} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} onSubmitEditing={submitLegacyLogin} returnKeyType="go"/><Pressable onPress={()=>setShowPassword(value=>!value)} hitSlop={8} accessibilityRole="button" accessibilityLabel={showPassword?"비밀번호 숨기기":"비밀번호 표시"} accessibilityState={{selected:showPassword}} style={{width:40,height:44,alignItems:"center",justifyContent:"center"}}><MaterialCommunityIcons name={showPassword?"eye-off-outline":"eye-outline"} size={21} color={isDark?"#D0D0D0":C.muted}/></Pressable></View>
+       <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
+       <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
        <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
       </>
      </View>
@@ -215,19 +215,19 @@ const createS = (dark:boolean) => StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:8,paddingBottom:24},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
  brand:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:18},title:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:14},
  sub:{fontSize:13,color:C.muted,marginTop:8,lineHeight:19},card:{backgroundColor:"#fff",borderRadius:18,borderWidth:1,borderColor:C.line,padding:16,marginTop:20},
- socialRow:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,marginTop:14,marginBottom:4},
+ socialRow:{flexDirection:"column",alignItems:"stretch",justifyContent:"center",gap:10,marginTop:14,marginBottom:4},
  socialItem:{minWidth:52,alignItems:"center",gap:7},
- googleLoginButton:{flex:1,minWidth:0,height:52,paddingLeft:10,paddingRight:10,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:9,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
- googleConnectButton:{flex:1,minWidth:0,height:44,paddingHorizontal:8,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:7,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
+ googleLoginButton:{width:"100%",height:52,paddingLeft:12,paddingRight:12,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
+ googleConnectButton:{width:"100%",height:48,paddingHorizontal:12,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
  googleLoginButtonDark:{backgroundColor:"#131314",borderColor:"#8E918F"},
  googleLogoWrap:{width:24,height:24,borderRadius:12,backgroundColor:"#FFFFFF",alignItems:"center",justifyContent:"center"},
  googleLogo:{width:18,height:18},
- googleLoginText:{flexShrink:1,fontSize:12,fontWeight:"600",color:"#1F1F1F",textAlign:"center"},
+ googleLoginText:{flexShrink:1,fontSize:14,lineHeight:20,fontWeight:"500",color:"#1F1F1F",textAlign:"center"},
  googleLoginTextDark:{color:"#E3E3E3"},
- kakaoLoginButton:{flex:1,minWidth:0,height:52,justifyContent:"center",alignItems:"center",borderRadius:12,overflow:"hidden"},
+ kakaoLoginButton:{width:"100%",height:52,justifyContent:"center",alignItems:"center",borderRadius:12,overflow:"hidden"},
  kakaoLoginImage:{width:"100%",height:52},
  kakaoLoading:{position:"absolute",fontSize:12,fontWeight:"800",color:"#000000",backgroundColor:"#FEE500",paddingHorizontal:8,paddingVertical:3,borderRadius:6},
- kakaoConnectButton:{flex:1,minWidth:0,height:44,paddingHorizontal:8,alignItems:"center",justifyContent:"center",backgroundColor:"#FEE500",borderRadius:12},
+ kakaoConnectButton:{width:"100%",height:48,paddingHorizontal:12,alignItems:"center",justifyContent:"center",backgroundColor:"#FEE500",borderRadius:12},
  kakaoConnectText:{fontSize:13,fontWeight:"800",color:"#000000"},
  socialIconButton:{width:52,height:52,borderRadius:26,alignItems:"center",justifyContent:"center",borderWidth:1},
  googleIconCircle:{backgroundColor:"#FFFFFF",borderColor:"#DADCE0"},
