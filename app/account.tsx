@@ -161,13 +161,16 @@ export default function Account(){
 {adminRole===true&&<Pressable style={s.primary} onPress={()=>router.push("/admin")}><Text style={s.primaryText}>관리자 페이지</Text></Pressable>}
       <View style={s.connectedBox}>
        <Text style={s.connectedTitle}>소셜 계정 연결</Text>
-       <Pressable style={[s.googleButton,{backgroundColor:isDark?"#131314":"#FFFFFF",borderColor:isDark?"#8E918F":"#747775"}]} disabled={!!loadingProvider||connected("google")} onPress={()=>linkSocial("google")}>
-        <Text style={[s.googleText,{color:isDark?"#FFFFFF":"#1F1F1F"}]}>{connected("google")?"✓ Google 연결됨":loadingProvider==="google"?"연결 중…":"Google 계정 연결"}</Text>
-       </Pressable>
-       <Pressable style={[s.kakaoButton,{backgroundColor:"#FEE500"}]} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")}>
-        <View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoTail}/><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View>
-        <Text style={[s.kakaoText,{color:"#000000"}]}>{connected("kakao")?"✓ Kakao 연결됨":loadingProvider==="kakao"?"연결 중…":"카카오 계정 연결"}</Text>
-       </Pressable>
+       <View style={s.socialRow}>
+        <Pressable style={s.socialItem} disabled={!!loadingProvider||connected("google")} onPress={()=>linkSocial("google")} accessibilityRole="button" accessibilityLabel="Google 계정 연결">
+         <View style={[s.socialIconButton,s.googleIconCircle]}><Text style={s.googleMark}>G</Text></View>
+         <Text style={s.socialLabel}>{connected("google")?"연결됨":"Google"}</Text>
+        </Pressable>
+        <Pressable style={s.socialItem} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")} accessibilityRole="button" accessibilityLabel="카카오 계정 연결">
+         <View style={[s.socialIconButton,s.kakaoIconCircle]}><View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoTail}/><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View></View>
+         <Text style={s.socialLabel}>{connected("kakao")?"연결됨":"카카오"}</Text>
+        </Pressable>
+       </View>
       </View>
       <Pressable style={s.primary} disabled={loading} onPress={logout}><Text style={s.primaryText}>로그아웃</Text></Pressable>
       <Pressable style={s.deleteAccount} disabled={loading} onPress={deleteAccount}><Text style={s.deleteAccountText}>{loading?"처리 중…":"회원 탈퇴"}</Text></Pressable>
@@ -183,14 +186,16 @@ export default function Account(){
        <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
        <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
        <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 소셜 계정으로 로그인</Text><View style={s.separatorLine}/></View>
-       <Pressable style={[s.googleButton,{backgroundColor:isDark?"#131314":"#FFFFFF",borderColor:isDark?"#8E918F":"#747775"}]} disabled={!!loadingProvider} onPress={()=>signInSocial("google")}>
-        <Text style={s.googleMark}>G</Text>
-        <Text style={[s.googleText,{color:isDark?"#FFFFFF":"#1F1F1F"}]}>{loadingProvider==="google"?"Google 연결 중…":"Google로 계속하기"}</Text>
-       </Pressable>
-       <Pressable style={[s.kakaoButton,{backgroundColor:"#FEE500",borderWidth:0}]} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")}>
-        <View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View>
-        <Text style={[s.kakaoText,{color:"#000000"}]}>{loadingProvider==="kakao"?"연결 중…":"카카오 로그인"}</Text>
-       </Pressable>
+       <View style={s.socialRow}>
+        <Pressable style={s.socialItem} disabled={!!loadingProvider} onPress={()=>signInSocial("google")} accessibilityRole="button" accessibilityLabel="Google로 계속하기">
+         <View style={[s.socialIconButton,s.googleIconCircle]}><Text style={s.googleMark}>G</Text></View>
+         <Text style={s.socialLabel}>Google</Text>
+        </Pressable>
+        <Pressable style={s.socialItem} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")} accessibilityRole="button" accessibilityLabel="카카오 로그인">
+         <View style={[s.socialIconButton,s.kakaoIconCircle]}><View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View></View>
+         <Text style={s.socialLabel}>카카오</Text>
+        </Pressable>
+       </View>
        <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
       </>
      </View>
@@ -210,14 +215,17 @@ const createS = (dark:boolean) => StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:8,paddingBottom:24},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
  brand:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:18},title:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:14},
  sub:{fontSize:13,color:C.muted,marginTop:8,lineHeight:19},card:{backgroundColor:"#fff",borderRadius:18,borderWidth:1,borderColor:C.line,padding:16,marginTop:20},
- googleButton:{height:50,borderWidth:1,borderColor:C.line,borderRadius:13,backgroundColor:"#fff",flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,marginTop:10},
- googleMark:{fontSize:19,fontWeight:"900",color:"#4285F4"},googleText:{fontSize:14,fontWeight:"800",color:C.ink},
- kakaoButton:{height:50,borderRadius:12,backgroundColor:C.yellow,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:9,marginTop:10},
- kakaoSymbol:{width:21,height:17,borderRadius:9,backgroundColor:"#000000",alignItems:"center",justifyContent:"center",position:"relative"},
+ socialRow:{flexDirection:"row",alignItems:"flex-start",justifyContent:"center",gap:28,marginTop:14,marginBottom:4},
+ socialItem:{minWidth:68,alignItems:"center",gap:7},
+ socialIconButton:{width:52,height:52,borderRadius:26,alignItems:"center",justifyContent:"center",borderWidth:1},
+ googleIconCircle:{backgroundColor:"#FFFFFF",borderColor:"#DADCE0"},
+ googleMark:{fontSize:23,fontWeight:"900",color:"#4285F4"},
+ kakaoIconCircle:{backgroundColor:"#FEE500",borderColor:"#E7D200"},
+ kakaoSymbol:{width:22,height:18,borderRadius:9,backgroundColor:"#000000",alignItems:"center",justifyContent:"center",position:"relative"},
  kakaoTail:{position:"absolute",width:6,height:6,backgroundColor:"#000000",bottom:-1,left:3,transform:[{rotate:"35deg"}]},
  kakaoDots:{flexDirection:"row",alignItems:"center",gap:2},
  kakaoDot:{width:2.5,height:2.5,borderRadius:2,backgroundColor:"#FEE500"},
- kakaoText:{fontSize:14,fontWeight:"900",color:"#000000"},
+ socialLabel:{fontSize:12,fontWeight:"700",color:dark?"#A1A1AA":C.muted},
  note:{fontSize:11,color:C.muted,lineHeight:17,marginTop:12},separator:{flexDirection:"row",alignItems:"center",gap:10,marginTop:22},
  separatorLine:{height:1,backgroundColor:C.line,flex:1},separatorText:{fontSize:11,color:C.muted},
  legacyLink:{alignItems:"center",paddingVertical:13},legacyLinkText:{fontSize:12,fontWeight:"800",color:C.purple},
