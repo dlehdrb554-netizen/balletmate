@@ -14,3 +14,6 @@ drop policy if exists "Members save own community bookmarks" on public.community
 create policy "Members save own community bookmarks" on public.community_post_bookmarks for insert to authenticated with check(user_id=auth.uid() and exists(select 1 from public.community_posts p where p.id=post_id));
 drop policy if exists "Members remove own community bookmarks" on public.community_post_bookmarks;
 create policy "Members remove own community bookmarks" on public.community_post_bookmarks for delete to authenticated using(user_id=auth.uid());
+
+-- Refresh PostgREST schema cache so the new table is immediately discoverable.
+notify pgrst, 'reload schema';
