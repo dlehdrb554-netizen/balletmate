@@ -66,7 +66,7 @@ begin
     or p_latitude not between 33 and 39 or p_longitude not between 124 and 132 then
   return query select false,null::uuid; return;
  end if;
- if (p_name ~* '(댄스[[:space:]]*스튜디오|댄스[[:space:]]*스포츠|폴[[:space:]]*댄스|밸리[[:space:]]*댄스|dance[[:space:]]*studio|dance[[:space:]]*sports|pole[[:space:]]*dance|belly[[:space:]]*dance)') then
+ if (p_name ~* '(댄스[[:space:]]*스튜디오|댄스[[:space:]]*스포츠|폴[[:space:]]*댄스|(밸리|벨리)[[:space:]]*댄스|dance[[:space:]]*studio|dance[[:space:]]*sports|pole[[:space:]]*dance|belly[[:space:]]*dance)') then
   return query select false,null::uuid; return;
  end if;
  normalized_name:=lower(regexp_replace(trim(p_name),'[^a-z0-9가-힣]','','g'));
