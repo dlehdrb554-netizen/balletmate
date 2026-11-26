@@ -43,7 +43,7 @@ function buildHtml(initialRegion: MapRegion) {
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
-  var map=null, markers={}, markerMeta={}, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkOverlayAdded=false;
+  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkOverlayAdded=false, regionTimer=null;
   var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
@@ -88,8 +88,9 @@ function buildHtml(initialRegion: MapRegion) {
       var pos=new kakao.maps.LatLng(item.latitude,item.longitude);
       if(!markers[item.id]){
         var marker=new kakao.maps.Marker({position:pos,image:pinImage(markerState(item.id,selectedId,currentSearched,currentCompared)),title:item.name});
-        marker.setMap(map);
-        kakao.maps.event.addListener(marker,'click',function(){updateSelectedMarker(item.id);post({type:'marker',id:item.id});});
+        if(clusterer)clusterer.addMarker(marker,true);else marker.setMap(map);
+        markerListeners[item.id]=function(){updateSelectedMarker(item.id);post({type:'marker',id:item.id});};
+        kakao.maps.event.addListener(marker,'click',markerListeners[item.id]);
         markers[item.id]=marker;
         markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,state:markerState(item.id,selectedId,currentSearched,currentCompared)};
       }else{
@@ -101,7 +102,8 @@ function buildHtml(initialRegion: MapRegion) {
         markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,state:state};
       }
     });
-    Object.keys(markers).forEach(function(id){if(!keep[id]){markers[id].setMap(null);delete markers[id];delete markerMeta[id];}});
+    Object.keys(markers).forEach(function(id){if(!keep[id]){if(clusterer)clusterer.removeMarker(markers[id],true);kakao.maps.event.removeListener(markers[id],'click',markerListeners[id]);markers[id].setMap(null);delete markers[id];delete markerMeta[id];delete markerListeners[id];}});
+    if(clusterer)clusterer.repaint();
     if(location && location.latitude!=null && location.longitude!=null){
       var here=new kakao.maps.LatLng(location.latitude,location.longitude);
       if(!currentMarker){var locationSvg='<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="#ffffff" stroke="#3478F6" stroke-width="3"/><circle cx="18" cy="18" r="7" fill="#3478F6"/><circle cx="18" cy="18" r="3" fill="#ffffff"/></svg>';currentMarker=new kakao.maps.Marker({position:here,image:new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(locationSvg),new kakao.maps.Size(36,36),{offset:new kakao.maps.Point(18,18)}),zIndex:1000});currentMarker.setMap(map);}
@@ -123,6 +125,11 @@ function buildHtml(initialRegion: MapRegion) {
     window.setTimeout(emitRegion,Math.max(80,Math.min(250,duration||120)));
   }
   function emitRegion(){
+    if(!map)return;
+    if(regionTimer)clearTimeout(regionTimer);
+    regionTimer=setTimeout(function(){emitRegionNow();},350);
+  }
+  function emitRegionNow(){
     if(!map)return;
     var center=map.getCenter(), bounds=map.getBounds(), sw=bounds.getSouthWest(), ne=bounds.getNorthEast();
     post({type:'region',region:{latitude:center.getLat(),longitude:center.getLng(),latitudeDelta:Math.max(0.002,ne.getLat()-sw.getLat()),longitudeDelta:Math.max(0.002,ne.getLng()-sw.getLng())}});
@@ -159,6 +166,7 @@ function buildHtml(initialRegion: MapRegion) {
     if(message.type==='animate')moveTo(message.region,message.duration);
     if(message.type==='theme')setDarkMode(!!message.darkMode);
   }
+  window.addEventListener('pagehide',function(){if(regionTimer)clearTimeout(regionTimer);if(clusterer)clusterer.clear();Object.keys(markers).forEach(function(id){kakao.maps.event.removeListener(markers[id],'click',markerListeners[id]);markers[id].setMap(null);});if(currentMarker)currentMarker.setMap(null);});
   window.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
   document.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
   function fail(reason){
@@ -175,6 +183,7 @@ function buildHtml(initialRegion: MapRegion) {
     try{
       var mapEl=document.getElementById('map');
       map=new kakao.maps.Map(mapEl,{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level}});
+      if(kakao.maps.MarkerClusterer){clusterer=new kakao.maps.MarkerClusterer({map:map,averageCenter:true,minLevel:6,styles:[{width:'42px',height:'42px',background:'rgba(101,59,183,0.92)',borderRadius:'21px',color:'#fff',textAlign:'center',fontWeight:'700',lineHeight:'42px',fontSize:'13px'}]});}
       kakao.maps.event.addListener(map,'dragend',emitRegion);
       kakao.maps.event.addListener(map,'zoom_changed',emitRegion);
       // WebView can initially report a very small height on compact devices.
@@ -183,6 +192,7 @@ function buildHtml(initialRegion: MapRegion) {
         if(!map)return;
         var center=map.getCenter();
         kakao.maps.event.trigger(map,'resize');
+        if(typeof map.relayout==='function')map.relayout();
         if(center)map.setCenter(center);
       };
       if(typeof ResizeObserver!=='undefined'){
@@ -199,7 +209,7 @@ function buildHtml(initialRegion: MapRegion) {
     }catch(e){fail('지도 초기화 오류: '+(e&&e.message?e.message:String(e)));}
   }
   var sdk=document.createElement('script');
-  sdk.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey=${JS_KEY}&autoload=false';
+  sdk.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey=${JS_KEY}&autoload=false&libraries=clusterer';
   sdk.onload=function(){
     if(!window.kakao || !window.kakao.maps){fail('SDK 응답은 받았지만 kakao.maps 객체가 없습니다. JavaScript 키 종류와 카카오맵 사용 설정을 확인해주세요.');return;}
     try{kakao.maps.load(initMap);}catch(e){fail('SDK 실행 오류: '+(e&&e.message?e.message:String(e)));}
