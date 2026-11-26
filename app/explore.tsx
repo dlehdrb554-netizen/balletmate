@@ -1187,12 +1187,12 @@ export default function Home() {
   {detailInfoTab==="price"&&<View>
    {studioClasses.filter(item=>Number(item.price||0)>0).map(item=><View key={"class-price-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{item.title}</Text><Text style={{fontSize:15,fontWeight:"900",color:COLORS.purple,marginTop:5}}>₩{Number(item.price).toLocaleString("ko-KR")}</Text><Text style={styles.classMeta}>{[item.duration_minutes?item.duration_minutes+"분":null,item.audience==="adult"?"성인":item.audience==="kids"?"키즈":null,item.level].filter(Boolean).join(" · ")}</Text></View>)}
    {studioPublicPrices.map(item=><View key={"public-price-"+item.id} style={styles.classBlock}>{item.amount_krw!==null&&<Text style={styles.classTitle}>{item.price_period||"등록 가격"} · ₩{Number(item.amount_krw).toLocaleString("ko-KR")}</Text>}<Image source={{uri:item.image_url}} style={{width:"100%",height:230,borderRadius:10,backgroundColor:"#FFFFFF",marginTop:6}} resizeMode="contain"/></View>)}
-   {!studioClasses.some(item=>Number(item.price||0)>0)&&!studioPublicPrices.length&&<Text style={styles.filterHint}>등록된 가격 정보가 없습니다. 학원에 문의해 주세요.</Text>}
+   {!studioClasses.some(item=>Number(item.price||0)>0)&&!studioPublicPrices.length&&<Text style={styles.filterHint}>가격 정보가 아직 등록되지 않았습니다. 정확한 금액은 학원에 문의해 주세요.</Text>}
   </View>}
   {detailInfoTab==="schedule"&&<View>
    {studioClasses.map(item=><View key={"class-schedule-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{item.title}</Text><Text style={styles.classMeta}>{[item.duration_minutes?item.duration_minutes+"분":null,item.audience==="adult"?"성인":item.audience==="kids"?"키즈":null,item.level,item.class_type].filter(Boolean).join(" · ")||"수업 세부 정보"}</Text>{item.class_sessions.map((session,index)=><Text key={item.id+"-session-"+index} style={styles.sessionText}>{session.start_time}{session.end_time?" ~ "+session.end_time:""}{session.note?" · "+session.note:""}</Text>)}</View>)}
    {studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}>{!!item.schedule_text&&<Text style={styles.classTitle}>{item.schedule_text}</Text>}<Image source={{uri:item.image_url}} style={{width:"100%",height:230,borderRadius:10,backgroundColor:"#FFFFFF",marginTop:6}} resizeMode="contain"/></View>)}
-   {!studioClasses.length&&!studioPublicSchedules.length&&<Text style={styles.filterHint}>등록된 시간표가 없습니다.</Text>}
+   {!studioClasses.length&&!studioPublicSchedules.length&&<Text style={styles.filterHint}>시간표가 아직 등록되지 않았습니다. 수업 요일과 시간은 학원에 문의해 주세요.</Text>}
   </View>}
   <View style={{marginTop:16}}><Text style={styles.sectionTitle}>수업 대상 및 수준</Text>
    <View style={styles.infoRow}><Text style={styles.infoLabel}>수업 대상</Text><Text style={styles.infoValue}>{[detailStudio.adult?"성인":null,detailStudio.kids?"키즈":null].filter(Boolean).join(" · ")||"미등록"}</Text></View>
