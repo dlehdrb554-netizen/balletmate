@@ -4,7 +4,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, Animated, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, useColorScheme} from "react-native";
+  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, useColorScheme} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
 import { fetchStudios, fetchStudioById, searchStudiosByName, searchStudiosByKakao, isExcludedStudioSearchResult, StudioRecord } from "../lib/studios";
@@ -315,6 +315,19 @@ export default function Home() {
   const [compareScheduleData,setCompareScheduleData]=useState<Record<string,StudioPublicSchedule[]>>({});
   const [compareClassLoading,setCompareClassLoading]=useState(false);
   const [compareMaterialError,setCompareMaterialError]=useState<string|null>(null);
+  useEffect(()=>{
+    const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
+      if(mapSettingsOpen){setMapSettingsOpen(false);setPendingDirectionsStudio(null);return true;}
+      if(menuOpen){setMenuOpen(false);return true;}
+      if(compareOpen){setCompareOpen(false);return true;}
+      if(regionPickerOpen){setRegionPickerOpen(false);return true;}
+      if(filterOpen){setFilterOpen(false);return true;}
+      if(detailStudio){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);return true;}
+      if(view!=="map"){setView("map");return true;}
+      return false;
+    });
+    return()=>subscription.remove();
+  },[mapSettingsOpen,menuOpen,compareOpen,regionPickerOpen,filterOpen,detailStudio,view]);
   useEffect(()=>{
     if(!compareOpen||compareIds.length===0){setCompareMaterialError(null);return;}
     let active=true;
