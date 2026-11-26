@@ -5,7 +5,7 @@ import {useRouter} from "expo-router";
 import {SafeAreaView} from "react-native-safe-area-context";
 import {supabase} from "../lib/supabase";
 
-const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0"};
+const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F3F0FF",line:"#EAE7F0"};
 export default function CompleteProfile(){
  const isDark=useColorScheme()==="dark";
  const s=useMemo(()=>createS(isDark),[isDark]);
