@@ -14,23 +14,39 @@ export type StudioClass = {
 const classCache = new Map<string, { savedAt: number; rows: StudioClass[] }>();
 const inFlightClassRequests = new Map<string, Promise<StudioClass[]>>();
 const CLASS_CACHE_MS = 10 * 60_000;
-const MAX_CLASS_REQUESTS_PER_APP_SESSION = 25;
-let classRequests = 0;
+const MAX_CLASS_CACHE_ENTRIES = 100;
+
+function pruneClassCache(now: number) {
+  for (const [studioId, cached] of classCache) {
+    if (now - cached.savedAt >= CLASS_CACHE_MS) classCache.delete(studioId);
+  }
+  // Keep memory bounded without preventing users from opening additional studios.
+  while (classCache.size > MAX_CLASS_CACHE_ENTRIES) {
+    const oldestStudioId = classCache.keys().next().value;
+    if (!oldestStudioId) break;
+    classCache.delete(oldestStudioId);
+  }
+}
 
 export async function fetchClassesForStudio(studioId: string): Promise<StudioClass[]> {
-  if (!supabase) return [];
+  if (!supabase || !studioId) return [];
+
+  const now = Date.now();
+  pruneClassCache(now);
   const cached = classCache.get(studioId);
-  if (cached && Date.now() - cached.savedAt < CLASS_CACHE_MS) return cached.rows;
+  if (cached && now - cached.savedAt < CLASS_CACHE_MS) {
+    // Refresh insertion order so frequently used studios remain in the bounded cache.
+    classCache.delete(studioId);
+    classCache.set(studioId, cached);
+    return cached.rows;
+  }
 
   const inFlight = inFlightClassRequests.get(studioId);
   if (inFlight) return inFlight;
-  if (classRequests >= MAX_CLASS_REQUESTS_PER_APP_SESSION) {
-    throw new Error("이번 앱 실행 중 시간표 조회 한도(25회)에 도달했습니다. 잠시 후 앱을 다시 실행해 주세요.");
-  }
 
-  classRequests += 1;
+  const client = supabase;
   const request = (async () => {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("classes")
       .select("id,title,audience,level,class_type,duration_minutes,price,class_sessions(weekday,start_time,end_time,note,is_active)")
       .eq("studio_id", studioId)
@@ -42,14 +58,12 @@ export async function fetchClassesForStudio(studioId: string): Promise<StudioCla
       class_sessions: (row.class_sessions ?? []).filter((session) => session.is_active !== false),
     }));
     classCache.set(studioId, { savedAt: Date.now(), rows });
+    pruneClassCache(Date.now());
     return rows;
-  })().catch((error) => {
-    // Only failed requests release their slot; cache hits and limit rejections never do.
-    classRequests = Math.max(0, classRequests - 1);
-    throw error;
-  }).finally(() => {
+  })().finally(() => {
     if (inFlightClassRequests.get(studioId) === request) inFlightClassRequests.delete(studioId);
   });
+
   inFlightClassRequests.set(studioId, request);
   return request;
 }
