@@ -58,6 +58,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Install app dependencies
+        run: npm install --no-audit --no-fund
       - name: Check EAS token
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
