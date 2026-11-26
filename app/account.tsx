@@ -18,6 +18,7 @@ export default function Account(){
  const routeParams=useLocalSearchParams<{returnTo?:string;studioId?:string;studioName?:string}>();
  const [name,setName]=useState("");
  const [pw,setPw]=useState("");
+ const [showPassword,setShowPassword]=useState(false);
  const [loading,setLoading]=useState(false);
  const [loadingProvider,setLoadingProvider]=useState<"google"|"kakao"|null>(null);
  const [session,setSession]=useState<any>(null);
@@ -148,7 +149,7 @@ export default function Account(){
  return <SafeAreaView style={s.safe}>
   <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}>
    <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-    <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
+    <Pressable onPress={()=>router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="뒤로가기"><Text style={s.back}>‹ 돌아가기</Text></Pressable>
     <Text style={s.brand}>Balletmate<Text style={{color:C.purple}}>.</Text></Text>
     <Text style={s.title}>{session?"내 계정":"간편하게 시작하기"}</Text>
     <Text style={s.sub}>{session?"로그인 정보와 연결된 계정을 관리할 수 있어요." :"아이디 또는 이메일로 로그인하거나 소셜 계정으로 간편하게 시작하세요."}</Text>
@@ -177,7 +178,7 @@ export default function Account(){
        <Text style={s.label}>아이디 또는 이메일</Text>
        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={254} returnKeyType="next"/>
        <Text style={s.label}>비밀번호</Text>
-       <TextInput style={s.input} value={pw} onChangeText={setPw} placeholder="비밀번호" secureTextEntry autoCapitalize="none" onSubmitEditing={submitLegacyLogin} returnKeyType="go"/>
+       <View style={[s.input,{flexDirection:"row",alignItems:"center"}]}><TextInput style={{flex:1,height:"100%",padding:0,color:isDark?"#FFFFFF":C.ink}} value={pw} onChangeText={setPw} placeholder="비밀번호" placeholderTextColor={C.muted} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} onSubmitEditing={submitLegacyLogin} returnKeyType="go"/><Pressable onPress={()=>setShowPassword(value=>!value)} hitSlop={8} accessibilityRole="button" accessibilityLabel={showPassword?"비밀번호 숨기기":"비밀번호 표시"} accessibilityState={{selected:showPassword}} style={{width:40,height:44,alignItems:"center",justifyContent:"center"}}><MaterialCommunityIcons name={showPassword?"eye-off-outline":"eye-outline"} size={21} color={isDark?"#D0D0D0":C.muted}/></Pressable></View>
        <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
        <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
        <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 소셜 계정으로 로그인</Text><View style={s.separatorLine}/></View>
