@@ -993,7 +993,7 @@ export default function Home() {
   </View>
   <View style={{marginTop:10,backgroundColor:isDark?"#1D1D1D":rankMode==="views"?"#F7F4FF":"#F8F7FA",borderRadius:12,padding:12}}>
     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{fontSize:13,fontWeight:"900",color:rankMode==="views"?"#4B278F":COLORS.ink}}>{rankMode==="views"?"많이 본 학원":"즐겨찾기 많은 학원"}</Text>{rankMode==="views"&&<Text style={{fontSize:10,fontWeight:"700",color:COLORS.muted,backgroundColor:isDark?"#242424":"#fff",paddingHorizontal:8,paddingVertical:4,borderRadius:8}}>최근 7일</Text>}</View>
-    {rankLoading?<Text style={styles.photoCredit}>순위를 불러오는 중…</Text>:rankItems.length>0?rankItems.slice(0,5).map((r:any,i)=><Pressable key={r.studio_id} onPress={async()=>{try{const item=studios.find(studio=>studio.id===r.studio_id)||await fetchStudioById(r.studio_id).then(row=>row?mapStudioRecord(row):null);if(item)setSelectedRankStudio(item);else Alert.alert("학원 정보","학원 위치 정보를 불러오지 못했습니다.");}catch{Alert.alert("학원 정보","학원 정보를 불러오지 못했습니다.");}}} style={{marginTop:7,paddingVertical:9,paddingHorizontal:9,borderRadius:10,backgroundColor:isDark?"#1D1D1D":"#fff",borderWidth:1,borderColor:isDark?"#383838":selectedRankStudio?.id===r.studio_id?COLORS.purple:"#EAE5F1",flexDirection:"row",alignItems:"center",gap:8}}>
+    {rankLoading?<Text style={styles.photoCredit}>순위를 불러오는 중…</Text>:rankItems.length>0?rankItems.slice(0,5).map((r:any)=><Pressable key={r.studio_id} onPress={async()=>{try{const item=studios.find(studio=>studio.id===r.studio_id)||await fetchStudioById(r.studio_id).then(row=>row?mapStudioRecord(row):null);if(item)setSelectedRankStudio(item);else Alert.alert("학원 정보","학원 위치 정보를 불러오지 못했습니다.");}catch{Alert.alert("학원 정보","학원 정보를 불러오지 못했습니다.");}}} style={{marginTop:7,paddingVertical:9,paddingHorizontal:9,borderRadius:10,backgroundColor:isDark?"#1D1D1D":"#fff",borderWidth:1,borderColor:isDark?"#383838":selectedRankStudio?.id===r.studio_id?COLORS.purple:"#EAE5F1",flexDirection:"row",alignItems:"center",gap:8}}>
       <Ionicons name={rankMode==="views"?"eye-outline":"heart-outline"} size={18} color={COLORS.purple}/>
       <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} ellipsizeMode="tail" style={{fontSize:12,fontWeight:"800",color:COLORS.ink,lineHeight:17}}>{r.studio_name}</Text></View>
       <Text style={{fontSize:11,fontWeight:"900",color:"#4B278F",flexShrink:0}}>{rankMode==="views"?r.view_count+"회":r.favorite_count+"명"}</Text>
@@ -1092,7 +1092,7 @@ export default function Home() {
               <Text style={[styles.comparePrice,{fontSize:12}]}>{maxDuration>0?maxDuration+"분":"미등록"}</Text>
             </View>;
           })}
-        </View>
+        </View>}
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
