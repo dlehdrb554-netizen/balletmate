@@ -60,7 +60,7 @@ export default function Community(){
    if(requestId===postRequestId.current)setPosts((data||[]) as Post[]);
   }catch(error:any){if(requestId===postRequestId.current){setLoadError(true);Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}}
   finally{if(requestId===postRequestId.current){setLoading(false);setRefreshing(false);}}
- },[category,blockedUserIds]);
+ },[category]);
 
  useEffect(()=>{loadPosts();},[loadPosts]);
  useEffect(()=>{
@@ -252,9 +252,11 @@ export default function Community(){
   const postId=selectedPostIdRef.current;
   if(!postId||comment.post_id!==postId)return;
   Alert.alert("댓글 삭제","이 댓글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
-   const {error}=await client.from("community_comments").delete().eq("id",comment.id);
-   if(error){Alert.alert("삭제 실패",error.message);return;}
-   if(selectedPostIdRef.current===postId)await loadComments(postId);
+   try{
+    const {error}=await client.from("community_comments").delete().eq("id",comment.id);
+    if(error)throw error;
+    if(selectedPostIdRef.current===postId)await loadComments(postId);
+   }catch(error:any){Alert.alert("댓글 처리 실패",error?.message||"댓글을 삭제하거나 새로고침하지 못했습니다.");}
   }}]);
  };
 
