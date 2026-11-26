@@ -163,11 +163,11 @@ export default function Account(){
        <Text style={s.connectedTitle}>소셜 계정 연결</Text>
        <View style={s.socialRow}>
         <Pressable style={s.socialItem} disabled={!!loadingProvider||connected("google")} onPress={()=>linkSocial("google")} accessibilityRole="button" accessibilityLabel="Google 계정 연결">
-         <View style={[s.socialIconButton,s.googleIconCircle]}><Text style={s.googleMark}>G</Text></View>
+         <View style={[s.socialIconButton,s.googleIconCircle,{backgroundColor:"#FFFFFF",borderColor:"#DADCE0"}]}><Text style={s.googleMark}>G</Text></View>
          <Text style={s.socialLabel}>{connected("google")?"연결됨":"Google"}</Text>
         </Pressable>
         <Pressable style={s.socialItem} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")} accessibilityRole="button" accessibilityLabel="카카오 계정 연결">
-         <View style={[s.socialIconButton,s.kakaoIconCircle]}><View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoTail}/><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View></View>
+         <View style={[s.socialIconButton,s.kakaoIconCircle,{backgroundColor:"#FEE500",borderColor:"#E7D200"}]}><View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoTail}/><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View></View>
          <Text style={s.socialLabel}>{connected("kakao")?"연결됨":"카카오"}</Text>
         </Pressable>
        </View>
