@@ -82,8 +82,9 @@ const parseArea=(area:string)=>{
   return {province,city:"",detail:district};
  }
  if(province==="세종시")return {province,city:"",detail:""};
+ const inferredUnprefixedCity=UNPREFIXED_CITY_PROVINCES[normalizedFirst]===province;
  const cityToken=parts.slice(1).find(token=>/(시|군)$/.test(token))||"";
- const city=cityToken||(parts[1]&&!/(구|군|도|시)$/.test(parts[1])?parts[1]+"시":"");
+ const city=cityToken||(inferredUnprefixedCity?normalizedFirst+"시":(parts[1]&&!/(구|군|도|시)$/.test(parts[1])?parts[1]+"시":""));
  const district=parts.slice(1).find(token=>/(구|군)$/.test(token)&&token!==cityToken)||"";
  return {province,city,detail:district};
 };
@@ -535,7 +536,7 @@ export default function Home() {
   const handleMapMarkerPress=useCallback((id:string)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);},[results]);
   const allListAreas=useMemo(()=>[...new Set([...directoryAreas,...studios.map(studio=>studio.area)].filter(area=>area&&area!=="지역 정보 없음").map(canonicalArea))].sort((a,b)=>a.localeCompare(b,"ko")),[directoryAreas,studios]);
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active){setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);setDirectoryStudios(rows.map(mapStudioRecord));}}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
-  const listDistricts=useMemo(()=>allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity)),[allListAreas,regionProvince,regionCity]);
+  const listDistricts=useMemo(()=>allListAreas.filter(area=>{const parsed=parseArea(area);return PROVINCES.includes(parsed.province)&&(regionProvince==="전체"||parsed.province===regionProvince)&&(regionCity==="전체"||parsed.city===regionCity);}),[allListAreas,regionProvince,regionCity]);
   const regionGroups=useMemo(()=>{
     const groups:{province:string;cities:{city:string;areas:string[]}[]}[]=[];
     const byProvince=new Map<string,{province:string;cities:{city:string;areas:string[]}[]}>();
