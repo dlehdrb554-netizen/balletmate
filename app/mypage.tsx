@@ -46,7 +46,7 @@ export default function MyPage(){
 
     // Show the last known profile immediately, then refresh it from Supabase.
     const cacheKey="balletmate.profile."+currentUser.id;
-    const cachedRaw=await AsyncStorage.getItem(cacheKey);
+    const cachedRaw=await AsyncStorage.getItem(cacheKey).catch(()=>null);
     if(!alive)return;
     if(cachedRaw){
      try{
