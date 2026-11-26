@@ -151,7 +151,7 @@ export default function Community(){
  const submitPost=async()=>{
   if(!userId){requireLogin();return;}
   if(!supabase||!(await requireMemberProfile()))return;
-  if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목은 2자 이상, 내용은 2자 이상 입력해 주세요.");return;}
+  if(!title.trim()||!body.trim()){Alert.alert("내용 확인","제목과 내용을 입력해 주세요.");return;}
   setSubmitting(true);
   let uploadedPaths:string[]=[];
   try{
@@ -328,12 +328,12 @@ export default function Community(){
      <ScrollView style={{flexShrink:1}} contentContainerStyle={{paddingBottom:8}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
      <Text style={s.label}>게시판 선택</Text>
      <View style={s.categoryChoices}>{(["학원 추천","발레복 추천","자유"] as const).map(item=><Pressable key={item} onPress={()=>setNewCategory(item)} style={[s.filter,newCategory===item&&s.filterActive]}><Text style={[s.filterText,newCategory===item&&s.filterTextActive]}>{item}</Text></Pressable>)}</View>
-     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>제목 (2자 이상)</Text><Text style={{fontSize:11,color:title.trim().length>=2?C.purple:C.muted}}>{title.trim().length}/80자</Text></View>
-     <TextInput style={s.titleInput} value={title} onChangeText={setTitle} placeholder="게시글 제목을 입력해주세요. (최소 2자)" maxLength={80}/>
-     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>내용 (2자 이상)</Text><Text style={{fontSize:11,color:body.trim().length>=2?C.purple:C.muted}}>{body.trim().length}/5,000자</Text></View>
-     <TextInput style={s.bodyInput} value={body} onChangeText={setBody} placeholder="경험이나 추천 정보를 자세히 적어주세요. (최소 2자)" multiline textAlignVertical="top" maxLength={5000}/>
+     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>제목</Text><Text style={{fontSize:11,color:title.trim().length>=2?C.purple:C.muted}}>{title.trim().length}/80자</Text></View>
+     <TextInput style={s.titleInput} value={title} onChangeText={setTitle} placeholder="게시글 제목을 입력해주세요." maxLength={80}/>
+     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>내용</Text><Text style={{fontSize:11,color:body.trim().length>=2?C.purple:C.muted}}>{body.trim().length}/5,000자</Text></View>
+     <TextInput style={s.bodyInput} value={body} onChangeText={setBody} placeholder="경험이나 추천 정보를 자세히 적어주세요." multiline textAlignVertical="top" maxLength={5000}/>
      <View style={s.photoPickerRow}><View style={s.photoSlots}><Text style={s.photoPickerText}>사진 첨부 ({selectedPhotos.length}/4)</Text><View style={s.photoSlotList}>{[0,1,2,3].map(index=>{const photo=selectedPhotos[index];return <View key={index} style={s.photoSlot}>{photo?<><Image source={{uri:photo.uri}} style={s.photoSlotImage}/><Pressable style={s.photoRemove} onPress={()=>setSelectedPhotos(current=>current.filter((_,i)=>i!==index))} accessibilityRole="button" accessibilityLabel={`사진 ${index+1} 삭제`}><Text style={s.photoRemoveText}>×</Text></Pressable></>:<Pressable style={s.photoSlotEmpty} onPress={pickPhotos} accessibilityRole="button" accessibilityLabel={`사진 ${index+1} 첨부`}><Ionicons name="camera-outline" size={25} color={C.purple}/></Pressable>}</View>;})}</View></View></View>
-     <Text style={s.cooldownNote}>제목과 내용은 각각 최소 2자, 최대 80자·5,000자까지 입력할 수 있습니다. 게시글 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
+     <Text style={s.cooldownNote}>제목은 최대 80자, 내용은 최대 5,000자까지 입력할 수 있습니다. 게시글 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
      </ScrollView>
      <Pressable style={[s.submitBtn,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitPost}><Text style={s.submitText}>{submitting?"등록 중…":"게시글 등록"}</Text></Pressable>
     </View>
