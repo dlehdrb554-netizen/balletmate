@@ -208,7 +208,6 @@ export default function Home() {
   })).current;
   const detailTabs=["home","notices","classes","reviews","photos"] as const;
   const detailTabRef=useRef(detailTab);detailTabRef.current=detailTab;
-  const detailTouchStart=useRef<{x:number;y:number}|null>(null);
   const detailSwipePan=useRef(PanResponder.create({
     onStartShouldSetPanResponder:()=>false,
     onMoveShouldSetPanResponder:(_,gesture)=>Math.abs(gesture.dx)>14&&Math.abs(gesture.dx)>Math.abs(gesture.dy)*1.35,
@@ -1041,7 +1040,7 @@ export default function Home() {
   </View>
 </View>}<FlatList data={visibleListRows} keyExtractor={i=>i.id} renderItem={renderStudioListItem} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" initialNumToRender={25} maxToRenderPerBatch={25} windowSize={7} onEndReached={loadMoreListRows} onEndReachedThreshold={0.45} ListFooterComponent={listRows.length>visibleListRows.length?<Pressable onPress={loadMoreListRows} style={{padding:16,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>학원 더 불러오기 · {visibleListRows.length}/{listRows.length}</Text></Pressable>:listRows.length>0?<Text style={{padding:16,textAlign:"center",fontSize:11,color:COLORS.muted}}>모든 학원을 확인했습니다.</Text>:null} ListEmptyComponent={<View style={{alignItems:"center",paddingHorizontal:24,paddingVertical:30,gap:9}}><Ionicons name="search-outline" size={28} color={COLORS.muted}/><Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":backendState==="error"?"학원 정보를 불러올 수 없습니다.":"조건에 맞는 학원이 없어요."}</Text>{view==="list"&&<>{backendState==="error"?<Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>서버 연결 상태를 확인한 뒤 다시 시도해 주세요.</Text>:<><Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>지역이나 수업 필터 때문에 결과가 없을 수 있어요.</Text><Pressable onPress={resetListFilters} style={{marginTop:4,paddingHorizontal:16,paddingVertical:9,borderRadius:10,backgroundColor:COLORS.pale}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>지역·검색·필터 초기화</Text></Pressable></>}</>}</View>}/></>}
     </View>
-    {compareIds.length>0&&<Pressable style={[styles.compareFloating,{bottom:Math.max(72,insets.bottom+72)},selected&&{bottom:Math.max(190,insets.bottom+190}]} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>비교 목록 · {compareIds.length}/3</Text></Pressable>}
+    {compareIds.length>0&&<Pressable style={[styles.compareFloating,{bottom:Math.max(72,insets.bottom+72)},selected&&{bottom:Math.max(190,insets.bottom+190)}]} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>비교 목록 · {compareIds.length}/3</Text></Pressable>}
     <Modal visible={searchResultsOpen} transparent animationType="fade" onRequestClose={()=>setSearchResultsOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={()=>setSearchResultsOpen(false)} />
