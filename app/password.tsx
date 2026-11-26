@@ -4,7 +4,7 @@ import {Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet
 import {SafeAreaView} from "react-native-safe-area-context";
 import {useRouter} from "expo-router";
 import {supabase} from "../lib/supabase";
-const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",line:"#EAE7F0",pale:"#F3F0FF"};
+const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",line:"#EAE7F0",pale:"#F3F0FF"};
 export default function PasswordChange(){
  const isDark=useColorScheme()==="dark";
  const s=useMemo(()=>createS(isDark),[isDark]);
