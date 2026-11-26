@@ -11,7 +11,7 @@ import { supabase } from "../lib/supabase";
 type Category="전체"|"학원 추천"|"발레복 추천"|"자유";
 type Post={id:string;author_id:string;author_name:string;category:Exclude<Category,"전체">;title:string;content:string;image_urls:string[];created_at:string};
 type Comment={id:string;post_id:string;author_id:string;author_name:string;content:string;created_at:string};
-const C={bg:"#FAF9FC",ink:"#252238",muted:"#8B879A",purple:"#7661D8",pale:"#F3F0FF",line:"#EAE7F0",red:"#D04444",green:"#18875B"};
+const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F3F0FF",line:"#EAE7F0",red:"#D04444",green:"#18875B"};
 const categories:Category[]=["전체","학원 추천","발레복 추천","자유"];
 const timeLabel=(value:string)=>{const date=new Date(value);return Number.isNaN(date.getTime())?"":date.toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});};
 const cooldownMessage="도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.";
