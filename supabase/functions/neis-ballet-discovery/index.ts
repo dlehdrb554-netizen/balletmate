@@ -3,9 +3,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const OFFICE_CODES = ["B10","C10","D10","E10","F10","G10","H10","I10","J10","K10","M10","N10","P10","Q10","R10","S10","T10"];
 const BALLET_RE = /발레|ballet|무용/i;
+const EXCLUDED_DANCE_STYLE = /(댄스\\s*스튜디오|댄스\\s*스포츠|폴\\s*댄스|밸리\\s*댄스|dance\\s*studio|dance\\s*sports|pole\\s*dance|belly\\s*dance)/i;
 const clean = (v: unknown) => String(v ?? "").trim();
 const norm = (v: unknown) => clean(v).toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
-const relevant = (row: Record<string, unknown>) => BALLET_RE.test([
+const relevant = (row: Record<string, unknown>) => !EXCLUDED_DANCE_STYLE.test([
+  row.ACA_NM, row.REALM_SC_NM, row.LE_ORD_NM, row.LE_CRSE_LIST_NM, row.LE_CRSE_NM
+].map(clean).join(" ")) && BALLET_RE.test([
   row.ACA_NM, row.REALM_SC_NM, row.LE_ORD_NM, row.LE_CRSE_LIST_NM, row.LE_CRSE_NM
 ].map(clean).join(" "));
 const isOpen = (row: Record<string, unknown>) => /개원|운영|등록/i.test(clean(row.REG_STTUS_NM)) && !/폐원|휴원|취소/i.test(clean(row.REG_STTUS_NM));
