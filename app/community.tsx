@@ -330,7 +330,7 @@ export default function Community(){
      <TextInput style={s.titleInput} value={title} onChangeText={setTitle} placeholder="어떤 정보를 나누고 싶으신가요?" maxLength={80}/>
      <Text style={s.label}>내용</Text>
      <TextInput style={s.bodyInput} value={body} onChangeText={setBody} placeholder="경험이나 추천 정보를 자세히 적어주세요." multiline textAlignVertical="top" maxLength={5000}/>
-     <View style={s.photoPickerRow}><Pressable style={s.photoPicker} onPress={pickPhotos}><Ionicons name="image-outline" size={18} color={C.purple}/><Text style={s.photoPickerText}>사진 첨부 ({selectedPhotos.length}/4)</Text></Pressable></View>
+     <View style={s.photoPickerRow}><Pressable style={[s.photoPicker,{minWidth:92,minHeight:82,flexDirection:"column",justifyContent:"center",alignItems:"center",gap:5}]} onPress={pickPhotos} accessibilityRole="button" accessibilityLabel="사진 첨부"><Ionicons name="camera" size={30} color={C.purple}/><Text style={s.photoPickerText}>사진 첨부 ({selectedPhotos.length}/4)</Text></Pressable></View>
      {!!selectedPhotos.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.photoPreviewRow}>{selectedPhotos.map((photo,index)=><View key={photo.assetId||photo.uri} style={s.photoPreviewWrap}><Image source={{uri:photo.uri}} style={s.photoPreview}/><Pressable style={s.photoRemove} onPress={()=>setSelectedPhotos(current=>current.filter((_,i)=>i!==index))}><Text style={s.photoRemoveText}>×</Text></Pressable></View>)}</ScrollView>}
      <Text style={s.cooldownNote}>게시글 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
      <Pressable style={[s.submitBtn,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitPost}><Text style={s.submitText}>{submitting?"등록 중…":"게시글 등록"}</Text></Pressable>
