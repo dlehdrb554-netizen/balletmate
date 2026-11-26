@@ -83,10 +83,6 @@ Deno.serve(async (req) => {
   const hasBounds = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
     Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
   const radius = hasBounds ? Math.min(20000, Math.max(1000, Math.floor(Number(body.radius) || 5000))) : null;
-  const latitude = Number(body.latitude), longitude = Number(body.longitude);
-  const hasBounds = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
-    Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
-  const radius = hasBounds ? Math.min(20000, Math.max(1000, Math.floor(Number(body.radius) || 5000))) : null;
   const cacheKey = [normalize(query), hasBounds ? latitude.toFixed(3) : "all", hasBounds ? longitude.toFixed(3) : "all", radius ?? 0].join(":");
   const cached = SEARCH_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return json(cached.payload);
