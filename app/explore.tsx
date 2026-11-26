@@ -679,6 +679,7 @@ export default function Home() {
       }
       const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
       const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
+      setHasMapSearchRequested(true);
       setPendingMapTarget(r);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setCurrentLocation({latitude:p.coords.latitude,longitude:p.coords.longitude});setMapMoved(false);
       // pendingMapTarget effect sends the single map movement command.
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 위치 서비스 설정을 확인하거나 지도를 직접 이동해 이용해주세요."); }
@@ -771,6 +772,7 @@ export default function Home() {
   const searchArea=async()=>{
     const requestId=++areaSearchRequestId.current;
     const target=region;
+    setHasMapSearchRequested(true);
     const queryAtStart=search.trim();
     setSearchedRegion(target);setAreaLocked(true);setMapMoved(false);setSelected(null);
     setSearchSubmitting(true);
