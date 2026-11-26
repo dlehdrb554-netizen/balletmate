@@ -185,9 +185,9 @@ export default function Account(){
         <Text style={s.googleMark}>G</Text>
         <Text style={s.googleText}>{loadingProvider==="google"?"Google 연결 중…":"Google로 계속하기"}</Text>
        </Pressable>
-       <Pressable style={s.kakaoButton} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")}>
-        <MaterialCommunityIcons name="chat" size={19} color="#191600"/>
-        <Text style={s.kakaoText}>{loadingProvider==="kakao"?"카카오 연결 중…":"카카오로 계속하기"}</Text>
+       <Pressable style={[s.kakaoButton,{backgroundColor:"#FEE500",borderWidth:0}]} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")}>
+        <MaterialCommunityIcons name="chat" size={20} color="#191600"/>
+        <Text style={[s.kakaoText,{color:"#191600"}]}>{loadingProvider==="kakao"?"카카오 연결 중…":"카카오로 계속하기"}</Text>
        </Pressable>
        <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
       </>
