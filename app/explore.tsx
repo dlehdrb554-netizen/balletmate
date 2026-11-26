@@ -716,7 +716,8 @@ export default function Home() {
     }catch(error:any){
       if(requestId===areaSearchRequestId.current){
         console.warn("Viewport Kakao search failed:",error);
-        const userMessage=getKakaoSearchErrorMessage(error);\n        Alert.alert(userMessage.title,userMessage.message);
+        const userMessage=getKakaoSearchErrorMessage(error);
+        Alert.alert(userMessage.title,userMessage.message);
       }
     }finally{
       if(requestId===areaSearchRequestId.current)setSearchSubmitting(false);
