@@ -1,7 +1,28 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+const json = (body: unknown, status = 200, extraHeaders: Record<string, string> = {}) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS, ...extraHeaders },
+  });
+
+async function hashClientAddress(address: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(address));
+  return [...new Uint8Array(signature)].map(value => value.toString(16).padStart(2, "0")).join("");
+}
 
 const normalize = (value: string) => value.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_./-]/g, "");
 
@@ -31,7 +52,7 @@ function queryVariants(raw: string): string[] {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" } });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   const kakaoKey = Deno.env.get("KAKAO_REST_API_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -44,6 +65,40 @@ Deno.serve(async (req) => {
   if (query.length < 2 || query.length > 80) return json({ error: "검색어는 2~80자로 입력해 주세요." }, 400);
 
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+  // Supabase's edge proxy supplies the client address. Use the final forwarded
+  // hop to avoid trusting a caller-controlled first x-forwarded-for entry.
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  const clientAddress = req.headers.get("cf-connecting-ip")?.trim() ||
+    req.headers.get("x-real-ip")?.trim() ||
+    forwardedFor?.split(",").map(value => value.trim()).filter(Boolean).at(-1) ||
+    "";
+  if (!clientAddress) return json({ error: "요청 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요." }, 503);
+
+  try {
+    const clientHash = await hashClientAddress(clientAddress, serviceKey);
+    const { data: limitRows, error: limitError } = await db.rpc("consume_kakao_search_rate_limit", {
+      p_client_hash: clientHash,
+    });
+    if (limitError) {
+      console.error("Kakao search rate-limit check failed:", limitError.message);
+      return json({ error: "검색 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요." }, 503);
+    }
+    const limit = Array.isArray(limitRows) ? limitRows[0] : null;
+    if (!limit?.allowed) {
+      const resetAt = limit?.reset_at ? new Date(limit.reset_at).getTime() : Date.now() + 60_000;
+      const retryAfter = Math.max(1, Math.ceil((resetAt - Date.now()) / 1000));
+      return json(
+        { error: "검색 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", retryAfter },
+        429,
+        { "Retry-After": String(retryAfter) },
+      );
+    }
+  } catch (error) {
+    console.error("Kakao search rate-limit error:", error);
+    return json({ error: "검색 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요." }, 503);
+  }
+
   const latitude = Number(body.latitude), longitude = Number(body.longitude);
   const hasBounds = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
     Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
