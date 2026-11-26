@@ -6,7 +6,7 @@ SET eligible=false,
     eligibility_reason='excluded_non_ballet_dance_style',
     updated_at=now()
 WHERE concat_ws(' ',academy_name,field_name,teaching_affiliation,course_list,course_name)
-  ~* '(댄스[[:space:]]*스튜디오|댄스[[:space:]]*스포츠|폴[[:space:]]*댄스|밸리[[:space:]]*댄스|dance[[:space:]]*studio|dance[[:space:]]*sports|pole[[:space:]]*dance|belly[[:space:]]*dance)';
+  ~* '(댄스[[:space:]]*스튜디오|댄스[[:space:]]*스포츠|폴[[:space:]]*댄스|(밸리|벨리)[[:space:]]*댄스|dance[[:space:]]*studio|dance[[:space:]]*sports|pole[[:space:]]*dance|belly[[:space:]]*dance)';
 
 create or replace function public.register_discovered_studio(
  p_name text,p_latitude double precision,p_longitude double precision,
