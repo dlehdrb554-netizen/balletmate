@@ -160,6 +160,10 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
  * Search Kakao Local only when the database name search has no result.
  * The Kakao REST key stays in the Edge Function, never in the mobile bundle.
  */
+const kakaoStudioSearchCache = new Map<string, { expiresAt: number; rows: StudioRecord[] }>();
+const kakaoStudioSearchInFlight = new Map<string, Promise<StudioRecord[]>>();
+const KAKAO_STUDIO_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+
 export async function searchStudiosByKakao(query: string, bounds?: SearchBounds): Promise<StudioRecord[]> {
   if (!supabase) return [];
   const term = query.trim().replace(/\s+/g, " ");
@@ -167,15 +171,37 @@ export async function searchStudiosByKakao(query: string, bounds?: SearchBounds)
   const radiusKmLat = bounds ? bounds.latitudeDelta * 111 / 2 : 0;
   const radiusKmLng = bounds ? bounds.longitudeDelta * 111 * Math.cos(bounds.latitude * Math.PI / 180) / 2 : 0;
   const radius = bounds ? Math.min(20000, Math.max(1000, Math.ceil(Math.sqrt(radiusKmLat ** 2 + radiusKmLng ** 2) * 1000))) : undefined;
-  const { data, error } = await supabase.functions.invoke("search-studios-kakao", {
-    body: bounds ? { query: term, latitude: bounds.latitude, longitude: bounds.longitude, radius } : { query: term },
-  });
-  if (error) throw error;
-  const rows = Array.isArray(data?.studios) ? data.studios : [];
-  if (!rows.length && Array.isArray(data?.errors) && data.errors.length) {
-    throw new Error(data.errors.join(" · ").slice(0, 240));
+  const key = [term.toLocaleLowerCase("ko-KR"), bounds?.latitude.toFixed(3) ?? "all", bounds?.longitude.toFixed(3) ?? "all", radius ?? 0].join(":");
+  const cached = kakaoStudioSearchCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.rows;
+  if (cached) kakaoStudioSearchCache.delete(key);
+  const pending = kakaoStudioSearchInFlight.get(key);
+  if (pending) return pending;
+
+  const request = (async () => {
+    const { data, error } = await supabase!.functions.invoke("search-studios-kakao", {
+      body: bounds ? { query: term, latitude: bounds.latitude, longitude: bounds.longitude, radius } : { query: term },
+    });
+    if (error) throw error;
+    const rows = Array.isArray(data?.studios) ? data.studios : [];
+    if (!rows.length && Array.isArray(data?.errors) && data.errors.length) {
+      throw new Error(data.errors.join(" · ").slice(0, 240));
+    }
+    const filtered = rows.filter((row:any)=>!isExcludedStudioSearchResult(row?.name)) as StudioRecord[];
+    if (kakaoStudioSearchCache.size >= 100) {
+      const now = Date.now();
+      for (const [cacheKey, value] of kakaoStudioSearchCache) if (value.expiresAt <= now) kakaoStudioSearchCache.delete(cacheKey);
+      if (kakaoStudioSearchCache.size >= 100) kakaoStudioSearchCache.delete(kakaoStudioSearchCache.keys().next().value!);
+    }
+    kakaoStudioSearchCache.set(key, { expiresAt: Date.now() + KAKAO_STUDIO_SEARCH_CACHE_TTL_MS, rows: filtered });
+    return filtered;
+  })();
+  kakaoStudioSearchInFlight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (kakaoStudioSearchInFlight.get(key) === request) kakaoStudioSearchInFlight.delete(key);
   }
-  return rows.filter((row:any)=>!isExcludedStudioSearchResult(row?.name)) as StudioRecord[];
 }
 
 const inFlightStudioSearches = new Map<string, Promise<StudioRecord[]>>();
