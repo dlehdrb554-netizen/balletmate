@@ -178,25 +178,25 @@ export default function Account(){
      :
      <View style={s.card}>
       <>
-       <Text style={s.legacyTitle}>간편 로그인</Text>
+       <Text style={s.legacyTitle}>소셜 계정으로 계속하기</Text>
        <View style={s.socialRow}>
         <Pressable style={[s.googleLoginButton,isDark&&s.googleLoginButtonDark]} disabled={!!loadingProvider} onPress={()=>signInSocial("google")} accessibilityRole="button" accessibilityLabel="Google 계정으로 계속">
          <View style={s.googleLogoWrap}><Image source={{uri:"https://developers.google.com/static/identity/images/g-logo.png"}} contentFit="contain" style={s.googleLogo}/></View>
          <Text style={[s.googleLoginText,isDark&&s.googleLoginTextDark]}>{loadingProvider==="google"?"연결 중…":"Google 계정으로 계속"}</Text>
         </Pressable>
-        <Pressable style={s.kakaoLoginButton} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")} accessibilityRole="button" accessibilityLabel={loadingProvider==="kakao"?"카카오 로그인 연결 중":"카카오 로그인"}>
+        <Pressable style={s.kakaoLoginButton} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")} accessibilityRole="button" accessibilityLabel={loadingProvider==="kakao"?"카카오 계정 연결 중":"카카오 계정으로 계속"}>
          <Image source={{uri:"https://developers.kakao.com/tool/images/resource/preview/login-complete-ko.svg"}} contentFit="contain" style={s.kakaoLoginImage}/>
          {loadingProvider==="kakao"&&<Text style={s.kakaoLoading}>연결 중…</Text>}
         </Pressable>
        </View>
-       <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 기존 계정으로 로그인</Text><View style={s.separatorLine}/></View>
+       <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 이메일로 계속하기</Text><View style={s.separatorLine}/></View>
        <Text style={s.label}>아이디 또는 이메일</Text>
        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={254} returnKeyType="next"/>
        <Text style={s.label}>비밀번호</Text>
        <View style={[s.input,{flexDirection:"row",alignItems:"center"}]}><TextInput style={{flex:1,height:"100%",padding:0,color:isDark?"#FFFFFF":C.ink}} value={pw} onChangeText={setPw} placeholder="비밀번호" placeholderTextColor={C.muted} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} onSubmitEditing={submitLegacyLogin} returnKeyType="go"/><Pressable onPress={()=>setShowPassword(value=>!value)} hitSlop={8} accessibilityRole="button" accessibilityLabel={showPassword?"비밀번호 숨기기":"비밀번호 표시"} accessibilityState={{selected:showPassword}} style={{width:40,height:44,alignItems:"center",justifyContent:"center"}}><MaterialCommunityIcons name={showPassword?"eye-off-outline":"eye-outline"} size={21} color={isDark?"#D0D0D0":C.muted}/></Pressable></View>
        <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
        <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
-       <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
+       <Text style={s.note}>Google·카카오 계정은 처음 이용하면 가입이 자동으로 진행되고, 기존 계정은 로그인됩니다.</Text>
       </>
      </View>
     }
