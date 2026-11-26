@@ -110,6 +110,12 @@ alter table public.community_reports enable row level security;
 revoke all on public.community_user_blocks from anon, authenticated;
 revoke all on public.community_reports from anon, authenticated;
 grant select, insert, delete on public.community_user_blocks to authenticated;
+-- Public community reads evaluate block-filter subqueries even for signed-out users.
+-- Give anon SELECT privilege, but expose no block rows through RLS.
+grant select on public.community_user_blocks to anon;
+drop policy if exists "anonymous cannot read community blocks" on public.community_user_blocks;
+create policy "anonymous cannot read community blocks"
+  on public.community_user_blocks for select to anon using (false);
 grant insert, select on public.community_reports to authenticated;
 grant all on public.community_reports to service_role;
 
