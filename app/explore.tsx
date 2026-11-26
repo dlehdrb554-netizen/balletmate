@@ -196,11 +196,12 @@ export default function Home() {
     onPanResponderTerminationRequest:()=>true,
   })).current;
   const detailTabs=["home","notices","reviews","photos"] as const;
+  const detailTabRef=useRef(detailTab);detailTabRef.current=detailTab;
   const detailTabSwipe=useRef(PanResponder.create({
     onStartShouldSetPanResponder:()=>false,
     onMoveShouldSetPanResponder:(_,g)=>Math.abs(g.dx)>24&&Math.abs(g.dx)>Math.abs(g.dy)*1.35,
     onMoveShouldSetPanResponderCapture:(_,g)=>Math.abs(g.dx)>24&&Math.abs(g.dx)>Math.abs(g.dy)*1.35,
-    onPanResponderRelease:(_,g)=>{if(Math.abs(g.dx)<55||Math.abs(g.dx)<Math.abs(g.dy)*1.2)return;const index=detailTabs.indexOf(detailTab);const next=Math.max(0,Math.min(detailTabs.length-1,index+(g.dx<0?1:-1)));if(next!==index)setDetailTab(detailTabs[next]);},
+    onPanResponderRelease:(_,g)=>{if(Math.abs(g.dx)<55||Math.abs(g.dx)<Math.abs(g.dy)*1.2)return;const index=detailTabs.indexOf(detailTabRef.current);const next=Math.max(0,Math.min(detailTabs.length-1,index+(g.dx>0?1:-1)));if(next!==index)setDetailTab(detailTabs[next]);},
     onPanResponderTerminationRequest:()=>true,
   })).current;
   const detailPan=useRef(PanResponder.create({
