@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
@@ -18,6 +18,7 @@ const cooldownMessage="도배 방지를 위해 작성 후 30초가 지나야 다
 
 export default function Community(){
  const isDark=useColorScheme()==="dark";
+  const insets=useSafeAreaInsets();
  const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
  const params=useLocalSearchParams<{postId?:string}>();
@@ -308,7 +309,7 @@ export default function Community(){
   }
 
   <Modal visible={termsConsentOpen} transparent animationType="fade" onRequestClose={()=>setTermsConsentOpen(false)}>
-   <View style={s.shade}><View style={[s.modal,{maxHeight:"86%"}]}>
+   <View style={[s.shade,{paddingBottom:insets.bottom}]}><View style={[s.modal,{maxHeight:"88%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
     <View style={s.modalHead}><Text style={s.modalTitle}>커뮤니티 첫 이용 안내</Text><Pressable onPress={()=>setTermsConsentOpen(false)}><Text style={s.close}>×</Text></Pressable></View>
     <ScrollView style={{marginTop:12}} contentContainerStyle={s.rulesContent} showsVerticalScrollIndicator={false}>
      <Text style={s.rulesIntro}>안전한 커뮤니티 이용을 위해 아래 내용을 확인하고 동의해 주세요. 동의 후 댓글과 게시글을 작성할 수 있습니다.</Text>
@@ -321,9 +322,10 @@ export default function Community(){
   </Modal>
 
   <Modal visible={composer} transparent animationType="slide" onRequestClose={()=>setComposer(false)}>
-   <KeyboardAvoidingView style={s.shade} behavior={Platform.OS==="ios"?"padding":undefined}>
-    <View style={s.modal}>
+   <KeyboardAvoidingView style={[s.shade,{paddingBottom:insets.bottom}]} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}>
+    <View style={[s.modal,{maxHeight:"90%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
      <View style={s.modalHead}><Text style={s.modalTitle}>새 게시글</Text><Pressable onPress={()=>setComposer(false)}><Text style={s.close}>×</Text></Pressable></View>
+     <ScrollView style={{flexShrink:1}} contentContainerStyle={{paddingBottom:8}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
      <Text style={s.label}>게시판 선택</Text>
      <View style={s.categoryChoices}>{(["학원 추천","발레복 추천","자유"] as const).map(item=><Pressable key={item} onPress={()=>setNewCategory(item)} style={[s.filter,newCategory===item&&s.filterActive]}><Text style={[s.filterText,newCategory===item&&s.filterTextActive]}>{item}</Text></Pressable>)}</View>
      <Text style={s.label}>제목</Text>
@@ -333,6 +335,7 @@ export default function Community(){
      <View style={s.photoPickerRow}><Pressable style={[s.photoPicker,{minWidth:92,minHeight:82,flexDirection:"column",justifyContent:"center",alignItems:"center",gap:5}]} onPress={pickPhotos} accessibilityRole="button" accessibilityLabel="사진 첨부"><Ionicons name="camera" size={30} color={C.purple}/><Text style={s.photoPickerText}>사진 첨부 ({selectedPhotos.length}/4)</Text></Pressable></View>
      {!!selectedPhotos.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.photoPreviewRow}>{selectedPhotos.map((photo,index)=><View key={photo.assetId||photo.uri} style={s.photoPreviewWrap}><Image source={{uri:photo.uri}} style={s.photoPreview}/><Pressable style={s.photoRemove} onPress={()=>setSelectedPhotos(current=>current.filter((_,i)=>i!==index))}><Text style={s.photoRemoveText}>×</Text></Pressable></View>)}</ScrollView>}
      <Text style={s.cooldownNote}>게시글 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
+     </ScrollView>
      <Pressable style={[s.submitBtn,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitPost}><Text style={s.submitText}>{submitting?"등록 중…":"게시글 등록"}</Text></Pressable>
     </View>
    </KeyboardAvoidingView>
@@ -347,5 +350,5 @@ const createS = (dark:boolean) => StyleSheet.create(themeStyles({postPhotos:{fle
  list:{padding:12,paddingBottom:24},postCard:{backgroundColor:"#fff",padding:13,borderRadius:16,borderWidth:1,borderColor:C.line,marginBottom:10},postTop:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},categoryBadge:{backgroundColor:C.pale,borderRadius:8,paddingHorizontal:9,paddingVertical:5,alignSelf:"flex-start"},categoryText:{fontSize:10,color:C.purple,fontWeight:"800"},meta:{fontSize:10,color:C.muted},cardTitle:{fontSize:16,fontWeight:"900",color:C.ink,marginTop:11},preview:{fontSize:12,color:"#625E70",lineHeight:18,marginTop:6},cardFoot:{flexDirection:"row",justifyContent:"space-between",marginTop:13},author:{fontSize:11,color:C.muted,fontWeight:"700"},openLabel:{fontSize:11,color:C.purple,fontWeight:"800"},empty:{textAlign:"center",color:C.muted,padding:28,fontSize:13},
  detailContent:{padding:14,paddingBottom:24},postDetail:{backgroundColor:"#fff",borderRadius:17,borderWidth:1,borderColor:C.line,padding:16},postTitle:{fontSize:20,fontWeight:"900",color:C.ink,marginTop:12},postBody:{fontSize:14,color:"#4E4A5C",lineHeight:23,marginTop:20},section:{fontSize:15,fontWeight:"900",color:C.ink,marginTop:22,marginBottom:10},comment:{backgroundColor:"#fff",borderRadius:12,padding:13,marginBottom:8,borderWidth:1,borderColor:C.line},moderationActions:{flexDirection:"row",justifyContent:"flex-end",gap:16,marginTop:10},commentTop:{flexDirection:"row",justifyContent:"space-between"},commentAuthor:{fontSize:12,color:C.ink,fontWeight:"800"},commentBody:{fontSize:13,color:"#555164",lineHeight:20,marginTop:8},deleteText:{fontSize:10,color:C.red,fontWeight:"700",marginTop:10,alignSelf:"flex-end"},
  commentComposer:{flexDirection:"row",alignItems:"flex-end",gap:8,marginTop:15},commentInput:{flex:1,minHeight:44,maxHeight:110,backgroundColor:"#fff",borderRadius:12,borderWidth:1,borderColor:C.line,padding:11,fontSize:13,color:C.ink},sendBtn:{backgroundColor:C.purple,paddingHorizontal:15,paddingVertical:13,borderRadius:11},sendText:{color:"#fff",fontWeight:"800",fontSize:12},cooldownNote:{fontSize:10,color:C.muted,lineHeight:16,marginTop:10},rulesContent:{paddingBottom:6},rulesIntro:{fontSize:13,color:"#4E4A5C",lineHeight:21,marginBottom:14},ruleRow:{flexDirection:"row",alignItems:"flex-start",gap:10,marginBottom:13},ruleNumber:{width:22,height:22,borderRadius:11,backgroundColor:C.pale,color:C.purple,fontSize:11,fontWeight:"900",textAlign:"center",textAlignVertical:"center",overflow:"hidden",paddingTop:3},ruleText:{flex:1,minWidth:0,fontSize:13,color:"#4E4A5C",lineHeight:21,flexShrink:1},termsFullLink:{paddingVertical:12,alignItems:"center"},legacyLink:{alignItems:"center",paddingVertical:8},legacyLinkText:{fontSize:12,fontWeight:"800",color:C.purple},
- shade:{flex:1,backgroundColor:"rgba(30,25,45,0.38)",justifyContent:"flex-end"},modal:{backgroundColor:"#fff",borderTopLeftRadius:22,borderTopRightRadius:22,padding:16,paddingBottom:20,maxHeight:"92%"},modalHead:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},modalTitle:{fontSize:20,fontWeight:"900",color:C.ink},close:{fontSize:25,color:C.muted},label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:17,marginBottom:8},categoryChoices:{flexDirection:"row",flexWrap:"wrap",gap:7},titleInput:{height:47,borderWidth:1,borderColor:C.line,borderRadius:11,paddingHorizontal:12,fontSize:13,color:C.ink},bodyInput:{minHeight:140,maxHeight:220,borderWidth:1,borderColor:C.line,borderRadius:11,padding:12,fontSize:13,color:C.ink},submitBtn:{backgroundColor:C.purple,borderRadius:12,padding:15,alignItems:"center",marginTop:15},submitText:{color:"#fff",fontWeight:"900"}
+ shade:{flex:1,backgroundColor:"rgba(20,16,32,0.55)",justifyContent:"flex-end"},modal:{backgroundColor:"#fff",borderTopLeftRadius:22,borderTopRightRadius:22,padding:16,paddingBottom:20,maxHeight:"92%"},modalHead:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},modalTitle:{fontSize:20,fontWeight:"900",color:C.ink},close:{fontSize:25,color:C.muted},label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:17,marginBottom:8},categoryChoices:{flexDirection:"row",flexWrap:"wrap",gap:7},titleInput:{height:47,borderWidth:1,borderColor:C.line,borderRadius:11,paddingHorizontal:12,fontSize:13,color:C.ink},bodyInput:{minHeight:140,maxHeight:220,borderWidth:1,borderColor:C.line,borderRadius:11,padding:12,fontSize:13,color:C.ink},submitBtn:{backgroundColor:C.purple,borderRadius:12,padding:15,alignItems:"center",marginTop:15},submitText:{color:"#fff",fontWeight:"900"}
 },dark));
