@@ -26,13 +26,13 @@ const s=StyleSheet.create({
  dark:{backgroundColor:"#101010"},
  header:{padding:16,borderBottomWidth:1,borderColor:"#EAE7F0"},
  darkBorder:{borderColor:"#383838"},
- back:{fontSize:12,color:"#9B8BE8",fontWeight:"800"},
+ back:{fontSize:12,color:"#653BB7",fontWeight:"800"},
  title:{fontSize:20,fontWeight:"900",color:"#252238",marginTop:12},
  lightText:{color:"#FFFFFF"},
  body:{padding:20},
  description:{fontSize:14,lineHeight:22,color:"#4E4A5C"},
- button:{marginTop:20,padding:15,borderRadius:12,backgroundColor:"#7661D8",alignItems:"center"},
+ button:{marginTop:20,padding:15,borderRadius:12,backgroundColor:"#653BB7",alignItems:"center"},
  buttonText:{fontSize:14,fontWeight:"900",color:"#FFFFFF"},
- note:{fontSize:12,lineHeight:19,color:"#8B879A",marginTop:14},
+ note:{fontSize:12,lineHeight:19,color:"#625E70",marginTop:14},
  mutedDark:{color:"#C2BDCC"}
 });
