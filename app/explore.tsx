@@ -731,7 +731,7 @@ export default function Home() {
   },[view,pendingMapTarget]);
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(durationFilter!==null?1:0)+(classTypeFilter?1:0)+(maxDistance!==null?1:0);
-  const toggleCompare=(studio:Studio)=>{
+  const toggleCompare=useCallback((studio:Studio)=>{
     if(compareIds.includes(studio.id)){
       setCompareIds(ids=>ids.filter(i=>i!==studio.id));
       setCompareCache(list=>list.filter(x=>x.id!==studio.id));
@@ -743,8 +743,8 @@ export default function Home() {
     }
     setCompareIds(ids=>[...ids,studio.id]);
     setCompareCache(list=>[studio,...list.filter(x=>x.id!==studio.id)]);
-  };
-  const toggleFavorite=(studio:Studio)=>{
+  },[compareIds]);
+  const toggleFavorite=useCallback((studio:Studio)=>{
     const removing=favoriteIds.includes(studio.id);
     const nextIds=removing?favoriteIds.filter(i=>i!==studio.id):[...favoriteIds,studio.id];
     const nextStudios=removing?favoriteStudios.filter(x=>x.id!==studio.id):[studio,...favoriteStudios.filter(x=>x.id!==studio.id)];
@@ -757,7 +757,7 @@ export default function Home() {
       if(removing) client.from("user_favorites").delete().eq("user_id",uid).eq("studio_id",studio.id).then(({error})=>{if(error)console.warn("Favorite delete sync failed",error);});
       else client.from("user_favorites").upsert({user_id:uid,studio_id:studio.id,studio_snapshot:studio,updated_at:new Date().toISOString()},{onConflict:"user_id,studio_id"}).then(({error})=>{if(error)console.warn("Favorite save sync failed",error);});
     });
-  };
+  },[favoriteIds,favoriteStudios]);
   const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setNeisOnlyFilter(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setDurationFilter(null);setClassTypeFilter(null);setMaxDistance(null);};
   const resetListFilters=()=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);resetFilters();setRegionProvince("전체");setRegionCity("전체");setSelectedListRegion("전체");setSearch("");setGlobalSearchStudios([]);setSearchMatches([]);setAreaLocked(false);Keyboard.dismiss();};
   const openDirections=async(studio:Studio,provider:"google"|"kakao")=>{
@@ -862,11 +862,12 @@ export default function Home() {
     }
   };
     const cleanScheduleDisplay=(value:string)=>String(value||"").replace(/\s*(오픈\s*예정|개강\s*예정|모집\s*예정|모집\s*중|신설\s*예정)\s*$/g,"").trim();
-  const studioCard=(s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");const target={latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018};setPendingMapTarget(target);setRegion(target);if(!studios.some(x=>x.id===s.id)){setSearchedRegion(target);setAreaLocked(false);}}} style={[styles.studioCard,compact&&styles.compactCard]}>
+  const studioCard=useCallback((s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");const target={latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018};setPendingMapTarget(target);setRegion(target);if(!studios.some(x=>x.id===s.id)){setSearchedRegion(target);setAreaLocked(false);}}} style={[styles.studioCard,compact&&styles.compactCard]}>
     <View style={styles.cardTop}><View style={styles.studioIcon}><MaterialCommunityIcons name="human-female-dance" size={28} color={COLORS.purple}/></View><View style={{flex:1}}><Text style={styles.studioName}>{s.name}</Text><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
     <View style={styles.tagsRow}>{s.tags.map(t=><View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>)}</View>
     <View style={styles.cardBottom}><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")||"수업 정보 미등록"}</Text></View><View style={styles.cardActions}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} style={styles.actionChip}><Text style={styles.actionText}>{favoriteIds.includes(s.id)?"♥ 찜됨":"♡ 찜"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} style={styles.actionChip}><Text style={styles.actionText}>{compareIds.includes(s.id)?"✓ 비교중":"+ 비교"}</Text></Pressable><Pressable onPress={e=>{e.stopPropagation();router.push({pathname:"/studio-manager",params:{studioId:s.id,studioName:s.name}});}} style={styles.actionChip}><Text style={styles.actionText}>학원 관리자 등록</Text></Pressable></View>
-  </Pressable>;
+  </Pressable>,[studios,favoriteIds,compareIds,toggleFavorite,toggleCompare,router]);
+  const renderStudioListItem=useCallback(({item}:{item:Studio})=>studioCard(item),[studioCard]);
 
   useEffect(()=>{const id=String(routeParams.studioId||"");if(!id||!supabaseConfigured)return;let active=true;fetchStudioById(id).then(row=>{if(active&&row)openDetail(mapStudioRecord(row));}).catch(error=>console.warn("Review destination lookup failed:",error));return()=>{active=false;};},[routeParams.studioId]);
   useEffect(()=>{
@@ -930,7 +931,7 @@ export default function Home() {
       <View style={{flexDirection:"row",alignItems:"center",justifyContent:"flex-end",marginTop:7}}><Text style={{fontSize:11,fontWeight:"900",color:COLORS.purple}}>지도에서 위치 확인  ›</Text></View>
     </Pressable>}
   </View>
-</View>}<FlatList data={visibleListRows} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" initialNumToRender={25} maxToRenderPerBatch={25} windowSize={7} onEndReached={loadMoreListRows} onEndReachedThreshold={0.45} ListFooterComponent={listRows.length>visibleListRows.length?<Pressable onPress={loadMoreListRows} style={{padding:16,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>학원 더 불러오기 · {visibleListRows.length}/{listRows.length}</Text></Pressable>:listRows.length>0?<Text style={{padding:16,textAlign:"center",fontSize:11,color:COLORS.muted}}>모든 학원을 확인했습니다.</Text>:null} ListEmptyComponent={<View style={{alignItems:"center",paddingHorizontal:24,paddingVertical:30,gap:9}}><Ionicons name="search-outline" size={28} color={COLORS.muted}/><Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":backendState==="error"?"학원 정보를 불러올 수 없습니다.":"조건에 맞는 학원이 없어요."}</Text>{view==="list"&&<>{backendState==="error"?<Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>서버 연결 상태를 확인한 뒤 다시 시도해 주세요.</Text>:<><Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>지역이나 수업 필터 때문에 결과가 없을 수 있어요.</Text><Pressable onPress={resetListFilters} style={{marginTop:4,paddingHorizontal:16,paddingVertical:9,borderRadius:10,backgroundColor:COLORS.pale}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>지역·검색·필터 초기화</Text></Pressable></>}</>}</View>}/></>}
+</View>}<FlatList data={visibleListRows} keyExtractor={i=>i.id} renderItem={renderStudioListItem} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" initialNumToRender={25} maxToRenderPerBatch={25} windowSize={7} onEndReached={loadMoreListRows} onEndReachedThreshold={0.45} ListFooterComponent={listRows.length>visibleListRows.length?<Pressable onPress={loadMoreListRows} style={{padding:16,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>학원 더 불러오기 · {visibleListRows.length}/{listRows.length}</Text></Pressable>:listRows.length>0?<Text style={{padding:16,textAlign:"center",fontSize:11,color:COLORS.muted}}>모든 학원을 확인했습니다.</Text>:null} ListEmptyComponent={<View style={{alignItems:"center",paddingHorizontal:24,paddingVertical:30,gap:9}}><Ionicons name="search-outline" size={28} color={COLORS.muted}/><Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":backendState==="error"?"학원 정보를 불러올 수 없습니다.":"조건에 맞는 학원이 없어요."}</Text>{view==="list"&&<>{backendState==="error"?<Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>서버 연결 상태를 확인한 뒤 다시 시도해 주세요.</Text>:<><Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>지역이나 수업 필터 때문에 결과가 없을 수 있어요.</Text><Pressable onPress={resetListFilters} style={{marginTop:4,paddingHorizontal:16,paddingVertical:9,borderRadius:10,backgroundColor:COLORS.pale}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>지역·검색·필터 초기화</Text></Pressable></>}</>}</View>}/></>}
     </View>
     {compareIds.length>0&&<Pressable style={styles.compareFloating} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>비교 목록 · {compareIds.length}/3</Text></Pressable>}
     <Modal visible={searchResultsOpen} transparent animationType="fade" onRequestClose={()=>setSearchResultsOpen(false)}>
