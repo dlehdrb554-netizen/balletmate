@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
 const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레","발레교습소","발레아카데미","무용학원","ballet studio","ballet academy"];
 const MAX_PAGES_PER_TERM=3, PAGE_SIZE=15;
+const EXCLUDED_DANCE_STYLE=/(댄스\\s*스튜디오|댄스\\s*스포츠|폴\\s*댄스|밸리\\s*댄스|dance\\s*studio|dance\\s*sports|pole\\s*dance|belly\\s*dance)/i;
 
 Deno.serve(async(req)=>{
  if(req.method!=="POST")return json({error:"POST only"},405);
@@ -33,7 +34,7 @@ Deno.serve(async(req)=>{
      const excluded=/(테라피|therapy|마사지|massag|스파|spa|요가|yoga|필라테스|pilates|체형관리|교정|에스테틱|피부관리|힐링|wellness|뷰티|beauty)/i;
      const relevantName=/(발레|무용|댄스|ballet|dance)/i.test(name);
      const danceEducationCategory=/(발레|무용|댄스)/.test(category);
-     if(!name||excluded.test(name+" "+category)||(!relevantName&&!danceEducationCategory))continue;
+     if(!name||EXCLUDED_DANCE_STYLE.test(name+" "+category)||excluded.test(name+" "+category)||(!relevantName&&!danceEducationCategory))continue;
      const lat=Number(item.y),lng=Number(item.x);if(!Number.isFinite(lat)||!Number.isFinite(lng))continue;
      const identity=String(item.id||[name,lat.toFixed(5),lng.toFixed(5)].join("|"));
      if(seen.has(identity)){duplicateCount++;continue;}seen.add(identity);resultCount++;
