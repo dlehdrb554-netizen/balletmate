@@ -149,7 +149,7 @@ export default function Account(){
 
  return <SafeAreaView style={s.safe}>
   <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}>
-   <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+   <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
     <Pressable onPress={()=>router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="뒤로가기"><Text style={s.back}>‹ 돌아가기</Text></Pressable>
     <Text style={s.brand}>Balletmate<Text style={{color:C.purple}}>.</Text></Text>
     <Text style={s.title}>{session?"내 계정":"간편하게 시작하기"}</Text>
@@ -212,38 +212,50 @@ export default function Account(){
 }
 
 const createS = (dark:boolean) => StyleSheet.create(themeStyles({
- safe:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:8,paddingBottom:24},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
- brand:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:18},title:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:14},
- sub:{fontSize:13,color:C.muted,marginTop:8,lineHeight:19},card:{backgroundColor:"#fff",borderRadius:18,borderWidth:1,borderColor:C.line,padding:16,marginTop:20},
- socialRow:{flexDirection:"column",alignItems:"stretch",justifyContent:"center",gap:10,marginTop:14,marginBottom:4},
+ safe:{flex:1,backgroundColor:C.bg},
+ content:{paddingHorizontal:20,paddingTop:12,paddingBottom:36},
+ back:{color:C.muted,paddingVertical:12,fontSize:13,fontWeight:"700"},
+ brand:{fontSize:24,fontWeight:"900",letterSpacing:-0.6,color:C.ink,marginTop:22},
+ title:{fontSize:26,fontWeight:"900",letterSpacing:-0.8,color:C.ink,marginTop:18},
+ sub:{fontSize:13,color:C.muted,marginTop:9,lineHeight:20},
+ card:{backgroundColor:"#FFFFFF",borderRadius:22,borderWidth:1,borderColor:C.line,padding:20,marginTop:24},
+ socialRow:{flexDirection:"column",alignItems:"stretch",justifyContent:"center",gap:12,marginTop:16,marginBottom:6},
  socialItem:{minWidth:52,alignItems:"center",gap:7},
- googleLoginButton:{width:"100%",height:52,paddingLeft:12,paddingRight:12,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
- googleConnectButton:{width:"100%",height:48,paddingHorizontal:12,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
+ googleLoginButton:{width:"100%",height:54,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
+ googleConnectButton:{width:"100%",height:50,paddingHorizontal:12,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
  googleLoginButtonDark:{backgroundColor:"#131314",borderColor:"#8E918F"},
  googleLogoWrap:{width:24,height:24,borderRadius:12,backgroundColor:"#FFFFFF",alignItems:"center",justifyContent:"center"},
- googleLogo:{width:18,height:18},
- googleLoginText:{flexShrink:1,fontSize:14,lineHeight:20,fontWeight:"500",color:"#1F1F1F",textAlign:"center"},
+ googleLogo:{width:20,height:20},
+ googleLoginText:{flexShrink:1,fontSize:14,lineHeight:20,fontWeight:"600",color:"#1F1F1F",textAlign:"center"},
  googleLoginTextDark:{color:"#E3E3E3"},
- kakaoLoginButton:{width:"100%",height:52,justifyContent:"center",alignItems:"center",borderRadius:12,overflow:"hidden"},
- kakaoLoginImage:{width:"100%",height:52},
- kakaoLoading:{position:"absolute",fontSize:12,fontWeight:"800",color:"#000000",backgroundColor:"#FEE500",paddingHorizontal:8,paddingVertical:3,borderRadius:6},
- kakaoConnectButton:{width:"100%",height:48,paddingHorizontal:12,alignItems:"center",justifyContent:"center",backgroundColor:"#FEE500",borderRadius:12},
+ kakaoLoginButton:{width:"100%",height:54,justifyContent:"center",alignItems:"center",borderRadius:12,overflow:"hidden"},
+ kakaoLoginImage:{width:"100%",height:54},
+ kakaoLoading:{position:"absolute",fontSize:12,fontWeight:"800",color:"#000000",backgroundColor:"#FEE500",paddingHorizontal:10,paddingVertical:5,borderRadius:7},
+ kakaoConnectButton:{width:"100%",height:50,paddingHorizontal:12,alignItems:"center",justifyContent:"center",backgroundColor:"#FEE500",borderRadius:12},
  kakaoConnectText:{fontSize:13,fontWeight:"800",color:"#000000"},
  socialIconButton:{width:52,height:52,borderRadius:26,alignItems:"center",justifyContent:"center",borderWidth:1},
  googleIconCircle:{backgroundColor:"#FFFFFF",borderColor:"#DADCE0"},
  googleMark:{fontSize:23,fontWeight:"900",color:"#4285F4"},
  socialLabel:{fontSize:12,fontWeight:"700",color:dark?"#A1A1AA":C.muted},
- note:{fontSize:11,color:C.muted,lineHeight:17,marginTop:12},separator:{flexDirection:"row",alignItems:"center",gap:10,marginTop:22},
- separatorLine:{height:1,backgroundColor:C.line,flex:1},separatorText:{fontSize:11,color:C.muted},
- legacyLink:{alignItems:"center",paddingVertical:13},legacyLinkText:{fontSize:12,fontWeight:"800",color:C.purple},
- legacyTitle:{fontSize:17,fontWeight:"900",color:C.ink,marginBottom:8},
- label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:12,marginBottom:7},
- input:{height:46,borderWidth:1,borderColor:C.line,borderRadius:12,paddingHorizontal:12,fontSize:14,color:C.ink},
- primary:{backgroundColor:C.purple,height:46,borderRadius:13,alignItems:"center",justifyContent:"center",marginTop:20},primaryText:{color:"#fff",fontWeight:"900"},
+ note:{fontSize:11,color:C.muted,lineHeight:18,marginTop:13},
+ separator:{flexDirection:"row",alignItems:"center",gap:10,marginTop:24,marginBottom:4},
+ separatorLine:{height:1,backgroundColor:C.line,flex:1},
+ separatorText:{fontSize:11,color:C.muted,fontWeight:"600"},
+ legacyLink:{alignItems:"center",paddingVertical:15},
+ legacyLinkText:{fontSize:13,fontWeight:"800",color:C.purple},
+ legacyTitle:{fontSize:16,fontWeight:"900",color:C.ink,marginBottom:4},
+ label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:15,marginBottom:8},
+ input:{height:50,borderWidth:1,borderColor:C.line,borderRadius:13,paddingHorizontal:14,fontSize:14,color:C.ink,backgroundColor:dark?"#242429":"#FFFFFF"},
+ primary:{backgroundColor:C.purple,height:50,borderRadius:13,alignItems:"center",justifyContent:"center",marginTop:20},
+ primaryText:{color:"#FFFFFF",fontSize:14,fontWeight:"900"},
  avatar:{height:58,width:58,borderRadius:19,backgroundColor:C.pale,alignItems:"center",justifyContent:"center",alignSelf:"center"},
  name:{fontSize:20,color:C.ink,fontWeight:"900",textAlign:"center",marginTop:12},
- connectedBox:{backgroundColor:C.pale,padding:12,borderRadius:14,marginTop:20},connectedTitle:{fontSize:13,fontWeight:"900",color:C.purple,marginBottom:4},
- info:{backgroundColor:C.pale,padding:13,borderRadius:14,marginTop:18},infoTitle:{fontWeight:"900",color:C.purple,marginBottom:6},
- deleteAccount:{alignItems:"center",paddingVertical:14,marginTop:8},deleteAccountText:{fontSize:12,color:"#B33A45",fontWeight:"800"},
- legalLinks:{flexDirection:"row",justifyContent:"center",alignItems:"center",gap:10,marginTop:20},legalLink:{fontSize:12,color:C.purple,fontWeight:"800"}
+ connectedBox:{backgroundColor:C.pale,padding:14,borderRadius:16,marginTop:20},
+ connectedTitle:{fontSize:13,fontWeight:"900",color:C.purple,marginBottom:4},
+ info:{backgroundColor:C.pale,padding:15,borderRadius:16,marginTop:20},
+ infoTitle:{fontWeight:"900",color:C.purple,marginBottom:6},
+ deleteAccount:{alignItems:"center",paddingVertical:14,marginTop:8},
+ deleteAccountText:{fontSize:12,color:"#B33A45",fontWeight:"800"},
+ legalLinks:{flexDirection:"row",justifyContent:"center",alignItems:"center",gap:10,marginTop:20},
+ legalLink:{fontSize:12,color:C.purple,fontWeight:"800"}
 },dark));
