@@ -381,7 +381,6 @@ export default function Home() {
   const [adult,setAdult]=useState(false);
   const [kids,setKids]=useState(false);
   const [coupon,setCoupon]=useState(false);
-  const [neisOnlyFilter,setNeisOnlyFilter]=useState(false);
   const [level,setLevel]=useState<string|null>(null);
   const [dayFilter,setDayFilter]=useState<string|null>(null);
   const [timeFilter,setTimeFilter]=useState<string|null>(null);
@@ -505,7 +504,6 @@ export default function Home() {
     if(normalizedSearch && !globalSearchIdSet.has(s.id) && !s.name.toLowerCase().includes(normalizedSearch) && !s.area.toLowerCase().includes(normalizedSearch) && !s.tags.some(t=>t.toLowerCase().includes(normalizedSearch)) && !classSearchIdSet.has(s.id)) return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
-    if(neisOnlyFilter&&s.sourceStatus!=="both"&&s.sourceStatus!=="neis_only")return false;
     if(hasClassLevelFilters&&!classFilterIdSet.has(s.id))return false;
     if(level&&!s.level.includes(level))return false;
     if(dayFilter&&!s.days.includes(dayFilter))return false;
@@ -519,7 +517,7 @@ export default function Home() {
       if(Math.abs(s.lat-searchedRegion.latitude)>latSpan||Math.abs(s.lng-searchedRegion.longitude)>lngSpan)return false;
     }
     return true;
-  }),[mergedStudios,globalSearchIdSet,normalizedSearch,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
+  }),[mergedStudios,globalSearchIdSet,normalizedSearch,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion]);
 
   const mapMarkers=useMemo(()=>results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng})),[results]);
   const searchedStudioIds=useMemo(()=>searchMatches.map(item=>item.id),[searchMatches]);
@@ -545,7 +543,6 @@ export default function Home() {
     if(normalizedSearch&&!globalSearchIdSet.has(s.id)&&!s.name.toLowerCase().includes(normalizedSearch)&&!s.area.toLowerCase().includes(normalizedSearch)&&!s.tags.some(t=>t.toLowerCase().includes(normalizedSearch))&&!classSearchIdSet.has(s.id))return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
-    if(neisOnlyFilter&&s.sourceStatus!=="both"&&s.sourceStatus!=="neis_only")return false;
     if(hasClassLevelFilters&&!classFilterIdSet.has(s.id))return false;
     if(level&&!s.level.includes(level))return false;
     if(dayFilter&&!s.days.includes(dayFilter))return false;
@@ -553,13 +550,13 @@ export default function Home() {
     if(durationFilter!==null&&!(s.classDurations?.length?s.classDurations.includes(durationFilter):s.duration===durationFilter))return false;
     if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
     return true;
-  }),[directoryStudios,globalSearchStudios,normalizedSearch,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,neisOnlyFilter,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,searchedRegion]);
+  }),[directoryStudios,globalSearchStudios,normalizedSearch,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,searchedRegion]);
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:directoryResults.filter(studio=>selectedListRegion!=="전체"?canonicalArea(studio.area)===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
     return [...rows].sort((a,b)=>distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng));
   },[view,favoriteStudios,directoryResults,searchedRegion,selectedListRegion,regionProvince,regionCity]);
    const visibleListRows=useMemo(()=>listRows.slice(0,visibleListCount),[listRows,visibleListCount]);
-   useEffect(()=>{setVisibleListCount(25);},[view,selectedListRegion,regionProvince,regionCity,search,adult,kids,coupon,neisOnlyFilter,hasClassLevelFilters,level,dayFilter,timeFilter,durationFilter,maxDistance]);
+   useEffect(()=>{setVisibleListCount(25);},[view,selectedListRegion,regionProvince,regionCity,search,adult,kids,coupon,hasClassLevelFilters,level,dayFilter,timeFilter,durationFilter,maxDistance]);
    const loadMoreListRows=useCallback(()=>{setVisibleListCount(current=>Math.min(current+25,listRows.length));},[listRows.length]);
   useEffect(()=>{
     if(view!=="list"||!supabase)return;
@@ -858,7 +855,7 @@ export default function Home() {
       else client.from("user_favorites").upsert({user_id:uid,studio_id:studio.id,studio_snapshot:studio,updated_at:new Date().toISOString()},{onConflict:"user_id,studio_id"}).then(({error})=>{if(error)console.warn("Favorite save sync failed",error);});
     });
   },[favoriteIds,favoriteStudios]);
-  const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setNeisOnlyFilter(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setDurationFilter(null);setClassTypeFilter(null);setMaxDistance(null);};
+  const resetFilters=()=>{setAdult(false);setKids(false);setCoupon(false);setLevel(null);setDayFilter(null);setTimeFilter(null);setDurationFilter(null);setClassTypeFilter(null);setMaxDistance(null);};
   const resetListFilters=()=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);resetFilters();setRegionProvince("전체");setRegionCity("전체");setSelectedListRegion("전체");setSearch("");setGlobalSearchStudios([]);setSearchMatches([]);setAreaLocked(false);Keyboard.dismiss();};
   const openDirections=async(studio:Studio,provider:"google"|"kakao")=>{
     const destination=studio.address||studio.name;
@@ -1167,9 +1164,9 @@ export default function Home() {
     </Modal>
 
     <Modal visible={filterOpen} animationType="slide" transparent onRequestClose={()=>setFilterOpen(false)}>
-      <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{maxHeight:"90%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
+      <View style={[styles.modalShade,{paddingTop:insets.top+12,paddingBottom:insets.bottom}]}><View style={[styles.modal,{maxHeight:"90%",flexShrink:1,paddingBottom:Math.max(24,insets.bottom+12)}]}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>검색 필터</Text><Pressable onPress={()=>setFilterOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
-        <ScrollView keyboardShouldPersistTaps="handled"><Text style={styles.sectionTitle}>대상</Text><View style={styles.filterChoices}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/></View>
+        <ScrollView style={{flexShrink:1}} contentContainerStyle={{paddingBottom:12}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator><Text style={styles.sectionTitle}>대상</Text><View style={styles.filterChoices}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/></View>
         <Text style={styles.sectionTitle}>수준</Text><View style={styles.filterChoices}>{["입문","초급","중급","고급"].map(v=><Chip key={v} label={v} active={level===v} onPress={()=>setLevel(level===v?null:v)}/>)}</View>
         <Text style={styles.sectionTitle}>수업 유형</Text><View style={styles.filterChoices}>{classTypeOptions.length?classTypeOptions.map(v=><Chip key={v} label={v} active={classTypeFilter===v} onPress={()=>setClassTypeFilter(classTypeFilter===v?null:v)}/>):<Text style={styles.filterHint}>등록된 수업 유형 정보가 없습니다.</Text>}</View>
         {classFilterLoading&&<Text style={styles.filterHint}>선택한 수업 조건을 확인하고 있습니다…</Text>}
@@ -1178,7 +1175,6 @@ export default function Home() {
         
         <Text style={styles.sectionTitle}>수업 길이</Text><View style={styles.filterChoices}>{[45,50,60,75,90].map(v=><Chip key={v} label={v+"분"} active={durationFilter===v} onPress={()=>setDurationFilter(durationFilter===v?null:v)}/>)}</View>
         <Text style={styles.sectionTitle}>거리 (지도 중심 기준)</Text><View style={styles.filterChoices}>{[1,3,5,10].map(v=><Chip key={v} label={v+"km"} active={maxDistance===v} onPress={()=>setMaxDistance(maxDistance===v?null:v)}/>)}</View>
-        <Text style={styles.sectionTitle}>교육청 등록 정보</Text><View style={styles.filterChoices}><Chip label="교육청 등록 정보 확인된 곳만" active={neisOnlyFilter} onPress={()=>setNeisOnlyFilter(!neisOnlyFilter)}/></View><Text style={styles.filterHint}>기본 검색에는 지도에서 확인된 모든 학원이 표시됩니다. 필터를 켜면 교육청 등록 정보가 확인된 학원만 볼 수 있습니다. 등록 여부 미확인은 미등록을 뜻하지 않습니다.</Text>
         <Text style={styles.sectionTitle}>혜택</Text><View style={styles.filterChoices}><Chip label="쿠폰/할인" active={coupon} onPress={()=>setCoupon(!coupon)}/></View>
         <Text style={styles.filterHint}>거리 필터는 현재 지도 중심을 기준으로 계산합니다.</Text>
         </ScrollView><View style={styles.modalActions}><Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>초기화</Text></Pressable><Pressable style={styles.applyButton} onPress={()=>setFilterOpen(false)}><Text style={styles.applyText}>결과 {results.length}곳 보기</Text></Pressable></View>
