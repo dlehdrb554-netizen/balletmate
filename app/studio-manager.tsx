@@ -255,7 +255,7 @@ export default function StudioManager(){
   if(error)Alert.alert("공지 변경 실패",error.message);else await load();
  };
 
- const button=(label:string,onPress:()=>void,disabled=false,destructive=false)=><Pressable disabled={disabled} onPress={onPress} style={[s.button,{backgroundColor:isDark?"#493467":C.pale},destructive&&s.danger,disabled&&{opacity:0.5}]}><Text style={[s.buttonText,{color:isDark?"#FFFFFF":C.purple},destructive&&{color:C.red}]}>{label}</Text></Pressable>;
+ const button=(label:string,onPress:()=>void,disabled=false,destructive=false)=><Pressable disabled={disabled} onPress={onPress} style={[s.button,{backgroundColor:isDark?"#7652B8":C.pale},destructive&&s.danger,disabled&&{opacity:0.5}]}><Text style={[s.buttonText,{color:isDark?"#FFFFFF":C.purple},destructive&&{color:C.red}]}>{label}</Text></Pressable>;
  const field=(label:string,value:string,onChangeText:(v:string)=>void,placeholder:string="",keyboardType:any="default")=><View style={{marginTop:12}}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} keyboardType={keyboardType} style={s.input}/></View>;
 
  return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
