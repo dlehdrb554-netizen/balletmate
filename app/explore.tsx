@@ -77,14 +77,6 @@ const canonicalArea=(area:string)=>{
 };
 const districtOptionLabel=(area:string,citySelected:string)=>{const parsed=parseArea(area);const detail=parsed.detail||"시 전체";return citySelected==="전체"&&parsed.city?parsed.city+" "+detail:detail;};
 
-const DATA: Studio[] = [
-  {id:"s1",name:"발레온 스튜디오",lat:37.6584,lng:126.8321,area:"경기도 고양시 일산동구",tags:["성인","초급","기초"],coupon:true,adult:true,kids:false,level:["초급","중급"],days:["평일","주말"],time:"오전 · 저녁",duration:60,rating:4.8,description:"성인 취미 발레 기초와 단계별 수업을 운영하는 스튜디오."},
-  {id:"s2",name:"라벨르 발레",lat:37.6643,lng:126.7798,area:"경기도 고양시 일산서구",tags:["성인","키즈","초급"],coupon:false,adult:true,kids:true,level:["입문","초급"],days:["평일"],time:"오전 · 오후",duration:50,rating:4.7,description:"입문자를 위한 소규모 그룹 수업."},
-  {id:"s3",name:"아뜰리에 발레",lat:37.6452,lng:126.7867,area:"경기도 고양시 일산서구",tags:["성인","중급"],coupon:true,adult:true,kids:false,level:["초급","중급","고급"],days:["평일","주말"],time:"저녁",duration:75,rating:4.9,description:"테크닉과 작품 수업을 함께 운영."},
-  {id:"s4",name:"리틀 스완 발레",lat:37.6711,lng:126.8143,area:"경기도 고양시 일산동구",tags:["키즈","유아"],coupon:false,adult:false,kids:true,level:["입문"],days:["평일","주말"],time:"오후",duration:40,rating:4.6,description:"유아·어린이 발레 수업."},
-  {id:"s5",name:"무브 발레핏",lat:37.6344,lng:126.8328,area:"경기도 고양시 일산동구",tags:["성인","발레핏","초급"],coupon:true,adult:true,kids:false,level:["입문","초급"],days:["평일"],time:"오전 · 저녁",duration:55,rating:4.5,description:"발레 기초와 컨디셔닝을 결합한 수업."},
-  {id:"s6",name:"플리에 발레 아카데미",lat:37.6530,lng:126.8578,area:"경기도 고양시 덕양구",tags:["성인","키즈","중급"],coupon:false,adult:true,kids:true,level:["초급","중급"],days:["평일","주말"],time:"오전 · 오후 · 저녁",duration:60,rating:4.8,description:"연령별·수준별 클래스 운영."}
-];
 const INITIAL: Region = {latitude:37.5665,longitude:126.9780,latitudeDelta:0.06,longitudeDelta:0.06};
 const distanceKm=(lat1:number,lon1:number,lat2:number,lon2:number)=>{const rad=(n:number)=>n*Math.PI/180;const dLat=rad(lat2-lat1),dLon=rad(lon2-lon1);const a=Math.sin(dLat/2)**2+Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2;return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));};
 const COLORS = {ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",bg:"#FBF9FF",line:"#E9E2F2",white:"#FFFFFF",pink:"#F7EFFF"};
@@ -108,8 +100,8 @@ export default function Home() {
   const routeParams = useLocalSearchParams<{studioId?:string}>();
   const insets = useSafeAreaInsets();
   const map = useRef<KakaoMapHandle | null>(null);
-  const [studios,setStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
-  const [backendState,setBackendState]=useState<"mock"|"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"mock");
+  const [studios,setStudios]=useState<Studio[]>([]);
+  const [backendState,setBackendState]=useState<"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"error");
   const [region,setRegion]=useState(INITIAL);
   const [mapMoved,setMapMoved]=useState(false);
   const [search,setSearch]=useState("");
@@ -131,8 +123,8 @@ export default function Home() {
   const [regionPickerOpen,setRegionPickerOpen]=useState(false);
   const [regionProvince,setRegionProvince]=useState("전체");
   const [regionCity,setRegionCity]=useState("전체");
-  const [directoryAreas,setDirectoryAreas]=useState<string[]>(DATA.map(studio=>studio.area));
-  const [directoryStudios,setDirectoryStudios]=useState<Studio[]>(supabaseConfigured?[]:DATA);
+  const [directoryAreas,setDirectoryAreas]=useState<string[]>([]);
+  const [directoryStudios,setDirectoryStudios]=useState<Studio[]>([]);
   const [popularViewRank,setPopularViewRank]=useState<any[]>([]);
   const [favoriteRank,setFavoriteRank]=useState<any[]>([]);
   const [rankLoading,setRankLoading]=useState(false);
@@ -916,7 +908,7 @@ export default function Home() {
         <KakaoMap ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} />
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":"이 지역에서 재검색"}</Text></View></Pressable>}
         <Pressable style={styles.locateButton} onPress={()=>locate()}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
-        <Pressable style={styles.mapCount} onPress={()=>{if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}곳</Text>{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="mock"?" · 데모":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
+        <Pressable style={styles.mapCount} onPress={()=>{if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}곳</Text>{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
         {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={styles.detailBtn} onPress={()=>openDetail(selected)}><Text style={styles.detailBtnText}>상세 보기  ›</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
       </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Text style={styles.listSortChipText}>거리순</Text></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}>
   <Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted,marginBottom:6}}>지역 선택</Text>
@@ -939,7 +931,7 @@ export default function Home() {
       <View style={{flexDirection:"row",alignItems:"center",justifyContent:"flex-end",marginTop:7}}><Text style={{fontSize:11,fontWeight:"900",color:COLORS.purple}}>지도에서 위치 확인  ›</Text></View>
     </Pressable>}
   </View>
-</View>}<FlatList data={visibleListRows} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" initialNumToRender={25} maxToRenderPerBatch={25} windowSize={7} onEndReached={loadMoreListRows} onEndReachedThreshold={0.45} ListFooterComponent={listRows.length>visibleListRows.length?<Pressable onPress={loadMoreListRows} style={{padding:16,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>학원 더 불러오기 · {visibleListRows.length}/{listRows.length}</Text></Pressable>:listRows.length>0?<Text style={{padding:16,textAlign:"center",fontSize:11,color:COLORS.muted}}>모든 학원을 확인했습니다.</Text>:null} ListEmptyComponent={<View style={{alignItems:"center",paddingHorizontal:24,paddingVertical:30,gap:9}}><Ionicons name="search-outline" size={28} color={COLORS.muted}/><Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":"조건에 맞는 학원이 없어요."}</Text>{view==="list"&&<><Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>지역이나 수업 필터 때문에 결과가 없을 수 있어요.</Text><Pressable onPress={resetListFilters} style={{marginTop:4,paddingHorizontal:16,paddingVertical:9,borderRadius:10,backgroundColor:COLORS.pale}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>지역·검색·필터 초기화</Text></Pressable></>}</View>}/></>}
+</View>}<FlatList data={visibleListRows} keyExtractor={i=>i.id} renderItem={({item})=>studioCard(item)} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" initialNumToRender={25} maxToRenderPerBatch={25} windowSize={7} onEndReached={loadMoreListRows} onEndReachedThreshold={0.45} ListFooterComponent={listRows.length>visibleListRows.length?<Pressable onPress={loadMoreListRows} style={{padding:16,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>학원 더 불러오기 · {visibleListRows.length}/{listRows.length}</Text></Pressable>:listRows.length>0?<Text style={{padding:16,textAlign:"center",fontSize:11,color:COLORS.muted}}>모든 학원을 확인했습니다.</Text>:null} ListEmptyComponent={<View style={{alignItems:"center",paddingHorizontal:24,paddingVertical:30,gap:9}}><Ionicons name="search-outline" size={28} color={COLORS.muted}/><Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":backendState==="error"?"학원 정보를 불러올 수 없습니다.":"조건에 맞는 학원이 없어요."}</Text>{view==="list"&&<>{backendState==="error"?<Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>서버 연결 상태를 확인한 뒤 다시 시도해 주세요.</Text>:<><Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>지역이나 수업 필터 때문에 결과가 없을 수 있어요.</Text><Pressable onPress={resetListFilters} style={{marginTop:4,paddingHorizontal:16,paddingVertical:9,borderRadius:10,backgroundColor:COLORS.pale}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>지역·검색·필터 초기화</Text></Pressable></>}</>}</View>}/></>}
     </View>
     {compareIds.length>0&&<Pressable style={styles.compareFloating} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>비교 목록 · {compareIds.length}/3</Text></Pressable>}
     <Modal visible={searchResultsOpen} transparent animationType="fade" onRequestClose={()=>setSearchResultsOpen(false)}>
