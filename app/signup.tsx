@@ -63,10 +63,13 @@ export default function Signup(){
     <Text style={s.requiredHint}>모든 항목을 입력해 주세요.</Text>
     <Text style={s.label}>이메일</Text>
     <TextInput style={s.input} value={email} onChangeText={setEmail} placeholder="인증 메일을 받을 이메일" placeholderTextColor={isDark?"#A1A1AA":"#8A8695"} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" textContentType="emailAddress" maxLength={254} returnKeyType="next"/>
+    {email.length>0&&!emailValid&&<Text style={s.fieldHint}>이메일 주소 형식을 확인해 주세요.</Text>}
     <Text style={s.label}>닉네임</Text>
     <TextInput style={s.input} value={display} onChangeText={setDisplay} placeholder="2~20자" placeholderTextColor={isDark?"#A1A1AA":"#8A8695"} maxLength={20} autoCapitalize="none" autoCorrect={false} returnKeyType="next"/>
+    {display.length>0&&!displayValid&&<Text style={s.fieldHint}>닉네임은 2~20자로 입력해 주세요.</Text>}
     <Text style={s.label}>계정</Text>
     <TextInput style={s.input} value={username} onChangeText={value=>setUsername(value.toLowerCase().replace(/[^a-z0-9_]/g,""))} placeholder="영문 소문자·숫자·밑줄 3~24자" placeholderTextColor={isDark?"#A1A1AA":"#8A8695"} maxLength={24} autoCapitalize="none" autoCorrect={false} autoComplete="username-new" returnKeyType="next"/>
+    {username.length>0&&!usernameValid&&<Text style={s.fieldHint}>영문 소문자·숫자·밑줄로 3~24자 입력해 주세요.</Text>}
     <Text style={s.label}>비밀번호</Text>
     {passwordInput(password,setPassword,showPassword,()=>setShowPassword(v=>!v))}
     <View style={s.guide}>
@@ -77,7 +80,7 @@ export default function Signup(){
     <Text style={s.label}>비밀번호 확인</Text>
     {passwordInput(confirm,setConfirm,showConfirm,()=>setShowConfirm(v=>!v),true)}
     {confirm.length>0&&<Text style={[s.matchText,confirmValid?s.validText:s.errorText]}>{confirmValid?"✓ 비밀번호가 일치합니다.":"비밀번호가 일치하지 않습니다."}</Text>}
-    <Pressable style={[s.button,(busy||!emailValid||!displayValid||!usernameValid||!valid||!confirmValid)&&s.buttonDisabled]} disabled={busy} onPress={submit} accessibilityRole="button" accessibilityState={{disabled:busy}}>
+    <Pressable style={[s.button,busy&&s.buttonDisabled]} disabled={busy} onPress={submit} accessibilityRole="button" accessibilityState={{disabled:busy}}>
      <Text style={s.buttonText}>{busy?"가입 처리 중…":"이메일 인증 후 가입"}</Text>
     </Pressable>
     <Text style={s.footerNote}>가입 버튼을 누르면 이메일 인증 링크가 발송됩니다.</Text>
@@ -95,6 +98,7 @@ const createS=(dark:boolean)=>StyleSheet.create(themeStyles({
  requiredHint:{fontSize:11,color:C.muted,marginTop:7},
  label:{fontSize:13,fontWeight:"800",color:C.ink,marginTop:19,marginBottom:8},
  input:{height:52,borderWidth:1,borderColor:C.line,borderRadius:13,paddingHorizontal:14,backgroundColor:dark?"#242429":"#FFFFFF",fontSize:14,color:dark?"#FFFFFF":C.ink},
+ fieldHint:{fontSize:11,color:"#D34B55",marginTop:6},
  passwordWrap:{height:52,flexDirection:"row",alignItems:"center",borderWidth:1,borderColor:C.line,borderRadius:13,backgroundColor:dark?"#242429":"#FFFFFF",paddingLeft:14,paddingRight:5},
  passwordInput:{flex:1,height:"100%",fontSize:14,color:dark?"#FFFFFF":C.ink,padding:0},
  eyeButton:{width:44,height:44,alignItems:"center",justifyContent:"center"},
