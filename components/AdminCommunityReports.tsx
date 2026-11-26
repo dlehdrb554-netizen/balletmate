@@ -29,9 +29,25 @@ export default function AdminCommunityReports(){
    {text:"삭제",style:"destructive",onPress:async()=>{
     setBusyId(row.id);
     try{
+     let photoPaths:string[]=[];
+     if(row.content_type==="post"){
+      const {data:post,error:postError}=await supabase!.from("community_posts").select("image_urls").eq("id",row.content_id).maybeSingle();
+      if(postError)throw postError;
+      if(!post)throw new Error("게시글을 찾을 수 없어 삭제를 중단했습니다.");
+      photoPaths=(post.image_urls||[]).map((url:string)=>{
+       const marker="/storage/v1/object/public/community-photos/";
+       const index=String(url).indexOf(marker);
+       if(index<0)return "";
+       try{return decodeURIComponent(String(url).slice(index+marker.length));}catch{return "";}
+      }).filter(Boolean);
+     }
      const {error}=await supabase!.rpc("admin_remove_community_content",{p_content_type:row.content_type,p_content_id:row.content_id,p_report_id:row.id});
      if(error)throw error;
      setRows(current=>current.map(item=>item.id===row.id?{...item,status:"actioned"}:item));
+     if(photoPaths.length){
+      const {error:photoError}=await supabase!.storage.from("community-photos").remove(photoPaths);
+      if(photoError)Alert.alert("콘텐츠는 삭제됐지만 사진 정리 실패", "게시글은 삭제됐습니다. 일부 사진 파일이 Storage에 남아 있을 수 있습니다.\n"+photoError.message);
+     }
     }catch(e:any){Alert.alert("콘텐츠 삭제 실패",e?.message||"삭제하지 못했습니다.");}
     finally{setBusyId(null);}
    }}
