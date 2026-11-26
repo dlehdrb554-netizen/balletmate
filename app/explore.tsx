@@ -182,6 +182,16 @@ export default function Home() {
   const [mapSettingsOpen,setMapSettingsOpen]=useState(false);
   const [pendingDirectionsStudio,setPendingDirectionsStudio]=useState<Studio|null>(null);
   const detailDragY=useRef(new Animated.Value(0)).current;
+  const selectedStudioForGesture=useRef<Studio|null>(null);
+  selectedStudioForGesture.current=selected;
+  const openDetailAction=useRef<(studio:Studio)=>void>(()=>{});
+  const selectedCardPan=useRef(PanResponder.create({
+    onStartShouldSetPanResponder:()=>false,
+    onMoveShouldSetPanResponder:(_,gesture)=>gesture.dy < -12 && Math.abs(gesture.dy)>Math.abs(gesture.dx)*1.2,
+    onMoveShouldSetPanResponderCapture:(_,gesture)=>gesture.dy < -12 && Math.abs(gesture.dy)>Math.abs(gesture.dx)*1.2,
+    onPanResponderRelease:(_,gesture)=>{const studio=selectedStudioForGesture.current;if(gesture.dy < -45 && studio)openDetailAction.current(studio);},
+    onPanResponderTerminationRequest:()=>true,
+  })).current;
   const detailPan=useRef(PanResponder.create({
     // Dedicated grip zone: keep gesture handling away from the close buttons and content scroll.
     onStartShouldSetPanResponder:()=>false,
@@ -925,6 +935,7 @@ export default function Home() {
         .catch(error=>{console.warn("Studio coupons unavailable:",error);if(requestId===detailRequestId.current)setStudioCoupons([]);});
     }
   };
+  openDetailAction.current=openDetail;
     const cleanScheduleDisplay=(value:string)=>String(value||"").replace(/\s*(오픈\s*예정|개강\s*예정|모집\s*예정|모집\s*중|신설\s*예정)\s*$/g,"").trim();
   const studioCard=useCallback((s:Studio,compact=false)=><Pressable key={s.id} onPress={()=>{setSelected(s);setView("map");const target={latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018};setPendingMapTarget(target);setRegion(target);if(!studios.some(x=>x.id===s.id)){setSearchedRegion(target);setAreaLocked(false);}}} style={[styles.studioCard,compact&&styles.compactCard]}>
     <View style={styles.cardTop}><View style={styles.studioIcon}><MaterialCommunityIcons name="human-female-dance" size={28} color={COLORS.purple}/></View><View style={{flex:1}}><View style={{flexDirection:"row",alignItems:"center",gap:7}}><Text style={styles.studioName} numberOfLines={1}>{s.name}</Text><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} hitSlop={10}><Ionicons name={favoriteIds.includes(s.id)?"heart":"heart-outline"} size={19} color={favoriteIds.includes(s.id)?"#E64B72":COLORS.purple}/></Pressable></View><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text></View>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View>
@@ -973,7 +984,7 @@ export default function Home() {
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":"이 지역에서 재검색"}</Text></View></Pressable>}
         <Pressable style={styles.locateButton} onPress={()=>locate()}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
         <Pressable style={styles.mapCount} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=search.trim()&&searchMatches.length?searchMatches:results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}곳</Text>{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
-        {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={[styles.detailBtn,{marginTop:8}]} onPress={()=>toggleCompare(selected)}><Text style={styles.detailBtnText}>{compareIds.includes(selected.id)?"비교에서 제외":"학원 비교에 추가"}</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
+        {selected&&<View style={styles.selectedCard} {...selectedCardPan.panHandlers}>{studioCard(selected,true)}<Pressable style={[styles.detailBtn,{marginTop:8}]} onPress={()=>toggleCompare(selected)}><Text style={styles.detailBtnText}>{compareIds.includes(selected.id)?"비교에서 제외":"학원 비교에 추가"}</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
       </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Text style={styles.listSortChipText}>거리순</Text></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}>
   <Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted,marginBottom:6}}>지역 선택</Text>
   <View style={{flexDirection:"row",alignItems:"center",gap:7}}><Pressable onPress={()=>setRegionPickerOpen(true)} style={{flex:1,paddingHorizontal:12,paddingVertical:10,borderRadius:10,borderWidth:1,borderColor:COLORS.line,backgroundColor:isDark?"#1D1D1D":COLORS.white,flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}><Text numberOfLines={1} style={{flex:1,fontSize:12,fontWeight:"800",color:COLORS.ink}}>{selectedListRegion!=="전체"?selectedListRegion:[regionProvince,regionCity].filter(x=>x!=="전체").join(" · ")||"전체 지역"}</Text><Text style={{color:COLORS.purple,fontWeight:"900"}}>변경⌄</Text></Pressable>{(selectedListRegion!=="전체"||regionCity!=="전체"||regionProvince!=="전체")&&<Pressable onPress={()=>{setSelectedListRegion("전체");setRegionCity("전체");setRegionProvince("전체");}} style={{paddingHorizontal:10,paddingVertical:10,borderRadius:10,backgroundColor:isDark?"#292929":"#F2F0F6"}}><Text style={{fontSize:11,fontWeight:"800",color:isDark?"#FFFFFF":COLORS.ink}}>전체</Text></Pressable>}</View>
