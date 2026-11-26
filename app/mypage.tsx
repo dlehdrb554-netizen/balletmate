@@ -28,7 +28,7 @@ export default function MyPage(){
  const [mode,setMode]=useState<Mode>("system"),[modeOpen,setModeOpen]=useState(false),[locked,setLocked]=useState(false);
  const isDark=mode==="dark"||(mode==="system"&&Appearance.getColorScheme()==="dark");
  const s=useMemo(()=>createS(isDark),[isDark]);
- const [alerts,setAlerts]=useState({announcements:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true});
+ const [alerts,setAlerts]=useState({announcements:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true,postComments:true,bookmarkComments:true});
  const [pushEnabled,setPushEnabled]=useState(true);
  const [notificationPermission,setNotificationPermission]=useState<"granted"|"denied"|"undetermined">("undetermined");
  useEffect(()=>{Notifications.getPermissionsAsync().then(p=>setNotificationPermission(p.status as any)).catch(()=>setNotificationPermission("undetermined"));},[]);
@@ -66,7 +66,7 @@ export default function MyPage(){
    }
   })();
   AsyncStorage.multiGet(["balletmate.theme.mode","balletmate.screen_lock","balletmate.notification.preferences"]).then(v=>{
-   if(alive){setMode((v[0][1] as Mode)||"system");setLocked(v[1][1]==="1");if(v[2][1])try{const saved=JSON.parse(v[2][1]);setAlerts({...{announcements:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true},...saved});setPushEnabled(saved.pushEnabled!==false);}catch{}}
+   if(alive){setMode((v[0][1] as Mode)||"system");setLocked(v[1][1]==="1");if(v[2][1])try{const saved=JSON.parse(v[2][1]);setAlerts({...{announcements:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true,postComments:true,bookmarkComments:true},...saved});setPushEnabled(saved.pushEnabled!==false);}catch{}}
   }).catch(()=>{});
   return()=>{alive=false;};
  },[router,routeParams.open]);
@@ -89,10 +89,10 @@ export default function MyPage(){
  }catch(error){console.warn("Push registration unavailable:",error);}};
  useEffect(()=>{if(user&&notificationPermission==="granted")void registerPushToken();},[user,notificationPermission]);
  const configureNotificationPermission=async()=>{try{let result=await Notifications.getPermissionsAsync();if(result.status!=="granted"&&!result.canAskAgain){await Linking.openSettings();return;}if(result.status!=="granted")result=await Notifications.requestPermissionsAsync();setNotificationPermission(result.status as any);if(result.status==="granted")await registerPushToken();else if(!result.canAskAgain)await Linking.openSettings();}catch{Alert.alert("알림 권한","기기 설정에서 알림 권한을 확인해 주세요.");}};
- useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const data=response.notification.request.content.data as any;if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});else if(data?.noticeId)setMenu("notices");});return()=>sub.remove();},[router]);
+ useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const data=response.notification.request.content.data as any;if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});else if(data?.postId)router.push({pathname:"/community",params:{postId:String(data.postId)}});else if(data?.noticeId)setMenu("notices");});return()=>sub.remove();},[router]);
  
  
- useEffect(()=>{if(!user||!supabase)return;let active=true;supabase.from("user_notification_preferences").select("preferences").eq("user_id",user.id).maybeSingle().then(({data})=>{if(active&&data?.preferences){setAlerts(v=>({...v,...data.preferences}));setPushEnabled(data.preferences.pushEnabled!==false);}});return()=>{active=false;};},[user]);
+ useEffect(()=>{if(!user||!supabase)return;let active=true;supabase.from("user_notification_preferences").select("preferences").eq("user_id",user.id).maybeSingle().then(({data})=>{if(active&&data?.preferences){setAlerts(v=>({...v,postComments:true,bookmarkComments:true,...data.preferences}));setPushEnabled(data.preferences.pushEnabled!==false);}});return()=>{active=false;};},[user]);
  const persistNotificationPreferences=async(next:any)=>{await AsyncStorage.setItem("balletmate.notification.preferences",JSON.stringify(next));if(user&&supabase){const {error}=await supabase.from("user_notification_preferences").upsert({user_id:user.id,preferences:next,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error)Alert.alert("알림 설정 저장 실패",error.message);}};
  const updateAlert=async(key:keyof typeof alerts,value:boolean)=>{const next={...alerts,[key]:value};setAlerts(next);await persistNotificationPreferences({...next,pushEnabled});};
  const updatePushEnabled=async(value:boolean)=>{setPushEnabled(value);await persistNotificationPreferences({...alerts,pushEnabled:value});};
@@ -113,7 +113,7 @@ export default function MyPage(){
  :menu==="notifications"?<ScrollView contentContainerStyle={s.content}>
  <Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>알림 설정</Text><View style={[s.settingGroup,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]}><View style={[s.settingRow,isDark&&{borderColor:"#383838"}]}><Text style={[s.settingText,isDark&&{color:"#FFFFFF",fontWeight:"800"}]}>푸시 알림</Text><Switch value={pushEnabled} onValueChange={v=>{void updatePushEnabled(v);}} trackColor={{false:"#777",true:"#315B85"}} thumbColor={pushEnabled?"#1687F8":"#BDBDC2"}/></View></View>
  {pushEnabled&&<><View style={[s.settingGroup,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]}><Text style={[s.groupLabel,isDark&&{backgroundColor:"#1D1D1D",color:"#B9B2C8"}]}>기본</Text>
- {([{k:"announcements",t:"공지사항"}] as const).map(x=><View key={x.k} style={s.settingRow}><Text style={[s.settingText,isDark&&{color:"#FFFFFF"}]}>{x.t}</Text><Switch value={alerts[x.k]} onValueChange={v=>{void updateAlert(x.k,v);}} trackColor={{false:"#777",true:"#315B85"}} thumbColor={alerts[x.k]?"#1687F8":"#BDBDC2"}/></View>)}</View>
+ {([{k:"announcements",t:"공지사항"},{k:"postComments",t:"내 게시글 댓글"},{k:"bookmarkComments",t:"북마크한 게시글 댓글"}] as const).map(x=><View key={x.k} style={s.settingRow}><Text style={[s.settingText,isDark&&{color:"#FFFFFF"}]}>{x.t}</Text><Switch value={alerts[x.k]} onValueChange={v=>{void updateAlert(x.k,v);}} trackColor={{false:"#777",true:"#315B85"}} thumbColor={alerts[x.k]?"#1687F8":"#BDBDC2"}/></View>)}</View>
  <Pressable onPress={configureNotificationPermission} style={[s.permissionButton,notificationPermission==="granted"&&s.permissionGranted]}><Text style={s.permissionButtonText}>{notificationPermission==="granted"?"기기 알림 권한 허용됨":notificationPermission==="denied"?"기기 알림 권한 거부됨 · 설정 열기":"기기 알림 권한 설정"}</Text><Ionicons name="chevron-forward" size={16} color={C.purple}/></Pressable><Text style={s.notice}>푸시 알림을 받으려면 위 설정과 기기 알림 권한이 모두 허용되어야 합니다. 권한이 거부된 경우 기기 설정에서 발레메이트 알림을 허용해 주세요.</Text>
  <Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>찜한 학원 업데이트 알림</Text><View style={[s.settingGroup,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]}>
  {([{k:"favoriteNotices",t:"학원 공지사항 업데이트"},{k:"favoritePrices",t:"가격표 업데이트"},{k:"favoriteSchedules",t:"시간표 업데이트"}] as const).map(x=><View key={x.k} style={[s.settingRow,isDark&&{borderColor:"#383838"}]}><Text style={[s.settingText,isDark&&{color:"#FFFFFF"}]}>{x.t}</Text><Switch value={alerts[x.k]} onValueChange={v=>{void updateAlert(x.k,v);}} trackColor={{false:"#777",true:"#315B85"}} thumbColor={alerts[x.k]?"#1687F8":"#BDBDC2"}/></View>)}
