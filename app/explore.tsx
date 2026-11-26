@@ -487,8 +487,6 @@ export default function Home() {
   const handleMapRegionChange=useCallback((next:Region)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);},[]);
   const handleMapMarkerPress=useCallback((id:string)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);},[results]);
   const allListAreas=useMemo(()=>[...new Set([...directoryAreas,...studios.map(studio=>studio.area)].filter(area=>area&&area!=="지역 정보 없음").map(canonicalArea))].sort((a,b)=>a.localeCompare(b,"ko")),[directoryAreas,studios]);
-  const listProvinces=["전체",...PROVINCES];
-  const listCities=useMemo(()=>["전체",...new Set(allListAreas.filter(area=>regionProvince==="전체"||parseArea(area).province===regionProvince).map(area=>parseArea(area).city).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ko")),[allListAreas,regionProvince]);
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active){setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);setDirectoryStudios(rows.map(mapStudioRecord));}}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
   const listDistricts=useMemo(()=>allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity)),[allListAreas,regionProvince,regionCity]);
   const regionGroups=useMemo(()=>{
