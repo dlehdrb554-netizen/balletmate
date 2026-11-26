@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {themeStyles } from "../lib/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, useColorScheme} from "react-native";
@@ -315,7 +315,7 @@ export default function Home() {
   const [compareScheduleData,setCompareScheduleData]=useState<Record<string,StudioPublicSchedule[]>>({});
   const [compareClassLoading,setCompareClassLoading]=useState(false);
   const [compareMaterialError,setCompareMaterialError]=useState<string|null>(null);
-  useEffect(()=>{
+  useFocusEffect(useCallback(()=>{
     const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
       if(mapSettingsOpen){setMapSettingsOpen(false);setPendingDirectionsStudio(null);return true;}
       if(menuOpen){setMenuOpen(false);return true;}
@@ -327,7 +327,7 @@ export default function Home() {
       return false;
     });
     return()=>subscription.remove();
-  },[mapSettingsOpen,menuOpen,compareOpen,regionPickerOpen,filterOpen,detailStudio,view]);
+  },[mapSettingsOpen,menuOpen,compareOpen,regionPickerOpen,filterOpen,detailStudio,view]));
   useEffect(()=>{
     if(!compareOpen||compareIds.length===0){setCompareMaterialError(null);return;}
     let active=true;
