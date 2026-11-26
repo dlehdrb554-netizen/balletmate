@@ -55,7 +55,7 @@ const PROVINCE_ALIASES:Record<string,string>={
  "광주":"광주시","광주시":"광주시","광주광역시":"광주시",
  "대전":"대전시","대전시":"대전시","대전광역시":"대전시",
  "울산":"울산시","울산시":"울산시","울산광역시":"울산시",
- "세종":"세종시","세종시":"세종시","세종특별자치시":"세종시",
+ "세종":"충청남도","세종시":"충청남도","세종특별자치시":"충청남도",
  "경기":"경기도","경기도":"경기도","강원":"강원도","강원도":"강원도","강원특별자치도":"강원도",
  "충북":"충청북도","충청북도":"충청북도","충남":"충청남도","충청남도":"충청남도",
  "전북":"전라북도","전라북도":"전라북도","전북특별자치도":"전라북도",
@@ -84,7 +84,7 @@ const parseArea=(area:string)=>{
  if(province==="세종시")return {province,city:"",detail:""};
  const inferredUnprefixedCity=UNPREFIXED_CITY_PROVINCES[normalizedFirst]===province;
  const cityToken=parts.slice(1).find(token=>/(시|군)$/.test(token))||"";
- const city=cityToken||(inferredUnprefixedCity?normalizedFirst+"시":(parts[1]&&!/(구|군|도|시)$/.test(parts[1])?parts[1]+"시":""));
+ const city=normalizedFirst==="세종"?"세종시":(cityToken||(inferredUnprefixedCity?normalizedFirst+"시":(parts[1]&&!/(구|군|도|시)$/.test(parts[1])?parts[1]+"시":"")));
  const district=parts.slice(1).find(token=>/(구|군)$/.test(token)&&token!==cityToken)||"";
  return {province,city,detail:district};
 };
@@ -353,6 +353,7 @@ export default function Home() {
   const [compareCache,setCompareCache]=useState<Studio[]>([]);
   const [compareReady,setCompareReady]=useState(false);
   const [compareClassData,setCompareClassData]=useState<Record<string,StudioClass[]>>({});
+  const [compareCouponStates,setCompareCouponStates]=useState<Record<string,"available"|"none"|"unverified">>({});
   const [comparePriceData,setComparePriceData]=useState<Record<string,StudioPublicPrice[]>>({});
   const [compareScheduleData,setCompareScheduleData]=useState<Record<string,StudioPublicSchedule[]>>({});
   const [compareClassLoading,setCompareClassLoading]=useState(false);
@@ -376,20 +377,22 @@ export default function Home() {
     setCompareMaterialError(null);
     setCompareClassLoading(true);
     Promise.all(compareIds.map(async id=>{
-      const [classes,prices]=await Promise.all([
-        fetchClassesForStudio(id),fetchStudioPublicPrices(id)
+      const [classes,prices,coupons]=await Promise.all([
+        fetchClassesForStudio(id),fetchStudioPublicPrices(id),
+        fetchCouponsForStudio(id).then(rows=>({status:rows.length?"available" as const:"none" as const})).catch(()=>({status:"unverified" as const}))
       ]);
-      return [id,{classes,prices}] as const;
+      return [id,{classes,prices,couponStatus:coupons.status}] as const;
     })).then(entries=>{
       if(!active)return;
       const records=Object.fromEntries(entries);
       setCompareClassData(Object.fromEntries(Object.entries(records).map(([id,value])=>[id,value.classes])));
       setComparePriceData(Object.fromEntries(Object.entries(records).map(([id,value])=>[id,value.prices])));
+      setCompareCouponStates(Object.fromEntries(Object.entries(records).map(([id,value])=>[id,value.couponStatus])));
       setCompareScheduleData({});
     }).catch(error=>{
       if(active){
         console.warn("Comparison materials unavailable:",error);
-        setCompareMaterialError("가격표·시간표 또는 수업 정보를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 비교 창을 다시 열어 주세요.");
+        setCompareMaterialError("가격표 또는 수업 정보를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 비교 창을 다시 열어 주세요.");
       }
     })
       .finally(()=>{if(active)setCompareClassLoading(false);});
@@ -1103,7 +1106,7 @@ export default function Home() {
     </Modal>
     <Modal visible={compareOpen} animationType="slide" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
-        <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}>{compareIds.length>0&&<Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable>}<Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
+        <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}>{compareIds.length>0&&<Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable>}<Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
         {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
         {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="swap-horizontal-outline" size={30} color={COLORS.muted}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>비교 목록이 비어 있어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>학원 카드에서 비교를 추가해 주세요.</Text></View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
@@ -1123,7 +1126,7 @@ export default function Home() {
               <Text style={styles.compareSectionTitle}>가격</Text>
               {amounts.length?amounts.map((amount,index)=><Text key={index} style={[styles.comparePrice,{fontSize:12}]}>{amount.toLocaleString("ko-KR")}원</Text>):<Text style={styles.compareEmpty}>미등록</Text>}
               <Text style={styles.compareSectionTitle}>쿠폰</Text>
-              <Text style={styles.compareInfo}>{studio.coupon?"쿠폰 있음":"등록 없음"}</Text>
+              <Text style={styles.compareInfo}>{compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"현재 제공 중인 쿠폰 없음":"쿠폰 확인 불가"}</Text>
               <Text style={styles.compareSectionTitle}>최대 수업시간</Text>
               <Text style={[styles.comparePrice,{fontSize:12}]}>{maxDuration>0?maxDuration+"분":"미등록"}</Text>
             </View>;
