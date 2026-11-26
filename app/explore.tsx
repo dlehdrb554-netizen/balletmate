@@ -177,9 +177,9 @@ export default function Home() {
   const detailRequestId=useRef(0);
   const [detailExpanded,setDetailExpanded]=useState(false);
   const [detailContentError,setDetailContentError]=useState<string|null>(null);
-  const [detailTab,setDetailTab]=useState<"home"|"notices"|"reviews"|"photos">("home");
-  const detailScrollRefs=useRef<{home?:ScrollView|null;notices?:ScrollView|null;reviews?:ScrollView|null;photos?:ScrollView|null}>({});
-  const detailScrollPositions=useRef<{home:number;notices:number;reviews:number;photos:number}>({home:0,notices:0,reviews:0,photos:0});
+  const [detailTab,setDetailTab]=useState<"home"|"notices"|"classes"|"reviews"|"photos">("home");
+  const detailScrollRefs=useRef<{home?:ScrollView|null;notices?:ScrollView|null;classes?:ScrollView|null;reviews?:ScrollView|null;photos?:ScrollView|null}>({});
+  const detailScrollPositions=useRef<{home:number;notices:number;classes:number;reviews:number;photos:number}>({home:0,notices:0,classes:0,reviews:0,photos:0});
   const [detailInfoTab,setDetailInfoTab]=useState<"price"|"schedule">("price");
   const [studioReviews,setStudioReviews]=useState<any[]>([]);
   const [studioGalleryImages,setStudioGalleryImages]=useState<any[]>([]);
@@ -206,7 +206,7 @@ export default function Home() {
     onPanResponderRelease:(_,gesture)=>{const studio=selectedStudioForGesture.current;if(gesture.dy < -45 && studio)openDetailAction.current(studio);},
     onPanResponderTerminationRequest:()=>true,
   })).current;
-  const detailTabs=["home","notices","reviews","photos"] as const;
+  const detailTabs=["home","notices","classes","reviews","photos"] as const;
   const detailTabRef=useRef(detailTab);detailTabRef.current=detailTab;
   const detailTouchStart=useRef<{x:number;y:number}|null>(null);
   const handleDetailTouchStart=(event:any)=>{detailTouchStart.current={x:event.nativeEvent.pageX,y:event.nativeEvent.pageY};};
@@ -928,7 +928,7 @@ export default function Home() {
     if(supabase)supabase.rpc("record_studio_detail_view",{p_studio_id:s.id}).then(({error})=>{if(error)console.warn("Studio view metric unavailable:",error.message);});
     const requestId=++detailRequestId.current;
     setDetailTab("home");
-    detailScrollPositions.current={home:0,notices:0,reviews:0,photos:0};
+    detailScrollPositions.current={home:0,notices:0,classes:0,reviews:0,photos:0};
     setDetailInfoTab("price");
     setDetailExpanded(false);
     detailDragY.setValue(0);
@@ -1129,7 +1129,7 @@ export default function Home() {
 <Modal visible={!!detailStudio} animationType="slide" transparent onRequestClose={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}>
 <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}><View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><Animated.View style={[styles.modal,{height:detailExpanded?"92%":"65%",maxHeight:"94%",paddingBottom:Math.max(24,insets.bottom+32),transform:[{translateY:detailDragY}]}]}>
 <View style={styles.dragHeader}><View style={[styles.dragGestureZone,{height:60}]} {...detailPan.panHandlers}><View style={[styles.dragHandle,{width:64,height:7}]}/></View><View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세 정보</Text><Pressable hitSlop={10} onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}><Text style={[styles.dismissText,{fontSize:30}]}>×</Text></Pressable></View><Text style={styles.dragHint}>위아래로 끌어 창 크기 조절 · 아래로 길게 끌면 닫기</Text></View>
-<View style={{flexDirection:"row",gap:5,marginTop:8,marginBottom:8}}>{([{id:"home",label:"홈"},{id:"notices",label:"소식"},{id:"reviews",label:"리뷰"},{id:"photos",label:"사진"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailTab(tab.id)} style={{flex:1,paddingVertical:10,borderRadius:10,backgroundColor:detailTab===tab.id?(isDark?"#3A2D50":COLORS.pale):(isDark?"#252525":COLORS.bg),alignItems:"center",borderWidth:1,borderColor:detailTab===tab.id?COLORS.purple:COLORS.line}}><Text style={{fontSize:12,fontWeight:"800",color:detailTab===tab.id?(isDark?"#D8C6FF":COLORS.purple):(isDark?"#D0D0D0":COLORS.muted)}}>{tab.label}</Text></Pressable>)}</View>
+<View style={{flexDirection:"row",gap:4,marginTop:8,marginBottom:8}}>{([{id:"home",label:"홈"},{id:"notices",label:"소식"},{id:"classes",label:"수업정보"},{id:"reviews",label:"리뷰"},{id:"photos",label:"사진"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailTab(tab.id)} style={{flex:1,paddingVertical:10,borderRadius:10,backgroundColor:detailTab===tab.id?(isDark?"#3A2D50":COLORS.pale):(isDark?"#252525":COLORS.bg),alignItems:"center",borderWidth:1,borderColor:detailTab===tab.id?COLORS.purple:COLORS.line}}><Text numberOfLines={1} adjustsFontSizeToFit style={{fontSize:12,fontWeight:"800",color:detailTab===tab.id?(isDark?"#D8C6FF":COLORS.purple):(isDark?"#D0D0D0":COLORS.muted)}}>{tab.label}</Text></Pressable>)}</View>
 {!!detailContentError&&<View style={{marginHorizontal:12,marginBottom:8,padding:9,borderRadius:9,backgroundColor:isDark?"#2A2418":"#FFF8E8"}}><Text style={{fontSize:11,color:"#8B641B"}}>{detailContentError}</Text></View>}{detailCanonicalLoading&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,paddingVertical:8}}><ActivityIndicator size="small" color={COLORS.purple}/><Text style={styles.photoCredit}>학원 정보 동기화 중…</Text></View>}
 {!!detailCanonicalError&&<View style={{marginHorizontal:12,marginBottom:8,padding:10,borderRadius:10,backgroundColor:isDark?"#2A1C1C":"#FFF1F0",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{flex:1,fontSize:12,color:"#A53A35"}}>일부 상세 정보 갱신 실패</Text><Pressable disabled={detailCanonicalLoading} onPress={()=>retryCanonicalDetail(detailStudio!.id,detailRequestId.current)} style={{paddingHorizontal:10,paddingVertical:6,backgroundColor:"#FCE1DE",borderRadius:8}}><Text style={{fontSize:12,fontWeight:"800",color:"#A53A35"}}>재시도</Text></Pressable></View>}
 <View style={{flex:1}} onTouchStart={handleDetailTouchStart} onTouchEnd={handleDetailTouchEnd}>{detailStudio&&<>
@@ -1155,19 +1155,6 @@ export default function Home() {
        <Pressable onPress={()=>setDetailInfoTab("schedule")} style={{flex:1,padding:11,borderRadius:12,backgroundColor:isDark?"#252525":"#F7F5FA",flexDirection:"row",alignItems:"center",gap:7}}><Ionicons name="calendar-outline" size={18} color={COLORS.purple}/><Text style={{fontSize:12,fontWeight:"800",color:isDark?"#E4DDF0":COLORS.ink}}>시간표 확인</Text></Pressable>
      </View>
    </View>})()}
-   <View style={{marginHorizontal:12,marginTop:15}}>
-     <View style={{flexDirection:"row",gap:8,marginBottom:10}}>{([{id:"price",label:"가격 정보"},{id:"schedule",label:"시간표"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailInfoTab(tab.id)} style={{flex:1,paddingVertical:10,borderRadius:10,borderWidth:1,borderColor:detailInfoTab===tab.id?COLORS.purple:COLORS.line,backgroundColor:isDark?"#242424":detailInfoTab===tab.id?COLORS.pale:"#FFFFFF",alignItems:"center"}}><Text style={{fontSize:13,fontWeight:"800",color:detailInfoTab===tab.id?COLORS.purple:COLORS.muted}}>{tab.label}</Text></Pressable>)}</View>
-     {detailInfoTab==="price"&&<View>
-       {studioClasses.filter(item=>Number(item.price||0)>0).map(item=><View key={"class-price-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{item.title}</Text><Text style={{fontSize:15,fontWeight:"900",color:COLORS.purple,marginTop:5}}>₩{Number(item.price).toLocaleString("ko-KR")}</Text><Text style={styles.classMeta}>{[item.duration_minutes?item.duration_minutes+"분":null,item.audience==="adult"?"성인":item.audience==="kids"?"키즈":null,item.level].filter(Boolean).join(" · ")}</Text></View>)}
-       {studioPublicPrices.map(item=><View key={"public-price-"+item.id} style={styles.classBlock}>{item.amount_krw!==null&&<Text style={styles.classTitle}>{item.price_period||"등록 가격"} · ₩{Number(item.amount_krw).toLocaleString("ko-KR")}</Text>}<Image source={{uri:item.image_url}} style={{width:"100%",height:230,borderRadius:10,backgroundColor:"#FFFFFF",marginTop:6}} resizeMode="contain"/></View>)}
-       {!studioClasses.some(item=>Number(item.price||0)>0)&&!studioPublicPrices.length&&<Text style={styles.filterHint}>등록된 가격 정보가 없습니다. 학원에 문의해 주세요.</Text>}
-     </View>}
-     {detailInfoTab==="schedule"&&<View>
-       {studioClasses.map(item=><View key={"class-schedule-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{item.title}</Text><Text style={styles.classMeta}>{[item.duration_minutes?item.duration_minutes+"분":null,item.audience==="adult"?"성인":item.audience==="kids"?"키즈":null,item.level,item.class_type].filter(Boolean).join(" · ")||"수업 세부 정보"}</Text>{item.class_sessions.map((session,index)=><Text key={item.id+"-session-"+index} style={styles.sessionText}>{session.start_time}{session.end_time?" ~ "+session.end_time:""}{session.note?" · "+session.note:""}</Text>)}</View>)}
-       {studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}>{!!item.schedule_text&&<Text style={styles.classTitle}>{item.schedule_text}</Text>}<Image source={{uri:item.image_url}} style={{width:"100%",height:230,borderRadius:10,backgroundColor:"#FFFFFF",marginTop:6}} resizeMode="contain"/></View>)}
-       {!studioClasses.length&&!studioPublicSchedules.length&&<Text style={styles.filterHint}>등록된 시간표가 없습니다.</Text>}
-     </View>}
-   </View>
    <View style={{marginHorizontal:12,marginTop:16}}>
      {detailStudio.address&&<View style={styles.infoRow}><Text style={styles.infoLabel}>주소</Text><Text style={styles.infoValue}>{detailStudio.address}</Text></View>}
      {(detailStudio.address||detailStudio.lat)&&<Pressable style={styles.detailBtn} onPress={()=>requestDirections(detailStudio)}><Text style={styles.detailBtnText}>길찾기 열기 · {mapProvider==="kakao"?"카카오맵":mapProvider==="google"?"구글 지도":"앱 선택"}</Text></Pressable>}
@@ -1179,6 +1166,27 @@ export default function Home() {
      <Pressable style={styles.detailBtn} onPress={async()=>{if(!supabase){Alert.alert("제보","로그인이 필요한 기능입니다.");return;}const {data}=await supabase.auth.getSession();if(!data.session){Alert.alert("로그인 필요","학원 정보 제보는 로그인 후 이용할 수 있어요.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);return;}setReportCategory("기타");setReportDescription("");setReportOpen(true);}}><Text style={styles.detailBtnText}>학원 정보 오류 제보</Text></Pressable>
    </View>
  </ScrollView>}
+{detailTab==="classes"&&<ScrollView ref={ref=>{detailScrollRefs.current.classes=ref;}} onScroll={({nativeEvent})=>{detailScrollPositions.current.classes=nativeEvent.contentOffset.y;}} onContentSizeChange={()=>detailScrollRefs.current.classes?.scrollTo({y:detailScrollPositions.current.classes,animated:false})} scrollEventThrottle={16} style={{flex:1}} contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}>
+ <View style={{marginHorizontal:12,marginTop:8}}>
+  <Text style={styles.sectionTitle}>수업 정보</Text>
+  <View style={{flexDirection:"row",gap:8,marginBottom:10}}>{([{id:"price",label:"가격 정보"},{id:"schedule",label:"시간표"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailInfoTab(tab.id)} style={{flex:1,paddingVertical:11,borderRadius:10,borderWidth:1,borderColor:detailInfoTab===tab.id?COLORS.purple:COLORS.line,backgroundColor:isDark?"#242424":detailInfoTab===tab.id?COLORS.pale:"#FFFFFF",alignItems:"center"}}><Text style={{fontSize:13,fontWeight:"800",color:detailInfoTab===tab.id?COLORS.purple:COLORS.muted}}>{tab.label}</Text></Pressable>)}</View>
+  {detailInfoTab==="price"&&<View>
+   {studioClasses.filter(item=>Number(item.price||0)>0).map(item=><View key={"class-price-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{item.title}</Text><Text style={{fontSize:15,fontWeight:"900",color:COLORS.purple,marginTop:5}}>₩{Number(item.price).toLocaleString("ko-KR")}</Text><Text style={styles.classMeta}>{[item.duration_minutes?item.duration_minutes+"분":null,item.audience==="adult"?"성인":item.audience==="kids"?"키즈":null,item.level].filter(Boolean).join(" · ")}</Text></View>)}
+   {studioPublicPrices.map(item=><View key={"public-price-"+item.id} style={styles.classBlock}>{item.amount_krw!==null&&<Text style={styles.classTitle}>{item.price_period||"등록 가격"} · ₩{Number(item.amount_krw).toLocaleString("ko-KR")}</Text>}<Image source={{uri:item.image_url}} style={{width:"100%",height:230,borderRadius:10,backgroundColor:"#FFFFFF",marginTop:6}} resizeMode="contain"/></View>)}
+   {!studioClasses.some(item=>Number(item.price||0)>0)&&!studioPublicPrices.length&&<Text style={styles.filterHint}>등록된 가격 정보가 없습니다. 학원에 문의해 주세요.</Text>}
+  </View>}
+  {detailInfoTab==="schedule"&&<View>
+   {studioClasses.map(item=><View key={"class-schedule-"+item.id} style={styles.classBlock}><Text style={styles.classTitle}>{item.title}</Text><Text style={styles.classMeta}>{[item.duration_minutes?item.duration_minutes+"분":null,item.audience==="adult"?"성인":item.audience==="kids"?"키즈":null,item.level,item.class_type].filter(Boolean).join(" · ")||"수업 세부 정보"}</Text>{item.class_sessions.map((session,index)=><Text key={item.id+"-session-"+index} style={styles.sessionText}>{session.start_time}{session.end_time?" ~ "+session.end_time:""}{session.note?" · "+session.note:""}</Text>)}</View>)}
+   {studioPublicSchedules.map(item=><View key={"public-schedule-"+item.id} style={styles.classBlock}>{!!item.schedule_text&&<Text style={styles.classTitle}>{item.schedule_text}</Text>}<Image source={{uri:item.image_url}} style={{width:"100%",height:230,borderRadius:10,backgroundColor:"#FFFFFF",marginTop:6}} resizeMode="contain"/></View>)}
+   {!studioClasses.length&&!studioPublicSchedules.length&&<Text style={styles.filterHint}>등록된 시간표가 없습니다.</Text>}
+  </View>}
+  <View style={{marginTop:16}}><Text style={styles.sectionTitle}>수업 대상 및 수준</Text>
+   <View style={styles.infoRow}><Text style={styles.infoLabel}>수업 대상</Text><Text style={styles.infoValue}>{[detailStudio.adult?"성인":null,detailStudio.kids?"키즈":null].filter(Boolean).join(" · ")||"미등록"}</Text></View>
+   <View style={styles.infoRow}><Text style={styles.infoLabel}>수준</Text><Text style={styles.infoValue}>{detailStudio.level.join(" · ")||"미등록"}</Text></View>
+   <Text style={styles.detailDisclaimer}>가격과 시간표는 학원 또는 관리자에게 확인된 등록 정보만 표시합니다. 최신 여부를 확인해 주세요.</Text>
+  </View>
+ </View>
+</ScrollView>}
 {detailTab==="notices"&&<ScrollView ref={ref=>{detailScrollRefs.current.notices=ref;}} onScroll={({nativeEvent})=>{detailScrollPositions.current.notices=nativeEvent.contentOffset.y;const {layoutMeasurement,contentOffset,contentSize}=nativeEvent;if(contentSize.height-layoutMeasurement.height-contentOffset.y<220)void loadMoreStudioOwnerNotices();}} onContentSizeChange={()=>detailScrollRefs.current.notices?.scrollTo({y:detailScrollPositions.current.notices,animated:false})} scrollEventThrottle={250} style={{flex:1}} contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}><Text style={styles.sectionTitle}>학원 안내</Text>{String(detailStudio.description||"").trim().length>0&&<><Text style={styles.sectionTitle}>학원 소개</Text><Text style={styles.detailDescription}>{cleanPublicText(detailStudio.description)}</Text></>}
           {!!detailStudio.websiteUrl&&!/(blog\.naver\.com|m\.blog\.naver\.com|blog\.daum\.net|tistory\.com)/i.test(detailStudio.websiteUrl)&&<View style={styles.infoRow}><Text style={styles.infoLabel}>공식 홈페이지</Text><Pressable onPress={()=>Linking.openURL(detailStudio.websiteUrl!).catch(()=>Alert.alert("홈페이지 연결","사이트를 열 수 없습니다."))}><Text style={styles.photoSourceLink}>홈페이지 방문 ›</Text></Pressable></View>}
           {!!(detailStudio.websiteUrl&&/(blog\.naver\.com|m\.blog\.naver\.com|blog\.daum\.net|tistory\.com)/i.test(detailStudio.websiteUrl)?detailStudio.websiteUrl:detailStudio.sourceUrl&&/(blog\.naver\.com|m\.blog\.naver\.com|blog\.daum\.net|tistory\.com)/i.test(detailStudio.sourceUrl)?detailStudio.sourceUrl:null)&&<View style={styles.infoRow}><Text style={styles.infoLabel}>공식 블로그</Text><Pressable style={{flex:1,alignItems:"flex-end",justifyContent:"center",minHeight:38,paddingVertical:6}} onPress={()=>Linking.openURL((detailStudio.websiteUrl&&/(blog\.naver\.com|m\.blog\.naver\.com|blog\.daum\.net|tistory\.com)/i.test(detailStudio.websiteUrl)?detailStudio.websiteUrl:detailStudio.sourceUrl!)!).catch(()=>Alert.alert("블로그 연결","블로그를 열 수 없습니다."))}><Text style={[styles.photoSourceLink,{textAlign:"right",lineHeight:18}]} numberOfLines={2}>{detailStudio.websiteUrl&&/(blog\.naver\.com|m\.blog\.naver\.com|blog\.daum\.net|tistory\.com)/i.test(detailStudio.websiteUrl)?detailStudio.websiteUrl:detailStudio.sourceUrl}</Text></Pressable></View>}
