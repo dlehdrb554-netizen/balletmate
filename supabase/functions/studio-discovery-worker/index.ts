@@ -4,7 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
 const SEARCH_TERMS=["발레학원","발레핏","성인발레","키즈발레","발레교습소","발레아카데미","무용학원","ballet studio","ballet academy"];
 const MAX_PAGES_PER_TERM=3, PAGE_SIZE=15;
-const EXCLUDED_DANCE_STYLE=/(댄스\s*스튜디오|댄스\s*스포츠|폴\s*댄스|밸리\s*댄스|dance\s*studio|dance\s*sports|pole\s*dance|belly\s*dance)/i;
+const EXCLUDED_DANCE_STYLE=/(댄스\s*스튜디오|댄스\s*스포츠|폴\s*댄스|(밸리|벨리)\s*댄스|dance\s*studio|dance\s*sports|pole\s*dance|belly\s*dance)/i;
 
 Deno.serve(async(req)=>{
  if(req.method!=="POST")return json({error:"POST only"},405);
