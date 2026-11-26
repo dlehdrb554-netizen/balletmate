@@ -23,6 +23,8 @@ type Props = {
   initialRegion: MapRegion;
   markers: KakaoMapMarker[];
   selectedId?: string | null;
+  searchedIds?: string[];
+  compareIds?: string[];
   currentLocation?: { latitude: number; longitude: number } | null;
   onRegionChangeComplete?: (region: MapRegion) => void;
   onMarkerPress?: (id: string) => void;
@@ -40,48 +42,60 @@ function buildHtml(initialRegion: MapRegion) {
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
-  var map=null, markers={}, markerMeta={}, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null;
+  var map=null, markers={}, markerMeta={}, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[];
   var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
-  function pinImage(selected){
-    var key=selected?'selected':'default';
-    if(cachedPinImages[key])return cachedPinImages[key];
-    var color=selected?'#FF5A1F':'#A58BEA';
-    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11 16 24 16 24s16-13 16-24C33 8.2 25.8 1 17 1z" fill="'+color+'" stroke="white" stroke-width="2"/><circle cx="17" cy="17" r="5" fill="white"/></svg>';
-    cachedPinImages[key]=new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
-    return cachedPinImages[key];
+  function markerState(id, selectedId, searchedIds, compareIds){
+    if(id===selectedId)return 'selected';
+    if((searchedIds||[]).indexOf(id)>=0)return 'searched';
+    if((compareIds||[]).indexOf(id)>=0)return 'compared';
+    return 'default';
   }
-  function setSelectedMarker(id){
-    currentSelected=id||null;
-    Object.keys(markers).forEach(function(markerId){
-      var selected=markerId===currentSelected;
-      var marker=markers[markerId];
-      var meta=markerMeta[markerId]||{};
-      if(meta.selected!==selected){
-        marker.setImage(pinImage(selected));
-        meta.selected=selected;
-        markerMeta[markerId]=meta;
+  function pinImage(state){
+    state=state||'default';
+    if(cachedPinImages[state])return cachedPinImages[state];
+    var colors={selected:'#FF5A1F',searched:'#168CCB',compared:'#15966A',default:'#A58BEA'};
+    var color=colors[state]||colors.default;
+    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11 16 24 16 24s16-13 16-24C33 8.2 25.8 1 17 1z" fill="'+color+'" stroke="white" stroke-width="2"/><circle cx="17" cy="17" r="5" fill="white"/></svg>';
+    cachedPinImages[state]=new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
+    return cachedPinImages[state];
+  }
+  function refreshMarkerImages(){
+    Object.keys(markers).forEach(function(id){
+      var state=markerState(id,currentSelected,currentSearched,currentCompared);
+      var meta=markerMeta[id]||{};
+      if(meta.state!==state){
+        markers[id].setImage(pinImage(state));
+        meta.state=state;
+        markerMeta[id]=meta;
       }
     });
   }
-  function updateMarkers(list, selectedId, location){
+  function updateSelectedMarker(id){
+    currentSelected=id||null;
+    refreshMarkerImages();
+  }
+  function updateMarkers(list, selectedId, searchedIds, compareIds, location){
     if(!map)return;
     currentSelected=selectedId||null;
+    currentSearched=searchedIds||[];
+    currentCompared=compareIds||[];
     var keep={};
     (list||[]).forEach(function(item){
       keep[item.id]=true;
       var pos=new kakao.maps.LatLng(item.latitude,item.longitude);
       if(!markers[item.id]){
-        var marker=new kakao.maps.Marker({position:pos,image:pinImage(item.id===selectedId),title:item.name});
+        var marker=new kakao.maps.Marker({position:pos,image:pinImage(markerState(item.id,selectedId,currentSearched,currentCompared)),title:item.name});
         marker.setMap(map);
-        kakao.maps.event.addListener(marker,'click',function(){setSelectedMarker(item.id);post({type:'marker',id:item.id});});
+        kakao.maps.event.addListener(marker,'click',function(){updateSelectedMarker(item.id);post({type:'marker',id:item.id});});
         markers[item.id]=marker;
-        markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,selected:item.id===selectedId};
+        markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,state:markerState(item.id,selectedId,currentSearched,currentCompared)};
       }else{
         var marker=markers[item.id], meta=markerMeta[item.id]||{};
         if(meta.latitude!==item.latitude||meta.longitude!==item.longitude)marker.setPosition(pos);
-        if(meta.selected!==(item.id===selectedId))marker.setImage(pinImage(item.id===selectedId));
+        var state=markerState(item.id,selectedId,currentSearched,currentCompared);
+        if(meta.state!==state)marker.setImage(pinImage(state));
         if(meta.name!==item.name)marker.setTitle(item.name);
         markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,selected:item.id===selectedId};
       }
@@ -114,7 +128,7 @@ function buildHtml(initialRegion: MapRegion) {
   }
   function apply(message){
     if(!map){pending.push(message);return;}
-    if(message.type==='markers')updateMarkers(message.markers,message.selectedId,message.currentLocation);
+    if(message.type==='markers')updateMarkers(message.markers,message.selectedId,message.searchedIds,message.compareIds,message.currentLocation);
     if(message.type==='animate')moveTo(message.region,message.duration);
   }
   window.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
@@ -169,7 +183,7 @@ function buildHtml(initialRegion: MapRegion) {
 }
 
 const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
-  { initialRegion, markers, selectedId, currentLocation, onRegionChangeComplete, onMarkerPress },
+  { initialRegion, markers, selectedId, searchedIds, compareIds, currentLocation, onRegionChangeComplete, onMarkerPress },
   ref
 ) {
   const webRef = useRef<WebView>(null);
@@ -196,6 +210,8 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
       type: "markers",
       markers,
       selectedId: selectedId ?? null,
+      searchedIds: searchedIds ?? [],
+      compareIds: compareIds ?? [],
       currentLocation: currentLocation ?? null,
     });
   }, [markers, selectedId, currentLocation]);
@@ -212,6 +228,8 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
           type: "markers",
           markers,
           selectedId: selectedId ?? null,
+          searchedIds: searchedIds ?? [],
+          compareIds: compareIds ?? [],
           currentLocation: currentLocation ?? null,
         }));
       }
