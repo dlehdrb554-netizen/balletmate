@@ -97,7 +97,7 @@ function buildHtml(initialRegion: MapRegion) {
         var state=markerState(item.id,selectedId,currentSearched,currentCompared);
         if(meta.state!==state)marker.setImage(pinImage(state));
         if(meta.name!==item.name)marker.setTitle(item.name);
-        markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,selected:item.id===selectedId};
+        markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,state:state};
       }
     });
     Object.keys(markers).forEach(function(id){if(!keep[id]){markers[id].setMap(null);delete markers[id];delete markerMeta[id];}});
@@ -214,7 +214,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
       compareIds: compareIds ?? [],
       currentLocation: currentLocation ?? null,
     });
-  }, [markers, selectedId, currentLocation]);
+  }, [markers, selectedId, searchedIds, compareIds, currentLocation]);
   const handleMessage = (event: WebViewMessageEvent) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
