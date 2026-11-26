@@ -42,22 +42,46 @@ export default function MyPage(){
     if(sessionError)throw sessionError;
     if(!alive)return;
     const currentUser=data.session?.user||null;
-    setUser(currentUser);
-    setAuthChecked(true);
-    if(!currentUser){router.replace(loginPath);return;}
-    let profile=await supabase.from("user_profiles").select("display_name,username,avatar_url").eq("user_id",currentUser.id).maybeSingle();
-    if(profile.error&&profile.error.code==="42703"){
-     profile=await supabase.from("user_profiles").select("display_name,username").eq("user_id",currentUser.id).maybeSingle() as typeof profile;
-    }
+    if(!currentUser){setAuthChecked(true);router.replace(loginPath);return;}
+
+    // Show the last known profile immediately, then refresh it from Supabase.
+    const cacheKey="balletmate.profile."+currentUser.id;
+    const cachedRaw=await AsyncStorage.getItem(cacheKey);
     if(!alive)return;
-    const {data:adminResult,error:adminError}=await supabase.rpc("is_balletmate_admin");
-    const isAdmin=!adminError&&adminResult===true;
+    if(cachedRaw){
+     try{
+      const cached=JSON.parse(cachedRaw);
+      setDisplay(cached.display_name||cached.username||"회원");
+      setUsername(cached.username||"");
+      setAvatarUrl(cached.avatar_url||null);
+     }catch{}
+    }
+    setUser(currentUser);
+    setProviders((currentUser.identities||[]).map((x:any)=>x.provider));
+    setAuthChecked(true);
+
+    const profilePromise=(async()=>{
+     let result=await supabase.from("user_profiles").select("display_name,username,avatar_url").eq("user_id",currentUser.id).maybeSingle();
+     if(result.error&&result.error.code==="42703"){
+      result=await supabase.from("user_profiles").select("display_name,username").eq("user_id",currentUser.id).maybeSingle() as typeof result;
+     }
+     return result;
+    })();
+    const adminPromise=supabase.rpc("is_balletmate_admin");
+    const [profile,adminResult]=await Promise.all([profilePromise,adminPromise]);
+    if(!alive)return;
+    const isAdmin=!adminResult.error&&adminResult.data===true;
     if(profile.error&&!isAdmin){Alert.alert("회원 정보 확인 실패",profile.error.message||"회원 정보를 불러오지 못했습니다.");return;}
     if(!profile.data?.display_name&&!isAdmin){router.replace("/onboarding");return;}
-    setDisplay(profile.data?.display_name||profile.data?.username||(isAdmin?"관리자":"회원"));
-    setUsername(profile.data?.username||"");
-    setAvatarUrl((profile.data as any)?.avatar_url||null);
-    setProviders((currentUser.identities||[]).map((x:any)=>x.provider));
+    const nextProfile={
+     display_name:profile.data?.display_name||profile.data?.username||(isAdmin?"관리자":"회원"),
+     username:profile.data?.username||"",
+     avatar_url:(profile.data as any)?.avatar_url||null
+    };
+    setDisplay(nextProfile.display_name);
+    setUsername(nextProfile.username);
+    setAvatarUrl(nextProfile.avatar_url);
+    void AsyncStorage.setItem(cacheKey,JSON.stringify(nextProfile)).catch(()=>{});
    }catch(error:any){
     if(!alive)return;
     setAuthChecked(true);
@@ -94,11 +118,12 @@ export default function MyPage(){
   const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
    if(profileOpen){setProfileOpen(false);return true;}
    if(modeOpen){setModeOpen(false);return true;}
+   if(menu==="notifications"&&routeParams.open==="settings"){router.replace("/");return true;}
    if(menu){setMenu(null);return true;}
    return false;
   });
   return()=>subscription.remove();
- },[profileOpen,modeOpen,menu]));
+ },[profileOpen,modeOpen,menu,routeParams.open,router]));
  
  
  useEffect(()=>{if(!user||!supabase)return;let active=true;supabase.from("user_notification_preferences").select("preferences").eq("user_id",user.id).maybeSingle().then(({data})=>{if(active&&data?.preferences){setAlerts(v=>({...v,postComments:true,bookmarkComments:true,...data.preferences}));setPushEnabled(data.preferences.pushEnabled!==false);}});return()=>{active=false;};},[user]);
@@ -114,7 +139,7 @@ export default function MyPage(){
  const openPrivacyPolicy=async()=>{try{await Linking.openURL("https://dlehdrb554-netizen.github.io/balletmate/privacy-policy.html");}catch{Alert.alert("페이지 열기 실패","개인정보처리방침 페이지를 열 수 없습니다. 잠시 후 다시 시도해 주세요.");}};
  const title=menu==="activity"?"내가 작성한 글":menu==="bookmarks"?"북마크":menu==="settings"?"설정":menu==="notifications"?"알림 설정":"공지사항";
  if(!authChecked||!user)return <SafeAreaView style={s.safe}><View style={{flex:1,alignItems:"center",justifyContent:"center"}}><ActivityIndicator color={C.purple}/><Text style={s.small}>로그인 확인 중…</Text></View></SafeAreaView>;
- return <SafeAreaView style={[s.safe,isDark&&{backgroundColor:"#101010"}]}><View style={[s.header,isDark&&{backgroundColor:"#101010",borderColor:"#383443"}]}><Pressable onPress={()=>menu?setMenu(null):router.back()}><Ionicons name="chevron-back" size={23} color={isDark?"#FFFFFF":C.ink}/></Pressable><Text style={[s.heading,isDark&&{color:"#FFFFFF"}]}>{menu?title:"마이페이지"}</Text><View style={{width:24}}/></View>
+ return <SafeAreaView style={[s.safe,isDark&&{backgroundColor:"#101010"}]}><View style={[s.header,isDark&&{backgroundColor:"#101010",borderColor:"#383443"}]}><Pressable onPress={()=>menu==="notifications"&&routeParams.open==="settings"?router.replace("/"):menu?setMenu(null):router.back()}><Ionicons name="chevron-back" size={23} color={isDark?"#FFFFFF":C.ink}/></Pressable><Text style={[s.heading,isDark&&{color:"#FFFFFF"}]}>{menu?title:"마이페이지"}</Text><View style={{width:24}}/></View>
  {!menu?<ScrollView contentContainerStyle={s.content}><Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>내 계정</Text><Pressable onPress={openProfileEditor} style={[s.account,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]}><Pressable onPress={changeProfilePhoto} disabled={avatarUploading} style={{alignItems:"center",gap:4}}>{avatarUrl?<Image source={{uri:avatarUrl}} style={s.avatarImage}/>:<View style={s.avatar}><Ionicons name="person" size={25} color={C.purple}/></View>}<Text style={{fontSize:9,color:C.purple,fontWeight:"800"}}>{avatarUploading?"저장 중":"사진 변경"}</Text></Pressable><View style={{flex:1}}><Text style={[s.display,isDark&&{color:"#FFFFFF"}]}>{display}</Text><Text style={s.small}>계정 · {username||"확인되지 않음"}</Text></View><View>{providers.map(p=><Text key={p} style={s.provider}>{p==="google"?"Google 인증":"카카오 인증"}</Text>)}</View><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>
  {(["activity","bookmarks","settings","notices"] as const).map((v,i)=><Pressable key={v} style={[s.menuItem,isDark&&{backgroundColor:"#111111",borderColor:"#383838"}]} onPress={()=>setMenu(v)}><Ionicons name={["document-text-outline","bookmark-outline","settings-outline","megaphone-outline"][i] as any} size={21} color={C.purple}/><Text style={[s.menuText,isDark&&{color:"#FFFFFF"}]}>{["내가 작성한 글","북마크","설정","공지사항"][i]}</Text><Ionicons name="chevron-forward" size={18} color={C.muted}/></Pressable>)}
  <Pressable style={s.accountLink} onPress={()=>router.push("/account")}><Text style={s.small}>계정 연결 및 로그인 관리</Text></Pressable><Modal transparent visible={profileOpen} animationType="fade" onRequestClose={()=>setProfileOpen(false)}><Pressable style={s.shade} onPress={()=>setProfileOpen(false)}><Pressable onPress={()=>{}} style={[s.picker,isDark&&{backgroundColor:"#111111"}]}><Text style={[s.section,isDark&&{color:"#FFFFFF"}]}>프로필 수정</Text><Pressable onPress={changeProfilePhoto} style={{alignItems:"center",padding:12}}>{avatarUrl?<Image source={{uri:avatarUrl}} style={s.avatarImage}/>:<View style={s.avatar}><Ionicons name="person" size={25} color={C.purple}/></View>}<Text style={{color:C.purple,fontSize:11,fontWeight:"800",marginTop:5}}>프로필 사진 변경</Text></Pressable><Text style={[s.settingText,isDark&&{color:"#FFFFFF"}]}>닉네임</Text><View style={{flexDirection:"row",alignItems:"center",gap:8,marginTop:8}}><TextInput value={editDisplay} onChangeText={value=>{setEditDisplay(value);setNicknameCheck("idle");setCheckedNickname("");setNicknameCheckMessage("");}} maxLength={20} placeholder="닉네임 (2~20자)" placeholderTextColor={C.muted} style={{flex:1,height:46,borderWidth:1,borderColor:isDark?"#383838":C.line,borderRadius:10,paddingHorizontal:12,color:isDark?"#FFFFFF":C.ink}}/><Pressable onPress={checkNickname} disabled={nicknameCheck==="checking"||profileSaving} style={{height:46,minWidth:94,paddingHorizontal:12,backgroundColor:nicknameCheck==="checking"?"#999999":C.purple,borderRadius:10,alignItems:"center",justifyContent:"center"}}><Text style={{color:"#FFFFFF",fontWeight:"900",fontSize:12}}>{nicknameCheck==="checking"?"확인 중…":"중복확인"}</Text></Pressable></View><Text style={{fontSize:11,marginTop:7,color:nicknameCheck==="available"?"#16834A":nicknameCheck==="taken"||nicknameCheck==="error"?"#D14A4A":isDark?"#B9B2C8":C.muted}}>{nicknameCheckMessage||"닉네임은 2~20자이며, 중복확인 후 저장할 수 있습니다."}</Text><Pressable onPress={saveProfile} disabled={profileSaving||nicknameCheck!=="available"||checkedNickname!==editDisplay.trim()} style={{height:44,backgroundColor:profileSaving||nicknameCheck!=="available"||checkedNickname!==editDisplay.trim()?"#999999":C.purple,borderRadius:10,alignItems:"center",justifyContent:"center",marginTop:14}}><Text style={{color:"#FFFFFF",fontWeight:"900"}}>{profileSaving?"저장 중…":"변경사항 저장"}</Text></Pressable></Pressable></Pressable></Modal>
