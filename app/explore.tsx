@@ -28,6 +28,13 @@ const getKakaoSearchErrorMessage=(error:any)=>{
   if(status===429)return {title:"검색 요청이 많아요",message:"짧은 시간에 검색 요청이 많았어요. 잠시 후 다시 검색해 주세요."};
   return {title:"검색할 수 없어요",message:"일시적으로 학원 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."};
 };
+const getStudioLoadErrorMessage=(error:any)=>{
+  const message=String(error?.message||"");
+  const status=Number(error?.context?.status??error?.status);
+  if(message.includes("한도")||message.includes("40회"))return "지도 검색 요청 한도(40회)에 도달했습니다. 앱을 다시 실행한 뒤 다시 검색해 주세요.";
+  if(status===429)return "서버 요청이 많아 잠시 검색이 제한되었습니다. 잠시 후 다시 시도해 주세요.";
+  return "학원 정보를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+};
 const mapStudioRecord = (r: StudioRecord): Studio => ({
   id:r.id,name:r.name,lat:Number(r.latitude),lng:Number(r.longitude),area:r.district||"지역 정보 없음",
   address:r.address||undefined,tags:r.tags||[],coupon:!!r.coupon_available,
@@ -102,6 +109,7 @@ export default function Home() {
   const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>([]);
   const [backendState,setBackendState]=useState<"loading"|"connected"|"empty"|"error">(supabaseConfigured?"loading":"error");
+  const [backendErrorMessage,setBackendErrorMessage]=useState("학원 정보를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요.");
   const [region,setRegion]=useState(INITIAL);
   const [mapMoved,setMapMoved]=useState(false);
   const [search,setSearch]=useState("");
@@ -703,7 +711,7 @@ export default function Home() {
     return()=>{active=false;syncVersion++;subscription.unsubscribe();};
   },[favoritesReady]);
 
-  useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(mapStudioRecord);setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch(()=>{if(mounted){setStudios([]);setBackendState("error");}});return()=>{mounted=false;};},[searchedRegion]);
+  useEffect(()=>{if(!supabaseConfigured)return;let mounted=true;setBackendState("loading");setBackendErrorMessage("");fetchStudios(searchedRegion).then(rows=>{if(!mounted)return;const mapped:Studio[]=rows.map(mapStudioRecord);setStudios(mapped);setBackendState(mapped.length?"connected":"empty");}).catch((error:any)=>{if(mounted){setStudios([]);setBackendState("error");setBackendErrorMessage(getStudioLoadErrorMessage(error));}});return()=>{mounted=false;};},[searchedRegion]);
   const searchArea=async()=>{
     const requestId=++areaSearchRequestId.current;
     const target=region;
@@ -918,7 +926,7 @@ export default function Home() {
         <KakaoMap ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} />
         {mapMoved&&isAreaChanged&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":"이 지역에서 재검색"}</Text></View></Pressable>}
         <Pressable style={styles.locateButton} onPress={()=>locate()}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable>
-        <Pressable style={styles.mapCount} onPress={()=>{if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}곳</Text>{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?" · 연결 오류":backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
+        <Pressable style={styles.mapCount} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}if(searchMatches.length>1){setSearchResultsOpen(true);}else if(results.length>1&&search.trim()){setSearchMatches(results);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()&&globalSearchStudios.length?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{search.trim()&&globalSearchStudios.length?globalSearchStudios.length:results.length}곳</Text>{searchMatches.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
         {selected&&<View style={styles.selectedCard}>{studioCard(selected,true)}<Pressable style={styles.detailBtn} onPress={()=>openDetail(selected)}><Text style={styles.detailBtnText}>상세 보기  ›</Text></Pressable><Pressable style={styles.dismiss} onPress={()=>setSelected(null)}><Text style={styles.dismissText}>×</Text></Pressable></View>}
       </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Text style={styles.listSortChipText}>거리순</Text></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}>
   <Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted,marginBottom:6}}>지역 선택</Text>
