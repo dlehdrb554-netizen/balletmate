@@ -112,6 +112,7 @@ export default function Home() {
   const [searchSubmitting,setSearchSubmitting]=useState(false);
   const areaSearchRequestId=useRef(0);
   const searchSubmitRequestId=useRef(0);
+  const classSearchRequestId=useRef(0);
   const [pendingMapTarget,setPendingMapTarget]=useState<Region|null>(null);
   const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
@@ -424,15 +425,18 @@ export default function Home() {
   useEffect(()=>{
     const client=supabase;
     const query=search.trim();
+    const requestId=++classSearchRequestId.current;
     if(!client||query.length<2){setClassSearchIds([]);setClassSearchLoading(false);return;}
     let active=true;
+    const isCurrent=()=>active&&requestId===classSearchRequestId.current;
     const timer=setTimeout(async()=>{
+      if(!isCurrent())return;
       setClassSearchLoading(true);
       try{
         const ids=await searchStudioIdsByClassName(query);
-        if(active)setClassSearchIds(ids);
-      }catch{if(active)setClassSearchIds([]);}
-      finally{if(active)setClassSearchLoading(false);}
+        if(isCurrent())setClassSearchIds(ids);
+      }catch{if(isCurrent())setClassSearchIds([]);}
+      finally{if(isCurrent())setClassSearchLoading(false);}
     },350);
     return()=>{active=false;clearTimeout(timer);};
   },[search]);
@@ -706,6 +710,7 @@ export default function Home() {
     const queryAtStart=search.trim();
     setSearchedRegion(target);setAreaLocked(true);setMapMoved(false);setSelected(null);
     setSearchSubmitting(true);
+    classSearchRequestId.current++;
     setClassSearchIds([]);setClassSearchLoading(false);
     try{
       // A viewport search must query Kakao Local around the map center as well as
