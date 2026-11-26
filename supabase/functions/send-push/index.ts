@@ -34,8 +34,9 @@ Deno.serve(async (req) => {
       if (favoriteError) throw favoriteError;
       userIds = [...new Set((favorites || []).map((row: any) => String(row.user_id)))];
     } else if (scope === "users") {
-      const requested = Array.isArray(payload?.user_ids) ? payload.user_ids : [];
-      userIds = [...new Set(requested.map((id: unknown) => String(id)).filter((id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)))];
+      const requested = (Array.isArray(payload?.user_ids) ? payload.user_ids : []) as unknown[];
+      const validUserIds: string[] = requested.map((id: unknown) => String(id)).filter((id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+      userIds = [...new Set<string>(validUserIds)];
     } else if (scope === "admins") {
       const { data: admins, error: adminError } = await db.from("admin_users").select("user_id");
       if (adminError) throw adminError;
