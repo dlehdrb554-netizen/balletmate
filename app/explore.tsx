@@ -570,7 +570,8 @@ export default function Home() {
     if(requestId!==searchSubmitRequestId.current)return;
     const matching=[...new Map([...mapped,...studios.filter(studio=>studio.name.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.area.toLowerCase().includes(q))].filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
     if(!matching.length&&kakaoSearchFailure&&!regionKey){
-      const userMessage=getKakaoSearchErrorMessage(kakaoSearchFailure);\n      Alert.alert(userMessage.title,userMessage.message);
+      const userMessage=getKakaoSearchErrorMessage(kakaoSearchFailure);
+      Alert.alert(userMessage.title,userMessage.message);
       setSearchSubmitting(false);
       return;
     }
