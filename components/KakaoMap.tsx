@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import WebView, { WebViewMessageEvent } from "react-native-webview";
 import Constants from "expo-constants";
@@ -162,7 +162,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   const mapReady = useRef(false);
   const pendingMessages = useRef<string[]>([]);
   const html = useRef(buildHtml(initialRegion)).current;
-  const sendToMap = (message: unknown) => {
+  const sendToMap = useCallback((message: unknown) => {
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
       const type=(message as any)?.type;
@@ -171,12 +171,12 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
       return;
     }
     webRef.current?.postMessage(serialized);
-  };
+  }, []);
   useImperativeHandle(ref, () => ({
     animateToRegion: (region, duration = 400) => {
       sendToMap({ type: "animate", region, duration });
     },
-  }), []);
+  }), [sendToMap]);
   useEffect(() => {
     sendToMap({
       type: "markers",
