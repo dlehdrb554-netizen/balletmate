@@ -4,7 +4,7 @@ import Constants from "expo-constants";
 import {Ionicons} from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {SafeAreaView} from "react-native-safe-area-context";
-import {useLocalSearchParams,useRouter} from "expo-router";
+import {useFocusEffect,useLocalSearchParams,useRouter} from "expo-router";
 import * as Linking from "expo-linking";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -90,7 +90,7 @@ export default function MyPage(){
  useEffect(()=>{if(user&&notificationPermission==="granted")void registerPushToken();},[user,notificationPermission]);
  const configureNotificationPermission=async()=>{try{let result=await Notifications.getPermissionsAsync();if(result.status!=="granted"&&!result.canAskAgain){await Linking.openSettings();return;}if(result.status!=="granted")result=await Notifications.requestPermissionsAsync();setNotificationPermission(result.status as any);if(result.status==="granted")await registerPushToken();else if(!result.canAskAgain)await Linking.openSettings();}catch{Alert.alert("알림 권한","기기 설정에서 알림 권한을 확인해 주세요.");}};
  useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const data=response.notification.request.content.data as any;if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});else if(data?.postId)router.push({pathname:"/community",params:{postId:String(data.postId)}});else if(data?.noticeId)setMenu("notices");});return()=>sub.remove();},[router]);
- useEffect(()=>{
+ useFocusEffect(React.useCallback(()=>{
   const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
    if(profileOpen){setProfileOpen(false);return true;}
    if(modeOpen){setModeOpen(false);return true;}
@@ -98,7 +98,7 @@ export default function MyPage(){
    return false;
   });
   return()=>subscription.remove();
- },[profileOpen,modeOpen,menu]);
+ },[profileOpen,modeOpen,menu]));
  
  
  useEffect(()=>{if(!user||!supabase)return;let active=true;supabase.from("user_notification_preferences").select("preferences").eq("user_id",user.id).maybeSingle().then(({data})=>{if(active&&data?.preferences){setAlerts(v=>({...v,postComments:true,bookmarkComments:true,...data.preferences}));setPushEnabled(data.preferences.pushEnabled!==false);}});return()=>{active=false;};},[user]);
