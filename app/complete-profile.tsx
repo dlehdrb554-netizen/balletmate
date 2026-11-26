@@ -11,6 +11,8 @@ export default function CompleteProfile(){
  const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
  const [username,setUsername]=useState("");
+ const [password,setPassword]=useState("");
+ const [confirmPassword,setConfirmPassword]=useState("");
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
  const [signedIn,setSignedIn]=useState(false);
@@ -44,13 +46,16 @@ export default function CompleteProfile(){
    Alert.alert("아이디 확인","영문 소문자, 숫자, 밑줄(_)을 사용해 3~24자로 입력해 주세요.");
    return;
   }
+  const passwordValid=password.length>=8&&/[A-Z]/.test(password)&&/[a-z]/.test(password)&&/[0-9]/.test(password)&&/[^A-Za-z0-9]/.test(password);
+  if(!passwordValid){Alert.alert("비밀번호 확인","8자 이상이며 영문 대문자·소문자·숫자·특수문자를 각각 포함해 주세요.");return;}
+  if(password!==confirmPassword){Alert.alert("비밀번호 확인","비밀번호가 일치하지 않습니다.");return;}
   if(!supabase)return;
   setSaving(true);
   try{
    const {data:available,error:checkError}=await supabase.rpc("is_username_available",{candidate:value});
    if(checkError)throw checkError;
    if(available!==true)throw new Error("이미 사용 중인 아이디입니다. 다른 아이디를 입력해 주세요.");
-   const {error:updateError}=await supabase.auth.updateUser({data:{username:value}});
+   const {error:updateError}=await supabase.auth.updateUser({password,data:{username:value}});
    if(updateError)throw updateError;
    const {data:{user}}=await supabase.auth.getUser();
    if(!user)throw new Error("로그인 정보를 확인할 수 없습니다.");
@@ -80,6 +85,11 @@ export default function CompleteProfile(){
      <Text style={s.label}>사용할 아이디</Text>
      <TextInput style={s.input} value={username} onChangeText={setUsername} placeholder="영문 소문자, 숫자, 밑줄" autoCapitalize="none" autoCorrect={false} maxLength={24}/>
      <Text style={s.hint}>3~24자 · 영문 소문자, 숫자, 밑줄(_) 사용 가능</Text>
+     <Text style={[s.label,{marginTop:18}]}>발레메이트 비밀번호 설정</Text>
+     <TextInput style={s.input} value={password} onChangeText={setPassword} placeholder="발레메이트 비밀번호" secureTextEntry autoCapitalize="none" autoCorrect={false}/>
+     <Text style={[s.label,{marginTop:14}]}>비밀번호 확인</Text>
+     <TextInput style={s.input} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="비밀번호 다시 입력" secureTextEntry autoCapitalize="none" autoCorrect={false}/>
+     <Text style={s.hint}>8자 이상 · 영문 대문자 · 영문 소문자 · 숫자 · 특수문자 포함</Text>
      <Pressable style={[s.button,saving&&{opacity:.6}]} disabled={saving} onPress={submit}><Text style={s.buttonText}>{saving?"저장 중…":"가입 완료"}</Text></Pressable>
      <Pressable style={s.logout} onPress={async()=>{await supabase?.auth.signOut();router.replace("/account");}}><Text style={s.logoutText}>다른 계정으로 로그인</Text></Pressable>
     </View>
