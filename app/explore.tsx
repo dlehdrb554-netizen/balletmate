@@ -831,25 +831,16 @@ export default function Home() {
     setStudioCoupons([]);
     if(supabaseConfigured){
       setClassesLoading(true);
-      (async()=>{
-        let lastError:any=null;
-        for(let attempt=0;attempt<1;attempt++){
-          try{
-            const row=await fetchStudioById(s.id);
-            if(requestId!==detailRequestId.current)return;
-            if(row){setDetailStudio(mapStudioRecord(row));setDetailCanonicalError(null);}
-            else setDetailCanonicalError("학원 정보를 찾지 못했습니다. 다시 시도해 주세요.");
-            return;
-          }catch(error:any){
-            lastError=error;
-            if(attempt<2)await new Promise(resolve=>setTimeout(resolve,700*(attempt+1)));
-          }
-        }
+      retryDetailRequest(()=>fetchStudioById(s.id)).then(row=>{
+        if(requestId!==detailRequestId.current)return;
+        if(row){setDetailStudio(mapStudioRecord(row));setDetailCanonicalError(null);}
+        else setDetailCanonicalError("학원 정보를 찾지 못했습니다. 다시 시도해 주세요.");
+      }).catch((error:any)=>{
         if(requestId===detailRequestId.current){
-          setDetailCanonicalError(lastError?.message||"학원 정보를 불러오지 못했습니다.");
-          console.warn("Canonical studio detail lookup failed:",lastError);
+          setDetailCanonicalError(error?.message||"학원 정보를 불러오지 못했습니다.");
+          console.warn("Canonical studio detail lookup failed:",error);
         }
-      })().finally(()=>{if(requestId===detailRequestId.current)setDetailCanonicalLoading(false);});
+      }).finally(()=>{if(requestId===detailRequestId.current)setDetailCanonicalLoading(false);});
       retryDetailRequest(()=>fetchClassesForStudio(s.id)).then(rows=>{if(requestId===detailRequestId.current)setStudioClasses(rows);})
         .catch(error=>{console.warn("Studio classes unavailable:",error);if(requestId===detailRequestId.current)setStudioClasses([]);})
         .finally(()=>{if(requestId===detailRequestId.current)setClassesLoading(false);});
