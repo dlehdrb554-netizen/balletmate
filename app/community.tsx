@@ -53,7 +53,7 @@ export default function Community(){
   try{
    let query=supabase.from("community_posts").select("id,author_id,author_name,category,title,content,image_urls,created_at").order("created_at",{ascending:false}).limit(50);
    if(category!=="전체")query=query.eq("category",category);
-   if(blockedUserIds.length)query=query.not("author_id","in","("+blockedUserIds.join(",")+")");
+
    const {data,error}=await query;
    if(error)throw error;
    if(requestId===postRequestId.current)setPosts((data||[]) as Post[]);
@@ -94,7 +94,7 @@ export default function Community(){
  const loadComments=async(postId:string,requestId=++commentRequestId.current)=>{
   if(!supabase)return;
   let query=supabase.from("community_comments").select("id,post_id,author_id,author_name,content,created_at").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
-  if(blockedUserIds.length)query=query.not("author_id","in","("+blockedUserIds.join(",")+")");
+
   const {data,error}=await query;
   if(requestId!==commentRequestId.current)return;
   if(error){Alert.alert("댓글 불러오기 실패",error.message);return;}
