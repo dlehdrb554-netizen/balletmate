@@ -55,7 +55,7 @@ export default function AuthCallback(){
 
  return <SafeAreaView style={styles.safe}>
   <View style={styles.content}>
-   {!failed&&message!=="로그인이 완료되었습니다."?<ActivityIndicator size="large" color="#7661D8"/>:null}
+   {!failed&&message!=="로그인이 완료되었습니다."?<ActivityIndicator size="large" color="#653BB7"/>:null}
    <Text style={styles.title}>{failed?"로그인에 실패했습니다":message==="로그인이 완료되었습니다."?"로그인 완료":"인증 처리 중"}</Text>
    <Text style={styles.message}>{message}</Text>
    <Pressable style={styles.button} onPress={()=>router.replace(failed?"/account":nextRoute as any)}><Text style={styles.buttonText}>{failed?"계정 화면으로 돌아가기":"계속하기"}</Text></Pressable>
@@ -64,6 +64,6 @@ export default function AuthCallback(){
 }
 const createStyles=(dark:boolean)=>StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:"#FAF9FC"},content:{flex:1,alignItems:"center",justifyContent:"center",padding:28},
- title:{fontSize:20,fontWeight:"900",color:"#252238",marginTop:18},message:{fontSize:13,color:"#8B879A",textAlign:"center",lineHeight:20,marginTop:10},
- button:{backgroundColor:"#7661D8",borderRadius:13,paddingVertical:14,paddingHorizontal:28,marginTop:26},buttonText:{color:"#fff",fontWeight:"900"}
+ title:{fontSize:20,fontWeight:"900",color:"#252238",marginTop:18},message:{fontSize:13,color:"#625E70",textAlign:"center",lineHeight:20,marginTop:10},
+ button:{backgroundColor:"#653BB7",borderRadius:13,paddingVertical:14,paddingHorizontal:28,marginTop:26},buttonText:{color:"#fff",fontWeight:"900"}
 },dark));;
