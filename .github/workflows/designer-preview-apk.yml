@@ -23,7 +23,9 @@ permissions:
   contents: read
 
 jobs:
+  # Android builds run only when explicitly requested.
   build-designer-preview:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
