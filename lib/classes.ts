@@ -57,8 +57,13 @@ export async function fetchClassesForStudio(studioId: string): Promise<StudioCla
       ...row,
       class_sessions: (row.class_sessions ?? []).filter((session) => session.is_active !== false),
     }));
-    classCache.set(studioId, { savedAt: Date.now(), rows });
-    pruneClassCache(Date.now());
+    const savedAt = Date.now();
+    pruneClassCache(savedAt);
+    if (!classCache.has(studioId) && classCache.size >= MAX_CLASS_CACHE_ENTRIES) {
+      const oldestStudioId = classCache.keys().next().value;
+      if (oldestStudioId) classCache.delete(oldestStudioId);
+    }
+    classCache.set(studioId, { savedAt, rows });
     return rows;
   })().finally(() => {
     if (inFlightClassRequests.get(studioId) === request) inFlightClassRequests.delete(studioId);
