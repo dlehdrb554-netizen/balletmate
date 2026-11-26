@@ -313,9 +313,11 @@ export default function Home() {
   const [comparePriceData,setComparePriceData]=useState<Record<string,StudioPublicPrice[]>>({});
   const [compareScheduleData,setCompareScheduleData]=useState<Record<string,StudioPublicSchedule[]>>({});
   const [compareClassLoading,setCompareClassLoading]=useState(false);
+  const [compareMaterialError,setCompareMaterialError]=useState<string|null>(null);
   useEffect(()=>{
-    if(!compareOpen||compareIds.length===0)return;
+    if(!compareOpen||compareIds.length===0){setCompareMaterialError(null);return;}
     let active=true;
+    setCompareMaterialError(null);
     setCompareClassLoading(true);
     Promise.all(compareIds.map(async id=>{
       const [classes,prices,schedules]=await Promise.all([
@@ -328,7 +330,12 @@ export default function Home() {
       setCompareClassData(Object.fromEntries(Object.entries(records).map(([id,value])=>[id,value.classes])));
       setComparePriceData(Object.fromEntries(Object.entries(records).map(([id,value])=>[id,value.prices])));
       setCompareScheduleData(Object.fromEntries(Object.entries(records).map(([id,value])=>[id,value.schedules])));
-    }).catch(error=>{if(active)console.warn("Comparison materials unavailable:",error);})
+    }).catch(error=>{
+      if(active){
+        console.warn("Comparison materials unavailable:",error);
+        setCompareMaterialError("가격표·시간표 또는 수업 정보를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 비교 창을 다시 열어 주세요.");
+      }
+    })
       .finally(()=>{if(active)setCompareClassLoading(false);});
     return()=>{active=false;};
   },[compareOpen,compareIds]);
@@ -1026,6 +1033,7 @@ export default function Home() {
       <View style={styles.modalShade}><View style={[styles.modal,{maxHeight:"88%"}]}>
         <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}>{compareIds.length>0&&<Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable>}<Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>학원별 가격표와 시간표 이미지를 좌우로 비교해 보세요. 최대 3곳까지 비교할 수 있습니다.</Text>
+        {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
         {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="swap-horizontal-outline" size={30} color={COLORS.muted}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>비교 목록이 비어 있어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>학원 카드에서 비교를 추가해 주세요.</Text></View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
         <ScrollView style={{maxHeight:"72%"}} nestedScrollEnabled showsVerticalScrollIndicator={false}>
         <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator contentContainerStyle={{paddingVertical:8,gap:10}}>
