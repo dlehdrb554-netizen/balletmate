@@ -8,6 +8,7 @@ on:
         required: true
         type: choice
         options:
+          - validate-only
           - android-preview
           - android-production
           - deploy-kakao-function
