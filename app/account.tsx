@@ -165,7 +165,7 @@ export default function Account(){
         <Text style={[s.googleText,{color:isDark?"#FFFFFF":"#1F1F1F"}]}>{connected("google")?"✓ Google 연결됨":loadingProvider==="google"?"연결 중…":"Google 계정 연결"}</Text>
        </Pressable>
        <Pressable style={[s.kakaoButton,{backgroundColor:"#FEE500"}]} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")}>
-        <View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View>
+        <View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoTail}/><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View>
         <Text style={[s.kakaoText,{color:"#000000"}]}>{connected("kakao")?"✓ Kakao 연결됨":loadingProvider==="kakao"?"연결 중…":"카카오 계정 연결"}</Text>
        </Pressable>
       </View>
@@ -214,6 +214,7 @@ const createS = (dark:boolean) => StyleSheet.create(themeStyles({
  googleMark:{fontSize:19,fontWeight:"900",color:"#4285F4"},googleText:{fontSize:14,fontWeight:"800",color:C.ink},
  kakaoButton:{height:50,borderRadius:12,backgroundColor:C.yellow,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:9,marginTop:10},
  kakaoSymbol:{width:21,height:17,borderRadius:9,backgroundColor:"#000000",alignItems:"center",justifyContent:"center",position:"relative"},
+ kakaoTail:{position:"absolute",width:6,height:6,backgroundColor:"#000000",bottom:-1,left:3,transform:[{rotate:"35deg"}]},
  kakaoDots:{flexDirection:"row",alignItems:"center",gap:2},
  kakaoDot:{width:2.5,height:2.5,borderRadius:2,backgroundColor:"#FEE500"},
  kakaoText:{fontSize:14,fontWeight:"900",color:"#000000"},
