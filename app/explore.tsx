@@ -632,13 +632,23 @@ export default function Home() {
     if(supabase&&query.length>=2){
       // Always query Kakao as well as the local DB: a partial DB hit must not
       // suppress a nationwide exact-place search. Preserve provider errors for the user.
-      const [dbRows,kakaoResult]=await Promise.all([
-        searchStudiosByName(query).catch(error=>{console.warn("Database studio search failed:",error);return [] as any[];}),
-        searchStudiosByKakao(query).then(rows=>({rows,error:null as string|null})).catch(error=>{
-          console.warn("Kakao studio search failed:",error);
-          return {rows:[] as any[],error};
-        })
-      ]);
+      const dbRows=await searchStudiosByName(query).catch(error=>{
+        console.warn("Database studio search failed:",error);
+        return [] as any[];
+      });
+      const normalizedQuery=query.toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+      const hasConfidentDbMatch=dbRows.some((row:any)=>{
+        const name=String(row?.name||"").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+        const address=String(row?.address||"").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+        return name.length>=2&&(name.includes(normalizedQuery)||normalizedQuery.includes(name))||
+          address.length>=3&&address.includes(normalizedQuery);
+      });
+      const kakaoResult=hasConfidentDbMatch
+        ? {rows:[] as any[],error:null as string|null}
+        : await searchStudiosByKakao(query).then(rows=>({rows,error:null as string|null})).catch(error=>{
+            console.warn("Kakao studio search failed:",error);
+            return {rows:[] as any[],error};
+          });
       kakaoSearchFailure=kakaoResult.error;
       const byId=new Map<string,any>();
       [...dbRows,...kakaoResult.rows].forEach(row=>{if(row?.id)byId.set(String(row.id),row);});
