@@ -23,6 +23,11 @@ type Studio = {
   description: string; address?: string; phone?: string; websiteUrl?: string; representativeImageUrl?: string; sourceUrl?: string; sourceName?: string; sourceStatus?: string; verifiedAt?: string; classDurations?: number[];
 };
 const cleanPublicText=(value:string|null|undefined)=>String(value||"").replace(/<[^>]*>/g," ").replace(/&nbsp;|&#160;/gi," ").replace(/&amp;/gi,"&").split(" ").filter(Boolean).join(" ");
+const getKakaoSearchErrorMessage=(error:any)=>{
+  const status=Number(error?.context?.status??error?.status);
+  if(status===429)return {title:"검색 요청이 많아요",message:"짧은 시간에 검색 요청이 많았어요. 잠시 후 다시 검색해 주세요."};
+  return {title:"검색할 수 없어요",message:"일시적으로 학원 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."};
+};
 const mapStudioRecord = (r: StudioRecord): Studio => ({
   id:r.id,name:r.name,lat:Number(r.latitude),lng:Number(r.longitude),area:r.district||"지역 정보 없음",
   address:r.address||undefined,tags:r.tags||[],coupon:!!r.coupon_available,
@@ -541,7 +546,7 @@ export default function Home() {
     const q=query.toLowerCase();
     const regionKey=Object.keys(REGIONAL_SEARCH).sort((a,b)=>b.length-a.length).find(key=>q.includes(key));
     let remoteRows:any[]=[];
-    let kakaoSearchFailure:string|null=null;
+    let kakaoSearchFailure:any|null=null;
     if(supabase&&query.length>=2){
       // Always query Kakao as well as the local DB: a partial DB hit must not
       // suppress a nationwide exact-place search. Preserve provider errors for the user.
@@ -549,7 +554,7 @@ export default function Home() {
         searchStudiosByName(query).catch(error=>{console.warn("Database studio search failed:",error);return [] as any[];}),
         searchStudiosByKakao(query).then(rows=>({rows,error:null as string|null})).catch(error=>{
           console.warn("Kakao studio search failed:",error);
-          return {rows:[] as any[],error:error?.message||"카카오 학원 검색에 실패했습니다."};
+          return {rows:[] as any[],error};
         })
       ]);
       kakaoSearchFailure=kakaoResult.error;
@@ -565,7 +570,7 @@ export default function Home() {
     if(requestId!==searchSubmitRequestId.current)return;
     const matching=[...new Map([...mapped,...studios.filter(studio=>studio.name.toLowerCase().includes(q)||String(studio.address||"").toLowerCase().includes(q)||studio.area.toLowerCase().includes(q))].filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
     if(!matching.length&&kakaoSearchFailure&&!regionKey){
-      Alert.alert("학원 검색 연결 오류",kakaoSearchFailure+"\n\n잠시 후 다시 시도해 주세요.");
+      const userMessage=getKakaoSearchErrorMessage(kakaoSearchFailure);\n      Alert.alert(userMessage.title,userMessage.message);
       setSearchSubmitting(false);
       return;
     }
@@ -710,7 +715,7 @@ export default function Home() {
     }catch(error:any){
       if(requestId===areaSearchRequestId.current){
         console.warn("Viewport Kakao search failed:",error);
-        Alert.alert("지도 검색 실패",error?.message||"현재 지역의 학원 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        const userMessage=getKakaoSearchErrorMessage(error);\n        Alert.alert(userMessage.title,userMessage.message);
       }
     }finally{
       if(requestId===areaSearchRequestId.current)setSearchSubmitting(false);
