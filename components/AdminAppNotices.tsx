@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useState, useMemo} from "react";
 import {themeStyles } from "../lib/theme";
 import {Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import {supabase} from "../lib/supabase";
-const c={ink:"#252238",muted:"#8B879A",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",white:"#FFFFFF"};
+const c={ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",white:"#FFFFFF"};
 export default function AdminAppNotices(){
  const isDark=useColorScheme()==="dark";
  const s=useMemo(()=>createS(isDark),[isDark]);
