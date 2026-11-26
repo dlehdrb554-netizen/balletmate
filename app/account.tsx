@@ -1,6 +1,7 @@
 import React, {useEffect, useState, useMemo} from "react";
 import {themeStyles } from "../lib/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
@@ -166,9 +167,8 @@ export default function Account(){
          <View style={[s.socialIconButton,s.googleIconCircle,{backgroundColor:"#FFFFFF",borderColor:"#DADCE0"}]}><Text style={s.googleMark}>G</Text></View>
          <Text style={s.socialLabel}>{connected("google")?"연결됨":loadingProvider==="google"?"연결 중…":"Google"}</Text>
         </Pressable>
-        <Pressable style={s.socialItem} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")} accessibilityRole="button" accessibilityLabel="카카오 계정 연결">
-         <View style={[s.socialIconButton,s.kakaoIconCircle,{backgroundColor:"#FEE500",borderColor:"#E7D200"}]}><View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoTail}/><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View></View>
-         <Text style={s.socialLabel}>{connected("kakao")?"연결됨":loadingProvider==="kakao"?"연결 중…":"카카오"}</Text>
+        <Pressable style={s.kakaoConnectButton} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")} accessibilityRole="button" accessibilityLabel="카카오 계정 연결">
+         <Text style={s.kakaoConnectText}>{connected("kakao")?"카카오 계정 연결됨":loadingProvider==="kakao"?"연결 중…":"카카오 계정 연결"}</Text>
         </Pressable>
        </View>
       </View>
@@ -191,9 +191,9 @@ export default function Account(){
          <View style={[s.socialIconButton,s.googleIconCircle]}><Text style={s.googleMark}>G</Text></View>
          <Text style={s.socialLabel}>{loadingProvider==="google"?"연결 중…":"Google"}</Text>
         </Pressable>
-        <Pressable style={s.socialItem} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")} accessibilityRole="button" accessibilityLabel="카카오 로그인">
-         <View style={[s.socialIconButton,s.kakaoIconCircle]}><View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View></View>
-         <Text style={s.socialLabel}>{loadingProvider==="kakao"?"연결 중…":"카카오"}</Text>
+        <Pressable style={s.kakaoLoginButton} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")} accessibilityRole="button" accessibilityLabel={loadingProvider==="kakao"?"카카오 로그인 연결 중":"카카오 로그인"}>
+         <Image source={{uri:"https://developers.kakao.com/tool/images/resource/preview/login-complete-ko.svg"}} contentFit="contain" style={s.kakaoLoginImage}/>
+         {loadingProvider==="kakao"&&<Text style={s.kakaoLoading}>연결 중…</Text>}
         </Pressable>
        </View>
        <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
@@ -215,8 +215,13 @@ const createS = (dark:boolean) => StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:8,paddingBottom:24},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
  brand:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:18},title:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:14},
  sub:{fontSize:13,color:C.muted,marginTop:8,lineHeight:19},card:{backgroundColor:"#fff",borderRadius:18,borderWidth:1,borderColor:C.line,padding:16,marginTop:20},
- socialRow:{flexDirection:"row",alignItems:"flex-start",justifyContent:"center",gap:28,marginTop:14,marginBottom:4},
- socialItem:{minWidth:68,alignItems:"center",gap:7},
+ socialRow:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:16,marginTop:14,marginBottom:4},
+ socialItem:{minWidth:52,alignItems:"center",gap:7},
+ kakaoLoginButton:{flex:1,height:52,justifyContent:"center",alignItems:"center",borderRadius:12,overflow:"hidden"},
+ kakaoLoginImage:{width:"100%",height:52},
+ kakaoLoading:{position:"absolute",fontSize:12,fontWeight:"800",color:"#000000",backgroundColor:"#FEE500",paddingHorizontal:8,paddingVertical:3,borderRadius:6},
+ kakaoConnectButton:{minWidth:120,height:44,paddingHorizontal:16,alignItems:"center",justifyContent:"center",backgroundColor:"#FEE500",borderRadius:12},
+ kakaoConnectText:{fontSize:13,fontWeight:"800",color:"#000000"},
  socialIconButton:{width:52,height:52,borderRadius:26,alignItems:"center",justifyContent:"center",borderWidth:1},
  googleIconCircle:{backgroundColor:"#FFFFFF",borderColor:"#DADCE0"},
  googleMark:{fontSize:23,fontWeight:"900",color:"#4285F4"},
