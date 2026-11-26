@@ -619,13 +619,25 @@ export default function Home() {
   const locate=async()=>{
     setLocationLoading(true);
     try {
-      const {status}=await Location.requestForegroundPermissionsAsync();
-      if(status!=="granted"){setLocationGranted(false);Alert.alert("위치 권한","권한이 없어 기본 지역에서 지도를 표시합니다. 설정에서 위치 권한을 허용할 수 있어요.");return;}
+      const permission=await Location.requestForegroundPermissionsAsync();
+      if(permission.status!=="granted"){
+        setLocationGranted(false);
+        if(!permission.canAskAgain){
+          Alert.alert(
+            "위치 권한이 차단되어 있어요",
+            "기기 설정에서 발레메이트의 위치 권한을 허용한 뒤 다시 시도해 주세요.",
+            [{text:"취소",style:"cancel"},{text:"설정 열기",onPress:()=>{void Linking.openSettings();}}]
+          );
+        }else{
+          Alert.alert("위치 권한 필요","현재 위치로 지도를 이동하려면 위치 권한을 허용해 주세요. 위치 버튼을 다시 눌러 권한을 요청할 수 있습니다.");
+        }
+        return;
+      }
       const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
       const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
       setPendingMapTarget(r);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setCurrentLocation({latitude:p.coords.latitude,longitude:p.coords.longitude});setMapMoved(false);
       // pendingMapTarget effect sends the single map movement command.
-    } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 지도를 직접 이동해 이용해주세요."); }
+    } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 위치 서비스 설정을 확인하거나 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
   // Location permissions and GPS are requested only after the user taps the location button.
