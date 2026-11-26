@@ -161,11 +161,11 @@ export default function Account(){
 {adminRole===true&&<Pressable style={s.primary} onPress={()=>router.push("/admin")}><Text style={s.primaryText}>관리자 페이지</Text></Pressable>}
       <View style={s.connectedBox}>
        <Text style={s.connectedTitle}>소셜 계정 연결</Text>
-       <Pressable style={s.googleButton} disabled={!!loadingProvider||connected("google")} onPress={()=>linkSocial("google")}>
-        <Text style={s.googleText}>{connected("google")?"✓ Google 연결됨":loadingProvider==="google"?"연결 중…":"Google 계정 연결"}</Text>
+       <Pressable style={[s.googleButton,{backgroundColor:isDark?"#131314":"#FFFFFF",borderColor:isDark?"#8E918F":"#747775"}]} disabled={!!loadingProvider||connected("google")} onPress={()=>linkSocial("google")}>
+        <Text style={[s.googleText,{color:isDark?"#FFFFFF":"#1F1F1F"}]}>{connected("google")?"✓ Google 연결됨":loadingProvider==="google"?"연결 중…":"Google 계정 연결"}</Text>
        </Pressable>
-       <Pressable style={s.kakaoButton} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")}>
-        <Text style={s.kakaoText}>{connected("kakao")?"✓ Kakao 연결됨":loadingProvider==="kakao"?"연결 중…":"카카오 계정 연결"}</Text>
+       <Pressable style={[s.kakaoButton,{backgroundColor:"#FEE500"}]} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")}>
+        <Text style={[s.kakaoText,{color:"#191600"}]}>{connected("kakao")?"✓ Kakao 연결됨":loadingProvider==="kakao"?"연결 중…":"카카오 계정 연결"}</Text>
        </Pressable>
       </View>
       <Pressable style={s.primary} disabled={loading} onPress={logout}><Text style={s.primaryText}>로그아웃</Text></Pressable>
@@ -182,9 +182,9 @@ export default function Account(){
        <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
        <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
        <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 소셜 계정으로 로그인</Text><View style={s.separatorLine}/></View>
-       <Pressable style={s.googleButton} disabled={!!loadingProvider} onPress={()=>signInSocial("google")}>
+       <Pressable style={[s.googleButton,{backgroundColor:isDark?"#131314":"#FFFFFF",borderColor:isDark?"#8E918F":"#747775"}]} disabled={!!loadingProvider} onPress={()=>signInSocial("google")}>
         <Text style={s.googleMark}>G</Text>
-        <Text style={s.googleText}>{loadingProvider==="google"?"Google 연결 중…":"Google로 계속하기"}</Text>
+        <Text style={[s.googleText,{color:isDark?"#FFFFFF":"#1F1F1F"}]}>{loadingProvider==="google"?"Google 연결 중…":"Google로 계속하기"}</Text>
        </Pressable>
        <Pressable style={[s.kakaoButton,{backgroundColor:"#FEE500",borderWidth:0}]} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")}>
         <MaterialCommunityIcons name="chat" size={20} color="#191600"/>
