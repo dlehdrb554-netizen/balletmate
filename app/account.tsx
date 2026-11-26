@@ -164,11 +164,11 @@ export default function Account(){
        <View style={s.socialRow}>
         <Pressable style={s.socialItem} disabled={!!loadingProvider||connected("google")} onPress={()=>linkSocial("google")} accessibilityRole="button" accessibilityLabel="Google 계정 연결">
          <View style={[s.socialIconButton,s.googleIconCircle,{backgroundColor:"#FFFFFF",borderColor:"#DADCE0"}]}><Text style={s.googleMark}>G</Text></View>
-         <Text style={s.socialLabel}>{connected("google")?"연결됨":"Google"}</Text>
+         <Text style={s.socialLabel}>{connected("google")?"연결됨":loadingProvider==="google"?"연결 중…":"Google"}</Text>
         </Pressable>
         <Pressable style={s.socialItem} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")} accessibilityRole="button" accessibilityLabel="카카오 계정 연결">
          <View style={[s.socialIconButton,s.kakaoIconCircle,{backgroundColor:"#FEE500",borderColor:"#E7D200"}]}><View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoTail}/><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View></View>
-         <Text style={s.socialLabel}>{connected("kakao")?"연결됨":"카카오"}</Text>
+         <Text style={s.socialLabel}>{connected("kakao")?"연결됨":loadingProvider==="kakao"?"연결 중…":"카카오"}</Text>
         </Pressable>
        </View>
       </View>
@@ -189,11 +189,11 @@ export default function Account(){
        <View style={s.socialRow}>
         <Pressable style={s.socialItem} disabled={!!loadingProvider} onPress={()=>signInSocial("google")} accessibilityRole="button" accessibilityLabel="Google로 계속하기">
          <View style={[s.socialIconButton,s.googleIconCircle]}><Text style={s.googleMark}>G</Text></View>
-         <Text style={s.socialLabel}>Google</Text>
+         <Text style={s.socialLabel}>{loadingProvider==="google"?"연결 중…":"Google"}</Text>
         </Pressable>
         <Pressable style={s.socialItem} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")} accessibilityRole="button" accessibilityLabel="카카오 로그인">
          <View style={[s.socialIconButton,s.kakaoIconCircle]}><View style={s.kakaoSymbol} accessibilityElementsHidden><View style={s.kakaoDots}><View style={s.kakaoDot}/><View style={s.kakaoDot}/><View style={s.kakaoDot}/></View></View></View>
-         <Text style={s.socialLabel}>카카오</Text>
+         <Text style={s.socialLabel}>{loadingProvider==="kakao"?"연결 중…":"카카오"}</Text>
         </Pressable>
        </View>
        <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
