@@ -32,6 +32,17 @@ const studioCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>()
 const CACHE_MS = 90_000;
 const MAX_NETWORK_SEARCHES_PER_APP_SESSION = 40;
 
+function logStudioFallback(stage: string, error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined) {
+  if (!error) return;
+  console.warn("[studio-search] fallback activated", {
+    stage,
+    code: error.code ?? null,
+    message: error.message ?? "Unknown database error",
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+  });
+}
+
 // Prevent unrelated medical, lodging and leisure businesses from database-first search.
 export function isExcludedStudioSearchResult(name: string): boolean {
   return /(산부인과|여성의원|비뇨기과|피부과|정형외과|내과|외과|안과|치과|이비인후과|소아과|의원|병원|의료원|보건소|약국|한의원|요양원|산후조리원|모텔|호텔|숙박|사우나|찜질방|목욕탕)/i.test(String(name||""));
@@ -69,10 +80,15 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
 
   let rows: StudioRecord[];
   if (result.error) {
+    logStudioFallback("map-view-to-studios", result.error);
     const fallback = await readPages(applyBounds(supabase.from("studios").select(selectColumns).eq("is_active",true).order("name")));
     if (fallback.error) {
+      logStudioFallback("studios-to-legacy-columns", fallback.error);
       const legacy = await readPages(applyBounds(supabase.from("studios").select("id,name,latitude,longitude,district,address,tags,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at").eq("is_active",true).order("name")));
-      if(legacy.error)throw legacy.error;
+      if(legacy.error) {
+        logStudioFallback("legacy-query-failed", legacy.error);
+        throw legacy.error;
+      }
       rows=(legacy.data??[]).map((row:any)=>({...row,source_status:null,class_durations:[]})) as StudioRecord[];
     } else rows=(fallback.data??[]).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
   } else {
@@ -107,8 +123,14 @@ export async function searchStudiosByName(query:string):Promise<StudioRecord[]> 
   const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(100);
   const runSearch=async(needle:string)=>{
     let result=await searchQuery("studio_map_search_app_with_source",needle);
-    if(result.error)result=await searchQuery("studios",needle);
-    if(result.error)throw result.error;
+    if(result.error) {
+      logStudioFallback("name-search-view-to-studios", result.error);
+      result=await searchQuery("studios",needle);
+    }
+    if(result.error) {
+      logStudioFallback("name-search-studios-failed", result.error);
+      throw result.error;
+    }
     return (result.data||[]) as any[];
   };
   const uniqueVariants=[...variants].map(value=>value.trim()).filter(value=>value.length>=2).slice(0,6);
