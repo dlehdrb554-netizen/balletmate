@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   splashBrand:{fontSize:30,fontWeight:"900",color:"#FFFFFF",letterSpacing:1.2,marginTop:8},
   crashFallback: { flex: 1, backgroundColor: "#FAF9FC", justifyContent: "center", padding: 24, gap: 14 },
   title: { fontSize: 20, fontWeight: "800", color: "#252238" },
-  message: { fontSize: 13, color: "#8B879A" },
-  button: { backgroundColor: "#7661D8", borderRadius: 12, padding: 14, alignItems: "center" },
+  message: { fontSize: 13, color: "#625E70" },
+  button: { backgroundColor: "#653BB7", borderRadius: 12, padding: 14, alignItems: "center" },
   buttonText: { color: "#fff", fontWeight: "800" },
 });
