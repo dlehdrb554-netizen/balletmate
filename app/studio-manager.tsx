@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressa
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { invalidateStudioPublicMaterials } from "../lib/studio-public-materials";
+import { searchStudiosByName } from "../lib/studios";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
@@ -99,10 +100,9 @@ export default function StudioManager(){
   if(!supabase||query.length<2){Alert.alert("학원 검색","학원명을 2자 이상 입력해 주세요.");return;}
   setStudioSearchBusy(true);
   try{
-   const {data,error}=await supabase.from("studios").select("id,name,district,address").ilike("name","%"+query+"%").order("name").limit(30);
-   if(error)throw error;
-   setStudioSearchResults(data||[]);
-   if(!data?.length)Alert.alert("검색 결과","일치하는 학원을 찾지 못했습니다. 학원명을 다시 확인해 주세요.");
+   const rows=await searchStudiosByName(query);
+   setStudioSearchResults(rows);
+   if(!rows.length)Alert.alert("검색 결과","일치하는 학원을 찾지 못했습니다. 학원명을 다시 확인해 주세요.");
   }catch(error:any){Alert.alert("학원 검색 실패",error?.message||"학원 목록을 불러오지 못했습니다.");}
   finally{setStudioSearchBusy(false);}
  };
