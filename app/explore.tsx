@@ -438,12 +438,12 @@ export default function Home() {
   },[search]);
 
   const globalSearchIdSet=useMemo(()=>new Set(globalSearchStudios.map(studio=>studio.id)),[globalSearchStudios]);
+  const normalizedSearch=search.trim().toLowerCase();
   const classSearchIdSet=useMemo(()=>new Set(classSearchIds),[classSearchIds]);
   const classFilterIdSet=useMemo(()=>new Set(classFilterIds),[classFilterIds]);
   const mergedStudios=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()],[studios,globalSearchStudios]);
   const results=useMemo(()=>mergedStudios.filter(s=>{
-    const q=search.trim().toLowerCase();
-    if(q && !globalSearchIdSet.has(s.id) && !s.name.toLowerCase().includes(q) && !s.area.toLowerCase().includes(q) && !s.tags.some(t=>t.toLowerCase().includes(q)) && !classSearchIdSet.has(s.id)) return false;
+    if(normalizedSearch && !globalSearchIdSet.has(s.id) && !s.name.toLowerCase().includes(normalizedSearch) && !s.area.toLowerCase().includes(normalizedSearch) && !s.tags.some(t=>t.toLowerCase().includes(normalizedSearch)) && !classSearchIdSet.has(s.id)) return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
     if(neisOnlyFilter&&s.sourceStatus!=="both"&&s.sourceStatus!=="neis_only")return false;
@@ -460,7 +460,7 @@ export default function Home() {
       if(Math.abs(s.lat-searchedRegion.latitude)>latSpan||Math.abs(s.lng-searchedRegion.longitude)>lngSpan)return false;
     }
     return true;
-  }),[mergedStudios,globalSearchIdSet,search,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,classTypeFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
+  }),[mergedStudios,globalSearchIdSet,normalizedSearch,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,neisOnlyFilter]);
 
   const mapMarkers=useMemo(()=>results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng})),[results]);
   const handleMapRegionChange=useCallback((next:Region)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);},[]);
@@ -471,8 +471,7 @@ export default function Home() {
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active){setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);setDirectoryStudios(rows.map(mapStudioRecord));}}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
   const listDistricts=useMemo(()=>allListAreas.filter(area=>(regionProvince==="전체"||parseArea(area).province===regionProvince)&&(regionCity==="전체"||parseArea(area).city===regionCity)),[allListAreas,regionProvince,regionCity]);
   const directoryResults=useMemo(()=>[...new Map([...directoryStudios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()].filter(s=>{
-    const q=search.trim().toLowerCase();
-    if(q&&!globalSearchIdSet.has(s.id)&&!s.name.toLowerCase().includes(q)&&!s.area.toLowerCase().includes(q)&&!s.tags.some(t=>t.toLowerCase().includes(q))&&!classSearchIdSet.has(s.id))return false;
+    if(normalizedSearch&&!globalSearchIdSet.has(s.id)&&!s.name.toLowerCase().includes(normalizedSearch)&&!s.area.toLowerCase().includes(normalizedSearch)&&!s.tags.some(t=>t.toLowerCase().includes(normalizedSearch))&&!classSearchIdSet.has(s.id))return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
     if(neisOnlyFilter&&s.sourceStatus!=="both"&&s.sourceStatus!=="neis_only")return false;
@@ -483,7 +482,7 @@ export default function Home() {
     if(durationFilter!==null&&!(s.classDurations?.length?s.classDurations.includes(durationFilter):s.duration===durationFilter))return false;
     if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
     return true;
-  }),[directoryStudios,globalSearchStudios,search,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,neisOnlyFilter,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,searchedRegion]);
+  }),[directoryStudios,globalSearchStudios,normalizedSearch,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,neisOnlyFilter,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,searchedRegion]);
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:directoryResults.filter(studio=>selectedListRegion!=="전체"?canonicalArea(studio.area)===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
     return [...rows].sort((a,b)=>distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng));
