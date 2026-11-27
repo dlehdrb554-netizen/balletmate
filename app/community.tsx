@@ -502,7 +502,7 @@ export default function Community(){
   <View style={s.header}>
    <Pressable onPress={()=>{if(selected){if(params.returnTo==="mypage"){router.back();return;}commentRequestId.current++;selectedPostIdRef.current=null;setSelected(null);setComments([]);}else router.replace("/");}}><><Ionicons name="chevron-back" size={16} color={C.muted} /><Text style={s.back}>{selected?(params.returnTo==="mypage"?"돌아가기":"목록"):"지도"}</Text></></Pressable>
    <Text style={s.heading}>발레 커뮤니티</Text>
-   <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={openComposer}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>router.replace("/")}><Ionicons name="menu-outline" size={22} color={C.ink} /></Pressable></View>
+   <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={openComposer}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>router.replace("/")}><Ionicons name="menu-outline" size={22} color={isDark?"#FFFFFF":"#252238"} /></Pressable></View>
   </View>
   {selected?
    <ScrollView contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled">
