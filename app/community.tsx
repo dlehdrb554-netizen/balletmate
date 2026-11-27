@@ -115,35 +115,37 @@ export default function Community(){
   try{
    let query=supabase.from("community_posts").select("id,author_id,author_name,category,title,content,image_urls,created_at").order("created_at",{ascending:false}).limit(50);
    if(category!=="전체")query=query.eq("category",category);
-
    const {data,error}=await query;
    if(error)throw error;
-   if(requestId===postRequestId.current){
-    const rows=(data||[]) as Post[];
-    setPosts(rows);
-    if(rows.length){
-     const ids=rows.map(post=>post.id);
-     const [likesResult,commentsResult,ownLikesResult]=await Promise.all([
-      supabase.from("community_post_likes").select("post_id").in("post_id",ids),
-      supabase.from("community_comments").select("post_id").in("post_id",ids),
-      userId?supabase.from("community_post_likes").select("post_id").eq("user_id",userId).in("post_id",ids):Promise.resolve({data:[],error:null} as any)
-     ]);
-     if(likesResult.error)throw likesResult.error;
-     if(commentsResult.error)throw commentsResult.error;
-     if(ownLikesResult.error)throw ownLikesResult.error;
+   if(requestId!==postRequestId.current)return;
+   const rows=(data||[]) as Post[];
+   setPosts(rows);
+   // Render the feed as soon as posts arrive; engagement metrics load in the background.
+   setLoading(false);
+   if(!rows.length){setPostMetrics({});return;}
+   const ids=rows.map(post=>post.id);
+   void Promise.all([
+     supabase.from("community_post_likes").select("post_id").in("post_id",ids),
+     supabase.from("community_comments").select("post_id").in("post_id",ids),
+     userId?supabase.from("community_post_likes").select("post_id").eq("user_id",userId).in("post_id",ids):Promise.resolve({data:[],error:null} as any)
+   ]).then(([likesResult,commentsResult,ownLikesResult])=>{
+     if(requestId!==postRequestId.current)return;
+     if(likesResult.error||commentsResult.error||ownLikesResult.error)throw likesResult.error||commentsResult.error||ownLikesResult.error;
      const next:Record<string,{likes:number;comments:number;liked:boolean}>={};
      for(const id of ids)next[id]={likes:0,comments:0,liked:false};
      for(const row of likesResult.data||[])if(next[row.post_id])next[row.post_id].likes++;
      for(const row of commentsResult.data||[])if(next[row.post_id])next[row.post_id].comments++;
      for(const row of ownLikesResult.data||[])if(next[row.post_id])next[row.post_id].liked=true;
-     if(requestId===postRequestId.current)setPostMetrics(next);
-    }else setPostMetrics({});
-   }
-  }catch(error:any){if(requestId===postRequestId.current){setLoadError(true);Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}}
-  finally{if(requestId===postRequestId.current){setLoading(false);setRefreshing(false);}}
+     setPostMetrics(next);
+   }).catch(error=>console.warn("Community post metrics unavailable:",error));
+  }catch(error:any){
+   if(requestId===postRequestId.current){setLoadError(true);Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}
+  }finally{
+   if(requestId===postRequestId.current){setLoading(false);setRefreshing(false);}
+  }
  },[category,userId]);
 
- useEffect(()=>{loadPosts();},[loadPosts]);
+  useEffect(()=>{loadPosts();},[loadPosts]);
  useEffect(()=>{const show=Keyboard.addListener("keyboardDidShow",()=>setKeyboardVisible(true));const hide=Keyboard.addListener("keyboardDidHide",()=>setKeyboardVisible(false));return()=>{show.remove();hide.remove();};},[]);
  useEffect(()=>{
   if(!userId||!supabase||termsEntryChecked.current)return;
