@@ -1,4 +1,5 @@
 import React, {useCallback, useDeferredValue, useEffect, useMemo, useRef, useState} from "react";
+import { getUserErrorMessage } from "../lib/error-utils";
 import BottomSheet, {BottomSheetScrollView} from "@gorhom/bottom-sheet";
 import {Gesture, GestureDetector, GestureHandlerRootView} from "react-native-gesture-handler";
 import {runOnJS} from "react-native-reanimated";
@@ -305,7 +306,7 @@ export default function Home() {
       const blockedIds=(blocks||[]).map((row:any)=>String(row.blocked_user_id));
       setStudioReviews((data||[]).filter((row:any)=>!blockedIds.includes(String(row.user_id))).sort((a:any,b:any)=>Number(!!b.verified_at)-Number(!!a.verified_at)));
       Alert.alert("리뷰 등록 완료","학원 리뷰가 등록되었습니다.");
-    }catch(error:any){Alert.alert("리뷰 등록 실패",error?.message||"잠시 후 다시 시도해 주세요.");}
+    }catch(error:any){Alert.alert("리뷰 등록 실패",getUserErrorMessage(error,"잠시 후 다시 시도해 주세요."));}
     finally{setReviewSubmitting(false);}
   };
   const startStudioReviewSubmission=async()=>{
@@ -321,12 +322,12 @@ export default function Home() {
       {text:"약관 보기",onPress:()=>router.push("/terms")},
       {text:"동의하고 리뷰 등록",onPress:async()=>{
         const {error:acceptError}=await client.from("service_terms_acceptances").insert({user_id:session.user.id,terms_version:"2026-11-26-ads-1"});
-        if(acceptError&&acceptError.code!=="23505"){Alert.alert("동의 처리 실패",acceptError.message);return;}
+        if(acceptError&&acceptError.code!=="23505"){Alert.alert("동의 처리 실패",getUserErrorMessage(acceptError));return;}
         await saveStudioReview();
       }}
     ]);
   };
-  const submitReviewReport=async(reviewId:string,reason:string)=>{if(!supabase){Alert.alert("로그인 필요","로그인 후 신고할 수 있습니다.");return;}const {data:{session}}=await supabase.auth.getSession();if(!session){Alert.alert("로그인 필요","로그인 후 신고할 수 있습니다.");return;}const {error}=await supabase.rpc("submit_studio_review_report",{p_review_id:reviewId,p_reason:reason,p_details:""});if(error)Alert.alert("신고 실패",error.message);else Alert.alert("신고 접수","신고가 접수되었습니다. 반복 신고가 확인되면 관리자 검토 전까지 리뷰가 숨김 처리됩니다.");};
+  const submitReviewReport=async(reviewId:string,reason:string)=>{if(!supabase){Alert.alert("로그인 필요","로그인 후 신고할 수 있습니다.");return;}const {data:{session}}=await supabase.auth.getSession();if(!session){Alert.alert("로그인 필요","로그인 후 신고할 수 있습니다.");return;}const {error}=await supabase.rpc("submit_studio_review_report",{p_review_id:reviewId,p_reason:reason,p_details:""});if(error)Alert.alert("신고 실패",getUserErrorMessage(error));else Alert.alert("신고 접수","신고가 접수되었습니다. 반복 신고가 확인되면 관리자 검토 전까지 리뷰가 숨김 처리됩니다.");};
 
   useEffect(()=>{
     const client=supabase;
@@ -876,7 +877,7 @@ export default function Home() {
     const matching=[...new Map([...mapped,...localMatches,...studios.filter(studio=>matchingClassIds.includes(studio.id)),...directoryStudios.filter(studio=>matchingClassIds.includes(studio.id))].filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
     if(!matching.length&&kakaoSearchFailure&&!regionKey){
       const userMessage=getKakaoSearchErrorMessage(kakaoSearchFailure);
-      Alert.alert(userMessage.title,userMessage.message);
+      Alert.alert(userMessage.title,getUserErrorMessage(userMessage));
       setSearchSubmitting(false);
       setSearchFocused(false);
       return;
@@ -1144,7 +1145,7 @@ export default function Home() {
         console.warn("Viewport Kakao search failed:",error);
         if(!immediateMatches.length){
           const userMessage=getKakaoSearchErrorMessage(error);
-          Alert.alert(userMessage.title,userMessage.message);
+          Alert.alert(userMessage.title,getUserErrorMessage(userMessage));
         }
       }
     }finally{
@@ -1248,7 +1249,7 @@ export default function Home() {
       else setDetailCanonicalError("학원 정보를 찾지 못했습니다. 다시 시도해 주세요.");
     }catch(error:any){
       if(requestId===detailRequestId.current){
-        setDetailCanonicalError(error?.message||"학원 정보를 불러오지 못했습니다.");
+        setDetailCanonicalError(getUserErrorMessage(error,"학원 정보를 불러오지 못했습니다."));
         console.warn("Canonical studio detail retry failed:",error);
       }
     }finally{
@@ -1279,7 +1280,7 @@ export default function Home() {
         else setDetailCanonicalError("학원 정보를 찾지 못했습니다. 다시 시도해 주세요.");
       }).catch((error:any)=>{
         if(requestId===detailRequestId.current){
-          setDetailCanonicalError(error?.message||"학원 정보를 불러오지 못했습니다.");
+          setDetailCanonicalError(getUserErrorMessage(error,"학원 정보를 불러오지 못했습니다."));
           console.warn("Canonical studio detail lookup failed:",error);
         }
       }).finally(()=>{if(requestId===detailRequestId.current)setDetailCanonicalLoading(false);});
@@ -1618,7 +1619,7 @@ export default function Home() {
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 정보 제보</Text><Pressable onPress={()=>setReportOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.sectionTitle}>제보 유형</Text><View style={styles.filterChoices}>{["폐업/이전","주소 오류","전화/홈페이지 오류","가격/시간표 오류","기타"].map(v=><Chip key={v} label={v} active={reportCategory===v} onPress={()=>setReportCategory(v)}/>)}</View>
         <Text style={styles.sectionTitle}>상세 내용</Text><TextInput value={reportDescription} onChangeText={setReportDescription} placeholder={"잘못된 정보와 확인한 내용을 적어주세요. (5~1000자)"} multiline maxLength={1000} textAlignVertical="top" style={styles.reportInput}/>
-        <Pressable disabled={reportSubmitting||reportDescription.trim().length<5} style={[styles.applyButton,{opacity:reportSubmitting||reportDescription.trim().length<5?0.5:1}]} onPress={async()=>{const client=supabase;const target=detailStudio;if(!client||!target)return;setReportSubmitting(true);try{const {data:{session}}=await client.auth.getSession();if(!session){Alert.alert("로그인 필요","다시 로그인해 주세요.");setReportOpen(false);return;}const {error}=await client.from("studio_user_reports").insert({studio_id:target.id,reporter_id:session.user.id,category:reportCategory,description:reportDescription.trim()});if(error)throw error;setReportOpen(false);Alert.alert("제보 접수 완료","제보 내용을 관리자에게 전달했습니다.");}catch(e:any){Alert.alert("제보 실패",e?.message||"잠시 후 다시 시도해 주세요.");}finally{setReportSubmitting(false);}}}><Text style={styles.applyText}>{reportSubmitting?"접수 중…":"제보 보내기"}</Text></Pressable>
+        <Pressable disabled={reportSubmitting||reportDescription.trim().length<5} style={[styles.applyButton,{opacity:reportSubmitting||reportDescription.trim().length<5?0.5:1}]} onPress={async()=>{const client=supabase;const target=detailStudio;if(!client||!target)return;setReportSubmitting(true);try{const {data:{session}}=await client.auth.getSession();if(!session){Alert.alert("로그인 필요","다시 로그인해 주세요.");setReportOpen(false);return;}const {error}=await client.from("studio_user_reports").insert({studio_id:target.id,reporter_id:session.user.id,category:reportCategory,description:reportDescription.trim()});if(error)throw error;setReportOpen(false);Alert.alert("제보 접수 완료","제보 내용을 관리자에게 전달했습니다.");}catch(e:any){Alert.alert("제보 실패",getUserErrorMessage(e,"잠시 후 다시 시도해 주세요."));}finally{setReportSubmitting(false);}}}><Text style={styles.applyText}>{reportSubmitting?"접수 중…":"제보 보내기"}</Text></Pressable>
       </View></View></KeyboardAvoidingView>
     </Modal>
 
