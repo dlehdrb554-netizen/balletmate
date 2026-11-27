@@ -1535,7 +1535,7 @@ export default function Home() {
     <Modal visible={searchFocused} transparent animationType="none" statusBarTranslucent onRequestClose={closeSearchOverlay}>
       <View style={styles.searchSheetShade}>
         <Pressable style={StyleSheet.absoluteFill} onPress={closeSearchOverlay}/>
-        <KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":"height"} style={styles.searchSheetKeyboard}>
+        <KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined} style={styles.searchSheetKeyboard}>
           <View style={[styles.searchSheet,{backgroundColor:isDark?"#17151D":"#FFFFFF",paddingTop:insets.top+10,paddingBottom:Math.max(16,insets.bottom+12)}]}>
             <View style={styles.searchSheetHandle}/>
             <View style={styles.searchSheetHeader}>
@@ -1571,7 +1571,7 @@ export default function Home() {
                 </View>
                 <Ionicons name="chevron-forward" size={17} color={isDark?"#A9A2B5":COLORS.muted}/>
               </Pressable>}/>
-              <Pressable disabled={searchSubmitting} style={[styles.searchSheetSubmit,{backgroundColor:isDark?"#49336B":COLORS.purple,opacity:searchSubmitting?0.75:1}]} onPress={()=>{const q=search.trim();Keyboard.dismiss();void submitSearch(q);}}>
+              <Pressable disabled={searchSubmitting} style={[styles.searchSheetSubmit,{backgroundColor:isDark?"#49336B":COLORS.purple,opacity:searchSubmitting?0.75:1}]} onPress={()=>{const q=search.trim();void submitSearch(q);}}>
                 {searchSubmitting?<ActivityIndicator size="small" color="#FFFFFF"/>:<Ionicons name="search" size={17} color="#FFFFFF"/>}<Text style={styles.searchSheetSubmitText}>{searchSubmitting?"검색 중입니다…":`‘${search.trim()}’ 전체 검색`}</Text>
               </Pressable>
             </>}
