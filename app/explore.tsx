@@ -553,7 +553,6 @@ export default function Home() {
 
   const globalSearchIdSet=useMemo(()=>new Set(globalSearchStudios.map(studio=>studio.id)),[globalSearchStudios]);
   const deferredSearch=useDeferredValue(search);
-  const normalizedLiveQuery=deferredSearch.trim().toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
   const liveSearchRequestId=useRef(0);
   const liveSearchMatches=useMemo(()=>{
      if(!normalizedLiveQuery)return [];
@@ -566,11 +565,12 @@ export default function Home() {
        .sort((a,b)=>a.name.localeCompare(b.name,"ko"));
    },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
      const normalizedSearch=deferredSearch.trim().toLowerCase();
+  const mapSearchFilter=searchFocused?"":normalizedSearch;
   const classSearchIdSet=useMemo(()=>new Set(classSearchIds),[classSearchIds]);
   const classFilterIdSet=useMemo(()=>new Set(classFilterIds),[classFilterIds]);
   const mergedStudios=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()],[studios,globalSearchStudios]);
   const results=useMemo(()=>mergedStudios.filter(s=>{
-    if(!searchFocused && normalizedSearch && !globalSearchIdSet.has(s.id) && !s.name.toLowerCase().includes(normalizedSearch) && !s.area.toLowerCase().includes(normalizedSearch) && !s.tags.some(t=>t.toLowerCase().includes(normalizedSearch)) && !classSearchIdSet.has(s.id)) return false;
+    if(mapSearchFilter && !globalSearchIdSet.has(s.id) && !s.name.toLowerCase().includes(mapSearchFilter) && !s.area.toLowerCase().includes(mapSearchFilter) && !s.tags.some(t=>t.toLowerCase().includes(mapSearchFilter)) && !classSearchIdSet.has(s.id)) return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
     if(coupon&&!s.coupon)return false;
     if(hasClassLevelFilters&&!classFilterIdSet.has(s.id))return false;
@@ -586,7 +586,7 @@ export default function Home() {
       if(Math.abs(s.lat-searchedRegion.latitude)>latSpan||Math.abs(s.lng-searchedRegion.longitude)>lngSpan)return false;
     }
     return true;
-  }),[mergedStudios,globalSearchIdSet,normalizedSearch,searchFocused,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,region]);
+  }),[mergedStudios,globalSearchIdSet,mapSearchFilter,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,region]);
 
   const mapMarkers=useMemo(()=>{
     // Typing only filters the overlay list; map markers change only after explicit submission.
