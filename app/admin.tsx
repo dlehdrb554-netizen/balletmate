@@ -88,6 +88,8 @@ export default function Admin() {
   const [busy,setBusy]=useState(false);
   const [rows,setRows]=useState<StudioRow[]>([]);
   const [ownerApplications,setOwnerApplications]=useState<any[]>([]);
+  const [approvedOwners,setApprovedOwners]=useState<any[]>([]);
+  const [approvedOwnersBusy,setApprovedOwnersBusy]=useState(false);
   const [ownerReviewBusy,setOwnerReviewBusy]=useState(false);
     const [studioSearch,setStudioSearch]=useState("");
   const [studioAppliedSearch,setStudioAppliedSearch]=useState("");
