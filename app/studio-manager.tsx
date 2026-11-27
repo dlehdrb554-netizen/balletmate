@@ -26,6 +26,7 @@ export default function StudioManager(){
  const [studioSearchResults,setStudioSearchResults]=useState<any[]>([]);
  const [studioSearchBusy,setStudioSearchBusy]=useState(false);
  const [owner,setOwner]=useState(false);
+ const [ownedStudios,setOwnedStudios]=useState<any[]>([]);
  const [application,setApplication]=useState<any>(null);
  const [verificationMethod,setVerificationMethod]=useState<"phone"|"blog"|"instagram"|"manual">("phone");
  const [blogUrl,setBlogUrl]=useState("");
@@ -61,12 +62,23 @@ export default function StudioManager(){
  const [couponDescription,setCouponDescription]=useState("");
 
  const load=useCallback(async()=>{
-  if(!supabase||!studioId){setLoading(false);return;}
+  if(!supabase){setLoading(false);return;}
   setLoading(true);
   const {data:auth}=await supabase.auth.getSession();
   const current=auth.session;
   setSession(current);
-  if(!current){setOwner(false);setApplication(null);setLoading(false);return;}
+  if(!current){setOwner(false);setApplication(null);setOwnedStudios([]);setLoading(false);return;}
+  if(!studioId){
+   const {data:ownerRows,error:ownerListError}=await supabase.from("studio_owners").select("studio_id,status").eq("user_id",current.user.id).eq("status","approved");
+   if(ownerListError){setOwnedStudios([]);Alert.alert("관리 학원 조회 실패",ownerListError.message);}
+   else if(ownerRows?.length){
+    const ids=ownerRows.map((row:any)=>row.studio_id);
+    const {data:studios,error:studioListError}=await supabase.from("studios").select("id,name,district,address").in("id",ids);
+    if(studioListError){setOwnedStudios([]);Alert.alert("학원 정보 조회 실패",studioListError.message);}
+    else setOwnedStudios(studios||[]);
+   }else setOwnedStudios([]);
+   setLoading(false);return;
+  }
   const [ownerResult,appResult,studioResult]=await Promise.all([
    supabase.from("studio_owners").select("studio_id,status").eq("studio_id",studioId).eq("user_id",current.user.id).eq("status","approved").maybeSingle(),
    supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,verification_url,verification_code,verification_method").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
@@ -93,7 +105,9 @@ export default function StudioManager(){
   setLoading(false);
  },[studioId]);
 
- useEffect(()=>{load();if(!supabase)return;const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>load());return()=>subscription.unsubscribe();},[load]);
+ useEffect(()=>{void load();if(!supabase)return;const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>{setTimeout(()=>{void load();},0);});return()=>subscription.unsubscribe();},[load]);
+ useEffect(()=>{if(!studioId&&ownedStudios.length===1&&!loading){const studio=ownedStudios[0];router.replace({pathname:"/studio-manager",params:{studioId:studio.id,studioName:studio.name}});}},[studioId,ownedStudios,loading,router]);
+ useEffect(()=>{if(studioId||!session)return;const timer=setInterval(()=>{void load();},15000);return()=>clearInterval(timer);},[studioId,session,load]);
 
  const searchStudiosForApplication=async()=>{
   const query=studioSearch.trim();
@@ -261,20 +275,22 @@ export default function StudioManager(){
  return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
   <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
   <Text style={s.brand}>Balletmate · 학원 관리</Text><Text style={s.title}>{studioName}</Text>
-  {!studioId?
-   <View style={s.card}>
-    <Text style={s.cardTitle}>관리할 학원 검색</Text>
-    <Text style={s.body}>학원명을 검색한 뒤 해당 학원을 선택하면 관리자 권한 신청서를 작성할 수 있습니다.</Text>
-    {field("학원명",studioSearch,setStudioSearch,"학원 이름을 입력하세요")}
-    {button(studioSearchBusy?"검색 중…":"학원 검색",searchStudiosForApplication,studioSearchBusy)}
-    {studioSearchResults.map(item=><View key={item.id} style={s.item}>
-     <Text style={s.itemTitle}>{item.name}</Text>
-     <Text style={s.body}>{[item.district,item.address].filter(Boolean).join(" · ")||"주소 정보 없음"}</Text>
-     {button("이 학원 신청하기",()=>router.replace({pathname:"/studio-manager",params:{studioId:item.id,studioName:item.name}}))}
-    </View>)}
-   </View>
-  :loading?<ActivityIndicator color={C.purple} style={{marginTop:28}}/>:!session?
+  {loading?<ActivityIndicator color={C.purple} style={{marginTop:28}}/>:!session?
    <View style={s.card}><Text style={s.body}>학원 관리 권한을 신청하거나 관리 기능을 사용하려면 먼저 로그인해 주세요.</Text>{button("로그인하기",()=>router.push({pathname:"/account",params:{returnTo:"studio-manager",studioId,studioName}}))}</View>
+  :!studioId?
+   ownedStudios.length?
+    <View style={s.card}><Text style={s.cardTitle}>승인된 학원 관리</Text><Text style={s.body}>승인된 학원 관리자 계정입니다. 관리할 학원을 선택하세요.</Text>{ownedStudios.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.name}</Text><Text style={s.body}>{[item.district,item.address].filter(Boolean).join(" · ")||"주소 정보 없음"}</Text>{button("학원 관리 열기",()=>router.push({pathname:"/studio-manager",params:{studioId:item.id,studioName:item.name}}))}</View>)}</View>
+    :<View style={s.card}>
+     <Text style={s.cardTitle}>관리할 학원 검색</Text>
+     <Text style={s.body}>학원명을 검색한 뒤 해당 학원을 선택하면 관리자 권한 신청서를 작성할 수 있습니다.</Text>
+     {field("학원명",studioSearch,setStudioSearch,"학원 이름을 입력하세요")}
+     {button(studioSearchBusy?"검색 중…":"학원 검색",searchStudiosForApplication,studioSearchBusy)}
+     {studioSearchResults.map(item=><View key={item.id} style={s.item}>
+      <Text style={s.itemTitle}>{item.name}</Text>
+      <Text style={s.body}>{[item.district,item.address].filter(Boolean).join(" · ")||"주소 정보 없음"}</Text>
+      {button("이 학원 신청하기",()=>router.replace({pathname:"/studio-manager",params:{studioId:item.id,studioName:item.name}}))}
+     </View>)}
+    </View>
   :owner?
    <>
     <View style={s.card}><Text style={s.cardTitle}>승인된 원장님 계정</Text><Text style={s.body}>이 학원의 정보와 공개 자료를 관리할 수 있습니다. 등록한 내용은 학원 상세 페이지에 바로 공개됩니다.</Text></View>
