@@ -2,7 +2,7 @@ import React, {useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import { getUserErrorMessage } from "../lib/error-utils";
 import BottomSheet, {BottomSheetScrollView} from "@gorhom/bottom-sheet";
 import {Gesture, GestureDetector, GestureHandlerRootView} from "react-native-gesture-handler";
-import {runOnJS} from "react-native-reanimated";
+import {runOnJS,useSharedValue,useAnimatedStyle,withSpring} from "react-native-reanimated";
 import {themeStyles } from "../lib/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRootNavigationState, useRouter } from "expo-router";
@@ -381,11 +381,16 @@ export default function Home() {
     finally{studioOwnerNoticesLoadingRef.current=false;setStudioOwnerNoticesLoading(false);}
   };
   const [compareOpen,setCompareOpen]=useState(false);
-   const compareDismissGesture=useMemo(()=>Gesture.Pan()
-     .activeOffsetY(8)
-     .failOffsetX([-18,18])
-     .maxPointers(1)
-     .onEnd(event=>{if(event.translationY>70)runOnJS(setCompareOpen)(false);}),[]);
+  const compareDragY=useSharedValue(0);
+  const compareSheetAnimatedStyle=useAnimatedStyle(()=>({transform:[{translateY:compareDragY.value}]}));
+  const compareDismissGesture=useMemo(()=>Gesture.Pan()
+    .activeOffsetY(4).failOffsetX([-24,24]).maxPointers(1)
+    .onUpdate(event=>{compareDragY.value=Math.max(0,event.translationY);})
+    .onEnd(event=>{
+      if(event.translationY>110||event.velocityY>900){compareDragY.value=withSpring(520,{damping:28,stiffness:220});runOnJS(setCompareOpen)(false);}
+      else compareDragY.value=withSpring(0,{damping:24,stiffness:220});
+    })
+    .onFinalize(()=>{if(compareDragY.value<110)compareDragY.value=withSpring(0,{damping:24,stiffness:220});}),[compareDragY]);
   useEffect(()=>{
     if(routeParams.view==="favorites")setView("favorites");
     else if(routeParams.view==="map")setView("map");
@@ -1428,20 +1433,20 @@ export default function Home() {
       </View></View>
     </Modal>
     <Modal visible={compareOpen} animationType="none" transparent onRequestClose={()=>setCompareOpen(false)}>
-      <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
-        <View style={{alignItems:"center",paddingTop:6,paddingBottom:10}}><GestureDetector gesture={compareDismissGesture}><View accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{width:76,height:36,alignItems:"center",justifyContent:"center"}}><View style={{width:44,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View></GestureDetector></View>
+      <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><Animated.View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)},compareSheetAnimatedStyle]>
+        <View style={{alignItems:"center",paddingTop:6,paddingBottom:10}}><GestureDetector gesture={compareDismissGesture}><View accessibilityRole="adjustable" accessibilityLabel="비교 창을 위아래로 끌어 이동하거나 아래로 끌어 닫기" style={{width:96,height:42,alignItems:"center",justifyContent:"center"}}><View style={{width:44,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View></GestureDetector></View>
          <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
         {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
         {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="swap-horizontal-outline" size={30} color={COLORS.muted}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>비교 목록이 비어 있어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>학원 카드에서 비교를 추가해 주세요.</Text></View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
-        <View style={{flexDirection:"row",gap:6,marginTop:12,marginBottom:12}}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:"row",gap:10,paddingTop:12,paddingBottom:12}}>
           {compareIds.map(id=>{
             const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
             if(!studio)return null;
             const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
             const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
             const maxDuration=Math.max(studio.duration||0,...(studio.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
-            return <View key={id} style={[styles.compareColumn,{flex:1,width:0,minWidth:0,padding:7}]}>
+            return <View key={id} style={[styles.compareColumn,{width:224,minWidth:224,flexGrow:0,flexShrink:0,padding:12}]}>
               <View style={[styles.compareColumnHead,{minHeight:80}]}>
                 <Text style={[styles.compareName,{fontSize:12}]} numberOfLines={2}>{studio.name}</Text>
                 <Text style={[styles.compareInfo,{fontSize:9}]} numberOfLines={1}>{studio.area}</Text>
@@ -1455,9 +1460,9 @@ export default function Home() {
               <Text style={[styles.comparePrice,{fontSize:12}]}>{maxDuration>0?maxDuration+"분":"미등록"}</Text>
             </View>;
           })}
-        </View>}
+        </ScrollView>}
         <Pressable accessibilityRole="button" accessibilityLabel="학원 비교 확인 및 닫기" style={[styles.applyButton,{flex:0,width:"100%",minHeight:52,alignSelf:"stretch",paddingVertical:14,marginTop:8}]} onPress={()=>setCompareOpen(false)}><Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>비교 완료</Text></Pressable>
-      </View></View>
+      </Animated.View></View>
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:modalBottomInset}]}>
