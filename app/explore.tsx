@@ -1146,9 +1146,9 @@ export default function Home() {
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
-    <Modal visible={regionPickerOpen} transparent animationType="fade" onRequestClose={handleRegionPickerBack}>
-      <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}>
-        <View style={[styles.modal,{height:"86%",maxHeight:"94%",paddingHorizontal:14,paddingBottom:Math.max(12,insets.bottom+8)}]}>
+    <Modal visible={regionPickerOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
+      <View style={[styles.modalShade,{paddingTop:insets.top+8,paddingBottom:insets.bottom+12}]}>
+        <View style={[styles.modal,{height:"88%",maxHeight:"92%",minHeight:0,flexShrink:1,paddingHorizontal:14,paddingBottom:16}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>지역 선택</Text>
             <Pressable onPress={handleRegionPickerBack} hitSlop={10} style={{minWidth:64,alignItems:"flex-end"}}>
