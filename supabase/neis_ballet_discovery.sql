@@ -64,7 +64,7 @@ create extension if not exists pg_cron;
 create extension if not exists pg_net;
 create extension if not exists supabase_vault with schema vault;
 select cron.unschedule(jobid) from cron.job where jobname='balletmate-neis-academy-discovery';
-select cron.schedule('balletmate-neis-academy-discovery','*/5 * * * *',$$
+select cron.schedule('balletmate-neis-academy-discovery','0 */6 * * *',$$
  select net.http_post(
   url:='https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/neis-ballet-discovery',
   headers:=jsonb_build_object('Content-Type','application/json','x-crawl-secret',(select decrypted_secret from vault.decrypted_secrets where name='balletmate_crawl_worker_secret' order by created_at desc limit 1)),
