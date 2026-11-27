@@ -116,8 +116,10 @@ export default function Community(){
  const requireMemberProfile=async()=>{if(!supabase||!userId)return false;const {data,error}=await supabase.from("user_profiles").select("display_name").eq("user_id",userId).maybeSingle();if(error){Alert.alert("회원 정보 확인 실패",error.message);return false;}if(!String(data?.display_name||"").trim()){Alert.alert("회원정보 등록 필요","게시글과 댓글을 작성하려면 회원정보 등록을 완료해 주세요.",[{text:"취소",style:"cancel"},{text:"등록하기",onPress:()=>router.push("/onboarding")}]);return false;}return true;};
  const explainError=(error:any)=>{
   const message=String(error?.message||"");
+  const constraint=String(error?.constraint||"");
   if(message.includes("30초")||message.includes("P0001"))Alert.alert("잠시만 기다려 주세요",cooldownMessage);
   else if(message.includes("42501")||message.toLowerCase().includes("row-level security"))Alert.alert("로그인이 필요합니다","회원 로그인 후 작성할 수 있습니다.");
+  else if(error?.code==="23514"&&/community_posts_(content|contents)_check/i.test(constraint+" "+message))Alert.alert("게시글 내용 확인","제목과 내용은 각각 최소 2자 이상 입력해야 합니다. 공백만 입력한 경우 글자로 인정되지 않습니다.");
   else Alert.alert("작성 실패",message||"잠시 후 다시 시도해 주세요.");
  };
 
@@ -328,12 +330,12 @@ export default function Community(){
      <ScrollView style={{flexShrink:1}} contentContainerStyle={{paddingBottom:8}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
      <Text style={s.label}>게시판 선택</Text>
      <View style={s.categoryChoices}>{(["학원 추천","발레복 추천","자유"] as const).map(item=><Pressable key={item} onPress={()=>setNewCategory(item)} style={[s.filter,newCategory===item&&s.filterActive]}><Text style={[s.filterText,newCategory===item&&s.filterTextActive]}>{item}</Text></Pressable>)}</View>
-     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>제목</Text><Text style={{fontSize:11,color:C.muted}}>{title.length}/80자</Text></View>
+     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>제목 <Text style={{fontSize:10,color:C.muted,fontWeight:"500"}}>(최소 2자)</Text></Text><Text style={{fontSize:11,color:C.muted}}>{title.length}/80자</Text></View>
      <View style={s.inputWithClear}><TextInput style={[s.titleInput,{flex:1}]} value={title} onChangeText={setTitle} placeholder="게시글 제목을 입력해주세요." maxLength={80} returnKeyType="next"/>{!!title&&<Pressable style={s.clearField} onPress={()=>setTitle("")} accessibilityRole="button" accessibilityLabel="제목 전체 삭제"><Ionicons name="close-circle" size={19} color={C.muted}/></Pressable>}</View>
-     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>내용</Text><Text style={{fontSize:11,color:C.muted}}>{body.length}/5,000자</Text></View>
+     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>내용 <Text style={{fontSize:10,color:C.muted,fontWeight:"500"}}>(최소 2자)</Text></Text><Text style={{fontSize:11,color:C.muted}}>{body.length}/5,000자</Text></View>
      <View style={s.bodyInputWrap}><TextInput style={[s.bodyInput,{flex:1}]} value={body} onChangeText={setBody} placeholder="경험이나 추천 정보를 자세히 적어주세요." multiline textAlignVertical="top" maxLength={5000}/>{!!body&&<Pressable style={s.clearBodyField} onPress={()=>setBody("")} accessibilityRole="button" accessibilityLabel="내용 전체 삭제"><Ionicons name="close-circle" size={19} color={C.muted}/></Pressable>}</View>
      <View style={s.photoPickerRow}><View style={s.photoSlots}><Text style={s.photoPickerText}>사진 첨부 ({selectedPhotos.length}/4)</Text><View style={s.photoSlotList}>{[0,1,2,3].map(index=>{const photo=selectedPhotos[index];return <View key={index} style={s.photoSlot}>{photo?<><Image source={{uri:photo.uri}} style={s.photoSlotImage}/><Pressable style={s.photoRemove} onPress={()=>setSelectedPhotos(current=>current.filter((_,i)=>i!==index))} accessibilityRole="button" accessibilityLabel={`사진 ${index+1} 삭제`}><Text style={s.photoRemoveText}>×</Text></Pressable></>:<Pressable style={s.photoSlotEmpty} onPress={pickPhotos} accessibilityRole="button" accessibilityLabel={`사진 ${index+1} 첨부`}><Ionicons name="camera-outline" size={25} color={C.purple}/></Pressable>}</View>;})}</View></View></View>
-     <Text style={s.cooldownNote}>제목은 최대 80자, 내용은 최대 5,000자까지 입력할 수 있습니다. 게시글 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
+     <Text style={s.cooldownNote}>제목과 내용은 각각 최소 2자 이상 입력해 주세요. 제목 최대 80자, 내용 최대 5,000자입니다. 게시글 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
      </ScrollView>
     </View>
    </KeyboardAvoidingView>
