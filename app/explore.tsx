@@ -264,12 +264,14 @@ export default function Home() {
     if(next!==index)setDetailTab(detailTabs[next]);
   },[]);
   const detailHorizontalGesture=useMemo(()=>Gesture.Pan()
-    .activeOffsetX([-24,24])
-    .failOffsetY([-8,8])
+    // Allow small vertical finger drift so horizontal tab swipes can activate,
+    // while failing early enough to leave vertical scrolling to BottomSheetScrollView.
+    .activeOffsetX([-18,18])
+    .failOffsetY([-20,20])
     .maxPointers(1)
     .onEnd(event=>{
       const dx=event.translationX;
-      if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(event.translationY)*1.4)return;
+      if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(event.translationY)*1.2)return;
       runOnJS(changeDetailTabBySwipe)(dx);
     }),[changeDetailTabBySwipe]);
   const expandDetailSheet=useCallback(()=>detailSheetRef.current?.snapToIndex(1),[]);
