@@ -66,7 +66,8 @@ jobs:
 
       - name: Verify Kakao key is embedded without printing it
         run: |
-          node -e "const c=require('./app.config.js')({config:{}}); if(!c.extra?.kakaoJavascriptKey) { console.error('Kakao JavaScript key is missing from Expo config'); process.exit(1); } console.log('Kakao JavaScript key is present in Expo config.');"
+          npx expo config --type public --json > expo-config.json
+          node -e "const c=require('./expo-config.json'); if(!c.extra?.kakaoJavascriptKey) { console.error('Kakao JavaScript key is missing from Expo config'); process.exit(1); } console.log('Kakao JavaScript key is present in Expo config.');"
 
       - name: Build installable development APK
         working-directory: android
