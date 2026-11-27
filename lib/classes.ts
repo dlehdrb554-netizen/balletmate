@@ -28,6 +28,8 @@ function pruneClassCache(now: number) {
   }
 }
 
+export function invalidateClassesForStudio(studioId: string) { classCache.delete(studioId); inFlightClassRequests.delete(studioId); }
+
 export async function fetchClassesForStudio(studioId: string): Promise<StudioClass[]> {
   if (!supabase || !studioId) return [];
 
