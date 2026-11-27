@@ -51,14 +51,12 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
   function markerState(id, selectedId, searchedIds, compareIds){
     if(id===selectedId)return 'selected';
-    if((searchedIds||[]).indexOf(id)>=0)return 'searched';
-    if((compareIds||[]).indexOf(id)>=0)return 'compared';
     return 'default';
   }
   function pinImage(state){
     state=state||'default';
     if(cachedPinImages[state])return cachedPinImages[state];
-    var colors={selected:'#FF5A1F',searched:'#168CCB',compared:'#15966A',default:'#B99CFF'};
+    var colors={selected:'#FF5A1F',default:'#B99CFF'};
     var color=colors[state]||colors.default;
     var svg='<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11 16 24 16 24s16-13 16-24C33 8.2 25.8 1 17 1z" fill="'+color+'" stroke="white" stroke-width="2.5"/><circle cx="17" cy="17" r="5" fill="white"/></svg>';
     cachedPinImages[state]=new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
