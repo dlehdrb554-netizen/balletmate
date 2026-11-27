@@ -473,6 +473,7 @@ export default function Home() {
   const [classFilterLoading,setClassFilterLoading]=useState(false);
   const [maxDistance,setMaxDistance]=useState<number|null>(null);
   const [locationLoading,setLocationLoading]=useState(false);
+  const locationRequestId=useRef(0);
   const [locationGranted,setLocationGranted]=useState(false);
   const [currentLocation,setCurrentLocation]=useState<{latitude:number;longitude:number}|null>(null);
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);
@@ -918,9 +919,26 @@ export default function Home() {
     return()=>{active=false;};
   },[]));
   const locate=async()=>{
+    const requestId=++locationRequestId.current;
     setLocationLoading(true);
+    let movedWithCachedLocation=false;
+    const moveToPosition=(position:Location.LocationObject)=>{
+      if(requestId!==locationRequestId.current)return;
+      const latitude=position.coords.latitude;
+      const longitude=position.coords.longitude;
+      const target={latitude,longitude,latitudeDelta:0.018,longitudeDelta:0.018};
+      setHasMapSearchRequested(true);
+      setRegion(target);
+      setSearchedRegion(target);
+      setAreaLocked(false);
+      setLocationGranted(true);
+      setCurrentLocation({latitude,longitude});
+      setMapMoved(false);
+      setPendingMapTarget(target);
+    };
     try {
       const permission=await Location.requestForegroundPermissionsAsync();
+      if(requestId!==locationRequestId.current)return;
       if(permission.status!=="granted"){
         setLocationGranted(false);
         if(!permission.canAskAgain){
@@ -934,22 +952,31 @@ export default function Home() {
         }
         return;
       }
-      // Prefer a fresh GPS fix; use a recent cached fix only if the device cannot obtain one.
-      let p:Location.LocationObject;
-      try{
-        p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.High});
-      }catch(currentError){
-        const cached=await Location.getLastKnownPositionAsync({maxAge:300000,requiredAccuracy:1000});
-        if(!cached)throw currentError;
-        p=cached;
+
+      // Move immediately with a recent cached fix; refresh the position in parallel with map use.
+      const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
+      if(requestId!==locationRequestId.current)return;
+      if(cached){
+        moveToPosition(cached);
+        movedWithCachedLocation=true;
       }
-      const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.018,longitudeDelta:0.018};
-      setHasMapSearchRequested(true);
-      setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setCurrentLocation({latitude:p.coords.latitude,longitude:p.coords.longitude});setMapMoved(false);
-      // Keep the target in state so map effect can retry if the WebView ref is not mounted yet.
-      setPendingMapTarget(r);
-    } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 위치 서비스 설정을 확인하거나 지도를 직접 이동해 이용해주세요."); }
-    finally {setLocationLoading(false);}
+
+      try{
+        const fresh=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
+        if(requestId!==locationRequestId.current)return;
+        moveToPosition(fresh);
+      }catch(currentError){
+        // Keep the map at the cached position if a fresh fix is temporarily unavailable.
+        if(!movedWithCachedLocation)throw currentError;
+        console.warn("Fresh location update unavailable; keeping cached position:",currentError);
+      }
+    } catch {
+      if(requestId===locationRequestId.current){
+        Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 위치 서비스 설정을 확인하거나 지도를 직접 이동해 이용해주세요.");
+      }
+    } finally {
+      if(requestId===locationRequestId.current)setLocationLoading(false);
+    }
   };
   // Location permissions and GPS are requested only after the user taps the location button.
   useEffect(()=>{Promise.all([AsyncStorage.getItem("balletmate.favorites.v1"),AsyncStorage.getItem("balletmate.favoriteStudios.v1")]).then(([ids,legacyCache])=>{let savedIds:string[]=[];let legacyStudios:Studio[]=[];if(ids){const parsed=JSON.parse(ids);if(Array.isArray(parsed))savedIds=[...new Set(parsed.filter(x=>typeof x==="string"))];}if(legacyCache){const parsed=JSON.parse(legacyCache);if(Array.isArray(parsed))legacyStudios=parsed.filter((x:any)=>x&&typeof x.id==="string");}guestFavoritesRef.current={ids:savedIds,studios:legacyStudios.filter(studio=>savedIds.includes(studio.id))};setFavoriteIds(savedIds);setFavoriteStudios(guestFavoritesRef.current.studios);}).catch(()=>{}).finally(()=>setFavoritesReady(true));},[]);
@@ -1092,12 +1119,13 @@ export default function Home() {
     let timer:ReturnType<typeof setTimeout>;
     const moveMap=()=>{
       if(cancelled)return;
-      if(map.current){map.current.animateToRegion(pendingMapTarget,650);setPendingMapTarget(null);return;}
+      if(map.current){map.current.animateToRegion(pendingMapTarget,450);setPendingMapTarget(null);return;}
       attempts+=1;
-      if(attempts<6)timer=setTimeout(moveMap,180);
+      if(attempts<6)timer=setTimeout(moveMap,100);
       else setPendingMapTarget(null);
     };
-    timer=setTimeout(moveMap,220);
+    // The map ref is already committed when this effect runs; avoid an extra 220ms wait.
+    moveMap();
     return()=>{cancelled=true;clearTimeout(timer);};
   },[view,pendingMapTarget]);
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
