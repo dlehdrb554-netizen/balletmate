@@ -4,7 +4,7 @@ import {Gesture, GestureDetector, GestureHandlerRootView} from "react-native-ges
 import {runOnJS} from "react-native-reanimated";
 import {themeStyles } from "../lib/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRootNavigationState, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions} from "react-native";
@@ -119,6 +119,7 @@ export default function Home() {
  const isDark=useColorScheme()==="dark";
  const styles=useMemo(()=>createStyles(isDark),[isDark]);
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
   const routeParams = useLocalSearchParams<{studioId?:string;searchQuery?:string;view?:string;openCompare?:string;compareCount?:string}>();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -263,23 +264,16 @@ export default function Home() {
     const next=Math.max(0,Math.min(detailTabs.length-1,index+(dx<0?1:-1)));
     if(next!==index)setDetailTab(detailTabs[next]);
   },[]);
-  // Observe touch movement without claiming the ScrollView responder.
-  // This keeps vertical scrolling and BottomSheet pan gestures independent.
-  const detailTouchStart=useRef<{x:number;y:number}|null>(null);
-  const handleDetailTouchStart=useCallback((event:any)=>{
-    const touch=event.nativeEvent.touches?.[0]||event.nativeEvent.changedTouches?.[0];
-    detailTouchStart.current=touch?{x:touch.pageX,y:touch.pageY}:null;
-  },[]);
-  const handleDetailTouchEnd=useCallback((event:any)=>{
-    const start=detailTouchStart.current;
-    detailTouchStart.current=null;
-    const touch=event.nativeEvent.changedTouches?.[0]||event.nativeEvent.touches?.[0];
-    if(!start||!touch)return;
-    const dx=touch.pageX-start.x,dy=touch.pageY-start.y;
-    if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.35)return;
-    changeDetailTabBySwipe(dx);
-  },[changeDetailTabBySwipe]);
-  const handleDetailTouchCancel=useCallback(()=>{detailTouchStart.current=null;},[]);
+  // Claim only clearly horizontal movement; vertical gestures remain with the detail ScrollView/BottomSheet.
+  const detailSwipeGesture=useMemo(()=>Gesture.Pan()
+    .activeOffsetX([-18,18])
+    .failOffsetY([-12,12])
+    .maxPointers(1)
+    .onEnd(event=>{
+      if(Math.abs(event.translationX)>=60&&Math.abs(event.translationX)>Math.abs(event.translationY)*1.35){
+        runOnJS(changeDetailTabBySwipe)(event.translationX);
+      }
+    }),[changeDetailTabBySwipe]);
   const expandDetailSheet=useCallback(()=>detailSheetRef.current?.snapToIndex(1),[]);
   const collapseDetailSheet=useCallback(()=>detailSheetRef.current?.snapToIndex(0),[]);
   const detailHeaderGesture=useMemo(()=>Gesture.Pan()
@@ -385,14 +379,20 @@ export default function Home() {
     finally{studioOwnerNoticesLoadingRef.current=false;setStudioOwnerNoticesLoading(false);}
   };
   const [compareOpen,setCompareOpen]=useState(false);
+   const compareDismissGesture=useMemo(()=>Gesture.Pan()
+     .activeOffsetY(8)
+     .failOffsetX([-18,18])
+     .maxPointers(1)
+     .onEnd(event=>{if(event.translationY>70)runOnJS(setCompareOpen)(false);}),[]);
   useEffect(()=>{
     if(routeParams.view==="favorites")setView("favorites");
     else if(routeParams.view==="map")setView("map");
-    if(routeParams.openCompare==="1"){
+    // Wait until Expo Router has mounted the root navigator before consuming URL actions.
+    if(routeParams.openCompare==="1"&&rootNavigationState?.key){
       setCompareOpen(true);
       router.setParams({openCompare:undefined});
     }
-  },[routeParams.view,routeParams.openCompare]);
+  },[routeParams.view,routeParams.openCompare,rootNavigationState?.key,router]);
   const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
   const [favoriteStudios,setFavoriteStudios]=useState<Studio[]>([]);
   const [favoritesReady,setFavoritesReady]=useState(false);
@@ -1361,7 +1361,7 @@ export default function Home() {
     </Modal>
     <Modal visible={compareOpen} animationType="none" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
-        <View style={{alignItems:"center",paddingTop:6,paddingBottom:10}}><GestureDetector gesture={Gesture.Pan().activeOffsetY(8).onEnd(event=>{if(event.translationY>90)runOnJS(setCompareOpen)(false);})}><View accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{width:58,height:24,alignItems:"center",justifyContent:"center"}}><View style={{width:42,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View></GestureDetector></View>
+        <View style={{alignItems:"center",paddingTop:6,paddingBottom:10}}><GestureDetector gesture={compareDismissGesture}><View accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{width:76,height:36,alignItems:"center",justifyContent:"center"}}><View style={{width:44,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View></GestureDetector></View>
          <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
         {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
@@ -1460,7 +1460,7 @@ export default function Home() {
 <View style={{flexDirection:"row",gap:4,marginTop:8,marginBottom:4,marginHorizontal:12}}>{([{id:"home",label:"홈"},{id:"notices",label:"소식"},{id:"classes",label:"수업정보"},{id:"reviews",label:"리뷰"},{id:"photos",label:"사진"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailTab(tab.id)} accessibilityRole="tab" accessibilityState={{selected:detailTab===tab.id}} style={{flex:1,minWidth:0,minHeight:48,paddingHorizontal:2,paddingVertical:8,borderRadius:10,backgroundColor:detailTab===tab.id?(isDark?"#3A2D50":COLORS.pale):(isDark?"#252525":COLORS.bg),alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:detailTab===tab.id?COLORS.purple:COLORS.line}}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={{fontSize:12,fontWeight:"800",color:detailTab===tab.id?(isDark?"#D8C6FF":COLORS.purple):(isDark?"#D0D0D0":COLORS.muted)}}>{tab.label}</Text></Pressable>)}</View>
 {!!detailContentError&&<View style={{marginHorizontal:12,marginBottom:8,padding:9,borderRadius:9,backgroundColor:isDark?"#2A2418":"#FFF8E8"}}><Text style={{fontSize:11,color:"#8B641B"}}>{detailContentError}</Text></View>}{detailCanonicalLoading&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,paddingVertical:8}}><ActivityIndicator size="small" color={COLORS.purple}/><Text style={styles.photoCredit}>학원 정보 동기화 중…</Text></View>}
 {!!detailCanonicalError&&<View style={{marginHorizontal:12,marginBottom:8,padding:10,borderRadius:10,backgroundColor:isDark?"#2A1C1C":"#FFF1F0",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{flex:1,fontSize:12,color:"#A53A35"}}>일부 상세 정보 갱신 실패</Text><Pressable disabled={detailCanonicalLoading} onPress={()=>retryCanonicalDetail(detailStudio!.id,detailRequestId.current)} style={{paddingHorizontal:10,paddingVertical:6,backgroundColor:"#FCE1DE",borderRadius:8}}><Text style={{fontSize:12,fontWeight:"800",color:"#A53A35"}}>재시도</Text></Pressable></View>}
-<View collapsable={false} onTouchStart={handleDetailTouchStart} onTouchEnd={handleDetailTouchEnd} onTouchCancel={handleDetailTouchCancel} style={{flex:1,minHeight:0,width:"100%",alignSelf:"stretch"}}>{detailStudio&&<>
+<GestureDetector gesture={detailSwipeGesture}><View collapsable={false} style={{flex:1,minHeight:0,width:"100%",alignSelf:"stretch"}}>{detailStudio&&<>
  {detailTab==="home"&&<BottomSheetScrollView ref={detailScrollRef} onScroll={handleDetailScroll}  nestedScrollEnabled={Platform.OS==="android"} style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingHorizontal:12,paddingBottom:Math.max(72,insets.bottom+72)}}>
    <Pressable onPress={()=>setDetailTab("photos")} style={{height:detailStudio.representativeImageUrl&&failedRepresentativeImageUrl!==detailStudio.representativeImageUrl?164:76,marginHorizontal:0,marginTop:6,borderRadius:14,overflow:"hidden",backgroundColor:isDark?"#292633":"#EAE7F0",alignItems:"center",justifyContent:"center"}}>
      {detailStudio.representativeImageUrl&&failedRepresentativeImageUrl!==detailStudio.representativeImageUrl?<Image source={{uri:detailStudio.representativeImageUrl}} style={{width:"100%",height:"100%",position:"absolute"}} resizeMode="cover" onError={()=>setFailedRepresentativeImageUrl(detailStudio.representativeImageUrl??null)}/>:<View style={{flexDirection:"row",alignItems:"center",gap:10}}><Ionicons name="images-outline" size={25} color={isDark?"#B7A7D5":COLORS.purple}/><Text style={{fontSize:12,color:isDark?"#C7C1D3":COLORS.muted}}>학원 사진이 아직 등록되지 않았어요</Text></View>}
@@ -1544,7 +1544,7 @@ export default function Home() {
 <View style={[styles.classBlock,{marginHorizontal:0}]}><Text style={styles.classTitle}>이 학원에 대한 리뷰</Text><Text style={styles.photoCredit}>{studioReviews.length?"평균 별점 "+(studioReviews.reduce((sum,row)=>sum+Number(row.rating),0)/studioReviews.length).toFixed(1)+" · 리뷰 "+studioReviews.length+"개":"첫 리뷰를 남겨주세요."}</Text>
 <Text style={styles.classMeta}>{reviewVerified?"수강 인증 완료 · 인증 배지가 표시됩니다.":"일반 리뷰 · 로그인 회원은 누구나 작성할 수 있습니다."} · 내 별점</Text><View style={{flexDirection:"row",gap:8,marginVertical:8}}>{[1,2,3,4,5].map(value=><Pressable key={value} onPress={()=>setReviewRating(value)}><Text style={{fontSize:28,color:value<=reviewRating?"#F2B544":"#D8D4E1"}}>★</Text></Pressable>)}</View><TextInput value={reviewText} onChangeText={setReviewText} placeholder="수업 분위기, 강사님, 시설 등에 대한 경험을 작성해 주세요." placeholderTextColor="#625E70" multiline maxLength={1000} textAlignVertical="top" style={styles.reportInput}/>{reviewText.trim().length>0&&reviewText.trim().length<5&&<Text style={{fontSize:11,color:"#B66B77",marginTop:-9,marginBottom:10}}>리뷰는 5자 이상 입력해 주세요. ({reviewText.trim().length}/5자)</Text>}<Pressable disabled={reviewSubmitting||reviewText.trim().length<5} style={[styles.applyButton,{minHeight:50,paddingVertical:15,marginBottom:14,opacity:reviewSubmitting||reviewText.trim().length<5?0.5:1}]} onPress={()=>{void startStudioReviewSubmission();}}><Text style={styles.applyText}>{reviewSubmitting?"등록 중…":"리뷰 등록 / 수정"}</Text></Pressable></View>
 <Pressable onPress={()=>setVerifiedReviewsOnly(v=>!v)} style={{marginHorizontal:2,marginTop:8,marginBottom:12,minHeight:46,paddingVertical:12,borderRadius:10,backgroundColor:verifiedReviewsOnly?COLORS.pale:"#F8F7FA",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>{verifiedReviewsOnly?"전체 리뷰 보기":"인증 후기만 보기"}</Text></Pressable>{reviewsLoading?<ActivityIndicator color={COLORS.purple} style={{margin:20}}/>:((verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).length?(verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).map((item:any)=><View key={String(item.id)} style={[styles.classBlock,{marginHorizontal:0}]}><Text style={styles.classTitle}>{"★".repeat(Number(item.rating))}{"☆".repeat(5-Number(item.rating))}</Text><Text style={styles.photoCredit}>{item.user_id===reviewUserId?"내 리뷰":"방문자 리뷰"} · {item.verified_at?"수강 인증":"일반 리뷰"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{item.content}</Text>{item.user_id!==reviewUserId&&<Pressable onPress={()=>Alert.alert("리뷰 신고","신고 사유를 선택해 주세요.",[{text:"광고/홍보",onPress:()=>submitReviewReport(item.id,"광고/홍보")},{text:"욕설/비방",onPress:()=>submitReviewReport(item.id,"욕설/비방")},{text:"허위 정보",onPress:()=>submitReviewReport(item.id,"허위 정보")},{text:"도배/스팸",onPress:()=>submitReviewReport(item.id,"도배/스팸")},{text:"기타",onPress:()=>submitReviewReport(item.id,"기타")},{text:"취소",style:"cancel"}])} style={{alignSelf:"flex-end",paddingVertical:8}}><Text style={{fontSize:11,color:COLORS.muted}}>신고</Text></Pressable>}</View>):<Text style={styles.filterHint}>아직 등록된 리뷰가 없습니다.</Text>)}</BottomSheetScrollView>}
-</>}</View>
+</>}</View></GestureDetector>
 {detailShowTop&&<Pressable onPress={()=>detailScrollRef.current?.scrollTo({y:0,animated:true})} accessibilityRole="button" accessibilityLabel="학원 상세정보 맨 위로 이동" style={{position:"absolute",right:18,bottom:Math.max(22,insets.bottom+12),width:46,height:46,borderRadius:23,backgroundColor:isDark?"#3A2D50":"#FFFFFF",borderWidth:1,borderColor:isDark?"#66518B":"#DED7EB",alignItems:"center",justifyContent:"center",elevation:5,shadowColor:"#000000",shadowOpacity:0.16,shadowRadius:8,shadowOffset:{width:0,height:3},zIndex:30}}><Ionicons name="arrow-up" size={21} color={isDark?"#E0D5F7":COLORS.purple}/></Pressable>}
 </BottomSheet></View></View></GestureHandlerRootView></Modal><Modal visible={reportOpen} transparent animationType="none" onRequestClose={()=>setReportOpen(false)}>
       <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}><View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
