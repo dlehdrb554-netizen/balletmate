@@ -76,7 +76,7 @@ const dedupeStudioRows=(input:any[])=>{
 export default function Admin() {
  const isDark=useColorScheme()==="dark";
  const styles=useMemo(()=>createStyles(isDark),[isDark]);
-  const [adminTab,setAdminTab]=useState<"overview"|"studios"|"owners"|"community"|"reviewReports"|"notices"|"studioChanges">("overview");
+  const [adminTab,setAdminTab]=useState<"overview"|"studios"|"owners"|"approvedOwners"|"community"|"reviewReports"|"notices"|"studioChanges">("overview");
   const [adminScrollRef]=useState<{current:ScrollView|null}>({current:null});
   const [studioEditPanelY]=useState<{current:number}>({current:0});
   const [studioActionId,setStudioActionId]=useState<string|null>(null);
@@ -268,6 +268,20 @@ export default function Admin() {
     }
     setOwnerReviewBusy(false);
   },[authorized]);
+  const loadApprovedOwners=useCallback(async()=>{
+    if(!supabase||!authorized)return;
+    setApprovedOwnersBusy(true);
+    const {data,error}=await supabase.from("studio_owners").select("studio_id,user_id,business_name,representative_name,approved_at,approved_by").order("approved_at",{ascending:false});
+    if(error){Alert.alert("승인된 학원 관리자 조회 실패",error.message);setApprovedOwners([]);}
+    else{
+      const owners=data||[],ids=[...new Set(owners.map((item:any)=>item.studio_id))];
+      const studios=ids.length?await supabase.from("studios").select("id,name,district,address").in("id",ids):{data:[],error:null};
+      const names=new Map((studios.data||[]).map((row:any)=>[row.id,row]));
+      setApprovedOwners(owners.map((item:any)=>({...item,studio:names.get(item.studio_id)||null})));
+    }
+    setApprovedOwnersBusy(false);
+  },[authorized]);
+  useEffect(()=>{if(authorized&&adminTab==="approvedOwners")void loadApprovedOwners();},[authorized,adminTab,loadApprovedOwners]);
   const openOwnerApplicationBlog=async(item:any)=>{if(!item.verification_url)return;Linking.openURL(item.verification_url).catch(()=>Alert.alert("공식 채널 열기 실패","채널을 열 수 없습니다."));};
   const reviewOwnerApplication=(item:any,decision:"approved"|"rejected"|"needs_info")=>{
     const label=decision==="approved"?"승인":decision==="rejected"?"반려":"추가 확인";
@@ -483,11 +497,22 @@ export default function Admin() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView ref={node=>{adminScrollRef.current=node;}} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><View><Text style={styles.brand}>Balletmate 관리자</Text><Text style={styles.hint}>학원 데이터 관리 · {rows.length.toLocaleString("ko-KR")}개</Text></View><Pressable onPress={logout}><Text style={styles.logout}>로그아웃</Text></Pressable></View>
-    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"},{key:"community",label:"커뮤니티 신고"},{key:"reviewReports",label:"리뷰 신고"},{key:"notices",label:"공지사항"},{key:"studioChanges",label:"학원 변경 알림"+(studioChangeAlerts.some(item=>!item.read_at)?" · 새 알림":"")}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
+    <View style={styles.adminTabs}>{([{key:"overview",label:"현황"},{key:"studios",label:"학원 관리"},{key:"owners",label:"원장 심사"},{key:"approvedOwners",label:"승인 원장"},{key:"community",label:"커뮤니티 신고"},{key:"reviewReports",label:"리뷰 신고"},{key:"notices",label:"공지사항"},{key:"studioChanges",label:"학원 변경 알림"+(studioChangeAlerts.some(item=>!item.read_at)?" · 새 알림":"")}] as const).map(item=><Pressable key={item.key} onPress={()=>setAdminTab(item.key)} style={[styles.adminTab,adminTab===item.key&&styles.adminTabActive]}><Text style={[styles.adminTabText,adminTab===item.key&&styles.adminTabTextActive]}>{item.label}</Text></Pressable>)}</View>
         {adminTab==="community"&&<View style={styles.panel}><AdminCommunityReports /></View>}
         {adminTab==="reviewReports"&&<View style={styles.panel}><AdminStudioReviewReports /></View>}
         {adminTab==="notices"&&<View style={styles.panel}><AdminAppNotices /></View>}
         {adminTab==="studioChanges"&&<View style={styles.panel}><View style={styles.listHead}><Text style={styles.heading}>학원 정보·사진 변경 알림</Text><Pressable onPress={loadStudioChangeAlerts} disabled={studioChangeBusy}><Text style={styles.refresh}>{studioChangeBusy?"조회 중…":"새로고침"}</Text></Pressable></View>{studioChangeAlerts.length?studioChangeAlerts.map(item=><View key={item.id} style={{borderTopWidth:1,borderTopColor:"#E9E2F2",paddingTop:12,marginTop:12}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{fontSize:13,fontWeight:"900",color:"#252238",flex:1}}>{item.studio_name}</Text><Text style={{fontSize:10,color:item.read_at?"#625E70":"#653BB7",fontWeight:"800"}}>{item.read_at?"확인 완료":"미확인"}</Text></View><Text style={styles.hint}>{item.summary}</Text><Text style={styles.hint}>{new Date(item.created_at).toLocaleString("ko-KR")}</Text>{!item.read_at&&<Pressable onPress={()=>markStudioChangeRead(item.id)} style={{alignSelf:"flex-end",padding:9,backgroundColor:"#F2ECFF",borderRadius:9,marginTop:7}}><Text style={{fontSize:11,fontWeight:"800",color:"#653BB7"}}>확인 처리</Text></Pressable>}</View>):<Text style={styles.hint}>새로운 학원 변경 알림이 없습니다.</Text>}</View>}
+        {adminTab==="approvedOwners"&&<View style={styles.panel}>
+          <View style={styles.listHead}><Text style={styles.heading}>승인된 학원 관리자 ({approvedOwners.length})</Text><Pressable onPress={loadApprovedOwners} disabled={approvedOwnersBusy}><Text style={styles.refresh}>{approvedOwnersBusy?"조회 중…":"새로고침"}</Text></Pressable></View>
+          <Text style={styles.hint}>학원별로 승인된 계정과 승인 시각을 확인합니다. 서비스 전체 운영자 권한과는 별개입니다.</Text>
+          {approvedOwnersBusy&&!approvedOwners.length?<ActivityIndicator color={c.purple}/>:approvedOwners.length?approvedOwners.map(item=><View key={item.studio_id} style={{borderTopWidth:1,borderTopColor:"#E9E2F2",paddingTop:12,marginTop:12}}>
+            <Text style={{fontSize:14,fontWeight:"900",color:"#252238"}}>{item.studio?.name||"학원 정보 없음"}</Text>
+            <Text style={styles.hint}>사업체: {item.business_name||"미등록"} · 대표자: {item.representative_name||"미등록"}</Text>
+            <Text style={styles.hint}>학원 위치: {[item.studio?.district,item.studio?.address].filter(Boolean).join(" · ")||"정보 없음"}</Text>
+            <Text style={styles.hint}>계정 ID: {item.user_id}</Text>
+            <Text style={styles.hint}>승인 시각: {item.approved_at?new Date(item.approved_at).toLocaleString("ko-KR"):"기록 없음"}</Text>
+          </View>):<Text style={styles.hint}>승인된 학원 관리자가 없습니다.</Text>}
+        </View>}
         {adminTab==="owners"&&<View style={styles.panel}>
           <View style={styles.listHead}><Text style={styles.heading}>학원 관리자 권한 신청</Text><Pressable onPress={loadOwnerApplications} disabled={ownerReviewBusy}><Text style={styles.refresh}>{ownerReviewBusy?"조회 중…":"새로고침"}</Text></Pressable></View>
           <Text style={styles.hint}>공개 전화번호 확인, 대표 홈페이지·인스타그램 인증 코드 또는 직접 확인으로 운영 관계를 확인한 후 승인하세요. 사업자번호·대표자·주소·등록증은 수집하지 않습니다.</Text>
