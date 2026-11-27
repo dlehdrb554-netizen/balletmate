@@ -791,8 +791,43 @@ export default function Home() {
         const tags=(studio.tags||[]).join(" ").toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
         return name.includes(normalizedQuery)||address.includes(normalizedQuery)||area.includes(normalizedQuery)||tags.includes(normalizedQuery);
       }).filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
-    // Show already-loaded map markers immediately; network search enriches the result in parallel.
-    if(localMatches.length)setGlobalSearchStudios(localMatches);
+    // Commit the query to the map immediately: show cached matches before waiting for network search.
+    const applyMapSearchResults=(items:Studio[])=>{
+      const valid=items.filter(item=>Number.isFinite(item.lat)&&Number.isFinite(item.lng)&&Math.abs(item.lat)<=90&&Math.abs(item.lng)<=180);
+      setSearchMatches(items);
+      setGlobalSearchStudios(items);
+      setSearchResultsOpen(false);
+      setSearchFocused(false);
+      setSelected(null);
+      setAreaLocked(false);
+      setMapMoved(false);
+      setView("map");
+      if(valid.length){
+        const minLat=Math.min(...valid.map(item=>item.lat));
+        const maxLat=Math.max(...valid.map(item=>item.lat));
+        const minLng=Math.min(...valid.map(item=>item.lng));
+        const maxLng=Math.max(...valid.map(item=>item.lng));
+        const next:Region={
+          latitude:(minLat+maxLat)/2,
+          longitude:(minLng+maxLng)/2,
+          latitudeDelta:Math.max(0.009,Math.min(0.12,(maxLat-minLat)*1.5+0.012)),
+          longitudeDelta:Math.max(0.009,Math.min(0.12,(maxLng-minLng)*1.5+0.012))
+        };
+        setSearchedRegion(next);
+        setRegion(next);
+        setPendingMapTarget(next);
+      }
+    };
+    if(localMatches.length)applyMapSearchResults(localMatches);
+    else{
+      setSearchMatches([]);
+      setGlobalSearchStudios([]);
+      setSearchResultsOpen(false);
+      setSearchFocused(false);
+      setSelected(null);
+      setAreaLocked(false);
+      setView("map");
+    }
 
     let remoteRows:any[]=[];
     let kakaoSearchFailure:any|null=null;
@@ -813,7 +848,6 @@ export default function Home() {
       if(requestId!==searchSubmitRequestId.current)return;
     }
     const mapped:Studio[]=remoteRows.map(mapStudioRecord);
-    setGlobalSearchStudios(mapped);
     let matchingClassIds=classSearchIds;
     if(!mapped.length&&!localMatches.length&&supabase&&query.length>=2){try{matchingClassIds=await searchStudioIdsByClassName(query);}catch{matchingClassIds=classSearchIds;}if(requestId!==searchSubmitRequestId.current)return;setClassSearchIds(matchingClassIds);}
     if(requestId!==searchSubmitRequestId.current)return;
@@ -829,18 +863,14 @@ export default function Home() {
       setAreaLocked(false);
       const ordered=matching.sort((a,b)=>a.name.localeCompare(b.name,"ko")||String(a.address||a.area).localeCompare(String(b.address||b.area),"ko"));
       if(ordered.length>1){
-        setSearchMatches(ordered);
-        setGlobalSearchStudios(ordered);
-        setSearchResultsOpen(true);
-        setSelected(null);
+        applyMapSearchResults(ordered);
         setSearchSubmitting(false);
-        setSearchFocused(false);
         return;
       }
       const target=ordered[0];
       const next={latitude:target.lat,longitude:target.lng,latitudeDelta:0.018,longitudeDelta:0.018};
       setPendingMapTarget(next);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(target);setView("map");
-      setSearchMatches([target]);
+      setSearchMatches([target]);setGlobalSearchStudios([target]);setSearchResultsOpen(false);
       setSearchSubmitting(false);
       setSearchFocused(false);
       return;
