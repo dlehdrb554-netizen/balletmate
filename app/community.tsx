@@ -7,6 +7,8 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {useAnimatedStyle,useSharedValue,withSpring} from "react-native-reanimated";
 
 type Category="전체"|"학원 추천"|"발레복 추천"|"자유";
 type Post={id:string;author_id:string;author_name:string;category:Exclude<Category,"전체">;title:string;content:string;image_urls:string[];created_at:string};
@@ -42,6 +44,15 @@ const COMMUNITY_TERMS_VERSION="2026-11-27-community-policy-1";
 const containsSensitiveInfo=(value:string)=>/(?:\b\d{2,3}[- .]?\d{3,4}[- .]?\d{4}\b)|(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i.test(value);
 const containsPromotion=(value:string)=>/(https?:\/\/|www\.|무료\s*체험|공동구매|구매\s*문의|홍보|협찬|할인\s*코드)/i.test(value);
 const containsAbuse=(value:string)=>/(?:^|[\s.,!?])(?:시발|씨발|병신|개새끼|좆같아|꺼져|죽어)(?=$|[\s.,!?])/i.test(value);
+
+function ZoomablePhoto({uri}:{uri:string}){
+ const scale=useSharedValue(1),savedScale=useSharedValue(1),translateX=useSharedValue(0),translateY=useSharedValue(0),startX=useSharedValue(0),startY=useSharedValue(0);
+ const pinch=Gesture.Pinch().onUpdate(event=>{scale.value=Math.max(1,Math.min(4,savedScale.value*event.scale));}).onEnd(()=>{savedScale.value=scale.value;if(scale.value<=1.02){scale.value=withSpring(1);savedScale.value=1;translateX.value=withSpring(0);translateY.value=withSpring(0);}});
+ const pan=Gesture.Pan().onStart(()=>{startX.value=translateX.value;startY.value=translateY.value;}).onUpdate(event=>{if(scale.value>1){translateX.value=startX.value+event.translationX;translateY.value=startY.value+event.translationY;}});
+ const doubleTap=Gesture.Tap().numberOfTaps(2).onEnd(()=>{if(scale.value>1){scale.value=withSpring(1);savedScale.value=1;translateX.value=withSpring(0);translateY.value=withSpring(0);}else{scale.value=withSpring(2.4);savedScale.value=2.4;}});
+ const style=useAnimatedStyle(()=>({transform:[{translateX:translateX.value},{translateY:translateY.value},{scale:scale.value}]}));
+ return <GestureDetector gesture={Gesture.Simultaneous(pinch,pan,doubleTap)}><Animated.View style={{width:"100%",height:"100%",alignItems:"center",justifyContent:"center"}}><Animated.Image source={{uri}} resizeMode="contain" style={[{width:"100%",height:"100%"},style]}/></Animated.View></GestureDetector>;
+}
 
 export default function Community(){
  const isDark=useColorScheme()==="dark";
@@ -350,11 +361,7 @@ export default function Community(){
      <View style={s.categoryBadge}><Text style={s.categoryText}>{selected.category}</Text></View>
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={[s.postTitle,{flex:1}]}>{selected.title}</Text><Pressable onPress={()=>void toggleBookmark(selected)} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(selected.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(selected.id)?"bookmark":"bookmark-outline"} size={22} color={C.purple}/></Pressable></View>
      <Text style={s.meta}>{selected.author_name||"발레메이트 회원"} · {timeLabel(selected.created_at)}</Text>
-     <Text style={s.postBody}>{parsePostContent(selected.content).body}</Text>
-     {!!selected.image_urls?.length&&<View style={s.detailPhotoList}>{selected.image_urls.map((url,index)=><View key={url} style={s.detailPhotoItem}>
-      <Pressable onPress={()=>setViewerIndex(index)} accessibilityRole="button" accessibilityLabel={"사진 "+(index+1)+" 크게 보기"}><Image source={{uri:url}} style={s.detailPhoto} resizeMode="cover"/></Pressable>
-      {Boolean(parsePostContent(selected.content).captions[index])&&<Text style={s.photoCaption}>{parsePostContent(selected.content).captions[index]}</Text>}
-     </View>)}</View>}
+     {parsePostContent(selected.content).hasInlineImages?<View style={s.inlinePostBody}>{parsePostContent(selected.content).blocks.map((block,index)=>block.type==="image"&&block.photoIndex!==undefined&&selected.image_urls[block.photoIndex]?<View key={"photo-"+index} style={s.detailPhotoItem}><Pressable onPress={()=>setViewerIndex(block.photoIndex!)} accessibilityRole="button" accessibilityLabel={"사진 "+(block.photoIndex+1)+" 크게 보기"}><Image source={{uri:selected.image_urls[block.photoIndex]} style={s.detailPhoto} resizeMode="cover"/></Pressable>{Boolean(parsePostContent(selected.content).captions[block.photoIndex])&&<Text style={s.photoCaption}>{parsePostContent(selected.content).captions[block.photoIndex]}</Text>}</View>:<Text key={"text-"+index} style={s.postBody}>{block.value}</Text>)}</View>:<><Text style={s.postBody}>{parsePostContent(selected.content).body}</Text>{!!selected.image_urls?.length&&<View style={s.detailPhotoList}>{selected.image_urls.map((url,index)=><View key={url} style={s.detailPhotoItem}><Pressable onPress={()=>setViewerIndex(index)} accessibilityRole="button" accessibilityLabel={"사진 "+(index+1)+" 크게 보기"}><Image source={{uri:url}} style={s.detailPhoto} resizeMode="cover"/></Pressable>{Boolean(parsePostContent(selected.content).captions[index])&&<Text style={s.photoCaption}>{parsePostContent(selected.content).captions[index]}</Text>}</View>)}</View>}</>}
      {selected.author_id===userId||isAdmin?<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>{isAdmin&&selected.author_id!==userId?"관리자 삭제":"게시글 삭제"}</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>
     <Text style={s.section}>댓글 {visibleComments.length}</Text>
@@ -392,7 +399,7 @@ export default function Community(){
   <Modal visible={viewerIndex!==null&&!!selected?.image_urls?.length} transparent animationType="fade" onRequestClose={()=>{setViewerIndex(null);setViewerZoomed(false);}}>
    <View style={s.viewerRoot}>
     <View style={s.viewerHeader}><Pressable style={s.viewerControl} onPress={()=>{setViewerIndex(null);setViewerZoomed(false);}} accessibilityRole="button" accessibilityLabel="사진 보기 닫기"><Ionicons name="close" size={25} color="#FFFFFF"/></Pressable><Text style={s.viewerCounter}>{viewerIndex===null?0:viewerIndex+1} / {selected?.image_urls?.length||0}</Text><View style={s.viewerControl}/></View>
-    {viewerIndex!==null&&selected?.image_urls?.[viewerIndex]&&<Pressable style={s.viewerImageTouch} onPress={()=>setViewerZoomed(value=>!value)} accessibilityRole="button" accessibilityLabel={viewerZoomed?"사진 축소":"사진 확대"}><Image source={{uri:selected.image_urls[viewerIndex]}} style={[s.viewerImage,viewerZoomed&&s.viewerImageZoomed]} resizeMode="contain"/></Pressable>}
+    {viewerIndex!==null&&selected?.image_urls?.[viewerIndex]&&<ZoomablePhoto uri={selected.image_urls[viewerIndex]}/>}
     <View style={s.viewerFooter}>
      <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex===0} onPress={()=>{setViewerIndex(index=>index===null?null:Math.max(0,index-1));setViewerZoomed(false);}}><Ionicons name="chevron-back" size={25} color={viewerIndex===0?"#777":"#FFFFFF"}/></Pressable>
      <Text style={s.viewerHint}>{viewerZoomed?"사진을 눌러 축소":"사진을 눌러 확대"}</Text>
