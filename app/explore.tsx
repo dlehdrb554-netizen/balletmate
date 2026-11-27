@@ -46,7 +46,7 @@ const mapStudioRecord = (r: StudioRecord): Studio => ({
    classDurations:r.class_durations||[]
 });
 
-const PROVINCES=["서울시","경기도","인천시","부산시","대구시","광주시","대전시","울산시","충청남도","충청북도","전라남도","전라북도","경상남도","경상북도","강원도","제주도"];
+const PROVINCES=["서울시","경기도","인천시","부산시","대구시","광주시","대전시","울산시","세종시","충청남도","충청북도","전라남도","전라북도","경상남도","경상북도","강원도","제주도"];
 const PROVINCE_ALIASES:Record<string,string>={
  "서울":"서울시","서울시":"서울시","서울특별시":"서울시",
  "부산":"부산시","부산시":"부산시","부산광역시":"부산시",
@@ -55,7 +55,7 @@ const PROVINCE_ALIASES:Record<string,string>={
  "광주":"광주시","광주시":"광주시","광주광역시":"광주시",
  "대전":"대전시","대전시":"대전시","대전광역시":"대전시",
  "울산":"울산시","울산시":"울산시","울산광역시":"울산시",
- "세종":"충청남도","세종시":"충청남도","세종특별자치시":"충청남도",
+ "세종":"세종시","세종시":"세종시","세종특별자치시":"세종시",
  "경기":"경기도","경기도":"경기도","강원":"강원도","강원도":"강원도","강원특별자치도":"강원도",
  "충북":"충청북도","충청북도":"충청북도","충남":"충청남도","충청남도":"충청남도",
  "전북":"전라북도","전라북도":"전라북도","전북특별자치도":"전라북도",
@@ -72,16 +72,16 @@ const UNPREFIXED_CITY_PROVINCES:Record<string,string>={
  "창원":"경상남도","진주":"경상남도","통영":"경상남도","사천":"경상남도","김해":"경상남도","밀양":"경상남도","거제":"경상남도","양산":"경상남도","의령":"경상남도","함안":"경상남도","창녕":"경상남도","고성":"경상남도","남해":"경상남도","하동":"경상남도","산청":"경상남도","함양":"경상남도","거창":"경상남도","합천":"경상남도",
  "춘천":"강원도","원주":"강원도","강릉":"강원도","동해":"강원도","태백":"강원도","속초":"강원도","삼척":"강원도","홍천":"강원도","횡성":"강원도","영월":"강원도","평창":"강원도","정선":"강원도","철원":"강원도","화천":"강원도","양구":"강원도","인제":"강원도","양양":"강원도"
 };
-const METRO_PROVINCES=["서울시","부산시","대구시","인천시","광주시","대전시","울산시"];
+const METRO_PROVINCES=["서울시","부산시","대구시","인천시","광주시","대전시","울산시","세종시"];
 const parseArea=(area:string)=>{
  const parts=String(area||"").trim().split(/\s+/).filter(Boolean);
  const first=parts[0]||"",normalizedFirst=first.replace(/(시|군)$/,""),province=parts.length===1?(UNPREFIXED_CITY_PROVINCES[normalizedFirst]||PROVINCE_ALIASES[first]||PROVINCE_ALIASES[normalizedFirst]||first):(PROVINCE_ALIASES[first]||PROVINCE_ALIASES[normalizedFirst]||UNPREFIXED_CITY_PROVINCES[normalizedFirst]||first);
  if(!PROVINCES.includes(province))return {province:"",city:"",detail:""};
  if(METRO_PROVINCES.includes(province)){
-  const district=parts.slice(1).find(token=>/(구|군)$/.test(token))||"";
+  const districtPattern=province==="세종시"?/(구|군|읍|면|동)$/:/(구|군)$/;
+  const district=parts.slice(1).find(token=>districtPattern.test(token))||"";
   return {province,city:"",detail:district};
  }
- if(province==="세종시")return {province,city:"",detail:""};
  const inferredUnprefixedCity=UNPREFIXED_CITY_PROVINCES[normalizedFirst]===province;
  const cityToken=parts.slice(1).find(token=>/(시|군)$/.test(token))||"";
  const city=first.startsWith("세종")?"세종시":(cityToken||(inferredUnprefixedCity?normalizedFirst+"시":(parts[1]&&!/(구|군|도|시)$/.test(parts[1])?parts[1]+"시":"")));
@@ -93,7 +93,7 @@ const canonicalArea=(area:string)=>{
  if(parsed.province==="기타")return String(area||"").trim().replace(/\s+/g," ");
  return [parsed.province,parsed.city,parsed.detail].filter(Boolean).join(" ");
 };
-const districtOptionLabel=(area:string,citySelected:string)=>{const parsed=parseArea(area);const detail=parsed.detail||"시 전체";return citySelected==="전체"&&parsed.city?parsed.city+" "+detail:detail;};
+const districtOptionLabel=(area:string,citySelected:string)=>{const parsed=parseArea(area);const detail=parsed.detail||(parsed.province==="세종시"?"세종 전체":"시 전체");return citySelected==="전체"&&parsed.city?parsed.city+" "+detail:detail;};
 
 const INITIAL: Region = {latitude:37.5665,longitude:126.9780,latitudeDelta:0.06,longitudeDelta:0.06};
 const distanceKm=(lat1:number,lon1:number,lat2:number,lon2:number)=>{const rad=(n:number)=>n*Math.PI/180;const dLat=rad(lat2-lat1),dLon=rad(lon2-lon1);const a=Math.sin(dLat/2)**2+Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2;return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));};
