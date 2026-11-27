@@ -8,6 +8,7 @@ import { searchStudiosByName } from "../lib/studios";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { invalidateClassesForStudio } from "../lib/classes";
 
 const C={ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F2ECFF",line:"#E9E2F2",bg:"#FBF9FF",red:"#A33342"};
 const dateAfterDays=(days:number)=>{const d=new Date();d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);};
@@ -176,6 +177,7 @@ export default function StudioManager(){
   try{
    const {error}=await supabase.from("classes").insert({studio_id:studioId,title:classTitle.trim(),audience:classAudience,level:classLevel.trim()||null,class_type:classType.trim()||null,duration_minutes:duration,is_active:true});
    if(error)throw error;
+   invalidateClassesForStudio(studioId);
    setClassTitle("");setClassLevel("");setClassType("");setClassDuration("60");
    Alert.alert("수업 등록 완료","학원 수업 목록에 반영됩니다.");await load();
   }catch(error:any){Alert.alert("수업 등록 실패",error?.message||"수업을 저장하지 못했습니다.");}
@@ -187,6 +189,7 @@ export default function StudioManager(){
   try{
    const {error}=await supabase.from("classes").delete().eq("id",item.id).eq("studio_id",studioId);
    if(error)throw error;
+   invalidateClassesForStudio(studioId);
    Alert.alert("수업 삭제 완료","수업 정보를 삭제했습니다.");
    await load();
   }catch(error:any){Alert.alert("수업 삭제 실패",error?.message||"수업을 삭제하지 못했습니다.");}
@@ -195,7 +198,7 @@ export default function StudioManager(){
  const toggleOwnerClass=async(item:any)=>{
   if(!supabase)return;
   const {error}=await supabase.from("classes").update({is_active:!item.is_active}).eq("id",item.id).eq("studio_id",studioId);
-  if(error)Alert.alert("수업 변경 실패",error.message);else await load();
+  if(error)Alert.alert("수업 변경 실패",error.message);else{invalidateClassesForStudio(studioId);await load();}
  };
  const saveCoupon=async()=>{
   if(!supabase||!owner||couponTitle.trim().length<2||!couponDiscount.trim()){Alert.alert("혜택 정보","혜택명과 할인 내용을 입력해 주세요.");return;}
