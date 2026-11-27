@@ -1396,7 +1396,7 @@ export default function Home() {
         </View>
       </View>
     </Modal>
-    {searchFocused&&<View style={[styles.searchOverlay,{backgroundColor:isDark?"#101014":"#FFFFFF",paddingTop:insets.top}]} >
+    {searchFocused&&<View style={[styles.searchOverlay,{backgroundColor:isDark?"#101014":"#FFFFFF"}]} >
       <View style={[styles.searchOverlayHeader,{borderBottomColor:isDark?"#393342":COLORS.line}]}>
         <Pressable onPress={closeSearchOverlay} hitSlop={10} style={styles.searchOverlayBack}><Ionicons name="arrow-back" size={24} color={isDark?"#F3EFFA":COLORS.ink}/></Pressable>
         <View style={[styles.searchOverlayInputBox,{backgroundColor:isDark?"#24212C":"#F8F6FB",borderColor:isDark?"#514568":COLORS.line}]}>
