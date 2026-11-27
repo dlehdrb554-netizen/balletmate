@@ -32,6 +32,7 @@ export default function Community(){
  const [category,setCategory]=useState<Category>("전체");
  const [selected,setSelected]=useState<Post|null>(null);
  const [comments,setComments]=useState<Comment[]>([]);
+ const [visibleCommentCount,setVisibleCommentCount]=useState(5);
  const [commentText,setCommentText]=useState("");
  const [loading,setLoading]=useState(true);
  const [loadError,setLoadError]=useState(false);
@@ -137,6 +138,7 @@ export default function Community(){
   selectedPostIdRef.current=post.id;
   setSelected(post);
   setComments([]);
+  setVisibleCommentCount(5);
   await loadComments(post.id,requestId);
  };
  const toggleBookmark=async(post:Post)=>{if(!userId||!supabase){requireLogin();return;}const exists=bookmarkedIds.includes(post.id);if(exists){const {error}=await supabase.from("community_post_bookmarks").delete().eq("user_id",userId).eq("post_id",post.id);if(error){Alert.alert("북마크 해제 실패",error.message);return;}setBookmarkedIds(v=>v.filter(id=>id!==post.id));}else{const {error}=await supabase.from("community_post_bookmarks").insert({user_id:userId,post_id:post.id});if(error){Alert.alert("북마크 저장 실패",error.message);return;}setBookmarkedIds(v=>[...v,post.id]);}};
@@ -293,6 +295,8 @@ export default function Community(){
   }}]);
  };
 
+ const visibleComments=comments.filter(comment=>!blockedUserIds.includes(comment.author_id));
+
  return <SafeAreaView style={s.safe}>
   <View style={s.header}>
    <Pressable onPress={()=>{if(selected){commentRequestId.current++;selectedPostIdRef.current=null;setSelected(null);setComments([]);}else router.replace("/");}}><><Ionicons name="chevron-back" size={16} color={C.muted} /><Text style={s.back}>{selected?"목록":"지도"}</Text></></Pressable>
@@ -309,13 +313,14 @@ export default function Community(){
      {!!selected.image_urls?.length&&<View style={s.postPhotos}>{selected.image_urls.map((url,index)=><Image key={url} source={{uri:url}} style={s.detailPhoto} resizeMode="cover" accessibilityLabel={"게시글 사진 "+(index+1)}/>)}</View>}
      {selected.author_id===userId||isAdmin?<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>{isAdmin&&selected.author_id!==userId?"관리자 삭제":"게시글 삭제"}</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>
-    <Text style={s.section}>댓글 {comments.length}</Text>
-    {comments.filter(comment=>!blockedUserIds.includes(comment.author_id)).map(comment=><View key={comment.id} style={s.comment}>
+    <Text style={s.section}>댓글 {visibleComments.length}</Text>
+    {visibleComments.slice(0,visibleCommentCount).map(comment=><View key={comment.id} style={s.comment}>
      <View style={s.commentTop}><Text style={s.commentAuthor}>{comment.author_name||"발레메이트 회원"}</Text><Text style={s.meta}>{timeLabel(comment.created_at)}</Text></View>
      <Text style={s.commentBody}>{comment.content}</Text>
      {comment.author_id===userId||isAdmin?<Pressable onPress={()=>removeComment(comment)}><Text style={s.deleteText}>{isAdmin&&comment.author_id!==userId?"관리자 삭제":"삭제"}</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("comment",comment.id,comment.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(comment.author_id,comment.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>)}
-    {!comments.length&&<Text style={s.empty}>첫 댓글을 남겨보세요.</Text>}
+    {!visibleComments.length&&<Text style={s.empty}>첫 댓글을 남겨보세요.</Text>}
+    {visibleCommentCount<visibleComments.length&&<Pressable onPress={()=>setVisibleCommentCount(count=>Math.min(count+5,visibleComments.length))} style={{alignItems:"center",paddingVertical:13,marginBottom:4}}><Text style={s.openLabel}>댓글 {Math.min(5,visibleComments.length-visibleCommentCount)}개 더 보기 · 남은 {visibleComments.length-visibleCommentCount}개</Text></Pressable>}
     <View style={s.commentComposer}>
      <TextInput style={s.commentInput} value={commentText} onChangeText={setCommentText} placeholder={userId?"댓글을 입력하세요":"로그인 후 댓글을 작성할 수 있어요"} multiline maxLength={1000}/>
      <Pressable style={[s.sendBtn,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitComment}><Text style={s.sendText}>등록</Text></Pressable>
