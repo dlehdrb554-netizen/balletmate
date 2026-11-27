@@ -211,6 +211,7 @@ export default function Home() {
   })).current;
   const detailTabs=["home","notices","classes","reviews","photos"] as const;
   const detailSheetRef=useRef<BottomSheet|null>(null);
+  useEffect(()=>{if(detailStudio)detailSheetRef.current?.snapToIndex(0);},[detailStudio?.id]);
   const detailTabRef=useRef(detailTab);detailTabRef.current=detailTab;
   const detailSwipeTranslateX=useSharedValue(0);
   const detailSwipeAnimatedStyle=useAnimatedStyle(()=>({transform:[{translateX:detailSwipeTranslateX.value}]}));
