@@ -3,6 +3,10 @@ import {themeStyles } from "../lib/theme";
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import * as XLSX from "xlsx";
 import { invalidateStudioPublicMaterials } from "../lib/studio-public-materials";
 import { searchStudiosByName } from "../lib/studios";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -65,6 +69,12 @@ export default function StudioManager(){
  const [classLevel,setClassLevel]=useState("");
  const [classType,setClassType]=useState("");
  const [classDuration,setClassDuration]=useState("60");
+ const [classImportRows,setClassImportRows]=useState<any[]>([]);
+ const [classImportErrors,setClassImportErrors]=useState<string[]>([]);
+ const [classImportOpen,setClassImportOpen]=useState(false);
+ const [classImportBusy,setClassImportBusy]=useState(false);
+ const [selectedClassIds,setSelectedClassIds]=useState<string[]>([]);
+ const [classSelectionMode,setClassSelectionMode]=useState(false);
  const [couponTitle,setCouponTitle]=useState("");
  const [couponDiscount,setCouponDiscount]=useState("");
  const [couponDescription,setCouponDescription]=useState("");
@@ -177,6 +187,95 @@ export default function StudioManager(){
   }catch(error:any){Alert.alert("코드 발급 실패",error?.message||"수강 인증 코드를 발급하지 못했습니다.");}
   finally{setReviewCodeBusy(false);}
  };
+ const downloadClassTemplate=async()=>{
+  try{
+   const csv="수업명,대상(성인/키즈/전체),수준,유형,수업시간(분)\\n성인 기초 발레,성인,입문,기초,60\\n키즈 발레 A반,키즈,초급,기초,50\\n발레핏 전체반,전체,중급,발레핏,60\\n";
+   const uri=FileSystem.cacheDirectory+"balletmate_class_template.csv";
+   await FileSystem.writeAsStringAsync(uri,"\\uFEFF"+csv,{encoding:FileSystem.EncodingType.UTF8});
+   if(await Sharing.isAvailableAsync())await Sharing.shareAsync(uri,{mimeType:"text/csv",dialogTitle:"수업 등록 양식 공유"});
+   else Alert.alert("양식 생성 완료","기기에서 파일 공유 기능을 사용할 수 없습니다.");
+  }catch(error:any){Alert.alert("양식 생성 실패",error?.message||"엑셀 양식을 만들지 못했습니다.");}
+ };
+ const importClassesFromSpreadsheet=async()=>{
+  if(!owner||!supabase)return;
+  try{
+   const picked=await DocumentPicker.getDocumentAsync({type:["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","application/vnd.ms-excel","text/csv"],copyToCacheDirectory:true,multiple:false});
+   if(picked.canceled||!picked.assets?.[0])return;
+   const asset=picked.assets[0];
+   const base64=await FileSystem.readAsStringAsync(asset.uri,{encoding:FileSystem.EncodingType.Base64});
+   const workbook=XLSX.read(base64,{type:"base64"});
+   const sheet=workbook.Sheets[workbook.SheetNames[0]];
+   if(!sheet)throw new Error("첫 번째 시트를 찾을 수 없습니다.");
+   const rawRows=XLSX.utils.sheet_to_json<Record<string,unknown>>(sheet,{defval:"",raw:false});
+   if(!rawRows.length)throw new Error("엑셀에 등록할 수업 데이터가 없습니다.");
+   const normalize=(value:string)=>value.toLowerCase().replace(/[\\s_()\\[\\]·]/g,"");
+   const find=(row:Record<string,unknown>,aliases:string[])=>{
+    const key=Object.keys(row).find(k=>aliases.includes(normalize(k)));
+    return key===undefined?"":String(row[key]??"").trim();
+   };
+   const seen=new Set<string>();
+   const errors:string[]=[];
+   const parsed:any[]=[];
+   rawRows.forEach((row,index)=>{
+    const line=index+2;
+    const title=find(row,["수업명","수업이름","클래스명","title","classname","class"]);
+    const audienceText=find(row,["대상","수업대상","연령","audience"]);
+    const level=find(row,["수준","레벨","난이도","level"]);
+    const type=find(row,["유형","수업유형","종류","classtype","type"]);
+    const durationText=find(row,["수업시간분","수업시간","시간분","duration","durationminutes","분"]);
+    if(!title){errors.push(line+"행: 수업명이 비어 있어 제외했습니다.");return;}
+    let audience:"adult"|"kids"|"all"="all";
+    if(/성인|adult|어른/i.test(audienceText))audience="adult";
+    else if(/키즈|아동|어린이|유아|kids|child/i.test(audienceText))audience="kids";
+    else if(audienceText&&!/전체|모두|all/i.test(audienceText)){errors.push(line+"행: 대상 값은 성인·키즈·전체 중 하나여야 합니다.");return;}
+    const duration=durationText?Number(durationText.replace(/[^0-9.]/g,"")):60;
+    if(!Number.isInteger(duration)||duration<10||duration>240){errors.push(line+"행: 수업 시간은 10~240분으로 입력해 주세요.");return;}
+    const key=title.toLocaleLowerCase();
+    if(seen.has(key)){errors.push(line+"행: 파일 안에 같은 수업명이 있어 중복 제외했습니다.");return;}
+    seen.add(key);
+    parsed.push({title:title.slice(0,100),audience,level:level||null,class_type:type||null,duration_minutes:duration,is_active:true});
+   });
+   if(!parsed.length)throw new Error("등록 가능한 수업이 없습니다. 수업명과 수업 시간 열을 확인해 주세요.");
+   const {data:existing,error}=await supabase.from("classes").select("title").eq("studio_id",studioId);
+   if(error)throw error;
+   const existingTitles=new Set((existing||[]).map((x:any)=>String(x.title||"").trim().toLocaleLowerCase()));
+   const unique=parsed.filter(row=>{const key=row.title.toLocaleLowerCase();if(existingTitles.has(key)){errors.push("기존 등록 수업과 중복되어 제외: "+row.title);return false;}return true;});
+   setClassImportRows(unique);setClassImportErrors(errors);
+   if(!unique.length)throw new Error("새로 등록할 수업이 없습니다. 기존 수업과 중복 여부를 확인해 주세요.");
+   setClassImportOpen(true);
+  }catch(error:any){Alert.alert("엑셀 읽기 실패",error?.message||"파일 형식이나 양식의 열 이름을 확인해 주세요.");}
+ };
+ const confirmImportClasses=async()=>{
+  if(!supabase||!owner||!classImportRows.length||classImportBusy)return;
+  setClassImportBusy(true);
+  try{
+   const payload=classImportRows.map(row=>({studio_id:studioId,...row}));
+   const {error}=await supabase.from("classes").insert(payload);
+   if(error)throw error;
+   invalidateClassesForStudio(studioId);
+   const count=payload.length;
+   setClassImportOpen(false);setClassImportRows([]);setClassImportErrors([]);
+   Alert.alert("일괄 등록 완료",count+"개 수업을 등록했습니다.");
+   await load();
+  }catch(error:any){Alert.alert("일괄 등록 실패",error?.message||"수업을 등록하지 못했습니다. 기존 수업은 유지됩니다.");}
+  finally{setClassImportBusy(false);}
+ };
+ const toggleClassSelection=(id:string)=>{
+  setSelectedClassIds(current=>current.includes(id)?current.filter(x=>x!==id):[...current,id]);
+ };
+ const deleteSelectedClasses=async()=>{
+  if(!supabase||!owner||!selectedClassIds.length||saving)return;
+  setSaving(true);
+  try{
+   const {error}=await supabase.from("classes").delete().eq("studio_id",studioId).in("id",selectedClassIds);
+   if(error)throw error;
+   const count=selectedClassIds.length;
+   setSelectedClassIds([]);setClassSelectionMode(false);invalidateClassesForStudio(studioId);
+   Alert.alert("선택 삭제 완료",count+"개 수업을 삭제했습니다.");
+   await load();
+  }catch(error:any){Alert.alert("일괄 삭제 실패",error?.message||"선택한 수업을 삭제하지 못했습니다.");}
+  finally{setSaving(false);}
+ };
  const saveClass=async()=>{
   if(!supabase||!owner||classTitle.trim().length<2){Alert.alert("수업 정보","수업명은 2자 이상 입력해 주세요.");return;}
   const duration=Number(classDuration);
@@ -234,7 +333,7 @@ export default function StudioManager(){
    const response=await fetch(optimized.uri);
    if(!response.ok)throw new Error("대표 이미지 파일을 읽지 못했습니다.");
    const bytes=await response.arrayBuffer();
-   uploadedPath=`${studioId}/representative/${'1795757242699'}-${'xmzfb8'}.jpg`;
+   uploadedPath=`${studioId}/representative/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
    const {error:uploadError}=await supabase.storage.from("studio-representative-images").upload(uploadedPath,bytes,{contentType:"image/jpeg",upsert:false});
    if(uploadError)throw uploadError;
    const {error}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:uploadedPath});
@@ -463,7 +562,7 @@ export default function StudioManager(){
     {activeTab==="classes"&&<>
      <View style={s.card}><Text style={s.cardTitle}>시간표 이미지</Text>{(()=>{const current=materials.find(item=>item.kind==="schedule"&&item.is_active);const url=current?.image_path?supabase?.storage.from("studio-public-materials").getPublicUrl(current.image_path).data.publicUrl:null;return url?<Image source={{uri:url}} style={{width:"100%",height:190,marginTop:8,borderRadius:10,backgroundColor:isDark?"#292633":"#F2F0F6"}} resizeMode="contain"/>:<Text style={s.body}>등록된 시간표 이미지가 없습니다.</Text>;})()}{button("시간표 이미지 변경",()=>replaceMaterialImage("schedule"),saving)}{materials.filter(item=>item.kind==="schedule").map(item=><View key={"schedule-"+item.id} style={s.item}><Text style={s.body}>{item.is_active?"공개 중":"비공개"} · {item.published_at?new Date(item.published_at).toLocaleDateString("ko-KR"):""}</Text>{item.is_active&&button("공개 중단",()=>Alert.alert("시간표 공개 중단","시간표 이미지를 비공개로 전환할까요?",[{text:"취소",style:"cancel"},{text:"중단",style:"destructive",onPress:()=>deactivateMaterial(item)}]),saving,true)}</View>)}</View>
      <View style={s.card}><Text style={s.cardTitle}>가격표 이미지</Text>{(()=>{const current=materials.find(item=>item.kind==="price"&&item.is_active);const url=current?.image_path?supabase?.storage.from("studio-public-materials").getPublicUrl(current.image_path).data.publicUrl:null;return url?<Image source={{uri:url}} style={{width:"100%",height:190,marginTop:8,borderRadius:10,backgroundColor:isDark?"#292633":"#F2F0F6"}} resizeMode="contain"/>:<Text style={s.body}>등록된 가격표 이미지가 없습니다.</Text>;})()}{button("가격표 이미지 변경",()=>replaceMaterialImage("price"),saving)}{materials.filter(item=>item.kind==="price").map(item=><View key={"price-"+item.id} style={s.item}><Text style={s.body}>{item.is_active?"공개 중":"비공개"} · {item.published_at?new Date(item.published_at).toLocaleDateString("ko-KR"):""}</Text>{item.is_active&&button("공개 중단",()=>Alert.alert("가격표 공개 중단","가격표 이미지를 비공개로 전환할까요?",[{text:"취소",style:"cancel"},{text:"중단",style:"destructive",onPress:()=>deactivateMaterial(item)}]),saving,true)}</View>)}</View>
-     <View style={s.card}><Text style={s.cardTitle}>수업 관리</Text>{field("수업명 *",classTitle,setClassTitle,"예: 성인 기초 발레")}<Text style={s.label}>수업 대상</Text><View style={{flexDirection:"row",gap:7,marginTop:6}}>{([{value:"adult",label:"성인"},{value:"kids",label:"키즈"},{value:"all",label:"전체"}] as const).map(option=><Pressable key={option.value} onPress={()=>setClassAudience(option.value)} style={{paddingHorizontal:12,paddingVertical:9,borderRadius:9,backgroundColor:classAudience===option.value?C.purple:C.pale}}><Text style={{fontSize:11,fontWeight:"800",color:classAudience===option.value?"#fff":C.purple}}>{option.label}</Text></Pressable>)}</View>{field("수업 수준",classLevel,setClassLevel,"입문 / 초급 / 중급 / 고급")}{field("수업 유형",classType,setClassType,"기초 / 포인트 / 발레핏")}{field("수업 시간(분)",classDuration,setClassDuration,"60","numeric")}{button("수업 등록",saveClass,saving)}{ownerClasses.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.audience==="kids"?"키즈":item.audience==="all"?"전체":"성인"} · {item.level||"수준 미입력"} · {item.duration_minutes||60}분</Text>{button(item.is_active?"수업 비공개":"수업 공개",()=>toggleOwnerClass(item),saving)}{button("수업 삭제",()=>Alert.alert("수업 삭제","이 수업을 완전히 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deleteOwnerClass(item)}]),saving,true)}</View>)}{!ownerClasses.length&&<Text style={s.body}>등록된 수업이 없습니다.</Text>}</View>
+     <View style={s.card}><Text style={s.cardTitle}>수업 관리</Text><Text style={s.body}>엑셀 양식에 여러 수업을 작성한 뒤 한 번에 등록할 수 있습니다. 같은 수업명은 중복 등록하지 않습니다.</Text><View style={{flexDirection:"row",gap:8,marginTop:10}}><Pressable onPress={downloadClassTemplate} style={{flex:1,padding:12,borderRadius:10,backgroundColor:isDark?"#342A43":C.pale,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"900",color:C.purple}}>엑셀 양식 받기</Text></Pressable><Pressable onPress={importClassesFromSpreadsheet} style={{flex:1,padding:12,borderRadius:10,backgroundColor:C.purple,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"900",color:"#FFFFFF"}}>엑셀로 일괄 등록</Text></Pressable></View>{field("수업명 *",classTitle,setClassTitle,"예: 성인 기초 발레")}<Text style={s.label}>수업 대상</Text><View style={{flexDirection:"row",gap:7,marginTop:6}}>{([{value:"adult",label:"성인"},{value:"kids",label:"키즈"},{value:"all",label:"전체"}] as const).map(option=><Pressable key={option.value} onPress={()=>setClassAudience(option.value)} style={{paddingHorizontal:12,paddingVertical:9,borderRadius:9,backgroundColor:classAudience===option.value?C.purple:C.pale}}><Text style={{fontSize:11,fontWeight:"800",color:classAudience===option.value?"#fff":C.purple}}>{option.label}</Text></Pressable>)}</View>{field("수업 수준",classLevel,setClassLevel,"입문 / 초급 / 중급 / 고급")}{field("수업 유형",classType,setClassType,"기초 / 포인트 / 발레핏")}{field("수업 시간(분)",classDuration,setClassDuration,"60","numeric")}{button("수업 직접 등록",saveClass,saving)}<View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:16}}><Text style={s.label}>등록된 수업 {ownerClasses.length}개</Text><Pressable onPress={()=>{setClassSelectionMode(v=>!v);setSelectedClassIds([]);}}><Text style={{fontSize:12,fontWeight:"900",color:C.purple}}>{classSelectionMode?"선택 취소":"여러 개 선택"}</Text></Pressable></View>{classSelectionMode&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginVertical:8}}><Pressable onPress={()=>setSelectedClassIds(selectedClassIds.length===ownerClasses.length?[]:ownerClasses.map(x=>x.id))}><Text style={{fontSize:12,color:C.purple,fontWeight:"800"}}>{selectedClassIds.length===ownerClasses.length?"전체 선택 해제":"전체 선택"}</Text></Pressable><Pressable disabled={!selectedClassIds.length||saving} onPress={()=>Alert.alert("수업 일괄 삭제",selectedClassIds.length+"개 수업을 영구 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:deleteSelectedClasses}])}><Text style={{fontSize:12,color:selectedClassIds.length?C.red:C.muted,fontWeight:"900"}}>선택 {selectedClassIds.length}개 삭제</Text></Pressable></View>}{ownerClasses.map(item=><View key={item.id} style={[s.item,{flexDirection:"row",alignItems:"center",gap:10}]}>{classSelectionMode&&<Pressable onPress={()=>toggleClassSelection(item.id)} style={{width:28,height:28,borderRadius:7,borderWidth:1,borderColor:selectedClassIds.includes(item.id)?C.purple:C.line,backgroundColor:selectedClassIds.includes(item.id)?C.purple:"transparent",alignItems:"center",justifyContent:"center"}}><Text style={{color:"#FFFFFF",fontWeight:"900"}}>{selectedClassIds.includes(item.id)?"✓":""}</Text></Pressable>}<View style={{flex:1}}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.audience==="kids"?"키즈":item.audience==="all"?"전체":"성인"} · {item.level||"수준 미입력"} · {item.duration_minutes||60}분</Text><View style={{flexDirection:"row",gap:7,flexWrap:"wrap",marginTop:7}}><Pressable onPress={()=>toggleOwnerClass(item)} disabled={saving} style={{padding:8,borderRadius:8,backgroundColor:isDark?"#342A43":C.pale}}><Text style={{fontSize:11,color:C.purple,fontWeight:"800"}}>{item.is_active?"비공개":"공개"}</Text></Pressable>{!classSelectionMode&&<Pressable onPress={()=>Alert.alert("수업 삭제","이 수업을 완전히 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deleteOwnerClass(item)}])} style={{padding:8,borderRadius:8,backgroundColor:isDark?"#44282E":"#FFF0F1"}}><Text style={{fontSize:11,color:C.red,fontWeight:"800"}}>삭제</Text></Pressable>}</View></View></View>)}{!ownerClasses.length&&<Text style={s.body}>등록된 수업이 없습니다.</Text>}</View>
      <View style={s.card}><Text style={s.cardTitle}>할인·혜택 관리</Text>{field("혜택명 *",couponTitle,setCouponTitle,"예: 첫 등록 할인")}{field("할인 내용 *",couponDiscount,setCouponDiscount,"예: 첫 달 10% 할인")}{field("상세 안내",couponDescription,setCouponDescription,"적용 조건 등")}{button("혜택 등록",saveCoupon,saving)}{ownerCoupons.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.discount_text||item.description||""}</Text>{button(item.is_active?"혜택 비공개":"혜택 공개",()=>toggleOwnerCoupon(item),saving)}</View>)}{!ownerCoupons.length&&<Text style={s.body}>등록된 혜택이 없습니다.</Text>}</View>
      <View style={s.card}><Text style={s.cardTitle}>수강 인증 코드</Text><Text style={s.body}>실제 수강을 완료한 회원에게만 코드를 전달해 주세요. 코드는 72시간 후 만료되고 한 번만 사용할 수 있습니다.</Text>{!!reviewCode&&<Text selectable style={{fontSize:22,fontWeight:"900",letterSpacing:2,color:C.purple,marginTop:10}}>{reviewCode}</Text>}{button(reviewCodeBusy?"발급 중…":"수강 인증 코드 발급",issueReviewCode,reviewCodeBusy)}</View>
     </>}
@@ -485,6 +584,17 @@ export default function StudioManager(){
     <Text style={[s.body,{marginTop:12}]}>신청 정보는 선택한 인증 방식에 필요한 공식 채널 정보만 전달됩니다. 운영자 확인 후 승인되면 별도 신청 없이 학원 관리 기능을 사용할 수 있습니다.</Text>{button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving||(verificationMethod==="phone"&&!profilePhone.trim())||((verificationMethod==="blog"||verificationMethod==="instagram")&&(!blogUrl.trim()||!blogVerificationCode.trim())))}
    </View>}
  </ScrollView>
+ <Modal visible={classImportOpen} transparent animationType="slide" onRequestClose={()=>{if(!classImportBusy)setClassImportOpen(false);}}>
+  <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.42)"}}><Pressable style={{flex:1}} onPress={()=>{if(!classImportBusy)setClassImportOpen(false);}}/>
+   <View style={{maxHeight:"82%",padding:18,paddingBottom:28,borderTopLeftRadius:22,borderTopRightRadius:22,backgroundColor:isDark?"#211E29":"#FFFFFF"}}>
+    <Text style={{fontSize:18,fontWeight:"900",color:isDark?"#F3EFFA":C.ink}}>엑셀 등록 미리보기</Text>
+    <Text style={s.body}>등록 예정 {classImportRows.length}개 · 제외 {classImportErrors.length}개</Text>
+    <ScrollView style={{marginTop:10}}>{classImportRows.map((row,index)=><View key={index} style={s.item}><Text style={s.itemTitle}>{row.title}</Text><Text style={s.body}>{row.audience==="kids"?"키즈":row.audience==="adult"?"성인":"전체"} · {row.level||"수준 미입력"} · {row.class_type||"유형 미입력"} · {row.duration_minutes}분</Text></View>)}{classImportErrors.map((error,index)=><Text key={"error"+index} style={{fontSize:11,color:C.red,marginTop:7}}>{error}</Text>)}</ScrollView>
+    <Pressable disabled={classImportBusy} onPress={confirmImportClasses} style={{marginTop:12,padding:15,borderRadius:11,backgroundColor:C.purple,alignItems:"center"}}><Text style={{fontSize:13,fontWeight:"900",color:"#FFFFFF"}}>{classImportBusy?"등록 중…":classImportRows.length+"개 수업 한 번에 등록"}</Text></Pressable>
+    <Pressable disabled={classImportBusy} onPress={()=>setClassImportOpen(false)} style={{padding:12,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:C.muted}}>취소</Text></Pressable>
+   </View>
+  </View>
+ </Modal>
  <Modal visible={noticeEditorOpen} transparent animationType="slide" onRequestClose={()=>{if(!saving)setNoticeEditorOpen(false);}}>
   <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.42)"}}><Pressable style={{flex:1}} onPress={()=>{if(!saving)setNoticeEditorOpen(false);}}/>
    <KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined}><View style={{padding:20,paddingBottom:28,borderTopLeftRadius:22,borderTopRightRadius:22,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
