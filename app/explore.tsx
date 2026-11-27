@@ -1029,27 +1029,48 @@ export default function Home() {
   const searchArea=async()=>{
     const requestId=++areaSearchRequestId.current;
     const target=region;
-    setHasMapSearchRequested(true);
     const queryAtStart=search.trim();
-    setSearchedRegion(target);setAreaLocked(true);setMapMoved(false);setSelected(null);
+    const term=queryAtStart.length>=2?queryAtStart:"발레";
+    const normalizedTerm=term.toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+    const withinViewport=(studio:Studio)=>Number.isFinite(studio.lat)&&Number.isFinite(studio.lng)
+      &&Math.abs(studio.lat-target.latitude)<=target.latitudeDelta/2
+      &&Math.abs(studio.lng-target.longitude)<=target.longitudeDelta/2;
+    const localPool=[...new Map([...studios,...directoryStudios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()];
+    const immediateMatches=localPool.filter(studio=>{
+      if(!withinViewport(studio))return false;
+      if(queryAtStart.length<2)return true;
+      const searchable=[studio.name,studio.area,studio.address||"",...(studio.tags||[])].join(" ")
+        .toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+      return searchable.includes(normalizedTerm);
+    }).filter(studio=>!isExcludedStudioSearchResult(studio.name));
+    setHasMapSearchRequested(true);
+    setSearchedRegion(target);
+    setCommittedSearch(queryAtStart);
+    setAreaLocked(true);
+    setMapMoved(false);
+    setSelected(null);
     setSearchSubmitting(true);
-    setClassSearchIds([]);setClassSearchLoading(false);
+    setClassSearchIds([]);
+    setClassSearchLoading(false);
+    // Show locally available viewport matches immediately; do not wait for Kakao/Edge Function.
+    setGlobalSearchStudios(immediateMatches);
+    if(immediateMatches.length)setBackendState("connected");
     try{
-      // A viewport search must query Kakao Local around the map center as well as
-      // the studios already stored in Supabase; a DB-only bounds read misses new places.
-      const term=queryAtStart.length>=2?queryAtStart:"발레";
       const rows=await searchStudiosByKakao(term,target);
       if(requestId!==areaSearchRequestId.current)return;
       const mapped:Studio[]=rows.map(mapStudioRecord);
-      setGlobalSearchStudios(mapped);
-      if(mapped.length)setBackendState("connected");
+      const merged=[...new Map([...immediateMatches,...mapped].map(studio=>[studio.id,studio])).values()];
+      setGlobalSearchStudios(merged);
+      if(merged.length)setBackendState("connected");
       else if(!studios.length)setBackendState("empty");
-      if(!mapped.length)Alert.alert("검색 결과 없음","현재 지도 범위에서 검색어와 일치하는 발레 학원을 찾지 못했습니다. 지도를 조금 이동하거나 검색어를 바꿔 주세요.");
+      if(!merged.length)Alert.alert("검색 결과 없음","현재 지도 범위에서 검색어와 일치하는 발레 학원을 찾지 못했습니다. 지도를 조금 이동하거나 검색어를 바꿔 주세요.");
     }catch(error:any){
       if(requestId===areaSearchRequestId.current){
         console.warn("Viewport Kakao search failed:",error);
-        const userMessage=getKakaoSearchErrorMessage(error);
-        Alert.alert(userMessage.title,userMessage.message);
+        if(!immediateMatches.length){
+          const userMessage=getKakaoSearchErrorMessage(error);
+          Alert.alert(userMessage.title,userMessage.message);
+        }
       }
     }finally{
       if(requestId===areaSearchRequestId.current)setSearchSubmitting(false);
