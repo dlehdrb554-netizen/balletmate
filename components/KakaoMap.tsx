@@ -304,7 +304,6 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
       <WebView
         ref={webRef}
         source={{ html, baseUrl: "https://localhost" }}
-        backgroundColor={darkMode ? "#18181B" : "#f4f1f8"}
         originWhitelist={["*"]}
         javaScriptEnabled
         domStorageEnabled
