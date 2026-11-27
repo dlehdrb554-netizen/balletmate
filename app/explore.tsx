@@ -877,7 +877,7 @@ export default function Home() {
     const matching=[...new Map([...mapped,...localMatches,...studios.filter(studio=>matchingClassIds.includes(studio.id)),...directoryStudios.filter(studio=>matchingClassIds.includes(studio.id))].filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
     if(!matching.length&&kakaoSearchFailure&&!regionKey){
       const userMessage=getKakaoSearchErrorMessage(kakaoSearchFailure);
-      Alert.alert(userMessage.title,getUserErrorMessage(userMessage));
+      Alert.alert(userMessage.title,userMessage.message);
       setSearchSubmitting(false);
       setSearchFocused(false);
       return;
