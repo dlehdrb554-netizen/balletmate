@@ -123,7 +123,7 @@ export default function MyPage(){
    router.replace("/");return true;
   });
   return()=>subscription.remove();
- },[profileOpen,modeOpen,menu,routeParams.open,router]));
+ },[profileOpen,modeOpen,menu,routeParams.open,routeParams.returnTo,router]));
  
  
  useEffect(()=>{if(!user||!supabase)return;let active=true;supabase.from("user_notification_preferences").select("preferences").eq("user_id",user.id).maybeSingle().then(({data})=>{if(active&&data?.preferences){setAlerts(v=>({...v,postComments:true,bookmarkComments:true,...data.preferences}));setPushEnabled(data.preferences.pushEnabled!==false);}});return()=>{active=false;};},[user]);
