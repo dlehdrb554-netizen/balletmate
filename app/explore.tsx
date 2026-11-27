@@ -1374,14 +1374,14 @@ export default function Home() {
 
     <Modal visible={filterOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setFilterOpen(false)}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:bottomInsetPadding}]}>
-        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingBottom:Math.max(24,insets.bottom+24)}]}>
+        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingBottom:modalBottomPadding}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>검색 필터</Text>
             <Pressable onPress={()=>setFilterOpen(false)} hitSlop={10} style={{width:40,height:40,alignItems:"center",justifyContent:"center"}}>
               <Text style={styles.dismissText}>×</Text>
             </Pressable>
           </View>
-          <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingBottom:insets.bottom+32}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator>
+          <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingBottom:scrollBottomPadding}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator>
             <Text style={styles.sectionTitle}>대상</Text><View style={styles.filterChoices}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/></View>
             <Text style={styles.sectionTitle}>수준</Text><View style={styles.filterChoices}>{["입문","초급","중급","고급"].map(v=><Chip key={v} label={v} active={level===v} onPress={()=>setLevel(level===v?null:v)}/>)}</View>
             <Text style={styles.sectionTitle}>수업 유형</Text><View style={styles.filterChoices}>{classTypeOptions.length?classTypeOptions.map(v=><Chip key={v} label={v} active={classTypeFilter===v} onPress={()=>setClassTypeFilter(classTypeFilter===v?null:v)}/>):<Text style={styles.filterHint}>등록된 수업 유형 정보가 없습니다.</Text>}</View>
