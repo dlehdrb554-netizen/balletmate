@@ -581,7 +581,7 @@ export default function Home() {
     if(dayFilter&&!s.days.includes(dayFilter))return false;
     if(timeFilter&&!s.time.includes(timeFilter))return false;
     if(durationFilter!==null&&!(s.classDurations?.length?s.classDurations.includes(durationFilter):s.duration===durationFilter))return false;
-    if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
+    if(maxDistance!==null&&distanceKm(region.latitude,region.longitude,s.lat,s.lng)>maxDistance)return false;
     return true;
   }),[directoryStudios,globalSearchStudios,normalizedSearch,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,region]);
   const listRows=useMemo(()=>{
@@ -1384,7 +1384,7 @@ export default function Home() {
 
     <Modal visible={filterOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setFilterOpen(false)}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:modalBottomInset}]}>
-        <View style={[styles.modal,{height:modalSheetHeight,maxHeight:modalSheetHeight,minHeight:0,flexShrink:1,padding:16,paddingBottom:12}]}>
+        <View style={[styles.modal,modalSheetStyle]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>검색 필터</Text>
             <Pressable onPress={()=>setFilterOpen(false)} hitSlop={10} style={{width:40,height:40,alignItems:"center",justifyContent:"center"}}>
