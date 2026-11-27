@@ -7,7 +7,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, {runOnJS,useAnimatedStyle,useSharedValue,withSpring} from "react-native-reanimated";
 
 type Category="전체"|"학원 추천"|"발레복 추천"|"자유";
@@ -418,7 +418,7 @@ export default function Community(){
   }
 
   <Modal visible={viewerIndex!==null&&!!selected?.image_urls?.length} transparent animationType="fade" onRequestClose={()=>setViewerIndex(null)}>
-   <View style={s.viewerRoot}>
+   <GestureHandlerRootView style={{flex:1}}><View style={s.viewerRoot}>
     <View style={s.viewerHeader}><Pressable style={s.viewerControl} onPress={()=>setViewerIndex(null)} accessibilityRole="button" accessibilityLabel="사진 보기 닫기"><Ionicons name="close" size={25} color="#FFFFFF"/></Pressable><Text style={s.viewerCounter}>{viewerIndex===null?0:viewerIndex+1} / {selected?getPostImageIndices(selected).length:0}</Text><View style={s.viewerControl}/></View>
     {viewerIndex!==null&&selected&&getPostImageIndices(selected)[viewerIndex]!==undefined&&<ZoomablePhoto uri={selected.image_urls[getPostImageIndices(selected)[viewerIndex]]} onDismiss={()=>setViewerIndex(null)} onSwipeLeft={()=>setViewerIndex(index=>index===null?null:Math.min(getPostImageIndices(selected).length-1,index+1))} onSwipeRight={()=>setViewerIndex(index=>index===null?null:Math.max(0,index-1))}/>}
     <View style={s.viewerFooter}>
@@ -426,7 +426,7 @@ export default function Community(){
      <Text style={s.viewerHint}>두 손가락 확대 · 두 번 탭 · 좌우 넘김 · 아래로 닫기</Text>
      <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex>=(selected?getPostImageIndices(selected).length:1)-1} onPress={()=>setViewerIndex(index=>index===null?null:Math.min((selected?getPostImageIndices(selected).length:1)-1,index+1))}><Ionicons name="chevron-forward" size={25} color={viewerIndex===(selected?getPostImageIndices(selected).length:1)-1?"#777":"#FFFFFF"}/></Pressable>
     </View>
-   </View>
+   </View></GestureHandlerRootView>
   </Modal>
 
   <Modal visible={termsConsentOpen} transparent animationType="fade" onRequestClose={()=>setTermsConsentOpen(false)}>
