@@ -397,22 +397,27 @@ export default function Home() {
   const [compareMaterialError,setCompareMaterialError]=useState<string|null>(null);
   const lastMapBackPress=useRef(0);
   useFocusEffect(useCallback(()=>{
+    return()=>{setSearchFocused(false);Keyboard.dismiss();};
+  },[]));
+  useFocusEffect(useCallback(()=>{
     const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
+      if(view==="map"){
+        if(Platform.OS==="android"){
+          const now=Date.now();
+          if(now-lastMapBackPress.current<2000)return false;
+          lastMapBackPress.current=now;
+          ToastAndroid.show("버튼을 한 번 더 누르면 종료됩니다",ToastAndroid.SHORT);
+          return true;
+        }
+        return false;
+      }
       if(mapSettingsOpen){setMapSettingsOpen(false);setPendingDirectionsStudio(null);return true;}
       if(menuOpen){setMenuOpen(false);return true;}
       if(compareOpen){setCompareOpen(false);return true;}
       if(regionPickerOpen){if(expandedCity){setExpandedCity(null);return true;}if(expandedProvince){setExpandedProvince(null);return true;}setRegionPickerOpen(false);return true;}
       if(filterOpen){setFilterOpen(false);return true;}
       if(detailStudio){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);return true;}
-      if(view!=="map"){setView("map");return true;}
-      if(Platform.OS==="android"){
-        const now=Date.now();
-        if(now-lastMapBackPress.current<2000)return false;
-        lastMapBackPress.current=now;
-        ToastAndroid.show("버튼을 한 번 더 누르면 종료됩니다",ToastAndroid.SHORT);
-        return true;
-      }
-      return false;
+      setView("map");return true;
     });
     return()=>subscription.remove();
   },[mapSettingsOpen,menuOpen,compareOpen,regionPickerOpen,expandedProvince,expandedCity,filterOpen,detailStudio,view]));
