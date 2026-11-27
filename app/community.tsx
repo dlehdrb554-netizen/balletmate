@@ -11,13 +11,32 @@ import { supabase } from "../lib/supabase";
 type Category="전체"|"학원 추천"|"발레복 추천"|"자유";
 type Post={id:string;author_id:string;author_name:string;category:Exclude<Category,"전체">;title:string;content:string;image_urls:string[];created_at:string};
 type Comment={id:string;post_id:string;author_id:string;author_name:string;content:string;created_at:string};
+type ComposerBlock={id:string;type:"text"|"image";value?:string;photoIndex?:number};
+type RenderBlock={type:"text"|"image";value?:string;photoIndex?:number};
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F3F0FF",line:"#EAE7F0",red:"#D04444",green:"#18875B"};
 const categories:Category[]=["전체","학원 추천","발레복 추천","자유"];
 const timeLabel=(value:string)=>{const date=new Date(value);return Number.isNaN(date.getTime())?"":date.toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});};
 const postDateLabel=(value:string)=>{const date=new Date(value);if(Number.isNaN(date.getTime()))return "";const now=new Date();if(date.getFullYear()===now.getFullYear()&&date.getMonth()===now.getMonth()&&date.getDate()===now.getDate())return "오늘 "+date.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false});if(date.getFullYear()===now.getFullYear())return date.toLocaleDateString("ko-KR",{month:"numeric",day:"numeric"});return date.toLocaleDateString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit"});};
 const CAPTION_MARKER="\n\n[BALLET_MATE_PHOTO_CAPTIONS]";
-const serializePostContent=(text:string,captions:string[])=>{const entries=captions.map((value,index)=>value.trim()?String(index+1)+"|"+value.trim():"").filter(Boolean);return entries.length?text.trim()+CAPTION_MARKER+"\n"+entries.join("\n"):text.trim();};
-const parsePostContent=(value:string)=>{const marker=value.indexOf(CAPTION_MARKER);if(marker<0)return {body:value,captions:[] as string[]};const body=value.slice(0,marker);const captions=value.slice(marker+CAPTION_MARKER.length).split("\n").filter(Boolean).reduce((result,line)=>{const split=line.indexOf("|");if(split>0){const index=Number(line.slice(0,split))-1;if(Number.isInteger(index)&&index>=0)result[index]=line.slice(split+1);}return result;},[] as string[]);return {body,captions};};
+const IMAGE_TOKEN_PREFIX="\uFFFCBM_IMAGE_";
+const IMAGE_TOKEN_SUFFIX="\uFFFC";
+const serializePostContent=(blocks:ComposerBlock[],captions:string[])=>{
+ const body=blocks.map(block=>block.type==="image"?IMAGE_TOKEN_PREFIX+block.photoIndex+IMAGE_TOKEN_SUFFIX:(block.value||"")).join("");
+ const entries=captions.map((value,index)=>value.trim()?String(index+1)+"|"+value.trim():"").filter(Boolean);
+ return entries.length?body+CAPTION_MARKER+"\n"+entries.join("\n"):body;
+};
+const parsePostContent=(value:string)=>{
+ const marker=value.indexOf(CAPTION_MARKER);
+ const body=marker<0?value:value.slice(0,marker);
+ const captions=marker<0?[]:value.slice(marker+CAPTION_MARKER.length).split("\n").filter(Boolean).reduce((result,line)=>{const split=line.indexOf("|");if(split>0){const index=Number(line.slice(0,split))-1;if(Number.isInteger(index)&&index>=0)result[index]=line.slice(split+1);}return result;},[] as string[]);
+ const blocks:RenderBlock[]=[];
+ const token=/\uFFFCBM_IMAGE_(\d+)\uFFFC/g;
+ let last=0,match:RegExpExecArray|null;
+ while((match=token.exec(body))!==null){if(match.index>last)blocks.push({type:"text",value:body.slice(last,match.index)});blocks.push({type:"image",photoIndex:Number(match[1])});last=token.lastIndex;}
+ if(last<body.length||!blocks.length)blocks.push({type:"text",value:body.slice(last)});
+ return {body:body.replace(token,""),captions,blocks,hasInlineImages:blocks.some(block=>block.type==="image")};
+};
+const getComposerText=(blocks:ComposerBlock[])=>blocks.filter(block=>block.type==="text").map(block=>block.value||"").join("");
 const cooldownMessage="도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.";
 const COMMUNITY_TERMS_VERSION="2026-11-27-community-policy-1";
 const containsSensitiveInfo=(value:string)=>/(?:\b\d{2,3}[- .]?\d{3,4}[- .]?\d{4}\b)|(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i.test(value);
@@ -45,6 +64,8 @@ export default function Community(){
  const [newCategory,setNewCategory]=useState<Exclude<Category,"전체">>("학원 추천");
  const [title,setTitle]=useState("");
  const [body,setBody]=useState("");
+ const [editorBlocks,setEditorBlocks]=useState<ComposerBlock[]>([{id:"text-0",type:"text",value:""}]);
+ const activeEditorBlockId=useRef("text-0");
  const [selectedPhotos,setSelectedPhotos]=useState<ImagePicker.ImagePickerAsset[]>([]);
  const [photoCaptions,setPhotoCaptions]=useState<string[]>([]);
  const [viewerIndex,setViewerIndex]=useState<number|null>(null);
@@ -164,7 +185,21 @@ export default function Community(){
  const pickPhotos=async()=>{
   if(selectedPhotos.length>=4){Alert.alert("사진 첨부","게시글 사진은 최대 4장까지 첨부할 수 있습니다.");return;}
   const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:4-selectedPhotos.length,quality:0.85});
-  if(!result.canceled){setSelectedPhotos(current=>[...current,...result.assets].slice(0,4));setPhotoCaptions(current=>[...current,...result.assets.map(()=>"")].slice(0,4));}
+  if(result.canceled||!result.assets.length)return;
+  const assets=result.assets.slice(0,4-selectedPhotos.length);
+  const startIndex=selectedPhotos.length;
+  setSelectedPhotos(current=>[...current,...assets].slice(0,4));
+  setPhotoCaptions(current=>[...current,...assets.map(()=>"")].slice(0,4));
+  setEditorBlocks(current=>{
+   const next=[...current];
+   let insertAt=next.findIndex(block=>block.id===activeEditorBlockId.current&&block.type==="text");
+   if(insertAt<0)insertAt=next.length-1;
+   const additions:ComposerBlock[]=[];
+   assets.forEach((_,offset)=>{additions.push({id:"image-"+(startIndex+offset)+"-"+Date.now()+"-"+offset,type:"image",photoIndex:startIndex+offset});additions.push({id:"text-"+Date.now()+"-"+offset+"-"+Math.random().toString(36).slice(2,5),type:"text",value:""});});
+   next.splice(insertAt+1,0,...additions);
+   activeEditorBlockId.current=additions[additions.length-1].id;
+   return next;
+  });
  };
  const uploadCommunityPhotos=async()=>{
   if(!supabase||!userId)return {urls:[] as string[],paths:[] as string[]};
@@ -191,14 +226,14 @@ export default function Community(){
  const submitPost=async()=>{
   if(!userId){requireLogin();return;}
   if(!supabase||!(await requireMemberProfile()))return;
-  const serializedContent=serializePostContent(body,photoCaptions);if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목과 내용은 각각 2자 이상 입력해 주세요.");return;}if(title.trim().length>80||serializedContent.length>5000){Alert.alert("내용 확인","제목은 최대 80자, 사진 설명을 포함한 내용은 최대 5,000자까지 입력할 수 있습니다.");return;}if(!finalConfirmed){Alert.alert("게시 전 확인","개인정보와 저작권·초상권, 커뮤니티 운영정책을 확인해 주세요.");return;}
+  const plainBody=getComposerText(editorBlocks);const serializedContent=serializePostContent(editorBlocks,photoCaptions);if(title.trim().length<2||plainBody.trim().length<2){Alert.alert("내용 확인","제목과 내용은 각각 2자 이상 입력해 주세요.");return;}if(title.trim().length>80||plainBody.length+photoCaptions.join("").length>5000){Alert.alert("내용 확인","제목은 최대 80자, 사진 설명을 포함한 내용은 최대 5,000자까지 입력할 수 있습니다.");return;}if(!finalConfirmed){Alert.alert("게시 전 확인","개인정보와 저작권·초상권, 커뮤니티 운영정책을 확인해 주세요.");return;}
   setSubmitting(true);
   let uploadedPaths:string[]=[];
   try{
    const uploaded=await uploadCommunityPhotos();uploadedPaths=uploaded.paths;
    const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:serializedContent,image_urls:uploaded.urls});
    if(error)throw error;
-   setComposer(false);setTitle("");setBody("");setSelectedPhotos([]);setPhotoCaptions([]);setLoading(true);
+   setComposer(false);setTitle("");setBody("");setEditorBlocks([{id:"text-0",type:"text",value:""}]);activeEditorBlockId.current="text-0";setSelectedPhotos([]);setPhotoCaptions([]);setLoading(true);
    if(category!=="전체")setCategory("전체");else await loadPosts();
    Alert.alert("등록 완료","게시글이 등록되었습니다.");
   }catch(error:any){
