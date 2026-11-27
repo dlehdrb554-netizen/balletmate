@@ -156,7 +156,25 @@ export default function Home() {
   const [selectedRankStudio,setSelectedRankStudio]=useState<Studio|null>(null);
   const [menuOpen,setMenuOpen]=useState(false);
   const [isAdminUser,setIsAdminUser]=useState(false);
-  const refreshAdminAccess=async()=>{setIsAdminUser(false);if(!supabase)return;try{const {data:{session}}=await supabase.auth.getSession();if(!session)return;const {data,error}=await supabase.rpc("is_balletmate_admin");setIsAdminUser(!error&&data===true);}catch{setIsAdminUser(false);}};
+  const [isStudioOwner,setIsStudioOwner]=useState(false);
+  const refreshAdminAccess=async()=>{
+    setIsAdminUser(false);
+    setIsStudioOwner(false);
+    if(!supabase)return;
+    try{
+      const {data:{session}}=await supabase.auth.getSession();
+      if(!session)return;
+      const [adminResult,ownerResult]=await Promise.all([
+        supabase.rpc("is_balletmate_admin"),
+        supabase.from("studio_owners").select("studio_id").eq("user_id",session.user.id).limit(1)
+      ]);
+      setIsAdminUser(!adminResult.error&&adminResult.data===true);
+      setIsStudioOwner(!ownerResult.error&&!!ownerResult.data?.length);
+    }catch{
+      setIsAdminUser(false);
+      setIsStudioOwner(false);
+    }
+  };
   const [filterOpen,setFilterOpen]=useState(false);
   const [detailStudio,setDetailStudio]=useState<Studio|null>(null);
    const [failedRepresentativeImageUrl,setFailedRepresentativeImageUrl]=useState<string|null>(null);
@@ -1072,7 +1090,8 @@ export default function Home() {
           <Pressable style={styles.drawerItem} onPress={()=>{setMenuOpen(false);router.push("/community");}}><Ionicons name="chatbubbles-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>발레 커뮤니티</Text></Pressable>
           <Pressable style={styles.drawerItem} onPress={()=>{setMenuOpen(false);router.push("/mypage");}}><Ionicons name="person-circle-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>마이페이지 / 로그인</Text></Pressable>
           <Pressable style={styles.drawerItem} onPress={()=>{setMenuOpen(false);setPendingDirectionsStudio(null);setMapSettingsOpen(true);}}><Ionicons name="navigate-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>기본 길찾기 앱</Text><Text style={styles.drawerCount}>{mapProvider==="kakao"?"카카오맵":mapProvider==="google"?"구글 지도":"미설정"}</Text></Pressable>
-          {isAdminUser&&<Pressable style={styles.drawerItem} onPress={()=>{setMenuOpen(false);router.push("/admin");}}><Ionicons name="settings-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>관리자</Text></Pressable>}
+          {isStudioOwner&&<Pressable style={styles.drawerItem} onPress={()=>{setMenuOpen(false);router.push("/studio-manager");}}><Ionicons name="business-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>학원 관리자</Text></Pressable>}
+          {isAdminUser&&<Pressable style={styles.drawerItem} onPress={()=>{setMenuOpen(false);router.push("/admin");}}><Ionicons name="shield-checkmark-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>서비스 관리자</Text></Pressable>}
           <View style={styles.drawerFooter}><Text style={styles.drawerFooterText}>Balletmate · 가까운 발레학원 찾기</Text></View>
         </View>
       </View>
