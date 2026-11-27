@@ -40,7 +40,7 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="color-scheme" content="${darkMode ? "dark" : "light"}">
-<style>*{box-sizing:border-box}html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background-color:${initialSurface}}#map img[src*="map_2d"]{filter:${darkMode ? "brightness(0.68) saturate(0.82)" : "none"}} .load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7661D8;font:14px sans-serif;background:${initialSurface};z-index:2}</style>
+<style>*{box-sizing:border-box}:root{--map-tile-filter:${darkMode ? "brightness(0.68) saturate(0.82)" : "none"}}html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background-color:${initialSurface}}#map img[src*="map_2d"]{filter:var(--map-tile-filter,none)} .load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7661D8;font:14px sans-serif;background:${initialSurface};z-index:2}</style>
 </head>
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
@@ -143,6 +143,7 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     var tileFilter=darkModeEnabled?'brightness(0.68) saturate(0.82)':'none';
     document.documentElement.style.backgroundColor=surface;
     document.documentElement.style.colorScheme=darkModeEnabled?'dark':'light';
+    document.documentElement.style.setProperty('--map-tile-filter',tileFilter);
     document.body.style.backgroundColor=surface;
     document.getElementById('map').style.backgroundColor=surface;
     document.getElementById('map').querySelectorAll('img[src*="map_2d"]').forEach(function(tile){tile.style.filter=tileFilter;});
