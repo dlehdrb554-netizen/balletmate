@@ -383,7 +383,7 @@ export default function Community(){
     await new Promise<void>((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("POST",baseUrl+"/storage/v1/object/community-photos/"+encodedPath);xhr.setRequestHeader("apikey",anonKey);xhr.setRequestHeader("Authorization","Bearer "+sessionData.session!.access_token);xhr.setRequestHeader("Content-Type","image/jpeg");xhr.setRequestHeader("x-upsert","false");xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error(xhr.responseText||"업로드 실패 ("+xhr.status+")"));xhr.onerror=()=>reject(new Error("네트워크 연결을 확인해 주세요."));xhr.timeout=120000;xhr.ontimeout=()=>reject(new Error("업로드 시간이 초과됐습니다."));xhr.send(blob);});
     imageUrls=[client.storage.from("community-photos").getPublicUrl(uploadedCommentPath).data.publicUrl];
    }
-   const {error}=await client.from("community_comments").insert({post_id:selected.id,author_id:userId,author_name:authorName,content:commentText.trim(),image_urls:imageUrls});
+   const {error}=await client.from("community_comments").insert({post_id:selected.id,author_id:userId,author_name:authorName,content:commentText.trim()||"사진",image_urls:imageUrls});
    if(error)throw error;
    setCommentText("");setCommentPhoto(null);await loadComments(selected.id);
    Alert.alert("등록 완료","댓글이 등록되었습니다.");
