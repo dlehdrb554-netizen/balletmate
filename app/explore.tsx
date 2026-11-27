@@ -719,7 +719,6 @@ export default function Home() {
   const openSearchOverlay=()=>{
     setSearchFocused(true);
     void loadRecentSearches();
-    setTimeout(()=>searchInputRef.current?.focus(),250);
   };
   const closeSearchOverlay=()=>{
     Keyboard.dismiss();
@@ -1489,7 +1488,7 @@ export default function Home() {
         </View>
       </View>
     </Modal>
-    <Modal visible={searchFocused} transparent animationType="slide" statusBarTranslucent onRequestClose={closeSearchOverlay}>
+    <Modal visible={searchFocused} transparent animationType="none" statusBarTranslucent onRequestClose={closeSearchOverlay}>
       <View style={styles.searchSheetShade}>
         <Pressable style={StyleSheet.absoluteFill} onPress={closeSearchOverlay}/>
         <KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":"height"} style={styles.searchSheetKeyboard}>
@@ -1498,7 +1497,7 @@ export default function Home() {
             <View style={styles.searchSheetHeader}>
               <View style={[styles.searchOverlayInputBox,{backgroundColor:isDark?"#24212C":"#F8F6FB",borderColor:isDark?"#514568":COLORS.line}]}>
                 <Ionicons name="search-outline" size={19} color={isDark?"#C9C1D5":COLORS.muted}/>
-                <TextInput ref={searchInputRef} autoFocus value={search} onChangeText={setSearch} onSubmitEditing={()=>{const q=search.trim();if(q){Keyboard.dismiss();void submitSearch(q);}}} returnKeyType="search" placeholder="학원명, 지역, 수업명 검색" placeholderTextColor={isDark?"#A9A2B5":"#777183"} style={[styles.searchOverlayInput,{color:isDark?"#F5F1FA":COLORS.ink}]} autoCorrect={false} autoCapitalize="none"/>
+                <TextInput ref={searchInputRef} autoFocus value={search} onChangeText={setSearch} onSubmitEditing={()=>{const q=search.trim();if(q){Keyboard.dismiss();void submitSearch(q);}}} returnKeyType="search" placeholder="학원명, 지역, 수업명 검색" placeholderTextColor={isDark?"#FFFFFF":"#000000"} style={[styles.searchOverlayInput,{color:isDark?"#F5F1FA":COLORS.ink}]} autoCorrect={false} autoCapitalize="none"/>
                 {!!search&&<Pressable onPress={()=>setSearch("")} hitSlop={9}><Ionicons name="close-circle" size={19} color={isDark?"#B9B1C5":COLORS.muted}/></Pressable>}
               </View>
               <Pressable onPress={closeSearchOverlay} hitSlop={8} style={styles.searchSheetCancel}><Text style={{fontSize:14,fontWeight:"700",color:isDark?"#D2C5EA":COLORS.purple}}>취소</Text></Pressable>
