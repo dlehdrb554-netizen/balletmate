@@ -556,16 +556,17 @@ export default function Home() {
   const normalizedLiveQuery=deferredSearch.trim().toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
   const liveSearchRequestId=useRef(0);
   const liveSearchMatches=useMemo(()=>{
-    if(!normalizedLiveQuery)return [];
-    const unique=new Map<string,Studio>();
-    [...studios,...directoryStudios,...globalSearchStudios,...liveRemoteStudios].forEach(studio=>{
-      const searchable=[studio.name,studio.area,studio.address||"",...(studio.tags||[])].join(" ").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
-      if(searchable.includes(normalizedLiveQuery))unique.set(studio.id,studio);
-    });
-    return [...unique.values()].filter(studio=>!isExcludedStudioSearchResult(studio.name))
-      .sort((a,b)=>a.name.localeCompare(b.name,"ko")).slice(0,15);
-  },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
-  const normalizedSearch=deferredSearch.trim().toLowerCase();
+     if(!normalizedLiveQuery)return [];
+     const unique=new Map<string,Studio>();
+     [...studios,...directoryStudios,...globalSearchStudios,...liveRemoteStudios].forEach(studio=>{
+       const searchable=[studio.name,studio.area,studio.address||"",...(studio.tags||[])].join(" ").toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
+       if(searchable.includes(normalizedLiveQuery))unique.set(studio.id,studio);
+     });
+     return [...unique.values()].filter(studio=>!isExcludedStudioSearchResult(studio.name))
+       .sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+   },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
+   const deferredLiveSearchMatches=useDeferredValue(liveSearchMatches);
+     const normalizedSearch=deferredSearch.trim().toLowerCase();
   const classSearchIdSet=useMemo(()=>new Set(classSearchIds),[classSearchIds]);
   const classFilterIdSet=useMemo(()=>new Set(classFilterIds),[classFilterIds]);
   const mergedStudios=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()],[studios,globalSearchStudios]);
@@ -590,25 +591,25 @@ export default function Home() {
 
   const mapMarkers=useMemo(()=>{
     // Live search suggestions must be included independently of the normal map filters.
-    const visible=new Map([...results,...(searchFocused?liveSearchMatches:[])].map(studio=>[studio.id,studio]));
+    const visible=new Map([...results,...(searchFocused?deferredLiveSearchMatches:[])].map(studio=>[studio.id,studio]));
     if(selected)visible.set(selected.id,selected);
     return [...visible.values()].filter(studio=>Number.isFinite(studio.lat)&&Number.isFinite(studio.lng)&&Math.abs(studio.lat)<=90&&Math.abs(studio.lng)<=180)
       .map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng}));
-  },[results,selected,searchFocused,liveSearchMatches]);
-  const searchedStudioIds=useMemo(()=>searchFocused?liveSearchMatches.map(item=>item.id):searchMatches.map(item=>item.id),[searchFocused,liveSearchMatches,searchMatches]);
+  },[results,selected,searchFocused,deferredLiveSearchMatches]);
+  const searchedStudioIds=useMemo(()=>searchFocused?deferredLiveSearchMatches.map(item=>item.id):searchMatches.map(item=>item.id),[searchFocused,deferredLiveSearchMatches,searchMatches]);
   const handleMapRegionChange=useCallback((next:Region)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);},[]);
   const handleMapMarkerPress=useCallback((id:string)=>{const studio=results.find(item=>item.id===id)||liveSearchMatches.find(item=>item.id===id)||globalSearchStudios.find(item=>item.id===id);if(studio)setSelected(studio);},[results,liveSearchMatches,globalSearchStudios]);
   // As soon as matches exist, move the map to their geographic bounds and expose their pins.
   useEffect(()=>{
-    if(!searchFocused||normalizedLiveQuery.length<2||liveSearchMatches.length===0)return;
-    const valid=liveSearchMatches.filter(item=>Number.isFinite(item.lat)&&Number.isFinite(item.lng)&&Math.abs(item.lat)<=90&&Math.abs(item.lng)<=180);
+    if(!searchFocused||normalizedLiveQuery.length<2||deferredLiveSearchMatches.length===0)return;
+    const valid=deferredLiveSearchMatches.filter(item=>Number.isFinite(item.lat)&&Number.isFinite(item.lng)&&Math.abs(item.lat)<=90&&Math.abs(item.lng)<=180);
     if(!valid.length)return;
     setAreaLocked(false);
     const lats=valid.map(item=>item.lat),lngs=valid.map(item=>item.lng);
     const minLat=Math.min(...lats),maxLat=Math.max(...lats),minLng=Math.min(...lngs),maxLng=Math.max(...lngs);
     const target={latitude:(minLat+maxLat)/2,longitude:(minLng+maxLng)/2,latitudeDelta:Math.max(0.012,(maxLat-minLat)*1.8),longitudeDelta:Math.max(0.012,(maxLng-minLng)*1.8)};
     setRegion(target);setSearchedRegion(target);setMapMoved(false);setPendingMapTarget(target);
-  },[searchFocused,normalizedLiveQuery,liveSearchMatches]);
+  },[searchFocused,normalizedLiveQuery,deferredLiveSearchMatches]);
   const allListAreas=useMemo(()=>[...new Set([...directoryAreas,...studios.map(studio=>studio.area)].filter(area=>area&&area!=="지역 정보 없음").map(canonicalArea))].sort((a,b)=>a.localeCompare(b,"ko")),[directoryAreas,studios]);
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active){setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);setDirectoryStudios(rows.map(mapStudioRecord));}}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
   const listDistricts=useMemo(()=>allListAreas.filter(area=>{const parsed=parseArea(area);return PROVINCES.includes(parsed.province)&&(regionProvince==="전체"||parsed.province===regionProvince)&&(regionCity==="전체"||parsed.city===regionCity);}),[allListAreas,regionProvince,regionCity]);
@@ -773,7 +774,7 @@ export default function Home() {
       }).finally(()=>{
         if(requestId===liveSearchRequestId.current)setLiveSearchLoading(false);
       });
-    },220);
+    },350);
     return()=>{clearTimeout(timer);};
   },[deferredSearch,searchFocused]);
   // 수업명 검색은 검색 확정 시에만 실행합니다. 입력 중에는 로컬 데이터만 필터링합니다.
@@ -796,7 +797,8 @@ export default function Home() {
         const name=studio.name.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
         const address=String(studio.address||"").toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
         const area=studio.area.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
-        return name.includes(normalizedQuery)||address.includes(normalizedQuery)||area.includes(normalizedQuery);
+        const tags=(studio.tags||[]).join(" ").toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
+        return name.includes(normalizedQuery)||address.includes(normalizedQuery)||area.includes(normalizedQuery)||tags.includes(normalizedQuery);
       }).filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
     // Show already-loaded map markers immediately; network search enriches the result in parallel.
     if(localMatches.length)setGlobalSearchStudios(localMatches);
@@ -804,19 +806,18 @@ export default function Home() {
     let remoteRows:any[]=[];
     let kakaoSearchFailure:any|null=null;
     if(supabase&&query.length>=2){
-      const [dbRows,kakaoResult]=await Promise.all([
-        searchStudiosByName(query).catch(error=>{
-          console.warn("Database studio search failed:",error);
-          return [] as any[];
-        }),
-        searchStudiosByKakao(query).then(rows=>({rows,error:null as string|null})).catch(error=>{
-          console.warn("Kakao studio search failed:",error);
-          return {rows:[] as any[],error};
-        })
-      ]);
-      kakaoSearchFailure=kakaoResult.error;
+      const dbRows=await searchStudiosByName(query).catch(error=>{
+        console.warn("Database studio search failed:",error);
+        return [] as any[];
+      });
+      if(requestId!==searchSubmitRequestId.current)return;
+      let kakaoRows:any[]=[];
+      if(!dbRows.length){
+        try{kakaoRows=await searchStudiosByKakao(query);}
+        catch(error){kakaoSearchFailure=error;console.warn("Kakao studio search failed:",error);}
+      }
       const byId=new Map<string,any>();
-      [...dbRows,...kakaoResult.rows].forEach(row=>{if(row?.id)byId.set(String(row.id),row);});
+      [...dbRows,...kakaoRows].forEach(row=>{if(row?.id)byId.set(String(row.id),row);});
       remoteRows=[...byId.values()];
       if(requestId!==searchSubmitRequestId.current)return;
     }
