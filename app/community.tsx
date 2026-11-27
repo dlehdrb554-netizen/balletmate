@@ -198,7 +198,7 @@ export default function Community(){
 
  const loadComments=async(postId:string,requestId=++commentRequestId.current)=>{
   if(!supabase)return;
-  let query=supabase.from("community_comments").select("id,post_id,author_id,author_name,content,created_at").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
+  let query=supabase.from("community_comments").select("id,post_id,author_id,author_name,content,image_urls,created_at").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
 
   const {data,error}=await query;
   if(requestId!==commentRequestId.current||selectedPostIdRef.current!==postId)return;
@@ -365,15 +365,30 @@ export default function Community(){
   const accepted=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version",COMMUNITY_TERMS_VERSION).maybeSingle();
   if(accepted.error){Alert.alert("이용규칙 확인 실패",accepted.error.message);return;}
   if(!accepted.data){setTermsReturnTo("comment");setTermsConsentOpen(true);return;}
-  if(!commentText.trim()){Alert.alert("댓글 내용","댓글을 입력해 주세요.");return;}
+  if(!commentText.trim()&&!commentPhoto){Alert.alert("댓글 내용","댓글 내용이나 사진을 첨부해 주세요.");return;}
   setSubmitting(true);
+  let uploadedCommentPath:string|null=null;
   try{
-   const {error}=await client.from("community_comments").insert({post_id:selected.id,author_id:userId,author_name:authorName,content:commentText.trim()});
+   let imageUrls:string[]=[];
+   if(commentPhoto){
+    setCommentPhotoUploading(true);
+    const optimized=await ImageManipulator.manipulateAsync(commentPhoto.uri,[{resize:{width:1200}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
+    const blob=await (await fetch(optimized.uri)).blob();
+    const {data:sessionData,error:sessionError}=await client.auth.getSession();
+    if(sessionError||!sessionData.session)throw new Error("로그인 세션을 확인할 수 없습니다.");
+    const baseUrl=process.env.EXPO_PUBLIC_SUPABASE_URL?.trim(),anonKey=process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
+    if(!baseUrl||!anonKey)throw new Error("사진 업로드 설정을 확인할 수 없습니다.");
+    uploadedCommentPath=userId+"/"+Date.now()+"-comment-"+Math.random().toString(36).slice(2,8)+".jpg";
+    const encodedPath=uploadedCommentPath.split("/").map(encodeURIComponent).join("/");
+    await new Promise<void>((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("POST",baseUrl+"/storage/v1/object/community-photos/"+encodedPath);xhr.setRequestHeader("apikey",anonKey);xhr.setRequestHeader("Authorization","Bearer "+sessionData.session!.access_token);xhr.setRequestHeader("Content-Type","image/jpeg");xhr.setRequestHeader("x-upsert","false");xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error(xhr.responseText||"업로드 실패 ("+xhr.status+")"));xhr.onerror=()=>reject(new Error("네트워크 연결을 확인해 주세요."));xhr.timeout=120000;xhr.ontimeout=()=>reject(new Error("업로드 시간이 초과됐습니다."));xhr.send(blob);});
+    imageUrls=[client.storage.from("community-photos").getPublicUrl(uploadedCommentPath).data.publicUrl];
+   }
+   const {error}=await client.from("community_comments").insert({post_id:selected.id,author_id:userId,author_name:authorName,content:commentText.trim(),image_urls:imageUrls});
    if(error)throw error;
-   setCommentText("");await loadComments(selected.id);
+   setCommentText("");setCommentPhoto(null);await loadComments(selected.id);
    Alert.alert("등록 완료","댓글이 등록되었습니다.");
-  }catch(error:any){explainError(error);}
-  finally{setSubmitting(false);}
+  }catch(error:any){if(uploadedCommentPath)await client.storage.from("community-photos").remove([uploadedCommentPath]).catch(()=>{});explainError(error);}
+  finally{setSubmitting(false);setCommentPhotoUploading(false);}
  };
 
  const closeComposer=()=>{
@@ -477,14 +492,15 @@ export default function Community(){
     <Text style={s.section}>댓글 {visibleComments.length}</Text>
     {visibleComments.slice(0,visibleCommentCount).map(comment=><View key={comment.id} style={s.comment}>
      <View style={s.commentTop}><Text style={s.commentAuthor}>{comment.author_name||"발레메이트 회원"}</Text><Text style={s.meta}>{timeLabel(comment.created_at)}</Text></View>
-     <Text style={s.commentBody}>{comment.content}</Text>
+     {!!comment.content&&<Text style={s.commentBody}>{comment.content}</Text>}{!!comment.image_urls?.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:8}}>{comment.image_urls.map((url,index)=><Image key={url+index} source={{uri:url}} style={{width:180,height:150,borderRadius:10,marginRight:8}} resizeMode="cover"/>)}</ScrollView>}
      {comment.author_id===userId||isAdmin?<Pressable onPress={()=>removeComment(comment)}><Text style={s.deleteText}>{isAdmin&&comment.author_id!==userId?"관리자 삭제":"삭제"}</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("comment",comment.id,comment.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(comment.author_id,comment.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>)}
     {!visibleComments.length&&<Text style={s.empty}>첫 댓글을 남겨보세요.</Text>}
     {visibleCommentCount<visibleComments.length&&<Pressable onPress={()=>setVisibleCommentCount(count=>Math.min(count+5,visibleComments.length))} style={{alignItems:"center",paddingVertical:13,marginBottom:4}}><Text style={s.openLabel}>댓글 {Math.min(5,visibleComments.length-visibleCommentCount)}개 더 보기 · 남은 {visibleComments.length-visibleCommentCount}개</Text></Pressable>}
     <View style={s.commentComposer}>
+     {commentPhoto&&<View style={{flexDirection:"row",alignItems:"center",gap:8,marginBottom:8}}><Image source={{uri:commentPhoto.uri}} style={{width:54,height:54,borderRadius:8}}/><Pressable onPress={()=>setCommentPhoto(null)}><Ionicons name="close-circle" size={20} color={C.muted}/></Pressable></View>}
      <TextInput style={s.commentInput} value={commentText} onChangeText={setCommentText} placeholder={userId?"댓글을 입력하세요":"로그인 후 댓글을 작성할 수 있어요"} multiline maxLength={1000}/>
-     <Pressable style={[s.sendBtn,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitComment}><Text style={s.sendText}>등록</Text></Pressable>
+     <Pressable onPress={pickCommentPhoto} style={{padding:8}} accessibilityRole="button" accessibilityLabel="댓글 사진 첨부"><Ionicons name="image-outline" size={21} color={C.purple}/></Pressable><Pressable style={[s.sendBtn,submitting&&{opacity:.5}]} disabled={submitting||commentPhotoUploading} onPress={submitComment}><Text style={s.sendText}>등록</Text></Pressable>
     </View>
     <Text style={s.cooldownNote}>게시글과 댓글은 도배 방지를 위해 작성 간격이 30초로 제한됩니다.</Text>
    </ScrollView>
