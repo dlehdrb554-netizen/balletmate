@@ -553,6 +553,7 @@ export default function Home() {
 
   const globalSearchIdSet=useMemo(()=>new Set(globalSearchStudios.map(studio=>studio.id)),[globalSearchStudios]);
   const deferredSearch=useDeferredValue(search);
+  const normalizedLiveQuery=deferredSearch.trim().toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
   const liveSearchRequestId=useRef(0);
   const liveSearchMatches=useMemo(()=>{
      if(!normalizedLiveQuery)return [];
