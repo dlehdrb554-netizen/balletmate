@@ -30,7 +30,7 @@ export default function StudioManager(){
  const [session,setSession]=useState<any>(null);
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
- const [activeTab,setActiveTab]=useState<"profile"|"photos"|"classes"|"notices">("profile");
+
  const [studioSearch,setStudioSearch]=useState("");
  const [studioSearchResults,setStudioSearchResults]=useState<any[]>([]);
  const [studioSearchBusy,setStudioSearchBusy]=useState(false);
@@ -223,6 +223,30 @@ export default function StudioManager(){
   if(!supabase)return;
   const {error}=await supabase.from("coupons").update({is_active:!item.is_active}).eq("id",item.id).eq("studio_id",studioId);
   if(error)Alert.alert("혜택 변경 실패",error.message);else await load();
+ };
+ const pickRepresentativeImage=async()=>{
+  if(!supabase||!owner)return;
+  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:false,quality:0.9});
+  if(result.canceled||!result.assets[0])return;
+  setSaving(true);let uploadedPath:string|null=null;
+  try{
+   const optimized=await ImageManipulator.manipulateAsync(result.assets[0].uri,[{resize:{width:1600}}],{compress:0.86,format:ImageManipulator.SaveFormat.JPEG});
+   const response=await fetch(optimized.uri);
+   if(!response.ok)throw new Error("대표 이미지 파일을 읽지 못했습니다.");
+   const bytes=await response.arrayBuffer();
+   uploadedPath=`${studioId}/representative/${'1795757242699'}-${'xmzfb8'}.jpg`;
+   const {error:uploadError}=await supabase.storage.from("studio-representative-images").upload(uploadedPath,bytes,{contentType:"image/jpeg",upsert:false});
+   if(uploadError)throw uploadError;
+   const {error}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:uploadedPath});
+   if(error)throw error;
+   const previous=representativeImagePath;
+   setRepresentativeImagePath(uploadedPath);
+   if(previous)await supabase.storage.from("studio-representative-images").remove([previous]);
+   Alert.alert("대표 사진 변경 완료","새 대표 사진이 학원 상세 페이지에 반영됩니다.");
+  }catch(error:any){
+   if(uploadedPath)await supabase.storage.from("studio-representative-images").remove([uploadedPath]);
+   Alert.alert("대표 사진 변경 실패",error?.message||"대표 사진을 변경하지 못했습니다.");
+  }finally{setSaving(false);}
  };
  const pickStudioPhotos=async()=>{
   const remaining=Math.max(0,10-activeGalleryCount);
@@ -430,7 +454,7 @@ export default function StudioManager(){
      <View style={s.card}><Text style={s.cardTitle}>학원 기본 정보</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("대표 홈페이지 URL",profileWebsite,setProfileWebsite,"일반 홈페이지·네이버 블로그·인스타그램 URL (https://)")}<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:110,textAlignVertical:"top",paddingTop:12,marginTop:12}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
      <View style={s.card}><Text style={s.cardTitle}>최근 수정 이력</Text>{editHistory.length?editHistory.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.entity==="studios"?"학원 기본 정보":item.entity==="studio_public_prices"?"가격표":item.entity==="studio_public_schedules"?"시간표":"공지사항"} · {item.action==="insert"?"등록":item.action==="delete"?"삭제":"수정"}</Text><Text style={s.body}>{new Date(item.created_at).toLocaleString("ko-KR")} · {(item.changed_fields||[]).map((field:string)=>(({name:"학원명",district:"지역",address:"주소",phone:"전화번호",website_url:"홈페이지",description:"소개",schedule_text:"시간표",amount_krw:"가격",price_period:"가격 기간",frequency_per_week:"주당 횟수",title:"공지 제목",body:"공지 내용",is_active:"공개 상태",expires_at:"만료일"} as Record<string,string>)[field]||field)).join(", ")||"변경 내용"}</Text></View>):<Text style={s.body}>수정 이력이 없습니다.</Text>}</View>
     </>}
-    {activeTab==="photos"&&<View style={s.card}><Text style={s.cardTitle}>대표 사진</Text>{representativeImagePath?<Image source={{uri:supabase?.storage.from("studio-representative-images").getPublicUrl(representativeImagePath).data.publicUrl}} style={{width:"100%",height:205,borderRadius:12,marginTop:8,backgroundColor:isDark?"#292633":"#F2F0F6"}} resizeMode="cover"/>:<View style={{height:150,borderRadius:12,marginTop:8,backgroundColor:isDark?"#292633":"#F2F0F6",alignItems:"center",justifyContent:"center"}}><Text style={s.body}>대표 사진이 등록되지 않았습니다.</Text></View>}{button("대표 사진 변경",pickStudioPhotos,saving)}
+    {activeTab==="photos"&&<View style={s.card}><Text style={s.cardTitle}>대표 사진</Text>{representativeImagePath?<Image source={{uri:supabase?.storage.from("studio-representative-images").getPublicUrl(representativeImagePath).data.publicUrl}} style={{width:"100%",height:205,borderRadius:12,marginTop:8,backgroundColor:isDark?"#292633":"#F2F0F6"}} resizeMode="cover"/>:<View style={{height:150,borderRadius:12,marginTop:8,backgroundColor:isDark?"#292633":"#F2F0F6",alignItems:"center",justifyContent:"center"}}><Text style={s.body}>대표 사진이 등록되지 않았습니다.</Text></View>}{button("대표 사진 변경",pickRepresentativeImage,saving)}
      <View style={[s.item,{marginTop:18}]}><Text style={s.cardTitle}>갤러리 사진 · {activeGalleryCount} / 10</Text><Text style={s.body}>사진을 누르면 대표 사진 설정 또는 삭제를 선택할 수 있습니다.</Text>
       {activeGalleryCount?<View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12}}>{galleryImages.filter(x=>x.is_active).map(item=><Pressable key={item.id} disabled={saving} onPress={()=>showGalleryActions(item)} style={{width:"31.5%",aspectRatio:1,borderRadius:10,overflow:"hidden",backgroundColor:isDark?"#292633":"#F2F0F6"}}><Image source={{uri:supabase?.storage.from("studio-public-materials").getPublicUrl(item.image_path).data.publicUrl}} style={{width:"100%",height:"100%"}} resizeMode="cover"/></Pressable>)}</View>:<Text style={s.body}>등록된 갤러리 사진이 없습니다.</Text>}
       {galleryImagesToUpload.length>0&&<View style={{marginTop:14}}><Text style={s.label}>업로드 대기 · {galleryImagesToUpload.length}장</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,paddingVertical:8}}>{galleryImagesToUpload.map((asset,index)=><View key={asset.assetId||asset.uri} style={{width:96}}><Image source={{uri:asset.uri}} style={{width:96,height:88,borderRadius:9}}/><Text style={s.body}>{index===0?"대표 사진":"사진 "+(index+1)}</Text></View>)}</ScrollView></View>}
