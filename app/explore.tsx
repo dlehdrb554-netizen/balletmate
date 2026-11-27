@@ -144,6 +144,7 @@ export default function Home() {
   const [mapMoved,setMapMoved]=useState(false);
   const [search,setSearch]=useState("");
  const [searchFocused,setSearchFocused]=useState(false);
+ const [committedSearch,setCommittedSearch]=useState("");
  const [recentSearches,setRecentSearches]=useState<string[]>([]);
  const searchInputRef=useRef<TextInput|null>(null);
  const MAX_RECENT=10;
@@ -566,7 +567,7 @@ export default function Home() {
        .sort((a,b)=>a.name.localeCompare(b.name,"ko"));
    },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
      const normalizedSearch=deferredSearch.trim().toLowerCase();
-  const mapSearchFilter=searchFocused?"":normalizedSearch;
+  const mapSearchFilter=committedSearch.trim().toLowerCase();
   const classSearchIdSet=useMemo(()=>new Set(classSearchIds),[classSearchIds]);
   const classFilterIdSet=useMemo(()=>new Set(classFilterIds),[classFilterIds]);
   const mergedStudios=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()],[studios,globalSearchStudios]);
@@ -774,6 +775,7 @@ export default function Home() {
     setSearchSubmitting(true);
     Keyboard.dismiss();
     const query=(queryOverride??search).trim();
+    setCommittedSearch(query);
     if(queryOverride!==undefined)setSearch(query);
     if(!query){setAreaLocked(false);setSelected(null);setGlobalSearchStudios([]);setSearchSubmitting(false);setSearchFocused(false);return;}
     try{await saveRecentSearch(query);}catch(error){console.warn("Recent search save failed:",error);}
