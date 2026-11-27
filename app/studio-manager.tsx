@@ -42,7 +42,7 @@ export default function StudioManager(){
  const [representativeImage,setRepresentativeImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
  const [representativeImagePath,setRepresentativeImagePath]=useState<string|null>(null);
  const [galleryImages,setGalleryImages]=useState<any[]>([]);
- const [galleryImage,setGalleryImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
+ const [galleryImagesToUpload,setGalleryImagesToUpload]=useState<ImagePicker.ImagePickerAsset[]>([]);
  const [noticeTitle,setNoticeTitle]=useState("");
  const [noticeBody,setNoticeBody]=useState("");
  const [materials,setMaterials]=useState<any[]>([]);
@@ -202,11 +202,65 @@ export default function StudioManager(){
   const {error}=await supabase.from("coupons").update({is_active:!item.is_active}).eq("id",item.id).eq("studio_id",studioId);
   if(error)Alert.alert("혜택 변경 실패",error.message);else await load();
  };
- const pickRepresentativeImage=async()=>{const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:false,quality:0.9});if(!result.canceled&&result.assets[0])setRepresentativeImage(result.assets[0]);};
- const saveRepresentativeImage=async()=>{if(!supabase||!owner||!session?.user?.id||!representativeImage){Alert.alert("대표 이미지","사진을 먼저 선택해 주세요.");return;}setSaving(true);let uploadedPath:string|null=null;try{const optimized=await ImageManipulator.manipulateAsync(representativeImage.uri,[{resize:{width:1600}}],{compress:0.86,format:ImageManipulator.SaveFormat.JPEG});const response=await fetch(optimized.uri);if(!response.ok)throw new Error("이미지를 읽지 못했습니다.");const bytes=await response.arrayBuffer();const previousPath=representativeImagePath;uploadedPath=studioId+"/representative/"+Date.now()+".jpg";const {error:uploadError}=await supabase.storage.from("studio-representative-images").upload(uploadedPath,bytes,{contentType:"image/jpeg",upsert:false});if(uploadError)throw uploadError;const {error}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:uploadedPath});if(error)throw error;setRepresentativeImagePath(uploadedPath);setRepresentativeImage(null);if(previousPath&&previousPath!==uploadedPath)await supabase.storage.from("studio-representative-images").remove([previousPath]);Alert.alert("대표 이미지 변경 완료","학원 대표 이미지가 변경되었습니다. 운영자에게 변경 알림이 전달됩니다.");await load();}catch(error:any){if(uploadedPath)await supabase.storage.from("studio-representative-images").remove([uploadedPath]);Alert.alert("대표 이미지 저장 실패",error?.message||"대표 이미지를 저장하지 못했습니다.");}finally{setSaving(false);}};
- const pickGalleryImage=async()=>{const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:false,quality:0.9});if(!result.canceled&&result.assets[0])setGalleryImage(result.assets[0]);};
- const saveGalleryImage=async()=>{if(!supabase||!owner||!session?.user?.id||!galleryImage){Alert.alert("학원 사진","사진을 먼저 선택해 주세요.");return;}setSaving(true);let uploadedPath:string|null=null;try{const optimized=await ImageManipulator.manipulateAsync(galleryImage.uri,[{resize:{width:1800}}],{compress:0.86,format:ImageManipulator.SaveFormat.JPEG});const response=await fetch(optimized.uri);if(!response.ok)throw new Error("이미지를 읽지 못했습니다.");const bytes=await response.arrayBuffer();uploadedPath=`${studioId}/gallery/${Date.now()}-${Math.random().toString(36).slice(2,9)}.jpg`;const {error:uploadError}=await supabase.storage.from("studio-public-materials").upload(uploadedPath,bytes,{contentType:"image/jpeg",upsert:false});if(uploadError)throw uploadError;const {error}=await supabase.from("studio_gallery_images").insert({studio_id:studioId,image_path:uploadedPath,created_by:session.user.id,is_active:true});if(error)throw error;setGalleryImage(null);Alert.alert("사진 등록 완료","학원 사진 탭에 공개되었습니다.");await load();}catch(error:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("사진 등록 실패",error?.message||"사진을 저장하지 못했습니다.");}finally{setSaving(false);}};
- const deactivateGalleryImage=async(item:any)=>{if(!supabase||!owner)return;setSaving(true);try{const {error}=await supabase.from("studio_gallery_images").update({is_active:false}).eq("id",item.id).eq("studio_id",studioId);if(error)throw error;await supabase.storage.from("studio-public-materials").remove([item.image_path]);Alert.alert("사진 삭제 완료","학원 사진에서 삭제했습니다.");await load();}catch(error:any){Alert.alert("사진 삭제 실패",error?.message||"사진을 삭제하지 못했습니다.");}finally{setSaving(false);}};
+ const pickStudioPhotos=async()=>{
+  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:10,quality:0.9});
+  if(!result.canceled&&result.assets.length)setGalleryImagesToUpload(result.assets.slice(0,10));
+ };
+ const saveStudioPhotos=async()=>{
+  if(!supabase||!owner||!session?.user?.id||!galleryImagesToUpload.length){Alert.alert("학원 사진","등록할 사진을 선택해 주세요.");return;}
+  setSaving(true);
+  const uploadedGalleryPaths:string[]=[];
+  let representativePath:string|null=null;
+  try{
+   for(let index=0;index<galleryImagesToUpload.length;index++){
+    const asset=galleryImagesToUpload[index];
+    const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1800}}],{compress:0.86,format:ImageManipulator.SaveFormat.JPEG});
+    const response=await fetch(optimized.uri);
+    if(!response.ok)throw new Error("이미지를 읽지 못했습니다.");
+    const bytes=await response.arrayBuffer();
+    const path=`${studioId}/gallery/${Date.now()}-${index}-${Math.random().toString(36).slice(2,9)}.jpg`;
+    const {error:uploadError}=await supabase.storage.from("studio-public-materials").upload(path,bytes,{contentType:"image/jpeg",upsert:false});
+    if(uploadError)throw uploadError;
+    uploadedGalleryPaths.push(path);
+   }
+   const {error:galleryError}=await supabase.from("studio_gallery_images").insert(uploadedGalleryPaths.map(image_path=>({studio_id:studioId,image_path,created_by:session.user.id,is_active:true})));
+   if(galleryError)throw galleryError;
+   if(uploadedGalleryPaths.length){
+    const first=galleryImagesToUpload[0];
+    const optimized=await ImageManipulator.manipulateAsync(first.uri,[{resize:{width:1600}}],{compress:0.86,format:ImageManipulator.SaveFormat.JPEG});
+    const response=await fetch(optimized.uri);
+    if(!response.ok)throw new Error("대표 이미지 파일을 읽지 못했습니다.");
+    const bytes=await response.arrayBuffer();
+    representativePath=`${studioId}/representative/${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const {error:representativeUploadError}=await supabase.storage.from("studio-representative-images").upload(representativePath,bytes,{contentType:"image/jpeg",upsert:false});
+    if(representativeUploadError)throw representativeUploadError;
+    const {error:representativeError}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:representativePath});
+    if(representativeError)throw representativeError;
+    if(representativeImagePath)await supabase.storage.from("studio-representative-images").remove([representativeImagePath]);
+    setRepresentativeImagePath(representativePath);
+   }
+   setGalleryImagesToUpload([]);
+   Alert.alert("사진 등록 완료",uploadedGalleryPaths.length+"장의 사진을 등록했습니다. 첫 번째 사진은 대표 이미지로도 설정했습니다.");
+   await load();
+  }catch(error:any){
+   if(uploadedGalleryPaths.length)await supabase.storage.from("studio-public-materials").remove(uploadedGalleryPaths);
+   if(representativePath)await supabase.storage.from("studio-representative-images").remove([representativePath]);
+   Alert.alert("사진 등록 실패",error?.message||"사진을 등록하지 못했습니다.");
+  }finally{setSaving(false);}
+ };
+ const deactivateGalleryImage=async(item:any)=>{
+  if(!supabase||!owner)return;
+  setSaving(true);
+  try{
+   const {error}=await supabase.from("studio_gallery_images").delete().eq("id",item.id).eq("studio_id",studioId);
+   if(error)throw error;
+   const {error:storageError}=await supabase.storage.from("studio-public-materials").remove([item.image_path]);
+   if(storageError)console.warn("Gallery image storage cleanup failed:",storageError.message);
+   Alert.alert("사진 삭제 완료","학원 사진에서 삭제했습니다.");
+   await load();
+  }catch(error:any){Alert.alert("사진 삭제 실패",error?.message||"사진을 삭제하지 못했습니다.");}
+  finally{setSaving(false);}
+ };
  const pickMaterialImage=async(kind:"schedule"|"price")=>{
   const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:false,quality:0.9});
   if(result.canceled||!result.assets[0])return;
@@ -294,8 +348,16 @@ export default function StudioManager(){
   :owner?
    <>
     <View style={s.card}><Text style={s.cardTitle}>승인된 원장님 계정</Text><Text style={s.body}>이 학원의 정보와 공개 자료를 관리할 수 있습니다. 등록한 내용은 학원 상세 페이지에 바로 공개됩니다.</Text></View>
-    <View style={s.card}><Text style={s.cardTitle}>학원 대표 이미지</Text><Text style={s.body}>사진을 첨부해 학원 상세 페이지의 대표 사진을 변경할 수 있습니다. 별도 승인 없이 즉시 반영됩니다.</Text>{(representativeImage?.uri||representativeImagePath)&&<Image source={{uri:representativeImage?.uri||supabase?.storage.from("studio-representative-images").getPublicUrl(representativeImagePath!).data.publicUrl}} style={{width:"100%",height:190,borderRadius:10,marginTop:10}} resizeMode="cover"/>}{button(representativeImage?"사진 다시 선택":"대표 사진 첨부",pickRepresentativeImage,saving)}{button("대표 이미지로 설정",saveRepresentativeImage,saving||!representativeImage)}{representativeImagePath&&button("대표 이미지 제거",()=>Alert.alert("대표 이미지 제거","현재 대표 이미지를 제거할까요?",[{text:"취소",style:"cancel"},{text:"제거",style:"destructive",onPress:async()=>{if(!supabase)return;setSaving(true);const {error}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:null});if(error)Alert.alert("제거 실패",error.message);else{const previousPath=representativeImagePath;setRepresentativeImagePath(null);if(previousPath)await supabase.storage.from("studio-representative-images").remove([previousPath]);Alert.alert("제거 완료","대표 이미지가 제거되었습니다.");await load();}setSaving(false);}}]),saving,true)}</View>
-    <View style={s.card}><Text style={s.cardTitle}>학원 사진 관리</Text><Text style={s.body}>학원 상세 페이지의 사진 탭에 공개할 사진을 등록할 수 있습니다. 승인된 원장 계정만 등록·삭제할 수 있습니다.</Text>{galleryImage&&<Image source={{uri:galleryImage.uri}} style={{width:"100%",height:180,borderRadius:10,marginTop:10}} resizeMode="cover"/>}{button(galleryImage?"사진 다시 선택":"사진 선택",pickGalleryImage,saving)}{button("사진 공개",saveGalleryImage,saving||!galleryImage)}{galleryImages.filter(x=>x.is_active).map(item=><View key={item.id} style={s.item}><Image source={{uri:supabase?.storage.from("studio-public-materials").getPublicUrl(item.image_path).data.publicUrl}} style={{width:"100%",height:150,borderRadius:9}} resizeMode="cover"/>{button("사진 삭제",()=>Alert.alert("사진 삭제","이 사진을 학원 사진에서 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deactivateGalleryImage(item)}]),saving,true)}</View>)}</View>
+    <View style={s.card}>
+     <Text style={s.cardTitle}>학원 사진</Text>
+     <Text style={s.body}>여러 장을 한 번에 선택할 수 있습니다. 첫 번째 사진은 대표 이미지로 설정되며, 나머지는 학원 사진 탭에 함께 공개됩니다.</Text>
+     {!!representativeImagePath&&<View style={{marginTop:10}}><Text style={s.label}>현재 대표 이미지</Text><Image source={{uri:supabase?.storage.from("studio-representative-images").getPublicUrl(representativeImagePath).data.publicUrl}} style={{width:"100%",height:170,borderRadius:10,marginTop:6}} resizeMode="cover"/>{button("대표 이미지 제거",()=>Alert.alert("대표 이미지 제거","대표 이미지를 제거할까요?",[{text:"취소",style:"cancel"},{text:"제거",style:"destructive",onPress:async()=>{if(!supabase)return;setSaving(true);const previousPath=representativeImagePath;const {error}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:null});if(error)Alert.alert("제거 실패",error.message);else{setRepresentativeImagePath(null);if(previousPath)await supabase.storage.from("studio-representative-images").remove([previousPath]);await load();}setSaving(false);}}]),saving,true)}</View>}
+     {galleryImagesToUpload.length>0&&<View style={{marginTop:10}}><Text style={s.label}>등록 대기 · {galleryImagesToUpload.length}장</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,paddingVertical:8}}>{galleryImagesToUpload.map((asset,index)=><View key={asset.assetId||asset.uri} style={{width:112}}><Image source={{uri:asset.uri}} style={{width:112,height:92,borderRadius:9}}/><Text style={s.body}>{index===0?"대표 이미지":"사진 "+(index+1)}</Text></View>)}</ScrollView></View>}
+     {button(galleryImagesToUpload.length?"사진 다시 선택":"사진 여러 장 선택",pickStudioPhotos,saving)}
+     {button("선택한 사진 등록",saveStudioPhotos,saving||!galleryImagesToUpload.length)}
+     <Text style={s.label}>등록된 사진 · {galleryImages.filter(x=>x.is_active).length}장</Text>
+     {galleryImages.filter(x=>x.is_active).length?<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:9,paddingVertical:8}}>{galleryImages.filter(x=>x.is_active).map(item=><View key={item.id} style={{width:118}}><Image source={{uri:supabase?.storage.from("studio-public-materials").getPublicUrl(item.image_path).data.publicUrl}} style={{width:118,height:94,borderRadius:9}} resizeMode="cover"/><Pressable disabled={saving} onPress={()=>Alert.alert("사진 삭제","이 사진을 학원 사진에서 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deactivateGalleryImage(item)}])} style={{paddingVertical:7}}><Text style={{fontSize:11,fontWeight:"800",color:C.red}}>삭제</Text></Pressable></View>)}</ScrollView>:<Text style={s.body}>등록된 사진이 없습니다.</Text>}
+    </View>
     <View style={s.card}><Text style={s.cardTitle}>학원 기본 정보 수정</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("대표 홈페이지 URL",profileWebsite,setProfileWebsite,"일반 홈페이지·네이버 블로그·인스타그램 URL (https://)") }<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:90,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>시간표 이미지 등록</Text><Text style={s.body}>글자 입력은 지원하지 않습니다. 시간표가 보이는 이미지 한 장을 선택해 주세요.</Text>{scheduleImage&&<Image source={{uri:scheduleImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(scheduleImage?"시간표 이미지 다시 선택":"시간표 이미지 선택",()=>pickMaterialImage("schedule"),saving)}{button("시간표 이미지 공개",saveSchedule,saving||!scheduleImage)}</View>
     <View style={s.card}><Text style={s.cardTitle}>가격표 이미지 등록</Text><Text style={s.body}>가격과 이용 조건이 표시된 이미지로만 등록할 수 있습니다.</Text>{priceImage&&<Image source={{uri:priceImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(priceImage?"가격표 이미지 다시 선택":"가격표 이미지 선택",()=>pickMaterialImage("price"),saving)}{button("가격표 이미지 공개",savePrice,saving||!priceImage)}</View>
