@@ -25,6 +25,13 @@ $require_terms$;
 
 revoke all on function public.require_community_terms_acceptance() from public, anon, authenticated;
 
+-- Add a dedicated report reason so copyright/portrait reports map to policy clause 4.
+alter table public.community_reports
+  drop constraint if exists community_reports_reason_check;
+alter table public.community_reports
+  add constraint community_reports_reason_check
+  check (reason in ('스팸/광고','욕설/괴롭힘','부적절한 콘텐츠','개인정보 노출','허위 정보','기타','저작권·초상권 침해'));
+
 -- When an admin removes reported content, notify its author using the same
 -- numbered policy terms shown in app/community-policy.tsx.
 create or replace function public.admin_remove_community_content(
@@ -78,6 +85,7 @@ begin
     when '스팸/광고' then '제2항(광고·홍보 및 도배)'
     when '욕설/괴롭힘' then '제1항(상호 존중)'
     when '개인정보 노출' then '제3항(개인정보 보호)'
+    when '저작권·초상권 침해' then '제4항(저작권·초상권 및 권리 보호)'
     when '부적절한 콘텐츠' then '제5항(허위 정보 및 부적절한 콘텐츠)'
     when '허위 정보' then '제5항(허위 정보 및 부적절한 콘텐츠)'
     else '커뮤니티 운영정책'
