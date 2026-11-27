@@ -1402,6 +1402,7 @@ export default function Home() {
             <Text style={styles.sectionTitle}>거리 (지도 중심 기준)</Text><View style={styles.filterChoices}>{[1,3,5,10].map(v=><Chip key={v} label={v+"km"} active={maxDistance===v} onPress={()=>setMaxDistance(maxDistance===v?null:v)}/>)}</View>
             <Text style={styles.sectionTitle}>혜택</Text><View style={styles.filterChoices}><Chip label="쿠폰/할인" active={coupon} onPress={()=>setCoupon(!coupon)}/></View>
             <Text style={styles.filterHint}>거리 필터는 현재 지도 중심을 기준으로 계산합니다.</Text>
+            {view==="map"&&mapMoved&&<Text style={styles.filterHint}>이동한 지역의 학원까지 확인하려면 지도로 돌아가 ‘이 지역에서 재검색’을 눌러주세요.</Text>}
           </ScrollView>
           <View style={[styles.modalActions,{marginTop:10,paddingBottom:4}]}>
             <Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>초기화</Text></Pressable>
