@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import BottomSheet, {BottomSheetScrollView} from "@gorhom/bottom-sheet";
-import {Gesture, GestureDetector} from "react-native-gesture-handler";
+import {Gesture, GestureDetector, GestureHandlerRootView} from "react-native-gesture-handler";
 import {runOnJS} from "react-native-reanimated";
 import {themeStyles } from "../lib/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -1174,7 +1174,7 @@ export default function Home() {
       </View>
     </Modal>
 <Modal visible={!!detailStudio} animationType="fade" transparent statusBarTranslucent onRequestClose={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}>
-<View style={{flex:1}}>
+<GestureHandlerRootView style={{flex:1}}><View style={{flex:1}}>
 <View style={styles.modalShade}>
 <Pressable style={StyleSheet.absoluteFillObject} onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}} accessibilityRole="button" accessibilityLabel="학원 상세정보 닫기"/>
 <BottomSheet
@@ -1283,7 +1283,7 @@ export default function Home() {
 <Text style={styles.classMeta}>{reviewVerified?"수강 인증 완료 · 인증 배지가 표시됩니다.":"일반 리뷰 · 로그인 회원은 누구나 작성할 수 있습니다."} · 내 별점</Text><View style={{flexDirection:"row",gap:8,marginVertical:8}}>{[1,2,3,4,5].map(value=><Pressable key={value} onPress={()=>setReviewRating(value)}><Text style={{fontSize:28,color:value<=reviewRating?"#F2B544":"#D8D4E1"}}>★</Text></Pressable>)}</View><TextInput value={reviewText} onChangeText={setReviewText} placeholder="수업 분위기, 강사님, 시설 등에 대한 경험을 작성해 주세요." placeholderTextColor="#625E70" multiline maxLength={1000} textAlignVertical="top" style={styles.reportInput}/>{reviewText.trim().length>0&&reviewText.trim().length<5&&<Text style={{fontSize:11,color:"#B66B77",marginTop:-9,marginBottom:10}}>리뷰는 5자 이상 입력해 주세요. ({reviewText.trim().length}/5자)</Text>}<Pressable disabled={reviewSubmitting||reviewText.trim().length<5} style={[styles.applyButton,{minHeight:50,paddingVertical:15,marginBottom:14,opacity:reviewSubmitting||reviewText.trim().length<5?0.5:1}]} onPress={()=>{void startStudioReviewSubmission();}}><Text style={styles.applyText}>{reviewSubmitting?"등록 중…":"리뷰 등록 / 수정"}</Text></Pressable></View>
 <Pressable onPress={()=>setVerifiedReviewsOnly(v=>!v)} style={{marginHorizontal:14,marginTop:8,marginBottom:12,minHeight:46,paddingVertical:12,borderRadius:10,backgroundColor:verifiedReviewsOnly?COLORS.pale:"#F8F7FA",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>{verifiedReviewsOnly?"전체 리뷰 보기":"인증 후기만 보기"}</Text></Pressable>{reviewsLoading?<ActivityIndicator color={COLORS.purple} style={{margin:20}}/>:((verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).length?(verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).map((item:any)=><View key={String(item.id)} style={styles.classBlock}><Text style={styles.classTitle}>{"★".repeat(Number(item.rating))}{"☆".repeat(5-Number(item.rating))}</Text><Text style={styles.photoCredit}>{item.user_id===reviewUserId?"내 리뷰":"방문자 리뷰"} · {item.verified_at?"수강 인증":"일반 리뷰"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{item.content}</Text>{item.user_id!==reviewUserId&&<Pressable onPress={()=>Alert.alert("리뷰 신고","신고 사유를 선택해 주세요.",[{text:"광고/홍보",onPress:()=>submitReviewReport(item.id,"광고/홍보")},{text:"욕설/비방",onPress:()=>submitReviewReport(item.id,"욕설/비방")},{text:"허위 정보",onPress:()=>submitReviewReport(item.id,"허위 정보")},{text:"도배/스팸",onPress:()=>submitReviewReport(item.id,"도배/스팸")},{text:"기타",onPress:()=>submitReviewReport(item.id,"기타")},{text:"취소",style:"cancel"}])} style={{alignSelf:"flex-end",paddingVertical:8}}><Text style={{fontSize:11,color:COLORS.muted}}>신고</Text></Pressable>}</View>):<Text style={styles.filterHint}>아직 등록된 리뷰가 없습니다.</Text>)}</BottomSheetScrollView>}
 </>}</View></GestureDetector>
-</BottomSheet></View></View></Modal><Modal visible={reportOpen} transparent animationType="slide" onRequestClose={()=>setReportOpen(false)}>
+</BottomSheet></View></View></GestureHandlerRootView></Modal><Modal visible={reportOpen} transparent animationType="slide" onRequestClose={()=>setReportOpen(false)}>
       <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}><View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 정보 제보</Text><Pressable onPress={()=>setReportOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.sectionTitle}>제보 유형</Text><View style={styles.filterChoices}>{["폐업/이전","주소 오류","전화/홈페이지 오류","가격/시간표 오류","기타"].map(v=><Chip key={v} label={v} active={reportCategory===v} onPress={()=>setReportCategory(v)}/>)}</View>
