@@ -372,7 +372,7 @@ export default function StudioManager(){
   try{
    uploadedPath=await uploadMaterialImage(result.assets[0],kind);
    const table=kind==="schedule"?"studio_public_schedules":"studio_public_prices";
-   const payload=kind==="schedule"?{studio_id:studioId,schedule_text:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true}:{studio_id:studioId,amount_krw:null,price_period:null,frequency_per_week:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true};
+   const payload:any=kind==="schedule"?{studio_id:studioId,schedule_text:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true}:{studio_id:studioId,amount_krw:null,price_period:null,frequency_per_week:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true};
    const {error}=await supabase.from(table).insert(payload);if(error)throw error;
    for(const item of materials.filter(item=>item.kind===kind&&item.is_active)){const {error:hideError}=await supabase.from(table).update({is_active:false}).eq("id",item.id).eq("studio_id",studioId);if(hideError)throw hideError;}
    invalidateStudioPublicMaterials(studioId);Alert.alert(kind==="schedule"?"시간표 공개 완료":"가격표 공개 완료","새 이미지가 학원 상세 페이지에 공개되었습니다.");await load();
