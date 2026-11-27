@@ -868,12 +868,21 @@ export default function Home() {
         }
         return;
       }
-      const lastKnown=await Location.getLastKnownPositionAsync({maxAge:120000,requiredAccuracy:1500}).catch(()=>null);
-      const p=lastKnown||await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
-      const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
+      // Prefer a fresh GPS fix; use a recent cached fix only if the device cannot obtain one.
+      let p:Location.LocationObject;
+      try{
+        p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.High});
+      }catch(currentError){
+        const cached=await Location.getLastKnownPositionAsync({maxAge:300000,requiredAccuracy:1000});
+        if(!cached)throw currentError;
+        p=cached;
+      }
+      const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.018,longitudeDelta:0.018};
       setHasMapSearchRequested(true);
-      setPendingMapTarget(r);setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setCurrentLocation({latitude:p.coords.latitude,longitude:p.coords.longitude});setMapMoved(false);
-      // pendingMapTarget effect sends the single map movement command.
+      setPendingMapTarget(null);
+      setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setCurrentLocation({latitude:p.coords.latitude,longitude:p.coords.longitude});setMapMoved(false);
+      // Send directly to the native map ref; it queues the command if Kakao's WebView is still initializing.
+      map.current?.animateToRegion(r,650);
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 위치 서비스 설정을 확인하거나 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
@@ -1266,7 +1275,8 @@ export default function Home() {
     </Modal>
     <Modal visible={compareOpen} animationType="none" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
-        <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
+        <View style={{alignItems:"center",paddingTop:6,paddingBottom:10}}><GestureDetector gesture={Gesture.Pan().activeOffsetY(8).onEnd(event=>{if(event.translationY>90)runOnJS(setCompareOpen)(false);})}><View accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{width:58,height:24,alignItems:"center",justifyContent:"center"}}><View style={{width:42,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View></GestureDetector></View>
+         <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
         {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
         {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="swap-horizontal-outline" size={30} color={COLORS.muted}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>비교 목록이 비어 있어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>학원 카드에서 비교를 추가해 주세요.</Text></View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
