@@ -12,6 +12,7 @@ const json = (body: unknown, status = 200, extraHeaders: Record<string, string> 
   });
 
 type SearchCacheEntry = { expiresAt: number; payload: unknown };
+const MAX_KAKAO_RESULTS = 30;
 const SEARCH_CACHE = new Map<string, SearchCacheEntry>();
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -63,10 +64,11 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!kakaoKey || !supabaseUrl || !serviceKey) return json({ error: "서버 검색 설정이 누락되었습니다." }, 500);
 
-  let body: { query?: unknown; latitude?: unknown; longitude?: unknown; radius?: unknown };
+  let body: { query?: unknown; latitude?: unknown; longitude?: unknown; radius?: unknown; limit?: unknown };
   try { body = await req.json(); } catch { return json({ error: "검색어를 확인해 주세요." }, 400); }
   const query = String(body?.query ?? "").trim().replace(/\s+/g, " ");
   if (query.length < 2 || query.length > 80) return json({ error: "검색어는 2~80자로 입력해 주세요." }, 400);
+  const resultLimit = Math.max(1, Math.min(MAX_KAKAO_RESULTS, Math.floor(Number(body.limit) || MAX_KAKAO_RESULTS)));
 
   const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -83,7 +85,7 @@ Deno.serve(async (req) => {
   const hasBounds = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
     Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
   const radius = hasBounds ? Math.min(20000, Math.max(1000, Math.floor(Number(body.radius) || 5000))) : null;
-  const cacheKey = [normalize(query), hasBounds ? latitude.toFixed(3) : "all", hasBounds ? longitude.toFixed(3) : "all", radius ?? 0].join(":");
+  const cacheKey = [normalize(query), hasBounds ? latitude.toFixed(3) : "all", hasBounds ? longitude.toFixed(3) : "all", radius ?? 0, resultLimit].join(":");
   const cached = SEARCH_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return json(cached.payload);
   if (cached) SEARCH_CACHE.delete(cacheKey);
@@ -125,7 +127,7 @@ Deno.serve(async (req) => {
     const endpoint = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
     endpoint.searchParams.set("query", term);
     endpoint.searchParams.set("page", String(page));
-    endpoint.searchParams.set("size", "15");
+    endpoint.searchParams.set("size", String(Math.min(15, resultLimit)));
     endpoint.searchParams.set("sort", hasBounds ? "distance" : "accuracy");
     if (hasBounds && radius !== null) {
       endpoint.searchParams.set("x", String(longitude));
@@ -147,6 +149,7 @@ Deno.serve(async (req) => {
   for (const result of kakaoResults) {
     if (result.error) { errors.push(result.error); continue; }
     for (const item of result.payload?.documents ?? []) {
+      if (found.size >= resultLimit) break;
       const id = String(item.id ?? "");
       const name = String(item.place_name ?? "").trim();
       const lat = Number(item.y), lng = Number(item.x);
@@ -172,7 +175,7 @@ Deno.serve(async (req) => {
   }
 
   // Keep canonical IDs, but avoid serial RPC latency for each discovered studio.
-  const registrations = await Promise.all([...found.values()].map(async item => {
+  const registrations = await Promise.all([...found.values()].slice(0, resultLimit).map(async item => {
     const name = String(item.place_name).trim();
     const lat = Number(item.y), lng = Number(item.x);
     const address = String(item.road_address_name || item.address_name || "").trim() || null;
@@ -198,7 +201,7 @@ Deno.serve(async (req) => {
     if (error) errors.push("검색 결과 조회 실패: " + error.message.slice(0, 120));
     else studios = data ?? [];
   }
-  const responseBody = { query, queries, requestCount, found: found.size, registered: ids.length, radius, center: hasBounds ? { latitude, longitude } : null, studios, errors: errors.slice(0, 5) };
+  const responseBody = { query, limit: resultLimit, queries, requestCount, found: found.size, registered: ids.length, radius, center: hasBounds ? { latitude, longitude } : null, studios, errors: errors.slice(0, 5) };
   if (!errors.length) {
     if (SEARCH_CACHE.size >= 500) {
       const now = Date.now();
