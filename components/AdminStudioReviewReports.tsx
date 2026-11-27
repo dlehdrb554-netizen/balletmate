@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useState, useMemo} from "react";
+import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles } from "../lib/theme";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View, useColorScheme} from "react-native";
 import { supabase } from "../lib/supabase";
@@ -22,7 +23,7 @@ export default function AdminStudioReviewReports(){
       const {data,error}=await supabase.rpc("admin_list_studio_review_reports");
       if(error)throw error;
       setRows((Array.isArray(data)?data:[]) as ReviewReport[]);
-    }catch(e:any){Alert.alert("리뷰 신고 조회 실패",e?.message||"신고 목록을 불러오지 못했습니다.");}
+    }catch(e:any){Alert.alert("리뷰 신고 조회 실패",getUserErrorMessage(e,"신고 목록을 불러오지 못했습니다."));}
     finally{setLoading(false);}
   },[]);
   useEffect(()=>{void load();},[load]);
@@ -37,7 +38,7 @@ export default function AdminStudioReviewReports(){
       setRows(current=>current.map(item=>item.id===row.id?{
         ...item,status:action==="dismiss"?"dismissed":"actioned"
       }:item));
-    }catch(e:any){Alert.alert("리뷰 신고 처리 실패",e?.message||"신고를 처리하지 못했습니다.");}
+    }catch(e:any){Alert.alert("리뷰 신고 처리 실패",getUserErrorMessage(e,"신고를 처리하지 못했습니다."));}
     finally{setBusyId(null);}
   };
   const confirm=(row:ReviewReport,action:"hide"|"restore"|"dismiss")=>{
