@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import BottomSheet, {BottomSheetScrollView} from "@gorhom/bottom-sheet";
 import {Gesture, GestureDetector, GestureHandlerRootView} from "react-native-gesture-handler";
-import {runOnJS} from "react-native-reanimated";
+import Reanimated, {runOnJS, useAnimatedStyle, useSharedValue, withTiming} from "react-native-reanimated";
 import {themeStyles } from "../lib/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -212,6 +212,8 @@ export default function Home() {
   const detailTabs=["home","notices","classes","reviews","photos"] as const;
   const detailSheetRef=useRef<BottomSheet|null>(null);
   const detailTabRef=useRef(detailTab);detailTabRef.current=detailTab;
+  const detailSwipeTranslateX=useSharedValue(0);
+  const detailSwipeAnimatedStyle=useAnimatedStyle(()=>({transform:[{translateX:detailSwipeTranslateX.value}]}));
   const changeDetailTabBySwipe=useCallback((dx:number)=>{
     const index=detailTabs.indexOf(detailTabRef.current);
     const next=Math.max(0,Math.min(detailTabs.length-1,index+(dx<0?1:-1)));
@@ -221,9 +223,22 @@ export default function Home() {
     .activeOffsetX([-20,20])
     .failOffsetY([-14,14])
     .maxPointers(1)
+    .onUpdate(event=>{
+      detailSwipeTranslateX.value=Math.max(-24,Math.min(24,event.translationX*0.18));
+    })
     .onEnd(event=>{
-      if(Math.abs(event.translationX)<60||Math.abs(event.translationX)<Math.abs(event.translationY)*1.35)return;
-      runOnJS(changeDetailTabBySwipe)(event.translationX);
+      const dx=event.translationX;
+      if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(event.translationY)*1.35){
+        detailSwipeTranslateX.value=withTiming(0,{duration:150});
+        return;
+      }
+      const direction=dx<0?-1:1;
+      detailSwipeTranslateX.value=withTiming(direction*-18,{duration:80},finished=>{
+        if(finished){
+          runOnJS(changeDetailTabBySwipe)(dx);
+          detailSwipeTranslateX.value=withTiming(0,{duration:170});
+        }
+      });
     }),[changeDetailTabBySwipe]);
   useEffect(()=>{AsyncStorage.getItem("balletmate.mapProvider.v1").then(value=>{if(value==="google"||value==="kakao")setMapProvider(value);}).catch(()=>{});},[]);
   const saveStudioReview=async()=>{
@@ -1198,7 +1213,7 @@ export default function Home() {
 <View style={{flexDirection:"row",gap:4,marginTop:8,marginBottom:4}}>{([{id:"home",label:"홈"},{id:"notices",label:"소식"},{id:"classes",label:"수업정보"},{id:"reviews",label:"리뷰"},{id:"photos",label:"사진"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailTab(tab.id)} accessibilityRole="tab" accessibilityState={{selected:detailTab===tab.id}} style={{flex:1,minWidth:0,minHeight:48,paddingHorizontal:2,paddingVertical:8,borderRadius:10,backgroundColor:detailTab===tab.id?(isDark?"#3A2D50":COLORS.pale):(isDark?"#252525":COLORS.bg),alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:detailTab===tab.id?COLORS.purple:COLORS.line}}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={{fontSize:12,fontWeight:"800",color:detailTab===tab.id?(isDark?"#D8C6FF":COLORS.purple):(isDark?"#D0D0D0":COLORS.muted)}}>{tab.label}</Text></Pressable>)}</View>
 {!!detailContentError&&<View style={{marginHorizontal:12,marginBottom:8,padding:9,borderRadius:9,backgroundColor:isDark?"#2A2418":"#FFF8E8"}}><Text style={{fontSize:11,color:"#8B641B"}}>{detailContentError}</Text></View>}{detailCanonicalLoading&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,paddingVertical:8}}><ActivityIndicator size="small" color={COLORS.purple}/><Text style={styles.photoCredit}>학원 정보 동기화 중…</Text></View>}
 {!!detailCanonicalError&&<View style={{marginHorizontal:12,marginBottom:8,padding:10,borderRadius:10,backgroundColor:isDark?"#2A1C1C":"#FFF1F0",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{flex:1,fontSize:12,color:"#A53A35"}}>일부 상세 정보 갱신 실패</Text><Pressable disabled={detailCanonicalLoading} onPress={()=>retryCanonicalDetail(detailStudio!.id,detailRequestId.current)} style={{paddingHorizontal:10,paddingVertical:6,backgroundColor:"#FCE1DE",borderRadius:8}}><Text style={{fontSize:12,fontWeight:"800",color:"#A53A35"}}>재시도</Text></Pressable></View>}
-<GestureDetector gesture={detailHorizontalGesture}><View collapsable={false} style={{flex:1,minHeight:0}}>{detailStudio&&<>
+<GestureDetector gesture={detailHorizontalGesture}><Reanimated.View collapsable={false} style={[{flex:1,minHeight:0},detailSwipeAnimatedStyle]}>{detailStudio&&<>
  {detailTab==="home"&&<BottomSheetScrollView nestedScrollEnabled={Platform.OS==="android"} ref={ref=>{detailScrollRefs.current.home=ref;}} onScroll={({nativeEvent})=>{detailScrollPositions.current.home=nativeEvent.contentOffset.y;}} onContentSizeChange={()=>detailScrollRefs.current.home?.scrollTo({y:detailScrollPositions.current.home,animated:false})} scrollEventThrottle={16} nestedScrollEnabled={Platform.OS==="android"} style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(24,insets.bottom+24)}}>
    <Pressable onPress={()=>setDetailTab("photos")} style={{height:detailStudio.representativeImageUrl&&failedRepresentativeImageUrl!==detailStudio.representativeImageUrl?164:76,marginHorizontal:12,marginTop:6,borderRadius:14,overflow:"hidden",backgroundColor:isDark?"#292633":"#EAE7F0",alignItems:"center",justifyContent:"center"}}>
      {detailStudio.representativeImageUrl&&failedRepresentativeImageUrl!==detailStudio.representativeImageUrl?<Image source={{uri:detailStudio.representativeImageUrl}} style={{width:"100%",height:"100%",position:"absolute"}} resizeMode="cover" onError={()=>setFailedRepresentativeImageUrl(detailStudio.representativeImageUrl??null)}/>:<View style={{flexDirection:"row",alignItems:"center",gap:10}}><Ionicons name="images-outline" size={25} color={isDark?"#B7A7D5":COLORS.purple}/><Text style={{fontSize:12,color:isDark?"#C7C1D3":COLORS.muted}}>학원 사진이 아직 등록되지 않았어요</Text></View>}
@@ -1282,7 +1297,7 @@ export default function Home() {
 <View style={styles.classBlock}><Text style={styles.classTitle}>이 학원에 대한 리뷰</Text><Text style={styles.photoCredit}>{studioReviews.length?"평균 별점 "+(studioReviews.reduce((sum,row)=>sum+Number(row.rating),0)/studioReviews.length).toFixed(1)+" · 리뷰 "+studioReviews.length+"개":"첫 리뷰를 남겨주세요."}</Text>
 <Text style={styles.classMeta}>{reviewVerified?"수강 인증 완료 · 인증 배지가 표시됩니다.":"일반 리뷰 · 로그인 회원은 누구나 작성할 수 있습니다."} · 내 별점</Text><View style={{flexDirection:"row",gap:8,marginVertical:8}}>{[1,2,3,4,5].map(value=><Pressable key={value} onPress={()=>setReviewRating(value)}><Text style={{fontSize:28,color:value<=reviewRating?"#F2B544":"#D8D4E1"}}>★</Text></Pressable>)}</View><TextInput value={reviewText} onChangeText={setReviewText} placeholder="수업 분위기, 강사님, 시설 등에 대한 경험을 작성해 주세요." placeholderTextColor="#625E70" multiline maxLength={1000} textAlignVertical="top" style={styles.reportInput}/>{reviewText.trim().length>0&&reviewText.trim().length<5&&<Text style={{fontSize:11,color:"#B66B77",marginTop:-9,marginBottom:10}}>리뷰는 5자 이상 입력해 주세요. ({reviewText.trim().length}/5자)</Text>}<Pressable disabled={reviewSubmitting||reviewText.trim().length<5} style={[styles.applyButton,{minHeight:50,paddingVertical:15,marginBottom:14,opacity:reviewSubmitting||reviewText.trim().length<5?0.5:1}]} onPress={()=>{void startStudioReviewSubmission();}}><Text style={styles.applyText}>{reviewSubmitting?"등록 중…":"리뷰 등록 / 수정"}</Text></Pressable></View>
 <Pressable onPress={()=>setVerifiedReviewsOnly(v=>!v)} style={{marginHorizontal:14,marginTop:8,marginBottom:12,minHeight:46,paddingVertical:12,borderRadius:10,backgroundColor:verifiedReviewsOnly?COLORS.pale:"#F8F7FA",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>{verifiedReviewsOnly?"전체 리뷰 보기":"인증 후기만 보기"}</Text></Pressable>{reviewsLoading?<ActivityIndicator color={COLORS.purple} style={{margin:20}}/>:((verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).length?(verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).map((item:any)=><View key={String(item.id)} style={styles.classBlock}><Text style={styles.classTitle}>{"★".repeat(Number(item.rating))}{"☆".repeat(5-Number(item.rating))}</Text><Text style={styles.photoCredit}>{item.user_id===reviewUserId?"내 리뷰":"방문자 리뷰"} · {item.verified_at?"수강 인증":"일반 리뷰"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{item.content}</Text>{item.user_id!==reviewUserId&&<Pressable onPress={()=>Alert.alert("리뷰 신고","신고 사유를 선택해 주세요.",[{text:"광고/홍보",onPress:()=>submitReviewReport(item.id,"광고/홍보")},{text:"욕설/비방",onPress:()=>submitReviewReport(item.id,"욕설/비방")},{text:"허위 정보",onPress:()=>submitReviewReport(item.id,"허위 정보")},{text:"도배/스팸",onPress:()=>submitReviewReport(item.id,"도배/스팸")},{text:"기타",onPress:()=>submitReviewReport(item.id,"기타")},{text:"취소",style:"cancel"}])} style={{alignSelf:"flex-end",paddingVertical:8}}><Text style={{fontSize:11,color:COLORS.muted}}>신고</Text></Pressable>}</View>):<Text style={styles.filterHint}>아직 등록된 리뷰가 없습니다.</Text>)}</BottomSheetScrollView>}
-</>}</View></GestureDetector>
+</>}</Reanimated.View></GestureDetector>
 </BottomSheet></View></View></GestureHandlerRootView></Modal><Modal visible={reportOpen} transparent animationType="slide" onRequestClose={()=>setReportOpen(false)}>
       <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}><View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 정보 제보</Text><Pressable onPress={()=>setReportOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
