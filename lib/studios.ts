@@ -131,7 +131,7 @@ export function searchStudiosByName(query:string):Promise<StudioRecord[]> {
     if(/퀸스/.test(term)){variants.add(term.replace(/퀸스/g,"퀸즈"));variants.add(term.replace(/퀸스/g,"Queens"));variants.add("퀸즈발레");variants.add("퀸즈");}
     if(/퀸즈/.test(term)){variants.add(term.replace(/퀸즈/g,"퀸스"));variants.add(term.replace(/퀸즈/g,"Queens"));variants.add("퀸스발레");}
     if(/더블유|\bW\b|wballet/i.test(term)){variants.add(term.replace(/더블유/gi,"W"));variants.add(term.replace(/\bW\b/gi,"더블유"));variants.add("W발레");variants.add("더블유발레");variants.add("wballet");}
-    const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(100);
+    const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(300);
     const runSearch=async(needle:string)=>{
       let result=await searchQuery("studio_map_search_app_with_source",needle);
       if(result.error) {
