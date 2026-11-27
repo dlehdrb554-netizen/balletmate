@@ -211,12 +211,12 @@ export default function Home() {
   })).current;
   const detailTabs=["home","notices","classes","reviews","photos"] as const;
   const detailSheetRef=useRef<BottomSheet|null>(null);
+  const detailTabRef=useRef(detailTab);detailTabRef.current=detailTab;
   const changeDetailTabBySwipe=useCallback((dx:number)=>{
     const index=detailTabs.indexOf(detailTabRef.current);
     const next=Math.max(0,Math.min(detailTabs.length-1,index+(dx<0?1:-1)));
     if(next!==index)setDetailTab(detailTabs[next]);
   },[]);
-  const detailTabRef=useRef(detailTab);detailTabRef.current=detailTab;
   const detailHorizontalGesture=useMemo(()=>Gesture.Pan()
     .activeOffsetX([-20,20])
     .failOffsetY([-14,14])
@@ -1182,7 +1182,7 @@ export default function Home() {
   index={detailExpanded?1:0}
   snapPoints={["65%","92%"]}
   enableDynamicSizing={false}
-  enablePanDownToClose={false}
+  enablePanDownToClose
   enableContentPanningGesture
   enableHandlePanningGesture
   overDragResistanceFactor={2.5}
@@ -1190,7 +1190,7 @@ export default function Home() {
   topInset={Math.max(8,insets.top)}
   backgroundStyle={{backgroundColor:isDark?"#1D1D22":"#F0F0F3",borderTopLeftRadius:24,borderTopRightRadius:24}}
   handleIndicatorStyle={{width:64,height:7,backgroundColor:isDark?"#77717F":"#A8A3B0"}}
-  onChange={index=>setDetailExpanded(index===1)}
+  onChange={index=>{if(index<0){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);return;}setDetailExpanded(index===1);}}
   keyboardBehavior="interactive"
   android_keyboardInputMode="adjustResize"
 >
