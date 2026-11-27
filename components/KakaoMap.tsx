@@ -82,13 +82,13 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     currentSelected=selectedId||null;
     currentSearched=searchedIds||[];
     currentCompared=compareIds||[];
-    var keep={};
+    var keep={}, newMarkers=[];
     (list||[]).forEach(function(item){
       keep[item.id]=true;
       var pos=new kakao.maps.LatLng(item.latitude,item.longitude);
       if(!markers[item.id]){
         var marker=new kakao.maps.Marker({position:pos,image:pinImage(markerState(item.id,selectedId,currentSearched,currentCompared)),title:item.name});
-        if(clusterer)clusterer.addMarker(marker,true);else marker.setMap(map);
+        if(clusterer)newMarkers.push(marker);else marker.setMap(map);
         markerListeners[item.id]=function(){updateSelectedMarker(item.id);post({type:'marker',id:item.id});};
         kakao.maps.event.addListener(marker,'click',markerListeners[item.id]);
         markers[item.id]=marker;
@@ -102,6 +102,8 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
         markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,state:state};
       }
     });
+    // Batch marker registration to avoid repeated clusterer work for large search results.
+    if(clusterer&&newMarkers.length)clusterer.addMarkers(newMarkers,true);
     Object.keys(markers).forEach(function(id){if(!keep[id]){if(clusterer)clusterer.removeMarker(markers[id],true);kakao.maps.event.removeListener(markers[id],'click',markerListeners[id]);markers[id].setMap(null);delete markers[id];delete markerMeta[id];delete markerListeners[id];}});
     if(clusterer)clusterer.repaint();
     if(location && location.latitude!=null && location.longitude!=null){
