@@ -204,6 +204,7 @@ export default function Home() {
   const openDetailAction=useRef<(studio:Studio)=>void>(()=>{});
   const selectedCardPan=useRef(PanResponder.create({
     onStartShouldSetPanResponder:()=>false,
+    onStartShouldSetPanResponderCapture:()=>false,
     onMoveShouldSetPanResponder:(_,gesture)=>gesture.dy < -12 && Math.abs(gesture.dy)>Math.abs(gesture.dx)*1.2,
     onMoveShouldSetPanResponderCapture:(_,gesture)=>gesture.dy < -12 && Math.abs(gesture.dy)>Math.abs(gesture.dx)*1.2,
     onPanResponderRelease:(_,gesture)=>{const studio=selectedStudioForGesture.current;if(gesture.dy < -45 && studio)openDetailAction.current(studio);},
@@ -1117,7 +1118,7 @@ export default function Home() {
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:insets.bottom}]}>
-        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingHorizontal:14,paddingBottom:20}]}>
+        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingHorizontal:14,paddingBottom:Math.max(24,insets.bottom+24)}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>지역 선택</Text>
             <Pressable onPress={handleRegionPickerBack} hitSlop={10} style={{minWidth:64,alignItems:"flex-end"}}>
@@ -1125,7 +1126,7 @@ export default function Home() {
             </Pressable>
           </View>
           <Text style={styles.photoCredit}>지역을 누르면 해당 범위가 적용됩니다. 구·군을 선택하면 더 좁혀집니다.</Text>
-          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" overScrollMode="always" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:16}} scrollEventThrottle={16}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" overScrollMode="always" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:insets.bottom+32}} scrollEventThrottle={16}>
             <Pressable onPress={()=>{setRegionProvince("전체");setRegionCity("전체");setSelectedListRegion("전체");setExpandedProvince(null);setExpandedCity(null);setRegionPickerOpen(false);}} style={{paddingVertical:12,paddingHorizontal:12,borderRadius:9,backgroundColor:regionProvince==="전체"&&regionCity==="전체"&&selectedListRegion==="전체"?(isDark?"#292333":"#F2ECFF"):(isDark?"#242424":"#F8F7FA"),marginBottom:8}}>
               <Text style={{fontSize:13,fontWeight:"900",color:COLORS.purple}}>전국 전체</Text>
             </Pressable>
@@ -1180,11 +1181,11 @@ export default function Home() {
   keyboardBehavior="interactive"
   android_keyboardInputMode="adjustResize"
 >
-<View style={[styles.dragHeader,{paddingTop:4}]}><View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세 정보</Text><View style={{flexDirection:"row",alignItems:"center"}}><Pressable hitSlop={4} accessibilityRole="button" accessibilityLabel={detailExpanded?"상세정보 축소":"상세정보 확장"} style={{width:44,height:44,alignItems:"center",justifyContent:"center",borderRadius:14,backgroundColor:isDark?"#292633":"#F2EEF8"}} onPress={()=>detailSheetRef.current?.snapToIndex(detailExpanded?0:1)}><Ionicons name={detailExpanded?"chevron-down":"chevron-up"} size={22} color={isDark?"#E7E1F0":COLORS.purple}/></Pressable><Pressable hitSlop={4} accessibilityRole="button" accessibilityLabel="학원 상세정보 닫기" style={{width:44,height:44,marginLeft:6,alignItems:"center",justifyContent:"center",borderRadius:14,backgroundColor:isDark?"#292633":"#F2EEF8"}} onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}><Ionicons name="close" size={24} color={isDark?"#E7E1F0":COLORS.ink}/></Pressable></View></View><Text style={styles.dragHint}>내용을 위로 밀면 확장되고 · 좌우로 밀어 탭 이동</Text></View>
+<View style={[styles.dragHeader,{paddingTop:4,paddingHorizontal:12}]}><View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세 정보</Text><View style={{flexDirection:"row",alignItems:"center"}}><Pressable hitSlop={4} accessibilityRole="button" accessibilityLabel={detailExpanded?"상세정보 축소":"상세정보 확장"} style={{width:44,height:44,alignItems:"center",justifyContent:"center",borderRadius:14,backgroundColor:isDark?"#292633":"#F2EEF8"}} onPress={()=>detailSheetRef.current?.snapToIndex(detailExpanded?0:1)}><Ionicons name={detailExpanded?"chevron-down":"chevron-up"} size={22} color={isDark?"#E7E1F0":COLORS.purple}/></Pressable><Pressable hitSlop={4} accessibilityRole="button" accessibilityLabel="학원 상세정보 닫기" style={{width:44,height:44,marginLeft:6,alignItems:"center",justifyContent:"center",borderRadius:14,backgroundColor:isDark?"#292633":"#F2EEF8"}} onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}><Ionicons name="close" size={24} color={isDark?"#E7E1F0":COLORS.ink}/></Pressable></View></View><Text style={styles.dragHint}>내용을 위로 밀면 확장되고 · 좌우로 밀어 탭 이동</Text></View>
 <View style={{flexDirection:"row",gap:4,marginTop:8,marginBottom:4,marginHorizontal:12}}>{([{id:"home",label:"홈"},{id:"notices",label:"소식"},{id:"classes",label:"수업정보"},{id:"reviews",label:"리뷰"},{id:"photos",label:"사진"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>setDetailTab(tab.id)} accessibilityRole="tab" accessibilityState={{selected:detailTab===tab.id}} style={{flex:1,minWidth:0,minHeight:48,paddingHorizontal:2,paddingVertical:8,borderRadius:10,backgroundColor:detailTab===tab.id?(isDark?"#3A2D50":COLORS.pale):(isDark?"#252525":COLORS.bg),alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:detailTab===tab.id?COLORS.purple:COLORS.line}}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={{fontSize:12,fontWeight:"800",color:detailTab===tab.id?(isDark?"#D8C6FF":COLORS.purple):(isDark?"#D0D0D0":COLORS.muted)}}>{tab.label}</Text></Pressable>)}</View>
 {!!detailContentError&&<View style={{marginHorizontal:12,marginBottom:8,padding:9,borderRadius:9,backgroundColor:isDark?"#2A2418":"#FFF8E8"}}><Text style={{fontSize:11,color:"#8B641B"}}>{detailContentError}</Text></View>}{detailCanonicalLoading&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,paddingVertical:8}}><ActivityIndicator size="small" color={COLORS.purple}/><Text style={styles.photoCredit}>학원 정보 동기화 중…</Text></View>}
 {!!detailCanonicalError&&<View style={{marginHorizontal:12,marginBottom:8,padding:10,borderRadius:10,backgroundColor:isDark?"#2A1C1C":"#FFF1F0",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={{flex:1,fontSize:12,color:"#A53A35"}}>일부 상세 정보 갱신 실패</Text><Pressable disabled={detailCanonicalLoading} onPress={()=>retryCanonicalDetail(detailStudio!.id,detailRequestId.current)} style={{paddingHorizontal:10,paddingVertical:6,backgroundColor:"#FCE1DE",borderRadius:8}}><Text style={{fontSize:12,fontWeight:"800",color:"#A53A35"}}>재시도</Text></Pressable></View>}
-<GestureDetector gesture={detailHorizontalGesture}><View collapsable={false} style={{flex:1,minHeight:0,width:"100%",alignSelf:"stretch"}}>{detailStudio&&<>
+<GestureDetector gesture={detailHorizontalGesture}><View collapsable={false} style={{flex:1,minHeight:0,width:"100%",alignSelf:"stretch",paddingHorizontal:12}}>{detailStudio&&<>
  {detailTab==="home"&&<BottomSheetScrollView ref={detailScrollRef} onScroll={handleDetailScroll}  nestedScrollEnabled={Platform.OS==="android"} style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:Math.max(72,insets.bottom+72)}}>
    <Pressable onPress={()=>setDetailTab("photos")} style={{height:detailStudio.representativeImageUrl&&failedRepresentativeImageUrl!==detailStudio.representativeImageUrl?164:76,marginHorizontal:12,marginTop:6,borderRadius:14,overflow:"hidden",backgroundColor:isDark?"#292633":"#EAE7F0",alignItems:"center",justifyContent:"center"}}>
      {detailStudio.representativeImageUrl&&failedRepresentativeImageUrl!==detailStudio.representativeImageUrl?<Image source={{uri:detailStudio.representativeImageUrl}} style={{width:"100%",height:"100%",position:"absolute"}} resizeMode="cover" onError={()=>setFailedRepresentativeImageUrl(detailStudio.representativeImageUrl??null)}/>:<View style={{flexDirection:"row",alignItems:"center",gap:10}}><Ionicons name="images-outline" size={25} color={isDark?"#B7A7D5":COLORS.purple}/><Text style={{fontSize:12,color:isDark?"#C7C1D3":COLORS.muted}}>학원 사진이 아직 등록되지 않았어요</Text></View>}
@@ -1281,14 +1282,14 @@ export default function Home() {
 
     <Modal visible={filterOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setFilterOpen(false)}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:insets.bottom}]}>
-        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingBottom:20}]}>
+        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingBottom:Math.max(24,insets.bottom+24)}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>검색 필터</Text>
             <Pressable onPress={()=>setFilterOpen(false)} hitSlop={10} style={{width:40,height:40,alignItems:"center",justifyContent:"center"}}>
               <Text style={styles.dismissText}>×</Text>
             </Pressable>
           </View>
-          <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingBottom:16}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator>
+          <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingBottom:insets.bottom+32}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator>
             <Text style={styles.sectionTitle}>대상</Text><View style={styles.filterChoices}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/></View>
             <Text style={styles.sectionTitle}>수준</Text><View style={styles.filterChoices}>{["입문","초급","중급","고급"].map(v=><Chip key={v} label={v} active={level===v} onPress={()=>setLevel(level===v?null:v)}/>)}</View>
             <Text style={styles.sectionTitle}>수업 유형</Text><View style={styles.filterChoices}>{classTypeOptions.length?classTypeOptions.map(v=><Chip key={v} label={v} active={classTypeFilter===v} onPress={()=>setClassTypeFilter(classTypeFilter===v?null:v)}/>):<Text style={styles.filterHint}>등록된 수업 유형 정보가 없습니다.</Text>}</View>
