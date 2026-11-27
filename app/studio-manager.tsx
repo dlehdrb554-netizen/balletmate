@@ -7,6 +7,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as XLSX from "xlsx";
+import { parseClassExcel, type ParsedClass } from "../lib/excel-mapper";
 import { invalidateStudioPublicMaterials } from "../lib/studio-public-materials";
 import { searchStudiosByName } from "../lib/studios";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -69,7 +70,8 @@ export default function StudioManager(){
  const [classLevel,setClassLevel]=useState("");
  const [classType,setClassType]=useState("");
  const [classDuration,setClassDuration]=useState("60");
- const [classImportRows,setClassImportRows]=useState<any[]>([]);
+ const [classImportRows,setClassImportRows]=useState<ParsedClass[]>([]);
+ const [classImportUnmapped,setClassImportUnmapped]=useState<string[]>([]);
  const [classImportErrors,setClassImportErrors]=useState<string[]>([]);
  const [classImportOpen,setClassImportOpen]=useState(false);
  const [classImportBusy,setClassImportBusy]=useState(false);
@@ -212,61 +214,45 @@ export default function StudioManager(){
    if(picked.canceled||!picked.assets?.[0])return;
    const asset=picked.assets[0];
    const base64=await FileSystem.readAsStringAsync(asset.uri,{encoding:FileSystem.EncodingType.Base64});
-   const workbook=XLSX.read(base64,{type:"base64"});
-   const sheet=workbook.Sheets[workbook.SheetNames[0]];
-   if(!sheet)throw new Error("첫 번째 시트를 찾을 수 없습니다.");
-   const rawRows=XLSX.utils.sheet_to_json<Record<string,unknown>>(sheet,{defval:"",raw:false});
-   if(!rawRows.length)throw new Error("엑셀에 등록할 수업 데이터가 없습니다.");
-   const normalize=(value:string)=>value.toLowerCase().replace(/[\s_()·\[\]]/g,"");
-   const find=(row:Record<string,unknown>,aliases:string[])=>{
-    const key=Object.keys(row).find(k=>aliases.includes(normalize(k)));
-    return key===undefined?"":String(row[key]??"").trim();
-   };
-   const seen=new Set<string>();
-   const errors:string[]=[];
-   const parsed:any[]=[];
-   rawRows.forEach((row,index)=>{
-    const line=index+2;
-    const title=find(row,["수업명","수업이름","클래스명","title","classname","class"]);
-    const audienceText=find(row,["대상","수업대상","연령","audience"]);
-    const level=find(row,["수준","레벨","난이도","level"]);
-    const type=find(row,["유형","수업유형","종류","classtype","type"]);
-    const durationText=find(row,["수업시간분","수업시간","시간분","duration","durationminutes","분"]);
-    if(!title){errors.push(line+"행: 수업명이 비어 있어 제외했습니다.");return;}
-    let audience:"adult"|"kids"|"all"="all";
-    if(/성인|adult|어른/i.test(audienceText))audience="adult";
-    else if(/키즈|아동|어린이|유아|kids|child/i.test(audienceText))audience="kids";
-    else if(audienceText&&!/전체|모두|all/i.test(audienceText)){errors.push(line+"행: 대상 값은 성인·키즈·전체 중 하나여야 합니다.");return;}
-    const duration=durationText?Number(durationText.replace(/[^0-9.]/g,"")):60;
-    if(!Number.isInteger(duration)||duration<10||duration>240){errors.push(line+"행: 수업 시간은 10~240분으로 입력해 주세요.");return;}
-    const key=title.toLocaleLowerCase();
-    if(seen.has(key)){errors.push(line+"행: 파일 안에 같은 수업명이 있어 중복 제외했습니다.");return;}
-    seen.add(key);
-    parsed.push({title:title.slice(0,100),audience,level:level||null,class_type:type||null,duration_minutes:duration,is_active:true});
-   });
-   if(!parsed.length)throw new Error("등록 가능한 수업이 없습니다. 수업명과 수업 시간 열을 확인해 주세요.");
+   const result=parseClassExcel(base64);
+   if(!result.rows.length)throw new Error(result.errors.map(item=>item.row+"행: "+item.reason).join("\\n")||"등록 가능한 수업이 없습니다.");
    const {data:existing,error}=await supabase.from("classes").select("title").eq("studio_id",studioId);
    if(error)throw error;
-   const existingTitles=new Set((existing||[]).map((x:any)=>String(x.title||"").trim().toLocaleLowerCase()));
-   const unique=parsed.filter(row=>{const key=row.title.toLocaleLowerCase();if(existingTitles.has(key)){errors.push("기존 등록 수업과 중복되어 제외: "+row.title);return false;}return true;});
-   setClassImportRows(unique);setClassImportErrors(errors);
+   const existingTitles=new Set((existing||[]).map((item:any)=>String(item.title||"").trim().toLocaleLowerCase()));
+   const errors=result.errors.map(item=>item.row+"행: "+item.reason);
+   const unique=result.rows.filter(row=>{
+    if(existingTitles.has(row.title.toLocaleLowerCase())){errors.push(row.source_row+"행: 기존 등록 수업과 중복되어 제외했습니다.");return false;}
+    return true;
+   });
+   setClassImportRows(unique);setClassImportErrors(errors);setClassImportUnmapped(result.unmappedHeaders);
    if(!unique.length)throw new Error("새로 등록할 수업이 없습니다. 기존 수업과 중복 여부를 확인해 주세요.");
    setClassImportOpen(true);
-  }catch(error:any){Alert.alert("엑셀 읽기 실패",error?.message||"파일 형식이나 양식의 열 이름을 확인해 주세요.");}
+  }catch(error:any){Alert.alert("엑셀 읽기 실패",error?.message||"파일 형식이나 열 이름을 확인해 주세요.");}
+ };
+ const toggleImportRow=(sourceRow:number)=>{
+  setClassImportRows(current=>current.map(row=>row.source_row===sourceRow?{...row,selected:!row.selected}:row));
+ };
+ const toggleAllImportRows=(selected:boolean)=>{
+  setClassImportRows(current=>current.map(row=>({...row,selected})));
  };
  const confirmImportClasses=async()=>{
-  if(!supabase||!owner||!classImportRows.length||classImportBusy)return;
+  if(!supabase||!owner||!classImportRows.some(row=>row.selected)||classImportBusy)return;
   setClassImportBusy(true);
   try{
-   const payload=classImportRows.map(row=>({studio_id:studioId,...row}));
-   const {error}=await supabase.from("classes").insert(payload);
+   const selectedRows=classImportRows.filter(row=>row.selected);
+   const payload=selectedRows.map(row=>({
+    title:row.title,audience:row.audience,level:row.level,class_type:row.class_type,
+    duration_minutes:row.duration_minutes,price:row.price,instructor:row.instructor,
+    sessions:row.sessions,
+   }));
+   const {data,error}=await supabase.rpc("owner_bulk_import_classes",{p_studio_id:studioId,p_rows:payload});
    if(error)throw error;
    invalidateClassesForStudio(studioId);
-   const count=payload.length;
-   setClassImportOpen(false);setClassImportRows([]);setClassImportErrors([]);
+   const count=Number(data)||selectedRows.length;
+   setClassImportOpen(false);setClassImportRows([]);setClassImportErrors([]);setClassImportUnmapped([]);
    Alert.alert("일괄 등록 완료",count+"개 수업을 등록했습니다.");
    await load();
-  }catch(error:any){Alert.alert("일괄 등록 실패",error?.message||"수업을 등록하지 못했습니다. 기존 수업은 유지됩니다.");}
+  }catch(error:any){Alert.alert("일괄 등록 실패",error?.message||"수업 및 시간표를 등록하지 못했습니다. 데이터는 트랜잭션으로 보호됩니다.");}
   finally{setClassImportBusy(false);}
  };
  const toggleClassSelection=(id:string)=>{
@@ -595,11 +581,15 @@ export default function StudioManager(){
  </ScrollView>
  <Modal visible={classImportOpen} transparent animationType="slide" onRequestClose={()=>{if(!classImportBusy)setClassImportOpen(false);}}>
   <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.42)"}}><Pressable style={{flex:1}} onPress={()=>{if(!classImportBusy)setClassImportOpen(false);}}/>
-   <View style={{maxHeight:"82%",padding:18,paddingBottom:28,borderTopLeftRadius:22,borderTopRightRadius:22,backgroundColor:isDark?"#211E29":"#FFFFFF"}}>
+   <View style={{maxHeight:"86%",padding:18,paddingBottom:28,borderTopLeftRadius:22,borderTopRightRadius:22,backgroundColor:isDark?"#211E29":"#FFFFFF"}}>
     <Text style={{fontSize:18,fontWeight:"900",color:isDark?"#F3EFFA":C.ink}}>엑셀 등록 미리보기</Text>
-    <Text style={s.body}>등록 예정 {classImportRows.length}개 · 제외 {classImportErrors.length}개</Text>
-    <ScrollView style={{marginTop:10}}>{classImportRows.map((row,index)=><View key={index} style={s.item}><Text style={s.itemTitle}>{row.title}</Text><Text style={s.body}>{row.audience==="kids"?"키즈":row.audience==="adult"?"성인":"전체"} · {row.level||"수준 미입력"} · {row.class_type||"유형 미입력"} · {row.duration_minutes}분</Text></View>)}{classImportErrors.map((error,index)=><Text key={"error"+index} style={{fontSize:11,color:C.red,marginTop:7}}>{error}</Text>)}</ScrollView>
-    <Pressable disabled={classImportBusy} onPress={confirmImportClasses} style={{marginTop:12,padding:15,borderRadius:11,backgroundColor:C.purple,alignItems:"center"}}><Text style={{fontSize:13,fontWeight:"900",color:"#FFFFFF"}}>{classImportBusy?"등록 중…":classImportRows.length+"개 수업 한 번에 등록"}</Text></Pressable>
+    <Text style={s.body}>선택 {classImportRows.filter(row=>row.selected).length}개 / 전체 {classImportRows.length}개 · 오류 {classImportErrors.length}개</Text>
+    {classImportUnmapped.length>0&&<View style={{padding:10,marginTop:8,borderRadius:9,backgroundColor:isDark?"#3A3020":"#FFF4D9"}}><Text style={{fontSize:11,color:isDark?"#FFE0A3":"#78520A",fontWeight:"800"}}>인식하지 못한 열: {classImportUnmapped.join(", ")}</Text><Text style={{fontSize:10,color:isDark?"#E8D4AD":"#78520A",marginTop:3}}>해당 열은 등록하지 않습니다.</Text></View>}
+    <Pressable onPress={()=>toggleAllImportRows(classImportRows.some(row=>!row.selected))} style={{paddingVertical:10}}><Text style={{fontSize:12,color:C.purple,fontWeight:"900"}}>{classImportRows.every(row=>row.selected)?"전체 선택 해제":"전체 선택"}</Text></Pressable>
+    <ScrollView style={{marginTop:2}}>{classImportRows.map(row=><Pressable key={row.source_row} onPress={()=>toggleImportRow(row.source_row)} style={[s.item,{opacity:row.selected?1:0.48,borderWidth:1,borderColor:row.selected?C.purple:C.line,borderRadius:10,marginBottom:7,padding:10}]}>
+     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><View style={{flex:1}}><Text style={s.itemTitle}>{row.title}</Text><Text style={s.body}>{row.audience==="kids"?"키즈":row.audience==="adult"?"성인":"전체"} · {row.level||"수준 미입력"} · {row.class_type||"유형 미입력"} · {row.duration_minutes}분</Text><Text style={s.body}>{row.sessions.length?row.sessions.map(session=>["일","월","화","수","목","금","토"][session.weekday]+" "+session.start_time).join(" / "):"시간표 미등록"} · {row.price===null?"가격 미입력":row.price.toLocaleString()+"원"}</Text>{row.warnings.map((warning,index)=><Text key={index} style={{fontSize:10,color:"#B7791F",marginTop:3}}>⚠ {warning}</Text>)}</View><Text style={{fontSize:20,color:row.selected?C.purple:C.muted,marginLeft:8}}>{row.selected?"☑":"□"}</Text></View>
+    </Pressable>)}{classImportErrors.map((error,index)=><Text key={"error"+index} style={{fontSize:11,color:C.red,marginTop:7}}>{error}</Text>)}</ScrollView>
+    <Pressable disabled={classImportBusy||!classImportRows.some(row=>row.selected)} onPress={confirmImportClasses} style={{marginTop:12,padding:15,borderRadius:11,backgroundColor:C.purple,alignItems:"center",opacity:classImportRows.some(row=>row.selected)?1:0.5}}><Text style={{fontSize:13,fontWeight:"900",color:"#FFFFFF"}}>{classImportBusy?"등록 중…":classImportRows.filter(row=>row.selected).length+"개 선택 항목 등록"}</Text></Pressable>
     <Pressable disabled={classImportBusy} onPress={()=>setClassImportOpen(false)} style={{padding:12,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:C.muted}}>취소</Text></Pressable>
    </View>
   </View>
