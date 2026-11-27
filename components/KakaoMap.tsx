@@ -40,7 +40,7 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="color-scheme" content="${darkMode ? "dark" : "light"}">
-<style>*{box-sizing:border-box}html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background-color:${initialSurface}} .load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7661D8;font:14px sans-serif;background:${initialSurface};z-index:2}</style>
+<style>*{box-sizing:border-box}html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background-color:${initialSurface}}#map img[src*="map_2d"]{filter:${darkMode ? "brightness(0.68) saturate(0.82)" : "none"}} .load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7661D8;font:14px sans-serif;background:${initialSurface};z-index:2}</style>
 </head>
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
@@ -58,9 +58,9 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
   function pinImage(state){
     state=state||'default';
     if(cachedPinImages[state])return cachedPinImages[state];
-    var colors={selected:'#FF5A1F',searched:'#168CCB',compared:'#15966A',default:'#A58BEA'};
+    var colors={selected:'#FF5A1F',searched:'#168CCB',compared:'#15966A',default:'#B99CFF'};
     var color=colors[state]||colors.default;
-    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11 16 24 16 24s16-13 16-24C33 8.2 25.8 1 17 1z" fill="'+color+'" stroke="white" stroke-width="2"/><circle cx="17" cy="17" r="5" fill="white"/></svg>';
+    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11 16 24 16 24s16-13 16-24C33 8.2 25.8 1 17 1z" fill="'+color+'" stroke="white" stroke-width="2.5"/><circle cx="17" cy="17" r="5" fill="white"/></svg>';
     cachedPinImages[state]=new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
     return cachedPinImages[state];
   }
@@ -136,41 +136,19 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     var center=map.getCenter(), bounds=map.getBounds(), sw=bounds.getSouthWest(), ne=bounds.getNorthEast();
     post({type:'region',region:{latitude:center.getLat(),longitude:center.getLng(),latitudeDelta:Math.max(0.002,ne.getLat()-sw.getLat()),longitudeDelta:Math.max(0.002,ne.getLng()-sw.getLng())}});
   }
-  var darkTilesetRegistered=false;
-  var darkOverlayActive=false;
-  function registerDarkTileset(){
-    if(darkTilesetRegistered)return;
-    kakao.maps.Tileset.add('BALLET_DARK_DIM',new kakao.maps.Tileset({
-      width:256,
-      height:256,
-      getTile:function(){
-        var tile=document.createElement('div');
-        tile.style.width='256px';
-        tile.style.height='256px';
-        tile.style.background='rgba(12,14,20,0.34)';
-        tile.style.pointerEvents='none';
-        return tile;
-      }
-    }));
-    darkTilesetRegistered=true;
-  }
   function setDarkMode(enabled){
     darkModeEnabled=!!enabled;
     var load=document.getElementById('load');
     var surface=darkModeEnabled?'#1C1C1E':'#F2F2F7';
-    document.documentElement.style.background=surface;
-    document.body.style.background=surface;
-    document.getElementById('map').style.background=surface;
-    if(load)load.style.background=surface;
-    if(!map)return;
-    registerDarkTileset();
-    if(darkModeEnabled&&!darkOverlayActive){
-      map.addOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
-      darkOverlayActive=true;
-    }else if(!darkModeEnabled&&darkOverlayActive){
-      map.removeOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
-      darkOverlayActive=false;
-    }
+    var tileFilter=darkModeEnabled?'brightness(0.68) saturate(0.82)':'none';
+    document.documentElement.style.backgroundColor=surface;
+    document.documentElement.style.colorScheme=darkModeEnabled?'dark':'light';
+    document.body.style.backgroundColor=surface;
+    document.getElementById('map').style.backgroundColor=surface;
+    document.getElementById('map').querySelectorAll('img[src*="map_2d"]').forEach(function(tile){tile.style.filter=tileFilter;});
+    if(load)load.style.backgroundColor=surface;
+    var colorScheme=document.querySelector('meta[name="color-scheme"]');
+    if(colorScheme)colorScheme.setAttribute('content',darkModeEnabled?'dark':'light');
   }
   function apply(message){
     if(!map){pending.push(message);return;}
