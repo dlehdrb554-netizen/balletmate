@@ -85,6 +85,8 @@ export default function Community(){
  const [keyboardVisible,setKeyboardVisible]=useState(false);
  const [limitedPhotoAccess,setLimitedPhotoAccess]=useState(false);
  const [uploadProgress,setUploadProgress]=useState({completed:0,total:0});
+ const [photoUploadStatus,setPhotoUploadStatus]=useState<Record<string,{state:"uploading"|"failed"|"done";percent:number;message?:string}>>({});
+ const [uploadedPhotoFiles,setUploadedPhotoFiles]=useState<Record<string,{url:string;path:string}>>({});
  const [composerPhotoPreview,setComposerPhotoPreview]=useState<number|null>(null);
  const [userId,setUserId]=useState<string|null>(null);
   const [isAdmin,setIsAdmin]=useState(false);
@@ -255,29 +257,35 @@ export default function Community(){
   setEditorBlocks(current=>current.map(block=>{if(block.type!=="image"||block.photoIndex===undefined)return block;let photoIndex=block.photoIndex;if(photoIndex===from)photoIndex=to;else if(from<to&&photoIndex>from&&photoIndex<=to)photoIndex--;else if(from>to&&photoIndex>=to&&photoIndex<from)photoIndex++;return {...block,photoIndex};}));
   setFinalConfirmed(false);
  };
- const uploadCommunityPhotos=async()=>{
-  if(!supabase||!userId)return {urls:[] as string[],paths:[] as string[]};
-  const urls:string[]=[],paths:string[]=[];
-  setUploadProgress({completed:0,total:selectedPhotos.length});
+ const uploadOnePhoto=async(index:number)=>{
+  if(!supabase||!userId)throw new Error("로그인이 필요합니다.");
+  const asset=selectedPhotos[index];if(!asset)throw new Error("사진을 찾을 수 없습니다.");
+  const key=asset.assetId||asset.uri;const cached=uploadedPhotoFiles[key];if(cached)return cached;
+  setPhotoUploadStatus(current=>({...current,[key]:{state:"uploading",percent:0}}));
   try{
-   for(let index=0;index<selectedPhotos.length;index++){
-    const asset=selectedPhotos[index];
-    const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1440}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
-    const response=await fetch(optimized.uri);
-    if(!response.ok)throw new Error("사진 파일을 읽지 못했습니다.");
-    const bytes=await response.arrayBuffer();
-    const path=`${userId}/${Date.now()}-${index}-${Math.random().toString(36).slice(2,8)}.jpg`;
-    const {error}=await supabase.storage.from("community-photos").upload(path,bytes,{contentType:"image/jpeg",upsert:false});
-    if(error)throw error;
-    paths.push(path);
-    urls.push(supabase.storage.from("community-photos").getPublicUrl(path).data.publicUrl);
-    setUploadProgress({completed:index+1,total:selectedPhotos.length});
-   }
-   return {urls,paths};
-  }catch(error){
-   if(paths.length)await supabase.storage.from("community-photos").remove(paths);
-   throw error;
-  }
+   const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1440}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
+   const response=await fetch(optimized.uri);if(!response.ok)throw new Error("사진 파일을 읽지 못했습니다.");
+   const blob=await response.blob();
+   const {data:sessionData,error:sessionError}=await supabase.auth.getSession();if(sessionError||!sessionData.session)throw new Error("로그인 세션을 확인할 수 없습니다.");
+   const baseUrl=process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();const anonKey=process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();if(!baseUrl||!anonKey)throw new Error("업로드 설정을 확인할 수 없습니다.");
+   const path=`${userId}/${Date.now()}-${index}-${Math.random().toString(36).slice(2,8)}.jpg`;
+   const encodedPath=path.split("/").map(encodeURIComponent).join("/");
+   await new Promise<void>((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();xhr.open("POST",`${baseUrl}/storage/v1/object/community-photos/${encodedPath}`);
+    xhr.setRequestHeader("apikey",anonKey);xhr.setRequestHeader("Authorization",`Bearer ${sessionData.session!.access_token}`);xhr.setRequestHeader("Content-Type","image/jpeg");xhr.setRequestHeader("x-upsert","false");
+    xhr.upload.onprogress=event=>{if(event.lengthComputable)setPhotoUploadStatus(current=>({...current,[key]:{state:"uploading",percent:Math.round(event.loaded/event.total*100)}}));};
+    xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)resolve();else reject(new Error(xhr.responseText||`업로드 실패 (${xhr.status})`));};
+    xhr.onerror=()=>reject(new Error("네트워크 연결을 확인해 주세요."));xhr.ontimeout=()=>reject(new Error("업로드 시간이 초과됐습니다."));xhr.timeout=120000;xhr.send(blob);
+   });
+   const uploaded={url:supabase.storage.from("community-photos").getPublicUrl(path).data.publicUrl,path};
+   setUploadedPhotoFiles(current=>({...current,[key]:uploaded}));setPhotoUploadStatus(current=>({...current,[key]:{state:"done",percent:100}}));return uploaded;
+  }catch(error:any){setPhotoUploadStatus(current=>({...current,[key]:{state:"failed",percent:0,message:error?.message||"업로드에 실패했습니다."}}));throw error;}
+ };
+ const retryPhotoUpload=async(index:number)=>{try{await uploadOnePhoto(index);}catch(error:any){Alert.alert("사진 업로드 실패",error?.message||"해당 사진을 다시 시도해 주세요.");}};
+ const uploadCommunityPhotos=async()=>{
+  const urls:string[]=[],paths:string[]=[];setUploadProgress({completed:0,total:selectedPhotos.length});
+  for(let index=0;index<selectedPhotos.length;index++){const uploaded=await uploadOnePhoto(index);urls.push(uploaded.url);paths.push(uploaded.path);setUploadProgress({completed:index+1,total:selectedPhotos.length});}
+  return {urls,paths};
  };
  const submitPost=async()=>{
   if(!userId){requireLogin();return;}
@@ -289,11 +297,11 @@ export default function Community(){
    const uploaded=await uploadCommunityPhotos();uploadedPaths=uploaded.paths;
    const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:serializedContent,image_urls:uploaded.urls});
    if(error)throw error;
-   setComposer(false);setTitle("");setBody("");setEditorBlocks([{id:"text-0",type:"text",value:""}]);activeEditorBlockId.current="text-0";setFocusEditorBlockId(null);setSelectedPhotos([]);setPhotoCaptions([]);setLoading(true);
+   setComposer(false);setTitle("");setBody("");setEditorBlocks([{id:"text-0",type:"text",value:""}]);activeEditorBlockId.current="text-0";setFocusEditorBlockId(null);setSelectedPhotos([]);setPhotoCaptions([]);setUploadedPhotoFiles({});setPhotoUploadStatus({});setLoading(true);
    if(category!=="전체")setCategory("전체");else await loadPosts();
    Alert.alert("등록 완료","게시글이 등록되었습니다.");
   }catch(error:any){
-   if(uploadedPaths.length)await supabase.storage.from("community-photos").remove(uploadedPaths).catch(()=>{});
+   if(uploadedPaths.length){await supabase.storage.from("community-photos").remove(uploadedPaths).catch(()=>{});setUploadedPhotoFiles({});setPhotoUploadStatus({});}
    explainError(error);
   }finally{setSubmitting(false);setUploadProgress({completed:0,total:0});}
  };
