@@ -566,7 +566,8 @@ export default function Home() {
        if(searchable.includes(normalizedLiveQuery))unique.set(studio.id,studio);
      });
      return [...unique.values()].filter(studio=>!isExcludedStudioSearchResult(studio.name))
-       .sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+       .sort((a,b)=>a.name.localeCompare(b.name,"ko"))
+       .slice(0,10);
    },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
      const normalizedSearch=deferredSearch.trim().toLowerCase();
   const mapSearchFilter=committedSearch.trim().toLowerCase();
