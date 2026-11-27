@@ -85,7 +85,8 @@ begin
  end if;
  normalized_name:=lower(regexp_replace(trim(p_name),'[^a-z0-9가-힣]','','g'));
  normalized_phone:=regexp_replace(coalesce(p_phone,''),'[^0-9]','','g');
- normalized_url:=nullif(regexp_replace(trim(coalesce(p_place_url,'')),'/+ if normalized_url is not null then
+ normalized_url:=nullif(regexp_replace(trim(coalesce(p_place_url,'')),'/+
+ if normalized_url is not null then
   select s.id into new_id from public.studios s
   where regexp_replace(trim(coalesce(s.source_url,'')),'/+$','')=normalized_url
   order by s.created_at asc limit 1;
@@ -114,10 +115,8 @@ begin
  return query select true,new_id;
 end $$;
 revoke all on function public.register_discovered_studio(text,double precision,double precision,text,text,text,text) from public;
-grant execute on function public.register_discovered_studio(text,double precision,double precision,text,text,text,text) to service_role;
-,''),'');
-
- -- A deleted Kakao place is a permanent opt-out until an administrator re-enables it.
+grant execute on function public.register_discovered_studio(text,double precision,double precision,text,text,text,text) to service_role;,''),'');
+ -- Block previously deleted studios before attempting any match or insert.
  if exists (
   select 1 from public.studio_discovery_exclusions e
   where e.is_active=true and (
