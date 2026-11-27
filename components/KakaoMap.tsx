@@ -33,17 +33,19 @@ type Props = {
 
 const JS_KEY = String(Constants.expoConfig?.extra?.kakaoJavascriptKey ?? "");
 
-function buildHtml(initialRegion: MapRegion) {
+function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
+  const initialSurface = darkMode ? "#18181B" : "#f4f1f8";
   const center = JSON.stringify({ lat: initialRegion.latitude, lng: initialRegion.longitude });
   const level = Math.max(1, Math.min(14, Math.round(7 + Math.log2(initialRegion.latitudeDelta / 0.06))));
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<style>html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background:#f4f1f8} .load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7661D8;font:14px sans-serif;background:#f4f1f8;z-index:2}</style>
+<meta name="color-scheme" content="${darkMode ? "dark" : "light"}">
+<style>*{box-sizing:border-box}html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background:${initialSurface}} .load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7661D8;font:14px sans-serif;background:${initialSurface};z-index:2}</style>
 </head>
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
-  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkModeEnabled=false, regionTimer=null;
+  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkModeEnabled=${JSON.stringify(darkMode)}, regionTimer=null;
   var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
@@ -156,6 +158,7 @@ function buildHtml(initialRegion: MapRegion) {
     darkModeEnabled=!!enabled;
     var load=document.getElementById('load');
     var surface=darkModeEnabled?'#18181B':'#f4f1f8';
+    document.documentElement.style.background=surface;
     document.body.style.background=surface;
     document.getElementById('map').style.background=surface;
     if(load)load.style.background=surface;
@@ -242,7 +245,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   const webRef = useRef<WebView>(null);
   const mapReady = useRef(false);
   const pendingMessages = useRef<string[]>([]);
-  const html = useRef(buildHtml(initialRegion)).current;
+  const html = useRef(buildHtml(initialRegion, darkMode)).current;
   const sendToMap = useCallback((message: unknown) => {
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
@@ -301,6 +304,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
       <WebView
         ref={webRef}
         source={{ html, baseUrl: "https://localhost" }}
+        backgroundColor={darkMode ? "#18181B" : "#f4f1f8"}
         originWhitelist={["*"]}
         javaScriptEnabled
         domStorageEnabled
@@ -311,7 +315,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
           // The page may have loaded while the Kakao SDK is still initializing.
           // The explicit {type:"ready"} message flushes all queued commands.
         }}
-        style={styles.webview}
+        style={[styles.webview, { backgroundColor: darkMode ? "#18181B" : "#f4f1f8" }]}
       />
     </View>
   );
@@ -319,5 +323,5 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
 export default KakaoMap;
 const styles = StyleSheet.create({
   container: { flex: 1, overflow: "hidden" },
-  webview: { flex: 1, backgroundColor: "transparent" },
+  webview: { flex: 1 },
 });
