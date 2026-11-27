@@ -107,7 +107,7 @@ export default function StudioManager(){
 
  useEffect(()=>{void load();if(!supabase)return;const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>{setTimeout(()=>{void load();},0);});return()=>subscription.unsubscribe();},[load]);
  useEffect(()=>{if(!studioId&&ownedStudios.length===1&&!loading){const studio=ownedStudios[0];router.replace({pathname:"/studio-manager",params:{studioId:studio.id,studioName:studio.name}});}},[studioId,ownedStudios,loading,router]);
- useEffect(()=>{if(studioId||!session)return;const timer=setInterval(()=>{void load();},15000);return()=>clearInterval(timer);},[studioId,session,load]);
+ useEffect(()=>{if(!session||owner)return;const timer=setInterval(()=>{void load();},15000);return()=>clearInterval(timer);},[session,owner,load]);
 
  const searchStudiosForApplication=async()=>{
   const query=studioSearch.trim();
