@@ -1170,7 +1170,7 @@ export default function Home() {
       </View>
     </Modal>
     <Modal visible={mapSettingsOpen} transparent animationType="fade" onRequestClose={()=>{setMapSettingsOpen(false);setPendingDirectionsStudio(null);}}>
-      <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{paddingBottom:Math.max(30,insets.bottom+18)}]}>
+      <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{paddingBottom:Math.max(30,insets.bottom+18)}]}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>기본 길찾기 앱</Text><Pressable onPress={()=>{setMapSettingsOpen(false);setPendingDirectionsStudio(null);}}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.filterHint}>선택한 지도 앱을 기본으로 저장합니다. 다음부터는 길찾기를 누르면 바로 이 앱으로 열립니다.</Text>
         <Pressable style={[styles.mapProviderOption,mapProvider==="google"&&styles.mapProviderSelected]} onPress={()=>selectMapProvider("google")}><Ionicons name="map-outline" size={22} color={COLORS.purple}/><View style={{flex:1}}><Text style={styles.mapProviderTitle}>Google 지도</Text><Text style={styles.mapProviderSub}>구글 지도에서 길찾기</Text></View><Text style={styles.mapProviderCheck}>{mapProvider==="google"?"기본":"선택"}</Text></Pressable>
@@ -1178,7 +1178,7 @@ export default function Home() {
       </View></View>
     </Modal>
     <Modal visible={compareOpen} animationType="slide" transparent onRequestClose={()=>setCompareOpen(false)}>
-      <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
+      <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
         <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}>{compareIds.length>0&&<Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable>}<Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
         {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
@@ -1209,7 +1209,7 @@ export default function Home() {
       </View></View>
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
-      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:insets.bottom}]}>
+      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:bottomInsetPadding}]}>
         <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingHorizontal:14,paddingBottom:modalBottomPadding}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>지역 선택</Text>
@@ -1364,7 +1364,7 @@ export default function Home() {
 </>}</View></GestureDetector>
 {detailShowTop&&<Pressable onPress={()=>detailScrollRef.current?.scrollTo({y:0,animated:true})} accessibilityRole="button" accessibilityLabel="학원 상세정보 맨 위로 이동" style={{position:"absolute",right:18,bottom:Math.max(22,insets.bottom+12),width:46,height:46,borderRadius:23,backgroundColor:isDark?"#3A2D50":"#FFFFFF",borderWidth:1,borderColor:isDark?"#66518B":"#DED7EB",alignItems:"center",justifyContent:"center",elevation:5,shadowColor:"#000000",shadowOpacity:0.16,shadowRadius:8,shadowOffset:{width:0,height:3},zIndex:30}}><Ionicons name="arrow-up" size={21} color={isDark?"#E0D5F7":COLORS.purple}/></Pressable>}
 </BottomSheet></View></View></GestureHandlerRootView></Modal><Modal visible={reportOpen} transparent animationType="slide" onRequestClose={()=>setReportOpen(false)}>
-      <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}><View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
+      <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}><View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 정보 제보</Text><Pressable onPress={()=>setReportOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.sectionTitle}>제보 유형</Text><View style={styles.filterChoices}>{["폐업/이전","주소 오류","전화/홈페이지 오류","가격/시간표 오류","기타"].map(v=><Chip key={v} label={v} active={reportCategory===v} onPress={()=>setReportCategory(v)}/>)}</View>
         <Text style={styles.sectionTitle}>상세 내용</Text><TextInput value={reportDescription} onChangeText={setReportDescription} placeholder={"잘못된 정보와 확인한 내용을 적어주세요. (5~1000자)"} multiline maxLength={1000} textAlignVertical="top" style={styles.reportInput}/>
@@ -1373,7 +1373,7 @@ export default function Home() {
     </Modal>
 
     <Modal visible={filterOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setFilterOpen(false)}>
-      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:insets.bottom}]}>
+      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:bottomInsetPadding}]}>
         <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingBottom:Math.max(24,insets.bottom+24)}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>검색 필터</Text>
