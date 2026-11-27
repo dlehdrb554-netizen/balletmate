@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import BottomSheet, {BottomSheetScrollView} from "@gorhom/bottom-sheet";
 import {Gesture, GestureDetector, GestureHandlerRootView} from "react-native-gesture-handler";
-import Reanimated, {runOnJS, useAnimatedStyle, useSharedValue, withTiming} from "react-native-reanimated";
+import {runOnJS} from "react-native-reanimated";
 import {themeStyles } from "../lib/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
