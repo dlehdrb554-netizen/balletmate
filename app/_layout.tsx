@@ -51,7 +51,15 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const [showSplash,setShowSplash]=useState(true);
-  useEffect(()=>{\n    const timer=setTimeout(()=>setShowSplash(false),1600);\n    return()=>clearTimeout(timer);\n  },[]);\n  useEffect(()=>{\n    // 앱 아이콘으로 새로 실행될 때 저장된 마지막 탭/화면 대신 지도를 시작 화면으로 고정\n    const resetTimer=setTimeout(()=>router.replace("/"),100);\n    return()=>clearTimeout(resetTimer);\n  },[router]);
+  useEffect(()=>{
+    const timer=setTimeout(()=>setShowSplash(false),1600);
+    return()=>clearTimeout(timer);
+  },[]);
+  useEffect(()=>{
+    // 앱을 새로 실행하면 저장된 마지막 화면 대신 지도를 시작 화면으로 표시합니다.
+    const resetTimer=setTimeout(()=>router.replace("/"),100);
+    return()=>clearTimeout(resetTimer);
+  },[router]);
   useEffect(() => {
     AsyncStorage.getItem("balletmate.screen_lock").then(enabled => {
       if (enabled === "1" && supabase) return supabase.auth.signOut({ scope: "local" });
