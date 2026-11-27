@@ -1,4 +1,5 @@
 import React, {useMemo, useState} from "react";
+import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles} from "../lib/theme";
 import {Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import {MaterialCommunityIcons} from "@expo/vector-icons";
@@ -41,7 +42,7 @@ export default function Signup(){
    if(result.error)throw result.error;
    if(result.data.session)Alert.alert("가입 완료","회원가입이 완료되었습니다.",[{text:"확인",onPress:()=>router.replace("/") }]);
    else Alert.alert("이메일 인증 필요","입력한 이메일로 인증 링크를 보냈습니다. 메일을 확인한 뒤 로그인해 주세요.",[{text:"확인",onPress:()=>router.replace("/account")}]);
-  }catch(e:any){Alert.alert("회원가입 실패",e?.message||"가입을 완료하지 못했습니다.");}
+  }catch(e:any){Alert.alert("회원가입 실패",getUserErrorMessage(e,"가입을 완료하지 못했습니다."));}
   finally{setBusy(false);}
  };
  const passwordInput=(value:string,setter:(value:string)=>void,visible:boolean,toggle:()=>void,confirmField=false)=>(
