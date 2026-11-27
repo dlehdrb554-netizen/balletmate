@@ -189,10 +189,19 @@ export default function StudioManager(){
  };
  const downloadClassTemplate=async()=>{
   try{
-   const csv="수업명,대상(성인/키즈/전체),수준,유형,수업시간(분)\\n성인 기초 발레,성인,입문,기초,60\\n키즈 발레 A반,키즈,초급,기초,50\\n발레핏 전체반,전체,중급,발레핏,60\\n";
-   const uri=FileSystem.cacheDirectory+"balletmate_class_template.csv";
-   await FileSystem.writeAsStringAsync(uri,"\\uFEFF"+csv,{encoding:FileSystem.EncodingType.UTF8});
-   if(await Sharing.isAvailableAsync())await Sharing.shareAsync(uri,{mimeType:"text/csv",dialogTitle:"수업 등록 양식 공유"});
+   const workbook=XLSX.utils.book_new();
+   const sheet=XLSX.utils.aoa_to_sheet([
+    ["수업명","대상(성인/키즈/전체)","수준","유형","수업시간(분)"],
+    ["성인 기초 발레","성인","입문","기초",60],
+    ["키즈 발레 A반","키즈","초급","기초",50],
+    ["발레핏 전체반","전체","중급","발레핏",60]
+   ]);
+   sheet["!cols"]=[{wch:24},{wch:24},{wch:16},{wch:18},{wch:18}];
+   XLSX.utils.book_append_sheet(workbook,sheet,"수업 등록 양식");
+   const base64=XLSX.write(workbook,{bookType:"xlsx",type:"base64"});
+   const uri=FileSystem.cacheDirectory+"balletmate_class_template.xlsx";
+   await FileSystem.writeAsStringAsync(uri,base64,{encoding:FileSystem.EncodingType.Base64});
+   if(await Sharing.isAvailableAsync())await Sharing.shareAsync(uri,{mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",dialogTitle:"수업 등록 엑셀 양식"});
    else Alert.alert("양식 생성 완료","기기에서 파일 공유 기능을 사용할 수 없습니다.");
   }catch(error:any){Alert.alert("양식 생성 실패",error?.message||"엑셀 양식을 만들지 못했습니다.");}
  };
@@ -208,7 +217,7 @@ export default function StudioManager(){
    if(!sheet)throw new Error("첫 번째 시트를 찾을 수 없습니다.");
    const rawRows=XLSX.utils.sheet_to_json<Record<string,unknown>>(sheet,{defval:"",raw:false});
    if(!rawRows.length)throw new Error("엑셀에 등록할 수업 데이터가 없습니다.");
-   const normalize=(value:string)=>value.toLowerCase().replace(/[\\s_()\\[\\]·]/g,"");
+   const normalize=(value:string)=>value.toLowerCase().replace(/[\s_()·\[\]]/g,"");
    const find=(row:Record<string,unknown>,aliases:string[])=>{
     const key=Object.keys(row).find(k=>aliases.includes(normalize(k)));
     return key===undefined?"":String(row[key]??"").trim();
