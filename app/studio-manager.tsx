@@ -43,7 +43,6 @@ export default function StudioManager(){
  const [profileDescription,setProfileDescription]=useState("");
  const [scheduleImage,setScheduleImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
  const [priceImage,setPriceImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
- const [representativeImage,setRepresentativeImage]=useState<ImagePicker.ImagePickerAsset|null>(null);
  const [representativeImagePath,setRepresentativeImagePath]=useState<string|null>(null);
  const [galleryImages,setGalleryImages]=useState<any[]>([]);
  const [galleryImagesToUpload,setGalleryImagesToUpload]=useState<ImagePicker.ImagePickerAsset[]>([]);
