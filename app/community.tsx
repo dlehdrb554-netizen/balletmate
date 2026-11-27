@@ -151,7 +151,7 @@ export default function Community(){
  const submitPost=async()=>{
   if(!userId){requireLogin();return;}
   if(!supabase||!(await requireMemberProfile()))return;
-  if(!title.trim()||!body.trim()){Alert.alert("내용 확인","제목과 내용을 입력해 주세요.");return;}
+  if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목과 내용은 각각 2자 이상 입력해 주세요.");return;}if(title.trim().length>80||body.trim().length>5000){Alert.alert("내용 확인","제목은 최대 80자, 내용은 최대 5,000자까지 입력할 수 있습니다.");return;}
   setSubmitting(true);
   let uploadedPaths:string[]=[];
   try{
