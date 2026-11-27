@@ -577,14 +577,26 @@ export default function Home() {
   }),[mergedStudios,globalSearchIdSet,normalizedSearch,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,region]);
 
   const mapMarkers=useMemo(()=>{
-    const visible=new Map(results.map(studio=>[studio.id,studio]));
+    // Live search suggestions must be included independently of the normal map filters.
+    const visible=new Map([...results,...(searchFocused?liveSearchMatches:[])].map(studio=>[studio.id,studio]));
     if(selected)visible.set(selected.id,selected);
     return [...visible.values()].filter(studio=>Number.isFinite(studio.lat)&&Number.isFinite(studio.lng)&&Math.abs(studio.lat)<=90&&Math.abs(studio.lng)<=180)
       .map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng}));
-  },[results,selected]);
-  const searchedStudioIds=useMemo(()=>searchMatches.map(item=>item.id),[searchMatches]);
+  },[results,selected,searchFocused,liveSearchMatches]);
+  const searchedStudioIds=useMemo(()=>searchFocused?liveSearchMatches.map(item=>item.id):searchMatches.map(item=>item.id),[searchFocused,liveSearchMatches,searchMatches]);
   const handleMapRegionChange=useCallback((next:Region)=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setRegion(next);setMapMoved(true);},[]);
-  const handleMapMarkerPress=useCallback((id:string)=>{const studio=results.find(item=>item.id===id);if(studio)setSelected(studio);},[results]);
+  const handleMapMarkerPress=useCallback((id:string)=>{const studio=results.find(item=>item.id===id)||liveSearchMatches.find(item=>item.id===id)||globalSearchStudios.find(item=>item.id===id);if(studio)setSelected(studio);},[results,liveSearchMatches,globalSearchStudios]);
+  // As soon as matches exist, move the map to their geographic bounds and expose their pins.
+  useEffect(()=>{
+    if(!searchFocused||normalizedLiveQuery.length<2||liveSearchMatches.length===0)return;
+    const valid=liveSearchMatches.filter(item=>Number.isFinite(item.lat)&&Number.isFinite(item.lng)&&Math.abs(item.lat)<=90&&Math.abs(item.lng)<=180);
+    if(!valid.length)return;
+    setAreaLocked(false);
+    const lats=valid.map(item=>item.lat),lngs=valid.map(item=>item.lng);
+    const minLat=Math.min(...lats),maxLat=Math.max(...lats),minLng=Math.min(...lngs),maxLng=Math.max(...lngs);
+    const target={latitude:(minLat+maxLat)/2,longitude:(minLng+maxLng)/2,latitudeDelta:Math.max(0.012,(maxLat-minLat)*1.8),longitudeDelta:Math.max(0.012,(maxLng-minLng)*1.8)};
+    setRegion(target);setSearchedRegion(target);setMapMoved(false);setPendingMapTarget(target);
+  },[searchFocused,normalizedLiveQuery,liveSearchMatches]);
   const allListAreas=useMemo(()=>[...new Set([...directoryAreas,...studios.map(studio=>studio.area)].filter(area=>area&&area!=="지역 정보 없음").map(canonicalArea))].sort((a,b)=>a.localeCompare(b,"ko")),[directoryAreas,studios]);
   useEffect(()=>{let active=true;fetchStudios().then(rows=>{if(active){setDirectoryAreas([...new Set(rows.map(row=>row.district||"").filter(Boolean))]);setDirectoryStudios(rows.map(mapStudioRecord));}}).catch(error=>console.warn("전체 지역 목록 조회 실패:",error));return()=>{active=false;};},[]);
   const listDistricts=useMemo(()=>allListAreas.filter(area=>{const parsed=parseArea(area);return PROVINCES.includes(parsed.province)&&(regionProvince==="전체"||parsed.province===regionProvince)&&(regionCity==="전체"||parsed.city===regionCity);}),[allListAreas,regionProvince,regionCity]);
