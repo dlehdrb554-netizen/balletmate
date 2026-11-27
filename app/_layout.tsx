@@ -49,8 +49,9 @@ function BottomNavigation(){
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
   const [showSplash,setShowSplash]=useState(true);
-  useEffect(()=>{const timer=setTimeout(()=>setShowSplash(false),1600);return()=>clearTimeout(timer);},[]);
+  useEffect(()=>{\n    const timer=setTimeout(()=>setShowSplash(false),1600);\n    return()=>clearTimeout(timer);\n  },[]);\n  useEffect(()=>{\n    // 앱 아이콘으로 새로 실행될 때 저장된 마지막 탭/화면 대신 지도를 시작 화면으로 고정\n    const resetTimer=setTimeout(()=>router.replace("/"),100);\n    return()=>clearTimeout(resetTimer);\n  },[router]);
   useEffect(() => {
     AsyncStorage.getItem("balletmate.screen_lock").then(enabled => {
       if (enabled === "1" && supabase) return supabase.auth.signOut({ scope: "local" });
@@ -64,7 +65,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{flex:1}}>
     <SafeAreaProvider>
       <StatusBar style={showSplash || colorScheme === "dark" ? "light" : "dark"} />
-      <View style={{flex:1}}><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colorScheme === "dark" ? "#101010" : "#FAF9FC" } }}><Stack.Screen name="studio-manager" options={{animation:"slide_from_bottom",presentation:"modal",contentStyle:{backgroundColor:colorScheme==="dark"?"#101010":"#FAF9FC"}}} /></Stack><BottomNavigation /></View>
+      <View style={{flex:1}}><Stack initialRouteName="index" screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colorScheme === "dark" ? "#101010" : "#FAF9FC" } }}><Stack.Screen name="studio-manager" options={{animation:"slide_from_bottom",presentation:"modal",contentStyle:{backgroundColor:colorScheme==="dark"?"#101010":"#FAF9FC"}}} /></Stack><BottomNavigation /></View>
       {showSplash&&<View style={styles.splash}><Image source={require("../assets/icon.png")} style={styles.splashLogo} resizeMode="contain"/><Text style={styles.splashTagline}>발레 생활을 더 편리하게</Text><Text style={styles.splashBrand}>Balletmate</Text></View>}
     </SafeAreaProvider>
     </GestureHandlerRootView>
