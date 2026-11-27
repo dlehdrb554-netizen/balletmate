@@ -113,8 +113,13 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
       currentLocationMeta={latitude:location.latitude,longitude:location.longitude};
     }else if(currentMarker){currentMarker.setMap(null);currentMarker=null;currentLocationMeta=null;}
   }
+  var programmaticMove=false;
+  var programmaticMoveTimer=null;
   function moveTo(region,duration){
     if(!map||!region)return;
+    programmaticMove=true;
+    if(programmaticMoveTimer)clearTimeout(programmaticMoveTimer);
+    programmaticMoveTimer=setTimeout(function(){programmaticMove=false;programmaticMoveTimer=null;},Math.max(500,Math.min(1200,(duration||400)+350)));
     var center=new kakao.maps.LatLng(region.latitude,region.longitude);
     var targetLevel=levelFor(region.latitudeDelta);
     var currentLevel=map.getLevel();
@@ -124,10 +129,9 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     }else{
       map.panTo(center);
     }
-    window.setTimeout(emitRegion,Math.max(80,Math.min(250,duration||120)));
   }
   function emitRegion(){
-    if(!map)return;
+    if(!map||programmaticMove)return;
     if(regionTimer)clearTimeout(regionTimer);
     regionTimer=setTimeout(function(){emitRegionNow();},350);
   }
@@ -175,9 +179,10 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
       var mapEl=document.getElementById('map');
       map=new kakao.maps.Map(mapEl,{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level},tileAnimation:false});
       if(kakao.maps.MarkerClusterer){clusterer=new kakao.maps.MarkerClusterer({map:map,averageCenter:true,minLevel:6,styles:[{width:'42px',height:'42px',background:'rgba(101,59,183,0.92)',borderRadius:'21px',color:'#fff',textAlign:'center',fontWeight:'700',lineHeight:'42px',fontSize:'13px'}]});}
+      kakao.maps.event.addListener(map,'dragstart',function(){if(programmaticMoveTimer){clearTimeout(programmaticMoveTimer);programmaticMoveTimer=null;}programmaticMove=false;});
+      kakao.maps.event.addListener(map,'zoom_start',function(){if(programmaticMoveTimer){clearTimeout(programmaticMoveTimer);programmaticMoveTimer=null;}programmaticMove=false;});
       kakao.maps.event.addListener(map,'dragend',emitRegion);
       kakao.maps.event.addListener(map,'zoom_changed',emitRegion);
-      kakao.maps.event.addListener(map,'idle',function(){emitRegion();});
       // WebView can initially report a very small height on compact devices.
       // Recalculate Kakao's viewport after the native layout settles or changes.
       var resizeMap=function(){
