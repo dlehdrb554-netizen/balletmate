@@ -19,7 +19,7 @@ begin
      or command ilike '%/functions/v1/search-studio-blogs%'
  loop perform cron.unschedule(j.jobid); end loop;
 end $$;
-select cron.schedule('balletmate-kakao-studio-discovery','*/5 * * * *',$$
+select cron.schedule('balletmate-kakao-studio-discovery','0 * * * *',$$
  select net.http_post(
   url:='https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/studio-discovery-worker',
   headers:=jsonb_build_object('Content-Type','application/json','x-crawl-secret',(select decrypted_secret from vault.decrypted_secrets where name='balletmate_crawl_worker_secret' order by created_at desc limit 1)),
