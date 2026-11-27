@@ -118,7 +118,7 @@ export function searchStudiosByName(query:string, options?:{limit?:number}):Prom
   if(!supabase)return Promise.resolve([]);
   const term=query.trim().replace(/[,%()]/g," ").replace(/\s+/g," ").trim();
   if(term.length<2)return Promise.resolve([]);
-  const resultLimit=Math.max(1,Math.min(300,Math.floor(options?.limit??300)));
+  const resultLimit=Math.max(1,Math.min(30,Math.floor(options?.limit??30)));
   const cacheKey=term.toLocaleLowerCase("ko-KR")+":"+resultLimit;
   const cached=studioNameSearchCache.get(cacheKey);
   if(cached&&Date.now()-cached.savedAt<STUDIO_NAME_SEARCH_CACHE_MS)return Promise.resolve(cached.rows);
