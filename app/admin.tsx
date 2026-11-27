@@ -284,6 +284,18 @@ export default function Admin() {
     setApprovedOwnersBusy(false);
   },[authorized]);
   useEffect(()=>{if(authorized&&adminTab==="approvedOwners")void loadApprovedOwners();},[authorized,adminTab,loadApprovedOwners]);
+  const revokeApprovedOwner=(item:any)=>Alert.alert("학원 관리자 권한 해제",String(item.studio?.name||"이 학원")+"의 관리자 권한을 해제할까요? 해당 계정은 더 이상 이 학원을 수정할 수 없습니다.",[
+    {text:"취소",style:"cancel"},
+    {text:"권한 해제",style:"destructive",onPress:async()=>{
+      if(!supabase)return;
+      setApprovedOwnersBusy(true);
+      const {error}=await supabase.rpc("admin_revoke_studio_owner",{p_studio_id:item.studio_id});
+      if(error)Alert.alert("권한 해제 실패",error.message);
+      else Alert.alert("권한 해제 완료","학원 관리자 권한을 해제했습니다.");
+      await loadApprovedOwners();
+    }}
+  ]);
+
   const openOwnerApplicationBlog=async(item:any)=>{if(!item.verification_url)return;Linking.openURL(item.verification_url).catch(()=>Alert.alert("공식 채널 열기 실패","채널을 열 수 없습니다."));};
   const reviewOwnerApplication=(item:any,decision:"approved"|"rejected"|"needs_info")=>{
     const label=decision==="approved"?"승인":decision==="rejected"?"반려":"추가 확인";
@@ -513,6 +525,7 @@ export default function Admin() {
             <Text style={styles.hint}>학원 위치: {[item.studio?.district,item.studio?.address].filter(Boolean).join(" · ")||"정보 없음"}</Text>
             <Text style={styles.hint}>계정 ID: {item.user_id}</Text>
             <Text style={styles.hint}>승인 시각: {item.approved_at?new Date(item.approved_at).toLocaleString("ko-KR"):"기록 없음"}</Text>
+            <Pressable onPress={()=>revokeApprovedOwner(item)} disabled={approvedOwnersBusy} style={{alignSelf:"flex-end",paddingHorizontal:12,paddingVertical:9,borderRadius:9,backgroundColor:"#FFF1F1",marginTop:8}}><Text style={{fontSize:11,fontWeight:"800",color:"#A33342"}}>관리자 권한 해제</Text></Pressable>
           </View>):<Text style={styles.hint}>승인된 학원 관리자가 없습니다.</Text>}
         </View>}
         {adminTab==="owners"&&<View style={styles.panel}>
