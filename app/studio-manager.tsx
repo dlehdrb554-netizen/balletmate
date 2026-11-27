@@ -581,7 +581,7 @@ export default function StudioManager(){
     <Text style={[s.body,{marginTop:12}]}>신청 정보는 선택한 인증 방식에 필요한 공식 채널 정보만 전달됩니다. 운영자 확인 후 승인되면 별도 신청 없이 학원 관리 기능을 사용할 수 있습니다.</Text>{button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving||(verificationMethod==="phone"&&!profilePhone.trim())||((verificationMethod==="blog"||verificationMethod==="instagram")&&(!blogUrl.trim()||!blogVerificationCode.trim())))}
    </View>}
  </ScrollView>
- <Modal visible={classImportOpen} transparent animationType="slide" statusBarTranslucent onRequestClose={()=>{if(!classImportBusy)setClassImportOpen(false);}}>
+ <Modal visible={classImportOpen} transparent animationType="none" statusBarTranslucent onRequestClose={()=>{if(!classImportBusy)setClassImportOpen(false);}}>
   <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.48)"}}><Pressable style={{flex:1}} onPress={()=>{if(!classImportBusy)setClassImportOpen(false);}}/>
    <KeyboardAvoidingView style={{width:"100%"}} behavior={Platform.OS==="ios"?"padding":"height"}>
    <View style={{maxHeight:"92%",padding:18,paddingBottom:Math.max(24,managerBottomPadding),borderTopLeftRadius:24,borderTopRightRadius:24,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
@@ -600,7 +600,7 @@ export default function StudioManager(){
    </KeyboardAvoidingView>
   </View>
  </Modal>
- <Modal visible={noticeEditorOpen} transparent animationType="slide" statusBarTranslucent onRequestClose={()=>{if(!saving)setNoticeEditorOpen(false);}}>
+ <Modal visible={noticeEditorOpen} transparent animationType="none" statusBarTranslucent onRequestClose={()=>{if(!saving)setNoticeEditorOpen(false);}}>
   <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.48)"}}><Pressable style={{flex:1}} onPress={()=>{if(!saving)setNoticeEditorOpen(false);}}/>
    <KeyboardAvoidingView style={{width:"100%"}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}>
     <View style={{maxHeight:"92%",padding:20,paddingBottom:Math.max(24,managerBottomPadding),borderTopLeftRadius:24,borderTopRightRadius:24,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
