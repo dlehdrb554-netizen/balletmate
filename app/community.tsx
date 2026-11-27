@@ -43,6 +43,8 @@ export default function Community(){
  const [title,setTitle]=useState("");
  const [body,setBody]=useState("");
  const [selectedPhotos,setSelectedPhotos]=useState<ImagePicker.ImagePickerAsset[]>([]);
+ const [photoCaptions,setPhotoCaptions]=useState<string[]>([]);
+ const [viewerIndex,setViewerIndex]=useState<number|null>(null);
  const [userId,setUserId]=useState<string|null>(null);
   const [isAdmin,setIsAdmin]=useState(false);
  const [authorName,setAuthorName]=useState("발레메이트 회원");
@@ -158,7 +160,7 @@ export default function Community(){
  const pickPhotos=async()=>{
   if(selectedPhotos.length>=4){Alert.alert("사진 첨부","게시글 사진은 최대 4장까지 첨부할 수 있습니다.");return;}
   const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:true,selectionLimit:4-selectedPhotos.length,quality:0.85});
-  if(!result.canceled)setSelectedPhotos(current=>[...current,...result.assets].slice(0,4));
+  if(!result.canceled){setSelectedPhotos(current=>[...current,...result.assets].slice(0,4));setPhotoCaptions(current=>[...current,...result.assets.map(()=>"")].slice(0,4));}
  };
  const uploadCommunityPhotos=async()=>{
   if(!supabase||!userId)return {urls:[] as string[],paths:[] as string[]};
@@ -190,9 +192,9 @@ export default function Community(){
   let uploadedPaths:string[]=[];
   try{
    const uploaded=await uploadCommunityPhotos();uploadedPaths=uploaded.paths;
-   const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:body.trim(),image_urls:uploaded.urls});
+   const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:body.trim(),image_urls:uploaded.urls,image_captions:photoCaptions.map(caption=>caption.trim())});
    if(error)throw error;
-   setComposer(false);setTitle("");setBody("");setSelectedPhotos([]);setLoading(true);
+   setComposer(false);setTitle("");setBody("");setSelectedPhotos([]);setPhotoCaptions([]);setLoading(true);
    if(category!=="전체")setCategory("전체");else await loadPosts();
    Alert.alert("등록 완료","게시글이 등록되었습니다.");
   }catch(error:any){
@@ -310,7 +312,10 @@ export default function Community(){
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={[s.postTitle,{flex:1}]}>{selected.title}</Text><Pressable onPress={()=>void toggleBookmark(selected)} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(selected.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(selected.id)?"bookmark":"bookmark-outline"} size={22} color={C.purple}/></Pressable></View>
      <Text style={s.meta}>{selected.author_name||"발레메이트 회원"} · {timeLabel(selected.created_at)}</Text>
      <Text style={s.postBody}>{selected.content}</Text>
-     {!!selected.image_urls?.length&&<View style={s.postPhotos}>{selected.image_urls.map((url,index)=><Image key={url} source={{uri:url}} style={s.detailPhoto} resizeMode="cover" accessibilityLabel={"게시글 사진 "+(index+1)}/>)}</View>}
+     {!!selected.image_urls?.length&&<View style={s.detailPhotoList}>{selected.image_urls.map((url,index)=><View key={url} style={s.detailPhotoItem}>
+      <Pressable onPress={()=>setViewerIndex(index)} accessibilityRole="button" accessibilityLabel={"사진 "+(index+1)+" 크게 보기"}><Image source={{uri:url}} style={s.detailPhoto} resizeMode="cover"/></Pressable>
+      {Boolean((selected as any).image_captions?.[index])&&<Text style={s.photoCaption}>{(selected as any).image_captions[index]}</Text>}
+     </View>)}</View>}
      {selected.author_id===userId||isAdmin?<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>{isAdmin&&selected.author_id!==userId?"관리자 삭제":"게시글 삭제"}</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>
     <Text style={s.section}>댓글 {visibleComments.length}</Text>
@@ -345,6 +350,18 @@ export default function Community(){
    </>
   }
 
+  <Modal visible={viewerIndex!==null&&!!selected?.image_urls?.length} transparent animationType="fade" onRequestClose={()=>setViewerIndex(null)}>
+   <View style={s.viewerRoot}>
+    <View style={s.viewerHeader}><Pressable style={s.viewerControl} onPress={()=>setViewerIndex(null)} accessibilityRole="button" accessibilityLabel="사진 보기 닫기"><Ionicons name="close" size={25} color="#FFFFFF"/></Pressable><Text style={s.viewerCounter}>{viewerIndex===null?0:viewerIndex+1} / {selected?.image_urls?.length||0}</Text><View style={s.viewerControl}/></View>
+    {viewerIndex!==null&&selected?.image_urls?.[viewerIndex]&&<Image source={{uri:selected.image_urls[viewerIndex]}} style={s.viewerImage} resizeMode="contain"/>}
+    <View style={s.viewerFooter}>
+     <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex===0} onPress={()=>setViewerIndex(index=>index===null?null:Math.max(0,index-1))}><Ionicons name="chevron-back" size={25} color={viewerIndex===0?"#777":"#FFFFFF"}/></Pressable>
+     <Text style={s.viewerHint}>사진을 누르면 크게 볼 수 있어요</Text>
+     <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex>=(selected?.image_urls?.length||1)-1} onPress={()=>setViewerIndex(index=>index===null?null:Math.min((selected?.image_urls?.length||1)-1,index+1))}><Ionicons name="chevron-forward" size={25} color={viewerIndex===(selected?.image_urls?.length||1)-1?"#777":"#FFFFFF"}/></Pressable>
+    </View>
+   </View>
+  </Modal>
+
   <Modal visible={termsConsentOpen} transparent animationType="fade" onRequestClose={()=>setTermsConsentOpen(false)}>
    <View style={[s.shade,{paddingBottom:insets.bottom}]}><View style={[s.modal,{maxHeight:"88%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
     <View style={s.modalHead}><Text style={s.modalTitle}>커뮤니티 첫 이용 안내</Text><Pressable onPress={()=>setTermsConsentOpen(false)}><Text style={s.close}>×</Text></Pressable></View>
@@ -370,7 +387,12 @@ export default function Community(){
      <View style={s.inputWithClear}><TextInput style={[s.titleInput,{flex:1}]} value={title} onChangeText={value=>{setTitle(value);setFinalConfirmed(false);}} placeholder="예: 성인 초급 발레 학원 추천 부탁드려요" maxLength={80} returnKeyType="next"/>{!!title&&<Pressable style={s.clearField} onPress={()=>{setTitle("");setFinalConfirmed(false);}} accessibilityRole="button" accessibilityLabel="제목 전체 삭제"><Ionicons name="close-circle" size={19} color={C.muted}/></Pressable>}</View>
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>내용 <Text style={{fontSize:10,color:C.muted,fontWeight:"500"}}>(최소 2자)</Text></Text><Text style={{fontSize:11,color:C.muted}}>{body.length}/5,000자</Text></View>
      <View style={s.bodyInputWrap}><TextInput style={[s.bodyInput,{flex:1}]} value={body} onChangeText={value=>{setBody(value);setFinalConfirmed(false);}} placeholder={newCategory==="학원 추천"?"지역, 수업 수준, 수업 시간, 가격, 시설 경험을 적어주세요.":newCategory==="발레복 추천"?"제품명, 사이즈, 착용감, 가격, 구매처를 적어주세요.":"경험과 의견을 구체적으로 나눠주세요."} multiline textAlignVertical="top" maxLength={5000}/>{!!body&&<Pressable style={s.clearBodyField} onPress={()=>{setBody("");setFinalConfirmed(false);}} accessibilityRole="button" accessibilityLabel="내용 전체 삭제"><Ionicons name="close-circle" size={19} color={C.muted}/></Pressable>}</View>
-     <View style={s.photoPickerRow}><View style={s.photoSlots}><Text style={s.photoPickerText}>사진 첨부 ({selectedPhotos.length}/4)</Text><View style={s.photoSlotList}>{[0,1,2,3].map(index=>{const photo=selectedPhotos[index];return <View key={index} style={s.photoSlot}>{photo?<><Image source={{uri:photo.uri}} style={s.photoSlotImage}/><Pressable style={s.photoRemove} onPress={()=>setSelectedPhotos(current=>current.filter((_,i)=>i!==index))} accessibilityRole="button" accessibilityLabel={`사진 ${index+1} 삭제`}><Text style={s.photoRemoveText}>×</Text></Pressable></>:<Pressable style={s.photoSlotEmpty} onPress={pickPhotos} accessibilityRole="button" accessibilityLabel={`사진 ${index+1} 첨부`}><Ionicons name="camera-outline" size={25} color={C.purple}/></Pressable>}</View>;})}</View></View></View>
+     <View style={s.photoPickerRow}><View style={s.photoSlots}><View style={s.photoPickerHeader}><Text style={s.photoPickerText}>사진 첨부 ({selectedPhotos.length}/4)</Text><Pressable style={s.addPhotoButton} onPress={pickPhotos} disabled={selectedPhotos.length>=4} accessibilityRole="button" accessibilityLabel="사진 추가"><Ionicons name="add" size={17} color={C.purple}/><Text style={s.addPhotoText}>사진 추가</Text></Pressable></View><View style={s.photoSlotList}>{selectedPhotos.map((photo,index)=><View key={photo.assetId||photo.uri} style={s.photoEditorItem}>
+  <View style={s.photoSlot}><Image source={{uri:photo.uri}} style={s.photoSlotImage}/><Pressable style={s.photoRemove} onPress={()=>{setSelectedPhotos(current=>current.filter((_,i)=>i!==index));setPhotoCaptions(current=>current.filter((_,i)=>i!==index));}} accessibilityRole="button" accessibilityLabel={`사진 ${index+1} 삭제`}><Text style={s.photoRemoveText}>×</Text></Pressable></View>
+  <TextInput style={s.captionInput} value={photoCaptions[index]||""} onChangeText={value=>setPhotoCaptions(current=>current.map((caption,i)=>i===index?value:caption))} placeholder="사진 설명을 입력하세요" maxLength={200}/>
+ </View>)}
+ {selectedPhotos.length<4&&<Pressable style={s.photoSlotEmpty} onPress={pickPhotos} accessibilityRole="button" accessibilityLabel="사진 첨부"><Ionicons name="camera-outline" size={24} color={C.purple}/><Text style={s.addPhotoText}>추가</Text></Pressable>}
+ </View></View></View>
      {(containsSensitiveInfo(title+" "+body)||containsPromotion(title+" "+body)||containsAbuse(title+" "+body))&&<View style={s.inlineWarning}><Text style={s.inlineWarningTitle}>게시 전 한 번 더 확인해 주세요</Text>{containsSensitiveInfo(title+" "+body)&&<Text style={s.inlineWarningText}>전화번호나 이메일처럼 보이는 정보가 있어요. 본인과 타인의 개인정보가 포함되지 않았는지 확인해 주세요.</Text>}{containsPromotion(title+" "+body)&&<Text style={s.inlineWarningText}>광고·홍보성 표현이나 외부 링크가 감지됐어요. 정보 공유 목적의 글인지 운영정책을 확인해 주세요.</Text>}{containsAbuse(title+" "+body)&&<Text style={s.inlineWarningText}>공격적인 표현이 포함된 것 같아요. 서로 존중하는 표현으로 다듬어 주세요.</Text>}</View>}
      <Pressable style={s.finalCheck} onPress={()=>setFinalConfirmed(value=>!value)} accessibilityRole="checkbox" accessibilityState={{checked:finalConfirmed}}><View style={[s.checkBox,finalConfirmed&&s.checkBoxActive]}>{finalConfirmed&&<Ionicons name="checkmark" size={14} color="#FFFFFF"/>}</View><Text style={s.finalCheckText}>개인정보와 저작권·초상권을 확인했고, 커뮤니티 운영정책을 지키는 글임을 확인합니다.</Text></Pressable>
      <Text style={s.cooldownNote}>제목·내용 각각 최소 2자, 최대 80자·5,000자입니다. 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
@@ -381,7 +403,7 @@ export default function Community(){
  </SafeAreaView>;
 }
 
-const createS = (dark:boolean) => StyleSheet.create(themeStyles({postPhotos:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:10},detailPhoto:{width:"48%",height:170,borderRadius:10,backgroundColor:"#EEEAF4"},listPhoto:{width:88,height:68,borderRadius:8,backgroundColor:"#EEEAF4"},photoPickerRow:{marginTop:10},photoSlots:{gap:9},photoPickerText:{fontSize:12,fontWeight:"800",color:C.purple},photoSlotList:{flexDirection:"row",flexWrap:"wrap",gap:8},photoSlot:{width:76,height:76,position:"relative"},photoSlotEmpty:{flex:1,borderWidth:1,borderStyle:"dashed",borderColor:C.purple,borderRadius:9,backgroundColor:C.pale,alignItems:"center",justifyContent:"center"},photoSlotImage:{width:76,height:76,borderRadius:9,backgroundColor:"#EEEAF4"},photoRemove:{position:"absolute",right:-5,top:-5,width:22,height:22,borderRadius:11,backgroundColor:C.red,alignItems:"center",justifyContent:"center",zIndex:1},photoRemoveText:{fontSize:17,color:"#fff",fontWeight:"900",lineHeight:20},
+const createS = (dark:boolean) => StyleSheet.create(themeStyles({postPhotos:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:10},detailPhotoList:{gap:14,marginTop:16},detailPhotoItem:{width:"100%"},detailPhoto:{width:"100%",height:230,borderRadius:12,backgroundColor:"#EEEAF4"},photoCaption:{fontSize:13,lineHeight:19,color:C.muted,marginTop:7},photoPickerHeader:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},photoEditorItem:{width:104,gap:6},addPhotoButton:{minHeight:44,minWidth:104,paddingHorizontal:12,borderRadius:10,borderWidth:1,borderColor:C.purple,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:3},addPhotoText:{fontSize:11,fontWeight:"800",color:C.purple},captionInput:{height:42,borderWidth:1,borderColor:C.line,borderRadius:8,paddingHorizontal:8,fontSize:11,color:C.ink},viewerRoot:{flex:1,backgroundColor:"#08070B",justifyContent:"space-between"},viewerHeader:{height:58,paddingHorizontal:16,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},viewerControl:{width:44,height:44,alignItems:"center",justifyContent:"center"},viewerCounter:{fontSize:13,fontWeight:"800",color:"#FFFFFF"},viewerImage:{flex:1,width:"100%"},viewerFooter:{minHeight:64,paddingHorizontal:12,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},viewerNavButton:{width:48,height:48,alignItems:"center",justifyContent:"center"},viewerHint:{fontSize:11,color:"#C7C2CE"},listPhoto:{width:88,height:68,borderRadius:8,backgroundColor:"#EEEAF4"},photoPickerRow:{marginTop:10},photoSlots:{gap:9},photoPickerText:{fontSize:12,fontWeight:"800",color:C.purple},photoSlotList:{flexDirection:"row",flexWrap:"wrap",gap:8},photoSlot:{width:76,height:76,position:"relative"},photoSlotEmpty:{flex:1,borderWidth:1,borderStyle:"dashed",borderColor:C.purple,borderRadius:9,backgroundColor:C.pale,alignItems:"center",justifyContent:"center"},photoSlotImage:{width:76,height:76,borderRadius:9,backgroundColor:"#EEEAF4"},photoRemove:{position:"absolute",right:-5,top:-5,width:22,height:22,borderRadius:11,backgroundColor:C.red,alignItems:"center",justifyContent:"center",zIndex:1},photoRemoveText:{fontSize:17,color:"#fff",fontWeight:"900",lineHeight:20},
  safe:{flex:1,backgroundColor:C.bg},header:{minHeight:56,paddingVertical:7,paddingHorizontal:12,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:6,borderBottomWidth:1,borderColor:C.line},
  back:{color:C.muted,fontWeight:"700",fontSize:12,width:52},writerGuide:{backgroundColor:C.pale,borderRadius:13,padding:13,marginHorizontal:14,marginTop:8},writerGuideTitle:{fontSize:12,fontWeight:"900",color:C.purple},writerGuideText:{fontSize:11,lineHeight:17,color:C.muted,marginTop:5},writerGuideLink:{fontSize:11,fontWeight:"800",color:C.purple,marginTop:7},inlineWarning:{marginTop:12,padding:12,borderRadius:11,backgroundColor:"#FFF4E5",borderWidth:1,borderColor:"#F1D4A8"},inlineWarningTitle:{fontSize:12,fontWeight:"900",color:"#8A4B08",marginBottom:5},inlineWarningText:{fontSize:11,lineHeight:17,color:"#80551E",marginTop:3},finalCheck:{flexDirection:"row",alignItems:"flex-start",gap:9,marginTop:14,padding:12,borderRadius:11,borderWidth:1,borderColor:C.line,backgroundColor:C.pale},checkBox:{width:20,height:20,borderRadius:5,borderWidth:1.5,borderColor:C.purple,alignItems:"center",justifyContent:"center",backgroundColor:"#FFFFFF"},checkBoxActive:{backgroundColor:C.purple},finalCheckText:{flex:1,fontSize:11,lineHeight:17,color:C.ink},heading:{fontSize:16,fontWeight:"900",color:C.ink,flexShrink:1,textAlign:"center"},writeBtn:{backgroundColor:C.purple,borderRadius:10,paddingHorizontal:9,paddingVertical:8},writeText:{color:"#fff",fontSize:11,fontWeight:"800"},menuBtn:{borderWidth:1,borderColor:C.line,borderRadius:10,paddingHorizontal:9,paddingVertical:7,marginLeft:5},menuText:{color:C.ink,fontSize:17,fontWeight:"800"},
  intro:{color:C.muted,fontSize:12,paddingHorizontal:18,paddingTop:16},filterScroll:{flexGrow:0,flexShrink:0},filters:{paddingHorizontal:14,paddingVertical:9,gap:6,alignItems:"center"},filter:{paddingHorizontal:11,paddingVertical:7,borderRadius:18,borderWidth:1,borderColor:C.line,backgroundColor:"#fff"},filterActive:{backgroundColor:C.pale,borderColor:C.purple},filterText:{fontSize:12,color:C.muted,fontWeight:"700"},filterTextActive:{color:C.purple},
