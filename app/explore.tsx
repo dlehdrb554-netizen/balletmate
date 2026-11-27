@@ -487,24 +487,8 @@ export default function Home() {
     return()=>{active=false;clearTimeout(timer);};
   },[adult,kids,classTypeFilter,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters]);
 
-  useEffect(()=>{
-    const client=supabase;
-    const query=search.trim();
-    const requestId=++classSearchRequestId.current;
-    if(!client||query.length<2){setClassSearchIds([]);setClassSearchLoading(false);return;}
-    let active=true;
-    const isCurrent=()=>active&&requestId===classSearchRequestId.current;
-    const timer=setTimeout(async()=>{
-      if(!isCurrent())return;
-      setClassSearchLoading(true);
-      try{
-        const ids=await searchStudioIdsByClassName(query);
-        if(isCurrent())setClassSearchIds(ids);
-      }catch{if(isCurrent())setClassSearchIds([]);}
-      finally{if(isCurrent())setClassSearchLoading(false);}
-    },350);
-    return()=>{active=false;clearTimeout(timer);};
-  },[search]);
+  // Class-name keyword lookup runs only after explicit search submission.
+  // Typing must stay local so each keystroke cannot trigger a database request.
 
   const globalSearchIdSet=useMemo(()=>new Set(globalSearchStudios.map(studio=>studio.id)),[globalSearchStudios]);
   const normalizedSearch=search.trim().toLowerCase();
@@ -1023,7 +1007,7 @@ export default function Home() {
       <View style={styles.headerActions}><Pressable style={[styles.menuButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>{setMenuOpen(true);refreshAdminAccess();}} accessibilityRole="button" accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage?open=settings&returnTo=map")} accessibilityRole="button" accessibilityLabel="알림 설정"><Ionicons name="settings-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage")} accessibilityRole="button" accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
-      <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={value=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setSearch(value);setGlobalSearchStudios([]);setSearchMatches([]);}} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#625E70" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={submitSearch}/>{!!search&&<Pressable onPress={()=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setSearch("");setGlobalSearchStudios([]);setSearchMatches([]);Keyboard.dismiss();}}><Text style={styles.clear}>×</Text></Pressable>}</View>{view==="map"&&<Pressable style={[styles.searchSubmitButton,searchSubmitting&&{opacity:0.6}]} onPress={submitSearch} disabled={searchSubmitting}><Ionicons name={searchSubmitting?"hourglass-outline":"search"} size={19} color="#fff"/></Pressable>}
+      <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={value=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setSearch(value);setClassSearchIds([]);setClassSearchLoading(false);setGlobalSearchStudios([]);setSearchMatches([]);}} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#625E70" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={submitSearch}/>{!!search&&<Pressable onPress={()=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setSearch("");setGlobalSearchStudios([]);setSearchMatches([]);Keyboard.dismiss();}}><Text style={styles.clear}>×</Text></Pressable>}</View>{view==="map"&&<Pressable style={[styles.searchSubmitButton,searchSubmitting&&{opacity:0.6}]} onPress={submitSearch} disabled={searchSubmitting}><Ionicons name={searchSubmitting?"hourglass-outline":"search"} size={19} color="#fff"/></Pressable>}
       <Pressable style={[styles.filterButton,{backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>setFilterOpen(true)}><Ionicons name="options-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} />{activeFilters>0&&<View style={styles.filterCount}><Text style={styles.filterCountText}>{activeFilters}</Text></View>}</Pressable>
     </View>
     {!!search.trim()&&search.trim().length>=2&&<Text style={styles.searchHint}>{classSearchLoading?"수업명 검색 중…":"학원명·지역·태그·등록 수업명 검색"}</Text>}
@@ -1309,8 +1293,8 @@ export default function Home() {
     </Modal>
 
     <Modal visible={filterOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setFilterOpen(false)}>
-      <View style={[styles.modalShade,{paddingTop:insets.top+8,paddingBottom:insets.bottom+12}]}>
-        <View style={[styles.modal,{height:"88%",maxHeight:"92%",minHeight:0,flexShrink:1,paddingBottom:16}]}>
+      <View style={[styles.modalShade,{paddingTop:insets.top+8,paddingBottom:insets.bottom+32}]}>
+        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingBottom:20}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>검색 필터</Text>
             <Pressable onPress={()=>setFilterOpen(false)} hitSlop={10} style={{width:40,height:40,alignItems:"center",justifyContent:"center"}}>
