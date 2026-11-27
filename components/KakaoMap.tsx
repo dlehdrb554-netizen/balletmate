@@ -208,6 +208,10 @@ function buildHtml(initialRegion: MapRegion) {
       pending.forEach(apply);pending=[];
     }catch(e){fail('지도 초기화 오류: '+(e&&e.message?e.message:String(e)));}
   }
+  if(!${JSON.stringify(JS_KEY)}){
+    fail('카카오 JavaScript 키가 앱 빌드에 포함되지 않았습니다. EAS Preview 환경에 EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY가 등록되어 있는지 확인해주세요.');
+    return;
+  }
   var sdk=document.createElement('script');
   sdk.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey=${JS_KEY}&autoload=false&libraries=clusterer';
   sdk.onload=function(){
