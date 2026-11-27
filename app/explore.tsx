@@ -854,7 +854,7 @@ export default function Home() {
     let remoteRows:any[]=[];
     let kakaoSearchFailure:any|null=null;
     if(supabase&&query.length>=2&&!localMatches.length){
-      const dbRows=await searchStudiosByName(query,{limit:100}).catch(error=>{
+      const dbRows=await searchStudiosByName(query,{limit:30}).catch(error=>{
         console.warn("Database studio search failed:",error);
         return [] as any[];
       });
