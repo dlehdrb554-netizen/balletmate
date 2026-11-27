@@ -5,7 +5,7 @@ import {Ionicons} from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {useRouter} from "expo-router";
 
-const RECENT_KEY="recent_searches";
+const RECENT_KEY="recent_searches_v1";
 const PENDING_KEY="balletmate.pending_search_query";
 const MAX_RECENT=10;
 
@@ -20,7 +20,9 @@ export default function SearchScreen(){
  const loadRecent=useCallback(async()=>{
   try{
    const raw=await AsyncStorage.getItem(RECENT_KEY);
-   const parsed=raw?JSON.parse(raw):[];
+   const legacy=raw===null?await AsyncStorage.getItem("recent_searches"):null;
+   const parsed=raw!==null?JSON.parse(raw):(legacy?JSON.parse(legacy):[]);
+   if(raw===null&&Array.isArray(parsed)&&parsed.length)await AsyncStorage.setItem(RECENT_KEY,JSON.stringify(parsed.slice(0,MAX_RECENT)));
    setRecent(Array.isArray(parsed)?parsed.filter((item:any)=>typeof item==="string").slice(0,MAX_RECENT):[]);
   }catch{setRecent([]);}
  },[]);
@@ -50,6 +52,7 @@ export default function SearchScreen(){
  const deleteAll=async()=>{
   setRecent([]);
   await AsyncStorage.removeItem(RECENT_KEY).catch(()=>{});
+  await AsyncStorage.removeItem("recent_searches").catch(()=>{});
  };
  return <SafeAreaView style={[styles.safe,{backgroundColor:colors.bg,paddingTop:Math.max(insets.top,0)}]}>
   <View style={[styles.header,{borderBottomColor:colors.line}]}>
