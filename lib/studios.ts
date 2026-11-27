@@ -110,50 +110,69 @@ async function fetchStudiosInternal(bounds?: SearchBounds): Promise<StudioRecord
  * Map gestures and screen refreshes can otherwise issue duplicate Supabase reads
  * before the 90-second cache is populated.
  */
-export async function searchStudiosByName(query:string):Promise<StudioRecord[]> {
-  if(!supabase)return [];
-  const term=query.trim().replace(/[,%()]/g," ").replace(/\s+/g," ").trim();
-  if(term.length<2)return [];
-  const columns="id,name,latitude,longitude,district,address,tags,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status";
-  const compact=(value:string)=>value.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
-  const variants=new Set<string>([term,compact(term)]);
-  if(/퀸스/.test(term)){variants.add(term.replace(/퀸스/g,"퀸즈"));variants.add(term.replace(/퀸스/g,"Queens"));variants.add("퀸즈발레");variants.add("퀸즈");}
-  if(/퀸즈/.test(term)){variants.add(term.replace(/퀸즈/g,"퀸스"));variants.add(term.replace(/퀸즈/g,"Queens"));variants.add("퀸스발레");}
-  if(/더블유|\bW\b|wballet/i.test(term)){variants.add(term.replace(/더블유/gi,"W"));variants.add(term.replace(/\bW\b/gi,"더블유"));variants.add("W발레");variants.add("더블유발레");variants.add("wballet");}
-  const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(100);
-  const runSearch=async(needle:string)=>{
-    let result=await searchQuery("studio_map_search_app_with_source",needle);
-    if(result.error) {
-      logStudioFallback("name-search-view-to-studios", result.error);
-      result=await searchQuery("studios",needle);
-    }
-    if(result.error) {
-      logStudioFallback("name-search-studios-failed", result.error);
-      throw result.error;
-    }
-    return (result.data||[]) as any[];
-  };
-  const uniqueVariants=[...variants].map(value=>value.trim()).filter(value=>value.length>=2).slice(0,6);
-  const patterns=uniqueVariants.flatMap(value=>{
-    const clauses=[`name.ilike.%${value}%`,`address.ilike.%${value}%`,`district.ilike.%${value}%`];
-    const normalized=compact(value);
-    if(normalized.length>=2&&normalized!==value)clauses.push(`name.ilike.%${normalized}%`,`address.ilike.%${normalized}%`);
-    return clauses;
-  });
-  const results=new Map<string,any>();
-  if(patterns.length){
-    const rows=await runSearch(patterns.join(","));
-    rows.forEach(row=>results.set(row.id,row));
-  }
-  if(!results.size){
-    const tokens=[...new Set(term.split(/\s+/).filter(token=>token.length>=2).slice(0,3))];
-    if(tokens.length){
-      const tokenPatterns=tokens.flatMap(token=>[`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`]);
-      const rows=await runSearch(tokenPatterns.join(","));
+const studioNameSearchCache = new Map<string, { savedAt: number; rows: StudioRecord[] }>();
+const studioNameSearchInFlight = new Map<string, Promise<StudioRecord[]>>();
+const STUDIO_NAME_SEARCH_CACHE_MS = 60_000;
+
+export function searchStudiosByName(query:string):Promise<StudioRecord[]> {
+  if(!supabase)return Promise.resolve([]);
+  const term=query.trim().replace(/[,%()]/g," ").replace(/\\s+/g," ").trim();
+  if(term.length<2)return Promise.resolve([]);
+  const cacheKey=term.toLocaleLowerCase("ko-KR");
+  const cached=studioNameSearchCache.get(cacheKey);
+  if(cached&&Date.now()-cached.savedAt<STUDIO_NAME_SEARCH_CACHE_MS)return Promise.resolve(cached.rows);
+  const pending=studioNameSearchInFlight.get(cacheKey);
+  if(pending)return pending;
+
+  const request=(async()=>{
+    const columns="id,name,latitude,longitude,district,address,tags,coupon_available,adult_classes,kids_classes,levels,days,time_slots,duration_minutes,rating,description,phone,website_url,source_url,source_name,verified_at,source_status";
+    const compact=(value:string)=>value.toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+    const variants=new Set<string>([term,compact(term)]);
+    if(/퀸스/.test(term)){variants.add(term.replace(/퀸스/g,"퀸즈"));variants.add(term.replace(/퀸스/g,"Queens"));variants.add("퀸즈발레");variants.add("퀸즈");}
+    if(/퀸즈/.test(term)){variants.add(term.replace(/퀸즈/g,"퀸스"));variants.add(term.replace(/퀸즈/g,"Queens"));variants.add("퀸스발레");}
+    if(/더블유|\\bW\\b|wballet/i.test(term)){variants.add(term.replace(/더블유/gi,"W"));variants.add(term.replace(/\\bW\\b/gi,"더블유"));variants.add("W발레");variants.add("더블유발레");variants.add("wballet");}
+    const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(100);
+    const runSearch=async(needle:string)=>{
+      let result=await searchQuery("studio_map_search_app_with_source",needle);
+      if(result.error) {
+        logStudioFallback("name-search-view-to-studios", result.error);
+        result=await searchQuery("studios",needle);
+      }
+      if(result.error) {
+        logStudioFallback("name-search-studios-failed", result.error);
+        throw result.error;
+      }
+      return (result.data||[]) as any[];
+    };
+    const uniqueVariants=[...variants].map(value=>value.trim()).filter(value=>value.length>=2).slice(0,6);
+    const patterns=uniqueVariants.flatMap(value=>{
+      const clauses=[`name.ilike.%${value}%`,`address.ilike.%${value}%`,`district.ilike.%${value}%`];
+      const normalized=compact(value);
+      if(normalized.length>=2&&normalized!==value)clauses.push(`name.ilike.%${normalized}%`,`address.ilike.%${normalized}%`);
+      return clauses;
+    });
+    const results=new Map<string,any>();
+    if(patterns.length){
+      const rows=await runSearch(patterns.join(","));
       rows.forEach(row=>results.set(row.id,row));
     }
-  }
-  return [...results.values()].filter((row:any)=>!isExcludedStudioSearchResult(row.name)).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
+    if(!results.size){
+      const tokens=[...new Set(term.split(/\\s+/).filter(token=>token.length>=2).slice(0,3))];
+      if(tokens.length){
+        const tokenPatterns=tokens.flatMap(token=>[`name.ilike.%${token}%`,`address.ilike.%${token}%`,`district.ilike.%${token}%`]);
+        const rows=await runSearch(tokenPatterns.join(","));
+        rows.forEach(row=>results.set(row.id,row));
+      }
+    }
+    const rows=[...results.values()].filter((row:any)=>!isExcludedStudioSearchResult(row.name)).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
+    if(studioNameSearchCache.size>=100)studioNameSearchCache.delete(studioNameSearchCache.keys().next().value!);
+    studioNameSearchCache.set(cacheKey,{savedAt:Date.now(),rows});
+    return rows;
+  })().finally(()=>{
+    if(studioNameSearchInFlight.get(cacheKey)===request)studioNameSearchInFlight.delete(cacheKey);
+  });
+  studioNameSearchInFlight.set(cacheKey,request);
+  return request;
 }
 
 /**
