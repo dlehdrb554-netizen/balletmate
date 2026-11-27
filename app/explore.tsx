@@ -152,6 +152,7 @@ export default function Home() {
   const [globalSearchStudios,setGlobalSearchStudios]=useState<Studio[]>([]);
   const [searchMatches,setSearchMatches]=useState<Studio[]>([]);
    const [liveRemoteStudios,setLiveRemoteStudios]=useState<Studio[]>([]);
+   const [mapLiveSearchMatches,setMapLiveSearchMatches]=useState<Studio[]>([]);
    const [liveSearchLoading,setLiveSearchLoading]=useState(false);
   const [searchResultsOpen,setSearchResultsOpen]=useState(false);
   const [searchSubmitting,setSearchSubmitting]=useState(false);
@@ -565,7 +566,11 @@ export default function Home() {
      return [...unique.values()].filter(studio=>!isExcludedStudioSearchResult(studio.name))
        .sort((a,b)=>a.name.localeCompare(b.name,"ko"));
    },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
-   const deferredLiveSearchMatches=useDeferredValue(liveSearchMatches);
+   useEffect(()=>{
+     if(!searchFocused){setMapLiveSearchMatches([]);return;}
+     const timer=setTimeout(()=>setMapLiveSearchMatches(liveSearchMatches),450);
+     return()=>clearTimeout(timer);
+   },[searchFocused,liveSearchMatches]);
      const normalizedSearch=deferredSearch.trim().toLowerCase();
   const classSearchIdSet=useMemo(()=>new Set(classSearchIds),[classSearchIds]);
   const classFilterIdSet=useMemo(()=>new Set(classFilterIds),[classFilterIds]);
@@ -591,7 +596,7 @@ export default function Home() {
 
   const mapMarkers=useMemo(()=>{
     // Live search suggestions must be included independently of the normal map filters.
-    const visible=new Map([...results,...(searchFocused?deferredLiveSearchMatches:[])].map(studio=>[studio.id,studio]));
+    const visible=new Map([...results,...(searchFocused?mapLiveSearchMatches:[])].map(studio=>[studio.id,studio]));
     if(selected)visible.set(selected.id,selected);
     return [...visible.values()].filter(studio=>Number.isFinite(studio.lat)&&Number.isFinite(studio.lng)&&Math.abs(studio.lat)<=90&&Math.abs(studio.lng)<=180)
       .map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng}));
