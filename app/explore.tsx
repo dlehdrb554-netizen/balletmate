@@ -1434,33 +1434,33 @@ export default function Home() {
     </Modal>
     <Modal visible={compareOpen} animationType="none" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><ReanimatedAnimated.View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)},compareSheetAnimatedStyle]}>
-        <View style={{alignItems:"center",paddingTop:6,paddingBottom:10}}><GestureDetector gesture={compareDismissGesture}><View accessibilityRole="adjustable" accessibilityLabel="비교 창을 위아래로 끌어 이동하거나 아래로 끌어 닫기" style={{width:96,height:42,alignItems:"center",justifyContent:"center"}}><View style={{width:44,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View></GestureDetector></View>
+        <View style={{alignItems:"center",paddingTop:14,paddingBottom:6}}><GestureDetector gesture={compareDismissGesture}><View accessibilityRole="adjustable" accessibilityLabel="비교 창을 위아래로 끌어 이동하거나 아래로 끌어 닫기" style={{width:104,height:24,alignItems:"center",justifyContent:"center"}}><View style={{width:46,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View></GestureDetector></View>
          <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
         {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
         {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="swap-horizontal-outline" size={30} color={COLORS.muted}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>비교 목록이 비어 있어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>학원 카드에서 비교를 추가해 주세요.</Text></View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{flexDirection:"row",gap:10,paddingTop:12,paddingBottom:12}}>
+        <View style={{flexDirection:"row",gap:6,paddingTop:8,paddingBottom:8,width:"100%"}}>
           {compareIds.map(id=>{
             const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
             if(!studio)return null;
             const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
             const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
             const maxDuration=Math.max(studio.duration||0,...(studio.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
-            return <View key={id} style={[styles.compareColumn,{width:224,minWidth:224,flexGrow:0,flexShrink:0,padding:12}]}>
-              <View style={[styles.compareColumnHead,{minHeight:80}]}>
-                <Text style={[styles.compareName,{fontSize:12}]} numberOfLines={2}>{studio.name}</Text>
-                <Text style={[styles.compareInfo,{fontSize:9}]} numberOfLines={1}>{studio.area}</Text>
+            return <View key={id} style={[styles.compareColumn,{flex:1,width:0,minWidth:0,padding:7}]}>
+              <View style={[styles.compareColumnHead,{minHeight:76,paddingBottom:6}]}>
+                <Text style={[styles.compareName,{fontSize:10,lineHeight:14}]} numberOfLines={3}>{studio.name}</Text>
+                <Text style={[styles.compareInfo,{fontSize:8,lineHeight:11}]} numberOfLines={2}>{studio.area}</Text>
                 <Pressable hitSlop={6} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}}><Text style={[styles.removeCompare,{fontSize:10}]}>제외</Text></Pressable>
               </View>
-              <Text style={styles.compareSectionTitle}>가격</Text>
-              {amounts.length?amounts.map((amount,index)=><Text key={index} style={[styles.comparePrice,{fontSize:12}]}>{amount.toLocaleString("ko-KR")}원</Text>):<Text style={styles.compareEmpty}>미등록</Text>}
+              <Text style={[styles.compareSectionTitle,{fontSize:10,marginTop:9,marginBottom:4}]}>가격</Text>
+              {amounts.length?amounts.map((amount,index)=><Text key={index} style={[styles.comparePrice,{fontSize:10,marginTop:4}]} numberOfLines={2}>{amount.toLocaleString("ko-KR")}원</Text>):<Text style={styles.compareEmpty}>미등록</Text>}
               <Text style={styles.compareSectionTitle}>쿠폰</Text>
-              <Text style={styles.compareInfo}>{compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"현재 제공 중인 쿠폰 없음":"쿠폰 확인 불가"}</Text>
+              <Text style={[styles.compareInfo,{fontSize:9,lineHeight:13}]}>{compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"현재 제공 중인 쿠폰 없음":"쿠폰 확인 불가"}</Text>
               <Text style={styles.compareSectionTitle}>최대 수업시간</Text>
-              <Text style={[styles.comparePrice,{fontSize:12}]}>{maxDuration>0?maxDuration+"분":"미등록"}</Text>
+              <Text style={[styles.comparePrice,{fontSize:10,marginTop:4}]}>{maxDuration>0?maxDuration+"분":"미등록"}</Text>
             </View>;
           })}
-        </ScrollView>}
+        </View>}
         <Pressable accessibilityRole="button" accessibilityLabel="학원 비교 확인 및 닫기" style={[styles.applyButton,{flex:0,width:"100%",minHeight:52,alignSelf:"stretch",paddingVertical:14,marginTop:8}]} onPress={()=>setCompareOpen(false)}><Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>비교 완료</Text></Pressable>
       </ReanimatedAnimated.View></View>
     </Modal>
