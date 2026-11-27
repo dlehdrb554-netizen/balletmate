@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useColorScheme } from "react-native";
 import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { View, Text, Pressable, StyleSheet, Appearance, Image } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,13 +21,11 @@ export default function RootLayout() {
     }).catch(() => {});
   }, []);
   return (
-    <GestureHandlerRootView style={{flex:1}}>
     <SafeAreaProvider>
       <StatusBar style={showSplash || colorScheme === "dark" ? "light" : "dark"} />
       <Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: colorScheme === "dark" ? "#101010" : "#FAF9FC" } }} />
       {showSplash&&<View style={styles.splash}><Image source={require("../assets/icon.png")} style={styles.splashLogo} resizeMode="contain"/><Text style={styles.splashTagline}>발레 생활을 더 편리하게</Text><Text style={styles.splashBrand}>Balletmate</Text></View>}
     </SafeAreaProvider>
-    </GestureHandlerRootView>
   );
 }
 export function ErrorBoundary({ error, retry }: any) {
