@@ -241,7 +241,7 @@ export default function Community(){
   const client=supabase;
   if(!userId||!client){requireLogin();return;}
   if(targetUserId===userId){Alert.alert("신고 불가","본인이 작성한 콘텐츠는 신고할 수 없습니다.");return;}
-  const reasons=["스팸/광고","욕설/괴롭힘","부적절한 콘텐츠","개인정보 노출","허위 정보","기타"];
+  const reasons=["스팸/광고","욕설/괴롭힘","개인정보 노출","저작권·초상권 침해","허위 정보","부적절한 콘텐츠","기타"];
   Alert.alert("콘텐츠 신고","신고 사유를 선택해 주세요.",[
    {text:"취소",style:"cancel"},
    ...reasons.map(reason=>({text:reason,onPress:async()=>{
