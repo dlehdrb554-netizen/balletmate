@@ -135,9 +135,6 @@ export default function Home() {
   } as const;
   const bottomInsetPadding = useBottomPadding(0);
   const locationBtnAnim = useRef(new Animated.Value(16)).current;
-  useEffect(()=>{
-    Animated.spring(locationBtnAnim,{toValue:selected?192:16,useNativeDriver:false,damping:22,stiffness:180}).start();
-  },[selected?.id,locationBtnAnim]);
   const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>([]);
   const [backendState,setBackendState]=useState<"loading"|"connected"|"empty"|"error">(supabaseConfigured?"empty":"error");
@@ -161,6 +158,10 @@ export default function Home() {
   const [pendingMapTarget,setPendingMapTarget]=useState<Region|null>(null);
   const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
+  useEffect(()=>{
+    Animated.spring(locationBtnAnim,{toValue:selected?192:16,useNativeDriver:false,damping:22,stiffness:180}).start();
+  },[selected?.id,locationBtnAnim]);
+
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
 
   const [selectedListRegion,setSelectedListRegion]=useState("전체");
@@ -243,11 +244,12 @@ export default function Home() {
   const selectedStudioForGesture=useRef<Studio|null>(null);
   selectedStudioForGesture.current=selected;
   const openDetailAction=useRef<(studio:Studio)=>void>(()=>{});
+  const openSelectedStudioFromCard=useCallback(()=>{const studio=selectedStudioForGesture.current;if(studio)openDetailAction.current(studio);},[]);
   const selectedCardGesture=useMemo(()=>Gesture.Pan()
     .activeOffsetY([-14,14])
     .failOffsetX([-12,12])
     .maxPointers(1)
-    .onEnd(event=>{if(event.translationY < -45)runOnJS(()=>{const studio=selectedStudioForGesture.current;if(studio)openDetailAction.current(studio);})();}),[]);
+    .onEnd(event=>{if(event.translationY < -45)runOnJS(openSelectedStudioFromCard)();}),[openSelectedStudioFromCard]);
   const detailTabs=["home","notices","classes","reviews","photos"] as const;
   const detailSheetRef=useRef<BottomSheet|null>(null);
   useEffect(()=>{if(detailStudio)detailSheetRef.current?.snapToIndex(0);},[detailStudio?.id]);
