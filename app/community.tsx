@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState, useMemo} from "react";
 import {themeStyles } from "../lib/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
+import { ActivityIndicator, Alert, BackHandler, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +15,9 @@ const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F3F0
 const categories:Category[]=["전체","학원 추천","발레복 추천","자유"];
 const timeLabel=(value:string)=>{const date=new Date(value);return Number.isNaN(date.getTime())?"":date.toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});};
 const cooldownMessage="도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.";
+const COMMUNITY_TERMS_VERSION="2026-11-27-community-policy-1";
+const containsSensitiveInfo=(value:string)=>/(?:\b\d{2,3}[- .]?\d{3,4}[- .]?\d{4}\b)|(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i.test(value);
+const containsPromotion=(value:string)=>/(https?:\/\/|www\.|무료\s*체험|공동구매|구매\s*문의|홍보|협찬|할인\s*코드)/i.test(value);
 
 export default function Community(){
  const isDark=useColorScheme()==="dark";
@@ -43,7 +46,9 @@ export default function Community(){
  const [blockedUserIds,setBlockedUserIds]=useState<string[]>([]);
  const [termsConsentOpen,setTermsConsentOpen]=useState(false);
  const [termsAccepting,setTermsAccepting]=useState(false);
- const [termsReturnTo,setTermsReturnTo]=useState<"post"|"comment">("post");
+ const [termsReturnTo,setTermsReturnTo]=useState<"entry"|"post"|"comment">("entry");
+ const [finalConfirmed,setFinalConfirmed]=useState(false);
+ const termsEntryChecked=useRef(false);
  const commentRequestId=useRef(0);
  const selectedPostIdRef=useRef<string|null>(null);
 
@@ -64,6 +69,29 @@ export default function Community(){
  },[category]);
 
  useEffect(()=>{loadPosts();},[loadPosts]);
+ useEffect(()=>{
+  if(!userId||!supabase||termsEntryChecked.current)return;
+  termsEntryChecked.current=true;
+  let active=true;
+  supabase.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version",COMMUNITY_TERMS_VERSION).maybeSingle().then(({data,error})=>{
+   if(!active)return;
+   if(error){Alert.alert("이용규칙 확인 실패",error.message);return;}
+   if(!data){setTermsReturnTo("entry");setTermsConsentOpen(true);}
+  });
+  return()=>{active=false;};
+ },[userId]);
+ useEffect(()=>{
+  if(!selected)return;
+  const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
+   commentRequestId.current++;
+   selectedPostIdRef.current=null;
+   setSelected(null);
+   setComments([]);
+   setCommentText("");
+   return true;
+  });
+  return()=>subscription.remove();
+ },[selected]);
  useEffect(()=>{
   if(!supabase||!userId){setBlockedUserIds([]);return;}
   let active=true;
@@ -153,7 +181,7 @@ export default function Community(){
  const submitPost=async()=>{
   if(!userId){requireLogin();return;}
   if(!supabase||!(await requireMemberProfile()))return;
-  if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목과 내용은 각각 2자 이상 입력해 주세요.");return;}if(title.trim().length>80||body.trim().length>5000){Alert.alert("내용 확인","제목은 최대 80자, 내용은 최대 5,000자까지 입력할 수 있습니다.");return;}
+  if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목과 내용은 각각 2자 이상 입력해 주세요.");return;}if(title.trim().length>80||body.trim().length>5000){Alert.alert("내용 확인","제목은 최대 80자, 내용은 최대 5,000자까지 입력할 수 있습니다.");return;}if(!finalConfirmed){Alert.alert("게시 전 확인","개인정보와 저작권·초상권, 커뮤니티 운영정책을 확인해 주세요.");return;}
   setSubmitting(true);
   let uploadedPaths:string[]=[];
   try{
@@ -172,7 +200,7 @@ export default function Community(){
   if(!userId){requireLogin();return;}
   const client=supabase;
   if(!client||!selected||!(await requireMemberProfile()))return;
-  const accepted=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version","2026-11-24").maybeSingle();
+  const accepted=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version",COMMUNITY_TERMS_VERSION).maybeSingle();
   if(accepted.error){Alert.alert("이용규칙 확인 실패",accepted.error.message);return;}
   if(!accepted.data){setTermsReturnTo("comment");setTermsConsentOpen(true);return;}
   if(!commentText.trim()){Alert.alert("댓글 내용","댓글을 입력해 주세요.");return;}
@@ -192,7 +220,7 @@ export default function Community(){
   if(!client||!(await requireMemberProfile()))return;
   const {data,error}=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version","2026-11-24").maybeSingle();
   if(error){Alert.alert("이용규칙 확인 실패",error.message);return;}
-  if(data){setComposer(true);return;}
+  if(data){setFinalConfirmed(false);setComposer(true);return;}
   setTermsReturnTo("post");setTermsConsentOpen(true);
  };
  const acceptCommunityTerms=async()=>{
@@ -200,10 +228,10 @@ export default function Community(){
   if(!client||!userId||termsAccepting)return;
   setTermsAccepting(true);
   try{
-   const {error}=await client.from("community_terms_acceptances").insert({user_id:userId,terms_version:"2026-11-24"});
+   const {error}=await client.from("community_terms_acceptances").insert({user_id:userId,terms_version:COMMUNITY_TERMS_VERSION});
    if(error&&error.code!=="23505")throw error;
    setTermsConsentOpen(false);
-   if(termsReturnTo==="post")setComposer(true);
+   if(termsReturnTo==="post"){setFinalConfirmed(false);setComposer(true);}
    else if(termsReturnTo==="comment")await submitComment();
   }catch(error:any){Alert.alert("동의 처리 실패",error?.message||"이용규칙 동의를 저장하지 못했습니다.");}
   finally{setTermsAccepting(false);}
@@ -314,8 +342,8 @@ export default function Community(){
    <View style={[s.shade,{paddingBottom:insets.bottom}]}><View style={[s.modal,{maxHeight:"88%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
     <View style={s.modalHead}><Text style={s.modalTitle}>커뮤니티 첫 이용 안내</Text><Pressable onPress={()=>setTermsConsentOpen(false)}><Text style={s.close}>×</Text></Pressable></View>
     <ScrollView style={{marginTop:12}} contentContainerStyle={s.rulesContent} showsVerticalScrollIndicator={false}>
-     <Text style={s.rulesIntro}>안전한 커뮤니티 이용을 위해 아래 내용을 확인하고 동의해 주세요. 동의 후 댓글과 게시글을 작성할 수 있습니다.</Text>
-     {["욕설·괴롭힘·협박·차별 등 다른 회원을 공격하는 표현은 사용할 수 없습니다.","스팸·광고·도배·사기 및 사실과 다른 정보의 반복 게시를 금지합니다.","본인이나 타인의 전화번호·주소·계정정보 등 개인정보를 공개하지 마세요.","저작권·초상권 등 타인의 권리를 침해하는 사진이나 글을 올리지 마세요.","신고된 콘텐츠는 운영자가 검토하며, 운영정책 위반 시 삭제될 수 있습니다.","회원을 차단하면 해당 회원의 게시글과 댓글이 내 화면에서 숨겨집니다."].map((rule,index)=><View key={index} style={s.ruleRow}><Text style={s.ruleNumber}>{index+1}</Text><Text style={s.ruleText}>{rule}</Text></View>)}
+     <Text style={s.rulesIntro}>서로의 발레 경험을 편안하게 나눌 수 있도록 아래 네 가지 약속을 확인해 주세요. 동의하면 게시글과 댓글을 작성할 수 있습니다.</Text>
+     {["서로 존중하는 표현을 사용하고 욕설·비방·괴롭힘은 피해 주세요.","학원·상품 광고는 허용된 안내 범위를 지키고 반복 홍보나 도배는 삼가 주세요.","본인과 타인의 전화번호·주소·계정정보 등 개인정보는 공개하지 말아 주세요.","사진과 글은 저작권·초상권 등 필요한 권리와 동의를 확인한 뒤 올려 주세요."].map((rule,index)=><View key={index} style={s.ruleRow}><Text style={s.ruleNumber}>{index+1}</Text><Text style={s.ruleText}>{rule}</Text></View>)}
     </ScrollView>
     <Pressable style={s.termsFullLink} onPress={()=>router.push("/terms")}><Text style={s.openLabel}>서비스 이용약관 전문 보기</Text></Pressable>
     <Pressable style={[s.submitBtn,termsAccepting&&{opacity:.5}]} disabled={termsAccepting} onPress={acceptCommunityTerms}><Text style={s.submitText}>{termsAccepting?"저장 중…":termsReturnTo==="comment"?"동의하고 댓글 등록":"동의하고 글쓰기"}</Text></Pressable>
@@ -328,14 +356,17 @@ export default function Community(){
     <View style={[s.modal,{maxHeight:"90%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
      <View style={s.composerHeader}><Pressable onPress={()=>setComposer(false)} accessibilityRole="button" accessibilityLabel="글쓰기 닫기" style={s.composerClose}><Text style={s.close}>×</Text></Pressable><Text style={s.modalTitle}>새 게시글</Text><Pressable style={[s.composerSubmit,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitPost} accessibilityRole="button" accessibilityLabel="게시글 등록"><Text style={s.composerSubmitText}>{submitting?"등록 중…":"등록"}</Text></Pressable></View>
      <ScrollView style={{flexShrink:1}} contentContainerStyle={{paddingBottom:8}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+     <View style={s.writerGuide}><Text style={s.writerGuideTitle}>도움이 되는 글쓰기</Text><Text style={s.writerGuideText}>지역·수업 수준·수업 시간·가격대처럼 다른 회원이 참고할 정보를 함께 적어주시면 좋아요.</Text><Pressable onPress={()=>router.push("/community-policy")}><Text style={s.writerGuideLink}>작성 예시와 운영 기준 보기 ›</Text></Pressable></View>
      <Text style={s.label}>게시판 선택</Text>
      <View style={s.categoryChoices}>{(["학원 추천","발레복 추천","자유"] as const).map(item=><Pressable key={item} onPress={()=>setNewCategory(item)} style={[s.filter,newCategory===item&&s.filterActive]}><Text style={[s.filterText,newCategory===item&&s.filterTextActive]}>{item}</Text></Pressable>)}</View>
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>제목 <Text style={{fontSize:10,color:C.muted,fontWeight:"500"}}>(최소 2자)</Text></Text><Text style={{fontSize:11,color:C.muted}}>{title.length}/80자</Text></View>
-     <View style={s.inputWithClear}><TextInput style={[s.titleInput,{flex:1}]} value={title} onChangeText={setTitle} placeholder="게시글 제목을 입력해주세요." maxLength={80} returnKeyType="next"/>{!!title&&<Pressable style={s.clearField} onPress={()=>setTitle("")} accessibilityRole="button" accessibilityLabel="제목 전체 삭제"><Ionicons name="close-circle" size={19} color={C.muted}/></Pressable>}</View>
+     <View style={s.inputWithClear}><TextInput style={[s.titleInput,{flex:1}]} value={title} onChangeText={value=>{setTitle(value);setFinalConfirmed(false);}} placeholder="예: 성인 초급 발레 학원 추천 부탁드려요" maxLength={80} returnKeyType="next"/>{!!title&&<Pressable style={s.clearField} onPress={()=>setTitle("")} accessibilityRole="button" accessibilityLabel="제목 전체 삭제"><Ionicons name="close-circle" size={19} color={C.muted}/></Pressable>}</View>
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>내용 <Text style={{fontSize:10,color:C.muted,fontWeight:"500"}}>(최소 2자)</Text></Text><Text style={{fontSize:11,color:C.muted}}>{body.length}/5,000자</Text></View>
-     <View style={s.bodyInputWrap}><TextInput style={[s.bodyInput,{flex:1}]} value={body} onChangeText={setBody} placeholder="경험이나 추천 정보를 자세히 적어주세요." multiline textAlignVertical="top" maxLength={5000}/>{!!body&&<Pressable style={s.clearBodyField} onPress={()=>setBody("")} accessibilityRole="button" accessibilityLabel="내용 전체 삭제"><Ionicons name="close-circle" size={19} color={C.muted}/></Pressable>}</View>
+     <View style={s.bodyInputWrap}><TextInput style={[s.bodyInput,{flex:1}]} value={body} onChangeText={value=>{setBody(value);setFinalConfirmed(false);}} placeholder={newCategory==="학원 추천"?"지역, 수업 수준, 수업 시간, 가격, 시설 경험을 적어주세요.":newCategory==="발레복 추천"?"제품명, 사이즈, 착용감, 가격, 구매처를 적어주세요.":"경험과 의견을 구체적으로 나눠주세요."} multiline textAlignVertical="top" maxLength={5000}/>{!!body&&<Pressable style={s.clearBodyField} onPress={()=>setBody("")} accessibilityRole="button" accessibilityLabel="내용 전체 삭제"><Ionicons name="close-circle" size={19} color={C.muted}/></Pressable>}</View>
      <View style={s.photoPickerRow}><View style={s.photoSlots}><Text style={s.photoPickerText}>사진 첨부 ({selectedPhotos.length}/4)</Text><View style={s.photoSlotList}>{[0,1,2,3].map(index=>{const photo=selectedPhotos[index];return <View key={index} style={s.photoSlot}>{photo?<><Image source={{uri:photo.uri}} style={s.photoSlotImage}/><Pressable style={s.photoRemove} onPress={()=>setSelectedPhotos(current=>current.filter((_,i)=>i!==index))} accessibilityRole="button" accessibilityLabel={`사진 ${index+1} 삭제`}><Text style={s.photoRemoveText}>×</Text></Pressable></>:<Pressable style={s.photoSlotEmpty} onPress={pickPhotos} accessibilityRole="button" accessibilityLabel={`사진 ${index+1} 첨부`}><Ionicons name="camera-outline" size={25} color={C.purple}/></Pressable>}</View>;})}</View></View></View>
-     <Text style={s.cooldownNote}>제목과 내용은 각각 최소 2자 이상 입력해 주세요. 제목 최대 80자, 내용 최대 5,000자입니다. 게시글 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
+     {(containsSensitiveInfo(title+" "+body)||containsPromotion(title+" "+body))&&<View style={s.inlineWarning}><Text style={s.inlineWarningTitle}>게시 전 한 번 더 확인해 주세요</Text>{containsSensitiveInfo(title+" "+body)&&<Text style={s.inlineWarningText}>전화번호나 이메일처럼 보이는 정보가 있어요. 본인과 타인의 개인정보가 포함되지 않았는지 확인해 주세요.</Text>}{containsPromotion(title+" "+body)&&<Text style={s.inlineWarningText}>광고·홍보성 표현이나 외부 링크가 감지됐어요. 정보 공유 목적의 글인지 운영정책을 확인해 주세요.</Text>}</View>}
+     <Pressable style={s.finalCheck} onPress={()=>setFinalConfirmed(value=>!value)} accessibilityRole="checkbox" accessibilityState={{checked:finalConfirmed}}><View style={[s.checkBox,finalConfirmed&&s.checkBoxActive]}>{finalConfirmed&&<Ionicons name="checkmark" size={14} color="#FFFFFF"/>}</View><Text style={s.finalCheckText}>개인정보와 저작권·초상권을 확인했고, 커뮤니티 운영정책을 지키는 글임을 확인합니다.</Text></Pressable>
+     <Text style={s.cooldownNote}>제목·내용 각각 최소 2자, 최대 80자·5,000자입니다. 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
      </ScrollView>
     </View>
    </KeyboardAvoidingView>
@@ -345,7 +376,7 @@ export default function Community(){
 
 const createS = (dark:boolean) => StyleSheet.create(themeStyles({postPhotos:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:10},detailPhoto:{width:"48%",height:170,borderRadius:10,backgroundColor:"#EEEAF4"},listPhoto:{width:88,height:68,borderRadius:8,backgroundColor:"#EEEAF4"},photoPickerRow:{marginTop:10},photoSlots:{gap:9},photoPickerText:{fontSize:12,fontWeight:"800",color:C.purple},photoSlotList:{flexDirection:"row",flexWrap:"wrap",gap:8},photoSlot:{width:76,height:76,position:"relative"},photoSlotEmpty:{flex:1,borderWidth:1,borderStyle:"dashed",borderColor:C.purple,borderRadius:9,backgroundColor:C.pale,alignItems:"center",justifyContent:"center"},photoSlotImage:{width:76,height:76,borderRadius:9,backgroundColor:"#EEEAF4"},photoRemove:{position:"absolute",right:-5,top:-5,width:22,height:22,borderRadius:11,backgroundColor:C.red,alignItems:"center",justifyContent:"center",zIndex:1},photoRemoveText:{fontSize:17,color:"#fff",fontWeight:"900",lineHeight:20},
  safe:{flex:1,backgroundColor:C.bg},header:{minHeight:56,paddingVertical:7,paddingHorizontal:12,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:6,borderBottomWidth:1,borderColor:C.line},
- back:{color:C.muted,fontWeight:"700",fontSize:12,width:52},heading:{fontSize:16,fontWeight:"900",color:C.ink,flexShrink:1,textAlign:"center"},writeBtn:{backgroundColor:C.purple,borderRadius:10,paddingHorizontal:9,paddingVertical:8},writeText:{color:"#fff",fontSize:11,fontWeight:"800"},menuBtn:{borderWidth:1,borderColor:C.line,borderRadius:10,paddingHorizontal:9,paddingVertical:7,marginLeft:5},menuText:{color:C.ink,fontSize:17,fontWeight:"800"},
+ back:{color:C.muted,fontWeight:"700",fontSize:12,width:52},writerGuide:{backgroundColor:C.pale,borderRadius:13,padding:13,marginHorizontal:14,marginTop:8},writerGuideTitle:{fontSize:12,fontWeight:"900",color:C.purple},writerGuideText:{fontSize:11,lineHeight:17,color:C.muted,marginTop:5},writerGuideLink:{fontSize:11,fontWeight:"800",color:C.purple,marginTop:7},inlineWarning:{marginTop:12,padding:12,borderRadius:11,backgroundColor:"#FFF4E5",borderWidth:1,borderColor:"#F1D4A8"},inlineWarningTitle:{fontSize:12,fontWeight:"900",color:"#8A4B08",marginBottom:5},inlineWarningText:{fontSize:11,lineHeight:17,color:"#80551E",marginTop:3},finalCheck:{flexDirection:"row",alignItems:"flex-start",gap:9,marginTop:14,padding:12,borderRadius:11,borderWidth:1,borderColor:C.line,backgroundColor:C.pale},checkBox:{width:20,height:20,borderRadius:5,borderWidth:1.5,borderColor:C.purple,alignItems:"center",justifyContent:"center",backgroundColor:"#FFFFFF"},checkBoxActive:{backgroundColor:C.purple},finalCheckText:{flex:1,fontSize:11,lineHeight:17,color:C.ink},heading:{fontSize:16,fontWeight:"900",color:C.ink,flexShrink:1,textAlign:"center"},writeBtn:{backgroundColor:C.purple,borderRadius:10,paddingHorizontal:9,paddingVertical:8},writeText:{color:"#fff",fontSize:11,fontWeight:"800"},menuBtn:{borderWidth:1,borderColor:C.line,borderRadius:10,paddingHorizontal:9,paddingVertical:7,marginLeft:5},menuText:{color:C.ink,fontSize:17,fontWeight:"800"},
  intro:{color:C.muted,fontSize:12,paddingHorizontal:18,paddingTop:16},filterScroll:{flexGrow:0,flexShrink:0},filters:{paddingHorizontal:14,paddingVertical:9,gap:6,alignItems:"center"},filter:{paddingHorizontal:11,paddingVertical:7,borderRadius:18,borderWidth:1,borderColor:C.line,backgroundColor:"#fff"},filterActive:{backgroundColor:C.pale,borderColor:C.purple},filterText:{fontSize:12,color:C.muted,fontWeight:"700"},filterTextActive:{color:C.purple},
  list:{padding:12,paddingBottom:24},postCard:{backgroundColor:"#fff",padding:13,borderRadius:16,borderWidth:1,borderColor:C.line,marginBottom:10},postTop:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},categoryBadge:{backgroundColor:C.pale,borderRadius:8,paddingHorizontal:9,paddingVertical:5,alignSelf:"flex-start"},categoryText:{fontSize:10,color:C.purple,fontWeight:"800"},meta:{fontSize:10,color:C.muted},cardTitle:{fontSize:16,fontWeight:"900",color:C.ink,marginTop:11},preview:{fontSize:12,color:"#625E70",lineHeight:18,marginTop:6},cardFoot:{flexDirection:"row",justifyContent:"space-between",marginTop:13},author:{fontSize:11,color:C.muted,fontWeight:"700"},openLabel:{fontSize:11,color:C.purple,fontWeight:"800"},empty:{textAlign:"center",color:C.muted,padding:28,fontSize:13},
  detailContent:{padding:14,paddingBottom:24},postDetail:{backgroundColor:"#fff",borderRadius:17,borderWidth:1,borderColor:C.line,padding:16},postTitle:{fontSize:20,fontWeight:"900",color:C.ink,marginTop:12},postBody:{fontSize:14,color:"#4E4A5C",lineHeight:23,marginTop:20},section:{fontSize:15,fontWeight:"900",color:C.ink,marginTop:22,marginBottom:10},comment:{backgroundColor:"#fff",borderRadius:12,padding:13,marginBottom:8,borderWidth:1,borderColor:C.line},moderationActions:{flexDirection:"row",justifyContent:"flex-end",gap:16,marginTop:10},commentTop:{flexDirection:"row",justifyContent:"space-between"},commentAuthor:{fontSize:12,color:C.ink,fontWeight:"800"},commentBody:{fontSize:13,color:"#555164",lineHeight:20,marginTop:8},deleteText:{fontSize:10,color:C.red,fontWeight:"700",marginTop:10,alignSelf:"flex-end"},
