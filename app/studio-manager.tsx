@@ -10,7 +10,7 @@ import * as XLSX from "xlsx";
 import { parseClassExcel, type ParsedClass } from "../lib/excel-mapper";
 import { invalidateStudioPublicMaterials } from "../lib/studio-public-materials";
 import { searchStudiosByName } from "../lib/studios";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomPadding } from "../hooks/useBottomPadding";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
@@ -521,9 +521,10 @@ export default function StudioManager(){
  const button=(label:string,onPress:()=>void,disabled=false,destructive=false)=><Pressable disabled={disabled} onPress={onPress} style={[s.button,{backgroundColor:isDark?"#7652B8":C.pale},destructive&&s.danger,disabled&&{opacity:0.5}]}><Text style={[s.buttonText,{color:isDark?"#FFFFFF":C.purple},destructive&&{color:C.red}]}>{label}</Text></Pressable>;
  const field=(label:string,value:string,onChangeText:(v:string)=>void,placeholder:string="",keyboardType:any="default")=><View style={{marginTop:12}}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} keyboardType={keyboardType} style={s.input}/></View>;
 
- return <SafeAreaView edges={["top"]} style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView ref={managerScrollRef} contentContainerStyle={[s.content,{flexGrow:1,paddingBottom:managerBottomPadding+24}]} keyboardShouldPersistTaps="handled" stickyHeaderIndices={owner?[3]:[]} onScroll={event=>{tabScrollOffsets.current[activeTab]=event.nativeEvent.contentOffset.y;}} scrollEventThrottle={100}>
-  <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
-  <Text style={s.brand}>Balletmate · 학원 관리</Text><Text style={s.title}>{studioName}</Text>
+ return <SafeAreaView edges={["top"]} style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":undefined} keyboardVerticalOffset={0}><View style={{flex:1}}>
+   <View style={{paddingHorizontal:16,paddingTop:8,paddingBottom:10,backgroundColor:isDark?"#17151D":"#FBF9FF",borderBottomWidth:1,borderBottomColor:isDark?"#393342":"#E9E2F2"}}><Pressable onPress={()=>router.back()} hitSlop={8} style={{alignSelf:"flex-start",paddingVertical:7,paddingRight:12}}><Text style={[s.back,{paddingVertical:0}]}>‹ 돌아가기</Text></Pressable><Text style={[s.brand,{marginTop:2}]}>Balletmate · 학원 관리</Text><Text style={[s.title,{marginBottom:0}]}>{studioName}</Text></View>
+   {owner&&!loading&&<View style={{flexDirection:"row",gap:5,paddingHorizontal:12,paddingVertical:8,backgroundColor:isDark?"#17151D":"#FBF9FF",borderBottomWidth:1,borderBottomColor:isDark?"#393342":"#E9E2F2"}}>{([{key:"profile",label:"기본정보"},{key:"photos",label:"사진"},{key:"classes",label:"수업정보"},{key:"notices",label:"공지사항"}] as const).map(tab=><Pressable key={tab.key} onPress={()=>{Keyboard.dismiss();setActiveTab(tab.key);}} accessibilityRole="tab" accessibilityState={{selected:activeTab===tab.key}} style={{flex:1,minHeight:44,borderRadius:10,alignItems:"center",justifyContent:"center",backgroundColor:activeTab===tab.key?(isDark?"#49366B":"#FFFFFF"):"transparent",borderWidth:activeTab===tab.key?1:0,borderColor:isDark?"#7255A0":"#E1D5F5"}}><Text style={{fontSize:11,fontWeight:"900",color:activeTab===tab.key?(isDark?"#E8DCFF":"#653BB7"):(isDark?"#C0B8CC":"#625E70")}}>{tab.label}</Text></Pressable>)}</View>}
+   <ScrollView style={{flex:1}} contentContainerStyle={[s.content,{flexGrow:1,paddingBottom:Math.max(20,insets.bottom+16)}]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==="ios"?"interactive":"on-drag"} nestedScrollEnabled={Platform.OS==="android"} removeClippedSubviews={false}>
   {loading?<ActivityIndicator color={C.purple} style={{marginTop:28}}/>:!session?
    <View style={s.card}><Text style={s.body}>학원 관리 권한을 신청하거나 관리 기능을 사용하려면 먼저 로그인해 주세요.</Text>{button("로그인하기",()=>router.push({pathname:"/account",params:{returnTo:"studio-manager",studioId,studioName}}))}</View>
   :!studioId?
@@ -542,9 +543,7 @@ export default function StudioManager(){
     </View>
   :owner?
    <>
-    <View style={{flexDirection:"row",gap:5,marginTop:8,marginBottom:4,padding:4,borderRadius:14,backgroundColor:isDark?"#211D2A":"#F0ECF7"}}>
-     {([{key:"profile",label:"기본정보"},{key:"photos",label:"사진"},{key:"classes",label:"수업정보"},{key:"notices",label:"공지사항"}] as const).map(tab=><Pressable key={tab.key} onPress={()=>setActiveTab(tab.key)} accessibilityRole="tab" accessibilityState={{selected:activeTab===tab.key}} style={{flex:1,minHeight:48,borderRadius:10,alignItems:"center",justifyContent:"center",backgroundColor:activeTab===tab.key?(isDark?"#49366B":"#FFFFFF"):"transparent",borderWidth:activeTab===tab.key?1:0,borderColor:isDark?"#7255A0":"#E1D5F5"}}><Text style={{fontSize:11,fontWeight:"900",color:activeTab===tab.key?(isDark?"#E8DCFF":C.purple):(isDark?"#C0B8CC":C.muted)}}>{tab.label}</Text></Pressable>)}
-    </View>
+    
     <View style={{paddingVertical:7,paddingHorizontal:3}}><Text style={s.body}>{activeTab==="profile"?"학원 기본 정보와 운영 변경 이력을 관리합니다.":activeTab==="photos"?"대표 사진과 갤러리 사진을 한곳에서 관리합니다.":activeTab==="classes"?"시간표·가격표, 수업, 혜택과 수강 인증을 관리합니다.":"공지 목록을 확인하고 작성·수정·공개 여부를 관리합니다."}</Text></View>
     {activeTab==="profile"&&<>
      <View style={s.card}><Text style={s.cardTitle}>학원 기본 정보</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("대표 홈페이지 URL",profileWebsite,setProfileWebsite,"일반 홈페이지·네이버 블로그·인스타그램 URL (https://)")}<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:110,textAlignVertical:"top",paddingTop:12,marginTop:12}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
@@ -581,10 +580,11 @@ export default function StudioManager(){
     <Text style={[s.body,{marginTop:12}]}>신청 정보는 선택한 인증 방식에 필요한 공식 채널 정보만 전달됩니다. 운영자 확인 후 승인되면 별도 신청 없이 학원 관리 기능을 사용할 수 있습니다.</Text>{button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving||(verificationMethod==="phone"&&!profilePhone.trim())||((verificationMethod==="blog"||verificationMethod==="instagram")&&(!blogUrl.trim()||!blogVerificationCode.trim())))}
    </View>}
  </ScrollView>
+  </View>
  <Modal visible={classImportOpen} transparent animationType="none" statusBarTranslucent onRequestClose={()=>{if(!classImportBusy)setClassImportOpen(false);}}>
   <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.48)"}}><Pressable style={{flex:1}} onPress={()=>{if(!classImportBusy)setClassImportOpen(false);}}/>
    <KeyboardAvoidingView style={{width:"100%"}} behavior={Platform.OS==="ios"?"padding":"height"}>
-   <View style={{maxHeight:"92%",padding:18,paddingBottom:Math.max(24,managerBottomPadding),borderTopLeftRadius:24,borderTopRightRadius:24,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
+   <View style={{maxHeight:"86%",padding:18,paddingBottom:Math.max(16,insets.bottom+16),borderTopLeftRadius:24,borderTopRightRadius:24,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
     <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
     <Text style={{fontSize:18,fontWeight:"900",color:isDark?"#F3EFFA":C.ink}}>엑셀 등록 미리보기</Text>
     <Text style={s.body}>선택 {classImportRows.filter(row=>row.selected).length}개 / 전체 {classImportRows.length}개 · 오류 {classImportErrors.length}개</Text>
@@ -603,7 +603,7 @@ export default function StudioManager(){
  <Modal visible={noticeEditorOpen} transparent animationType="none" statusBarTranslucent onRequestClose={()=>{if(!saving)setNoticeEditorOpen(false);}}>
   <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.48)"}}><Pressable style={{flex:1}} onPress={()=>{if(!saving)setNoticeEditorOpen(false);}}/>
    <KeyboardAvoidingView style={{width:"100%"}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}>
-    <View style={{maxHeight:"92%",padding:20,paddingBottom:Math.max(24,managerBottomPadding),borderTopLeftRadius:24,borderTopRightRadius:24,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
+    <View style={{maxHeight:"86%",padding:20,paddingBottom:Math.max(16,insets.bottom+16),borderTopLeftRadius:24,borderTopRightRadius:24,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><Text style={{fontSize:18,fontWeight:"900",color:isDark?"#F3EFFA":C.ink}}>{editingNotice?"공지 수정":"새 공지 작성"}</Text><Pressable onPress={()=>{if(!saving)setNoticeEditorOpen(false);}}><Text style={{fontSize:22,color:isDark?"#D6CDE4":C.muted}}>×</Text></Pressable></View>
     <Text style={[s.label,{color:isDark?"#E9E2F2":C.ink}]}>제목</Text><TextInput value={noticeTitle} onChangeText={setNoticeTitle} placeholder="공지 제목을 입력하세요." placeholderTextColor={isDark?"#9B93A8":"#8A8493"} style={[s.input,{backgroundColor:isDark?"#302B39":"#FFFFFF",color:isDark?"#FFFFFF":C.ink,borderColor:isDark?"#514568":C.line}]}/>
