@@ -1,4 +1,5 @@
 import React, {useEffect, useState, useMemo} from "react";
+import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles} from "../lib/theme";
 import {ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import {useRouter} from "expo-router";
@@ -64,7 +65,7 @@ export default function CompleteProfile(){
    if(profile?.username!==value)throw new Error("계정 정보 저장을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
    router.replace("/account");
   }catch(error:any){
-   Alert.alert("계정 생성 실패",error?.message||"잠시 후 다시 시도해 주세요.");
+   Alert.alert("계정 생성 실패",getUserErrorMessage(error,"잠시 후 다시 시도해 주세요."));
   }finally{setSaving(false);}
  };
 
