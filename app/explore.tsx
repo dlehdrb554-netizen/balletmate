@@ -9,6 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, useColorScheme} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomPadding } from "../hooks/useBottomPadding";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
 import { fetchStudios, fetchStudioById, searchStudiosByName, searchStudiosByKakao, isExcludedStudioSearchResult, StudioRecord } from "../lib/studios";
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
@@ -120,6 +121,9 @@ export default function Home() {
   const router = useRouter();
   const routeParams = useLocalSearchParams<{studioId?:string;searchQuery?:string}>();
   const insets = useSafeAreaInsets();
+  const modalBottomPadding = useBottomPadding(24);
+  const scrollBottomPadding = useBottomPadding(32);
+  const bottomInsetPadding = useBottomPadding(0);
   const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>([]);
   const [backendState,setBackendState]=useState<"loading"|"connected"|"empty"|"error">(supabaseConfigured?"empty":"error");
@@ -1117,7 +1121,7 @@ export default function Home() {
     </View>
     {compareIds.length>0&&<Pressable style={[styles.compareFloating,{bottom:Math.max(72,insets.bottom+72)},selected&&{bottom:Math.max(190,insets.bottom+190)}]} onPress={()=>setCompareOpen(true)}><Text style={styles.compareFloatingText}>비교 목록 · {compareIds.length}/3</Text></Pressable>}
     <Modal visible={searchResultsOpen} transparent animationType="fade" onRequestClose={()=>setSearchResultsOpen(false)}>
-      <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}>
+      <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={()=>setSearchResultsOpen(false)} />
         <View style={[styles.modal,{maxHeight:"82%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
           <View style={styles.modalHead}>
@@ -1206,7 +1210,7 @@ export default function Home() {
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:insets.bottom}]}>
-        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingHorizontal:14,paddingBottom:Math.max(24,insets.bottom+24)}]}>
+        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingHorizontal:14,paddingBottom:modalBottomPadding}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>지역 선택</Text>
             <Pressable onPress={handleRegionPickerBack} hitSlop={10} style={{minWidth:64,alignItems:"flex-end"}}>
@@ -1214,7 +1218,7 @@ export default function Home() {
             </Pressable>
           </View>
           <Text style={styles.photoCredit}>지역을 누르면 해당 범위가 적용됩니다. 구·군을 선택하면 더 좁혀집니다.</Text>
-          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" overScrollMode="always" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:insets.bottom+32}} scrollEventThrottle={16}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" overScrollMode="always" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:scrollBottomPadding}} scrollEventThrottle={16}>
             <Pressable onPress={()=>{setRegionProvince("전체");setRegionCity("전체");setSelectedListRegion("전체");setExpandedProvince(null);setExpandedCity(null);setRegionPickerOpen(false);}} style={{paddingVertical:12,paddingHorizontal:12,borderRadius:9,backgroundColor:regionProvince==="전체"&&regionCity==="전체"&&selectedListRegion==="전체"?(isDark?"#292333":"#F2ECFF"):(isDark?"#242424":"#F8F7FA"),marginBottom:8}}>
               <Text style={{fontSize:13,fontWeight:"900",color:COLORS.purple}}>전국 전체</Text>
             </Pressable>
