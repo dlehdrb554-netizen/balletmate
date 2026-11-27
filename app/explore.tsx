@@ -7,7 +7,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, useColorScheme, useWindowDimensions} from "react-native";
+  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomPadding } from "../hooks/useBottomPadding";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
@@ -391,6 +391,7 @@ export default function Home() {
   const [compareScheduleData,setCompareScheduleData]=useState<Record<string,StudioPublicSchedule[]>>({});
   const [compareClassLoading,setCompareClassLoading]=useState(false);
   const [compareMaterialError,setCompareMaterialError]=useState<string|null>(null);
+  const lastMapBackPress=useRef(0);
   useFocusEffect(useCallback(()=>{
     const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
       if(mapSettingsOpen){setMapSettingsOpen(false);setPendingDirectionsStudio(null);return true;}
@@ -400,6 +401,13 @@ export default function Home() {
       if(filterOpen){setFilterOpen(false);return true;}
       if(detailStudio){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);return true;}
       if(view!=="map"){setView("map");return true;}
+      if(Platform.OS==="android"){
+        const now=Date.now();
+        if(now-lastMapBackPress.current<2000)return false;
+        lastMapBackPress.current=now;
+        ToastAndroid.show("버튼을 한 번 더 누르면 종료됩니다",ToastAndroid.SHORT);
+        return true;
+      }
       return false;
     });
     return()=>subscription.remove();
