@@ -385,7 +385,7 @@ export default function Community(){
    }
    const {error}=await client.from("community_comments").insert({post_id:selected.id,author_id:userId,author_name:authorName,content:commentText.trim()||"사진",image_urls:imageUrls});
    if(error)throw error;
-   setCommentText("");setCommentPhoto(null);await loadComments(selected.id);
+   setCommentText("");setCommentPhoto(null);setPostMetrics(value=>{const current=value[selected.id]||{likes:0,comments:0,liked:false};return {...value,[selected.id]:{...current,comments:current.comments+1}};});await loadComments(selected.id);
    Alert.alert("등록 완료","댓글이 등록되었습니다.");
   }catch(error:any){if(uploadedCommentPath)await client.storage.from("community-photos").remove([uploadedCommentPath]).catch(()=>{});explainError(error);}
   finally{setSubmitting(false);setCommentPhotoUploading(false);}
