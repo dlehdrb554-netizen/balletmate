@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useColorScheme } from "react-native";
 import { Stack, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
