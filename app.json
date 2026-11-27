@@ -54,6 +54,11 @@
       "eas": {
         "projectId": "dc0b7dc4-781f-45a0-837b-4d12d890a5c7"
       }
+    },
+    "install": {
+      "exclude": [
+        "react-native-reanimated@~4.0.1"
+      ]
     }
   }
 }
