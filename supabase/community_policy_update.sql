@@ -78,7 +78,7 @@ begin
     when '스팸/광고' then '제2항(광고·홍보 및 도배)'
     when '욕설/괴롭힘' then '제1항(상호 존중)'
     when '개인정보 노출' then '제3항(개인정보 보호)'
-    when '부적절한 콘텐츠' then '제4항(저작권·초상권 및 권리 보호)'
+    when '부적절한 콘텐츠' then '제5항(허위 정보 및 부적절한 콘텐츠)'
     when '허위 정보' then '제5항(허위 정보 및 부적절한 콘텐츠)'
     else '커뮤니티 운영정책'
   end;
@@ -98,7 +98,7 @@ begin
       'user_ids', jsonb_build_array(v_author_id),
       'preference', 'announcements',
       'title', '커뮤니티 콘텐츠 조치 안내',
-      'body', '작성 기준 ' || v_policy_clause || ' 위반으로 ' || v_content_label || '가 삭제되었습니다. 운영정책 전체보기에서 기준을 확인할 수 있습니다.',
+      'body', '작성 기준 ' || v_policy_clause || ' 위반으로 ' || v_content_label || '이 삭제되었습니다. 운영정책 전체보기에서 기준을 확인할 수 있습니다.',
       'data', jsonb_build_object(
         'kind', 'community_moderation',
         'contentType', p_content_type,
