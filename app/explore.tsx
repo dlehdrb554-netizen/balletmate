@@ -118,7 +118,7 @@ export default function Home() {
  const isDark=useColorScheme()==="dark";
  const styles=useMemo(()=>createStyles(isDark),[isDark]);
   const router = useRouter();
-  const routeParams = useLocalSearchParams<{studioId?:string}>();
+  const routeParams = useLocalSearchParams<{studioId?:string;searchQuery?:string}>();
   const insets = useSafeAreaInsets();
   const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>([]);
@@ -608,12 +608,13 @@ export default function Home() {
     "천안":{latitude:36.8151,longitude:127.1139},"아산":{latitude:36.7898,longitude:127.0017},"전주":{latitude:35.8242,longitude:127.1480},"광주":{latitude:35.1595,longitude:126.8526},"대구":{latitude:35.8714,longitude:128.6014},
     "부산":{latitude:35.1796,longitude:129.0756},"울산":{latitude:35.5384,longitude:129.3114},"창원":{latitude:35.2281,longitude:128.6811},"제주":{latitude:33.4996,longitude:126.5312}
   };
-  const submitSearch=async()=>{
+  const submitSearch=async(queryOverride?:string)=>{
     if(searchSubmitting)return;
     const requestId=++searchSubmitRequestId.current;
     setSearchSubmitting(true);
     Keyboard.dismiss();
-    const query=search.trim();
+    const query=(queryOverride??search).trim();
+    if(queryOverride!==undefined)setSearch(query);
     if(!query){setAreaLocked(false);setSelected(null);setGlobalSearchStudios([]);setSearchSubmitting(false);return;}
 
     const q=query.toLowerCase();
@@ -696,6 +697,18 @@ export default function Home() {
     }catch(error){if(requestId===searchSubmitRequestId.current){console.warn("Search location geocoding failed:",error);Alert.alert("지역 검색","지역 위치를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");}}
     finally{if(requestId===searchSubmitRequestId.current)setSearchSubmitting(false);}
   };
+  const submitSearchRef=useRef(submitSearch);submitSearchRef.current=submitSearch;
+  useFocusEffect(useCallback(()=>{
+    let active=true;
+    void AsyncStorage.getItem("balletmate.pending_search_query").then(async keyword=>{
+      if(!active||!keyword?.trim())return;
+      await AsyncStorage.removeItem("balletmate.pending_search_query");
+      setSearch(keyword.trim());
+      setSearchSubmitting(false);
+      setTimeout(()=>{if(active)void submitSearchRef.current(keyword.trim());},80);
+    }).catch(()=>{});
+    return()=>{active=false;};
+  },[]));
   const locate=async()=>{
     setLocationLoading(true);
     try {
@@ -1011,7 +1024,7 @@ export default function Home() {
       <View style={styles.headerActions}><Pressable style={[styles.menuButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>{setMenuOpen(true);refreshAdminAccess();}} accessibilityRole="button" accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage?open=settings&returnTo=map")} accessibilityRole="button" accessibilityLabel="알림 설정"><Ionicons name="settings-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage")} accessibilityRole="button" accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
-      <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={COLORS.muted} /><TextInput value={search} onChangeText={value=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setSearch(value);setClassSearchIds([]);setClassSearchLoading(false);setGlobalSearchStudios([]);setSearchMatches([]);}} placeholder="학원명, 지역, 수업명 검색" placeholderTextColor="#625E70" style={styles.searchInput} maxFontSizeMultiplier={1.15} returnKeyType="search" onSubmitEditing={submitSearch}/>{!!search&&<Pressable onPress={()=>{areaSearchRequestId.current++;searchSubmitRequestId.current++;setSearchSubmitting(false);setSearch("");setGlobalSearchStudios([]);setSearchMatches([]);Keyboard.dismiss();}}><Text style={styles.clear}>×</Text></Pressable>}</View>{view==="map"&&<Pressable style={[styles.searchSubmitButton,searchSubmitting&&{opacity:0.6}]} onPress={submitSearch} disabled={searchSubmitting}><Ionicons name={searchSubmitting?"hourglass-outline":"search"} size={19} color="#fff"/></Pressable>}
+      <Pressable accessibilityRole="button" accessibilityLabel="학원 및 지역 검색" onPress={()=>router.push("/search")} style={[styles.searchBox,{flexDirection:"row",alignItems:"center"}]}><Ionicons name="search-outline" size={19} color={COLORS.muted}/><Text numberOfLines={1} style={[styles.searchInput,{color:search?COLORS.ink:COLORS.muted,flex:1}]}>{search||"학원명, 지역, 수업명 검색"}</Text><Ionicons name="chevron-forward" size={16} color={COLORS.muted}/></Pressable>
       <Pressable style={[styles.filterButton,{backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>setFilterOpen(true)}><Ionicons name="options-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} />{activeFilters>0&&<View style={styles.filterCount}><Text style={styles.filterCountText}>{activeFilters}</Text></View>}</Pressable>
     </View>
     {!!search.trim()&&search.trim().length>=2&&<Text style={styles.searchHint}>{classSearchLoading?"수업명 검색 중…":"학원명·지역·태그·등록 수업명 검색"}</Text>}
