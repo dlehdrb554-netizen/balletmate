@@ -291,7 +291,9 @@ export default function Community(){
    const actions=mode==="rotate"?[{rotate:90}]:[{crop:{originX:Math.max(0,Math.floor((asset.width-Math.min(asset.width,asset.height))/2)),originY:Math.max(0,Math.floor((asset.height-Math.min(asset.width,asset.height))/2)),width:Math.min(asset.width,asset.height),height:Math.min(asset.width,asset.height)}}];
    const edited=await ImageManipulator.manipulateAsync(asset.uri,actions,{compress:0.9,format:ImageManipulator.SaveFormat.JPEG});
    const updated={...asset,uri:edited.uri,width:edited.width,height:edited.height};const oldKey=asset.assetId||asset.uri;
+   const oldUpload=uploadedPhotoFiles[oldKey];if(oldUpload&&supabase)void supabase.storage.from("community-photos").remove([oldUpload.path]);
    setSelectedPhotos(current=>current.map((photo,i)=>i===index?updated:photo));
+   setUploadedPhotoFiles(current=>{const next={...current};delete next[oldKey];return next;});
    setPhotoUploadStatus(current=>{const next={...current};delete next[oldKey];return next;});
    setUploadedPhotoFiles(current=>{const next={...current};delete next[oldKey];return next;});
   }catch(error:any){Alert.alert("사진 편집 실패",error?.message||"사진을 편집하지 못했습니다.");}
@@ -338,6 +340,10 @@ export default function Community(){
   finally{setSubmitting(false);}
  };
 
+ const closeComposer=()=>{
+  const paths=Object.values(uploadedPhotoFiles).map(item=>item.path);if(paths.length&&supabase)void supabase.storage.from("community-photos").remove(paths);
+  setUploadedPhotoFiles({});setPhotoUploadStatus({});setComposerPhotoPreview(null);setComposer(false);
+ };
  const openComposer=async()=>{
   if(!userId){requireLogin();return;}
   const client=supabase;
@@ -489,10 +495,10 @@ export default function Community(){
    </View></View>
   </Modal>
 
-  <Modal visible={composer} transparent animationType="slide" onRequestClose={()=>setComposer(false)}>
+  <Modal visible={composer} transparent animationType="slide" onRequestClose={closeComposer}>
    <KeyboardAvoidingView style={[s.shade,{paddingBottom:insets.bottom}]} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}>
     <View style={[s.modal,{maxHeight:"90%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
-     <View style={s.composerHeader}><Pressable onPress={()=>setComposer(false)} accessibilityRole="button" accessibilityLabel="글쓰기 닫기" style={s.composerClose}><Text style={s.close}>×</Text></Pressable><Text style={s.modalTitle}>새 게시글</Text><Pressable style={[s.composerSubmit,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitPost} accessibilityRole="button" accessibilityLabel="게시글 등록"><Text style={s.composerSubmitText}>{submitting?"등록 중…":"등록"}</Text></Pressable></View>
+     <View style={s.composerHeader}><Pressable onPress={closeComposer} accessibilityRole="button" accessibilityLabel="글쓰기 닫기" style={s.composerClose}><Text style={s.close}>×</Text></Pressable><Text style={s.modalTitle}>새 게시글</Text><Pressable style={[s.composerSubmit,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitPost} accessibilityRole="button" accessibilityLabel="게시글 등록"><Text style={s.composerSubmitText}>{submitting?"등록 중…":"등록"}</Text></Pressable></View>
      <ScrollView style={{flexShrink:1}} contentContainerStyle={{paddingBottom:8}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
      <View style={s.writerGuide}><Text style={s.writerGuideTitle}>도움이 되는 글쓰기</Text><Text style={s.writerGuideText}>지역·수업 수준·수업 시간·가격대처럼 다른 회원이 참고할 정보를 함께 적어주시면 좋아요.</Text><Pressable onPress={()=>router.push("/community-policy")}><Text style={s.writerGuideLink}>작성 예시와 운영 기준 보기 ›</Text></Pressable></View>
      <Text style={s.label}>게시판 선택</Text>
