@@ -526,7 +526,7 @@ export default function Community(){
    </>
   }
 
-  <Modal visible={viewerIndex!==null&&!!selected?.image_urls?.length} transparent animationType="fade" onRequestClose={()=>setViewerIndex(null)}>
+  <Modal visible={viewerIndex!==null&&!!selected?.image_urls?.length} transparent animationType="none" onRequestClose={()=>setViewerIndex(null)}>
    <GestureHandlerRootView style={{flex:1}}><View style={s.viewerRoot}>
     <View style={s.viewerHeader}><Pressable style={s.viewerControl} onPress={()=>setViewerIndex(null)} accessibilityRole="button" accessibilityLabel="사진 보기 닫기"><Ionicons name="close" size={25} color="#FFFFFF"/></Pressable><Text style={s.viewerCounter}>{viewerIndex===null?0:viewerIndex+1} / {selected?getPostImageIndices(selected).length:0}</Text><View style={s.viewerControl}/></View>
     {viewerIndex!==null&&selected&&getPostImageIndices(selected)[viewerIndex]!==undefined&&<ZoomablePhoto uri={selected.image_urls[getPostImageIndices(selected)[viewerIndex]]} onDismiss={()=>setViewerIndex(null)} onSwipeLeft={()=>setViewerIndex(index=>index===null?null:Math.min(getPostImageIndices(selected).length-1,index+1))} onSwipeRight={()=>setViewerIndex(index=>index===null?null:Math.max(0,index-1))}/>}
@@ -538,7 +538,7 @@ export default function Community(){
    </View></GestureHandlerRootView>
   </Modal>
 
-  <Modal visible={termsConsentOpen} transparent animationType="fade" onRequestClose={()=>setTermsConsentOpen(false)}>
+  <Modal visible={termsConsentOpen} transparent animationType="none" onRequestClose={()=>setTermsConsentOpen(false)}>
    <View style={[s.shade,{paddingBottom:insets.bottom}]}><View style={[s.modal,{maxHeight:"88%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
     <View style={s.modalHead}><Text style={s.modalTitle}>커뮤니티 첫 이용 안내</Text><Pressable onPress={()=>setTermsConsentOpen(false)}><Text style={s.close}>×</Text></Pressable></View>
     <ScrollView style={{marginTop:12}} contentContainerStyle={s.rulesContent} showsVerticalScrollIndicator={false}>
@@ -551,7 +551,7 @@ export default function Community(){
    </View></View>
   </Modal>
 
-  <Modal visible={composer} transparent animationType="slide" onRequestClose={closeComposer}>
+  <Modal visible={composer} transparent animationType="none" onRequestClose={closeComposer}>
    <KeyboardAvoidingView style={[s.shade,{paddingBottom:insets.bottom}]} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}>
     <View style={[s.modal,{maxHeight:"90%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
      <View style={s.composerHeader}><Pressable onPress={closeComposer} accessibilityRole="button" accessibilityLabel="글쓰기 닫기" style={s.composerClose}><Text style={s.close}>×</Text></Pressable><Text style={s.modalTitle}>새 게시글</Text><Pressable style={[s.composerSubmit,submitting&&{opacity:.5}]} disabled={submitting} onPress={submitPost} accessibilityRole="button" accessibilityLabel="게시글 등록"><Text style={s.composerSubmitText}>{submitting?"등록 중…":"등록"}</Text></Pressable></View>
