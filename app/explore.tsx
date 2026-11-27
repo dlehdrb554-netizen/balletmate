@@ -176,11 +176,12 @@ export default function Home() {
   const [menuOpen,setMenuOpen]=useState(false);
   const [isAdminUser,setIsAdminUser]=useState(false);
   const [isStudioOwner,setIsStudioOwner]=useState(false);
+  const [permissionsReady,setPermissionsReady]=useState(false);
   const refreshAdminAccess=async()=>{
-    if(!supabase){setIsAdminUser(false);setIsStudioOwner(false);return;}
+    if(!supabase){setIsAdminUser(false);setIsStudioOwner(false);setPermissionsReady(true);return;}
     try{
       const {data:{session}}=await supabase.auth.getSession();
-      if(!session)return;
+      if(!session){setIsAdminUser(false);setIsStudioOwner(false);return;}
       const [adminResult,ownerResult]=await Promise.all([
         supabase.rpc("is_balletmate_admin"),
         supabase.from("studio_owners").select("studio_id").eq("user_id",session.user.id).limit(1)
@@ -190,7 +191,7 @@ export default function Home() {
     }catch{
       setIsAdminUser(false);
       setIsStudioOwner(false);
-    }
+    }finally{setPermissionsReady(true);}
   };
   useEffect(()=>{if(!supabase)return;void refreshAdminAccess();const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>{void refreshAdminAccess();});return()=>subscription.unsubscribe();},[]);
   const [filterOpen,setFilterOpen]=useState(false);
@@ -1168,7 +1169,7 @@ export default function Home() {
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}>
     <View style={styles.header}>
       <Text style={styles.brand}>balletmate <Text style={styles.brandDot}>✦</Text></Text>
-      <View style={styles.headerActions}><Pressable style={[styles.menuButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>setMenuOpen(true)} accessibilityRole="button" accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage?open=settings&returnTo=map")} accessibilityRole="button" accessibilityLabel="알림 설정"><Ionicons name="settings-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage")} accessibilityRole="button" accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable></View>
+      <View style={styles.headerActions}><Pressable style={[styles.menuButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={async()=>{if(!permissionsReady)await refreshAdminAccess();setMenuOpen(true);}} accessibilityRole="button" accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage?open=settings&returnTo=map")} accessibilityRole="button" accessibilityLabel="알림 설정"><Ionicons name="settings-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage")} accessibilityRole="button" accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
       <Pressable accessibilityRole="button" accessibilityLabel="학원 및 지역 검색" onPress={openSearchOverlay} style={[styles.searchBox,{flexDirection:"row",alignItems:"center"}]}><Ionicons name="search-outline" size={19} color={COLORS.muted}/><Text numberOfLines={1} style={[styles.searchInput,{color:search?COLORS.ink:COLORS.muted,flex:1}]}>{search||"학원명, 지역, 수업명 검색"}</Text><Ionicons name="chevron-forward" size={16} color={COLORS.muted}/></Pressable>
