@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useState, useMemo} from "react";
+import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles } from "../lib/theme";
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -89,11 +90,11 @@ export default function StudioManager(){
   if(!current){setOwner(false);setApplication(null);setOwnedStudios([]);setLoading(false);return;}
   if(!studioId){
    const {data:ownerRows,error:ownerListError}=await supabase.from("studio_owners").select("studio_id").eq("user_id",current.user.id);
-   if(ownerListError){setOwnedStudios([]);Alert.alert("관리 학원 조회 실패",ownerListError.message);}
+   if(ownerListError){setOwnedStudios([]);Alert.alert("관리 학원 조회 실패",getUserErrorMessage(ownerListError));}
    else if(ownerRows?.length){
     const ids=ownerRows.map((row:any)=>row.studio_id);
     const {data:studios,error:studioListError}=await supabase.from("studios").select("id,name,district,address").in("id",ids);
-    if(studioListError){setOwnedStudios([]);Alert.alert("학원 정보 조회 실패",studioListError.message);}
+    if(studioListError){setOwnedStudios([]);Alert.alert("학원 정보 조회 실패",getUserErrorMessage(studioListError));}
     else setOwnedStudios(studios||[]);
    }else setOwnedStudios([]);
    setLoading(false);return;
@@ -136,7 +137,7 @@ export default function StudioManager(){
    const rows=await searchStudiosByName(query);
    setStudioSearchResults(rows);
    if(!rows.length)Alert.alert("검색 결과","일치하는 학원을 찾지 못했습니다. 학원명을 다시 확인해 주세요.");
-  }catch(error:any){Alert.alert("학원 검색 실패",error?.message||"학원 목록을 불러오지 못했습니다.");}
+  }catch(error:any){Alert.alert("학원 검색 실패",getUserErrorMessage(error,"학원 목록을 불러오지 못했습니다."));}
   finally{setStudioSearchBusy(false);}
  };
 
@@ -152,7 +153,7 @@ export default function StudioManager(){
    });
    if(error)throw error;
    Alert.alert("학원 정보 저장 완료","수정한 기본 정보가 학원 상세 페이지에 반영됩니다.");await load();
-  }catch(e:any){Alert.alert("정보 저장 실패",e.message||"학원 정보를 저장하지 못했습니다.");}
+  }catch(e:any){Alert.alert("정보 저장 실패",getUserErrorMessage(e)||"학원 정보를 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
 
@@ -173,7 +174,7 @@ export default function StudioManager(){
    if(error)throw error;
    Alert.alert("관리 권한 신청 완료","개인 민감정보와 서류는 수집하지 않습니다. 운영자가 선택한 방법으로 운영 관계를 확인 후 승인합니다.");
    await load();
-  }catch(e:any){Alert.alert("신청 실패",e.message||"관리 권한 신청을 제출하지 못했습니다.");}
+  }catch(e:any){Alert.alert("신청 실패",getUserErrorMessage(e)||"관리 권한 신청을 제출하지 못했습니다.");}
   finally{setSaving(false);}
  };
  const issueReviewCode=async()=>{
@@ -184,7 +185,7 @@ export default function StudioManager(){
    if(error)throw error;
    setReviewCode(String(data||""));
    Alert.alert("수강 인증 코드 발급",String(data||"")+"\n\n실제 수강을 마친 회원에게 전달해 주세요. 72시간 후 만료되며 한 번만 사용할 수 있습니다.");
-  }catch(error:any){Alert.alert("코드 발급 실패",error?.message||"수강 인증 코드를 발급하지 못했습니다.");}
+  }catch(error:any){Alert.alert("코드 발급 실패",getUserErrorMessage(error,"수강 인증 코드를 발급하지 못했습니다."));}
   finally{setReviewCodeBusy(false);}
  };
  const downloadClassTemplate=async()=>{
@@ -203,7 +204,7 @@ export default function StudioManager(){
    await FileSystem.writeAsStringAsync(uri,base64,{encoding:FileSystem.EncodingType.Base64});
    if(await Sharing.isAvailableAsync())await Sharing.shareAsync(uri,{mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",dialogTitle:"수업 등록 엑셀 양식"});
    else Alert.alert("양식 생성 완료","기기에서 파일 공유 기능을 사용할 수 없습니다.");
-  }catch(error:any){Alert.alert("양식 생성 실패",error?.message||"엑셀 양식을 만들지 못했습니다.");}
+  }catch(error:any){Alert.alert("양식 생성 실패",getUserErrorMessage(error,"엑셀 양식을 만들지 못했습니다."));}
  };
  const importClassesFromSpreadsheet=async()=>{
   if(!owner||!supabase)return;
@@ -225,7 +226,7 @@ export default function StudioManager(){
    setClassImportRows(unique);setClassImportErrors(errors);setClassImportUnmapped(result.unmappedHeaders);
    if(!unique.length)throw new Error("새로 등록할 수업이 없습니다. 기존 수업과 중복 여부를 확인해 주세요.");
    setClassImportOpen(true);
-  }catch(error:any){Alert.alert("엑셀 읽기 실패",error?.message||"파일 형식이나 열 이름을 확인해 주세요.");}
+  }catch(error:any){Alert.alert("엑셀 읽기 실패",getUserErrorMessage(error,"파일 형식이나 열 이름을 확인해 주세요."));}
  };
  const toggleImportRow=(sourceRow:number)=>{
   setClassImportRows(current=>current.map(row=>row.source_row===sourceRow?{...row,selected:!row.selected}:row));
@@ -250,7 +251,7 @@ export default function StudioManager(){
    setClassImportOpen(false);setClassImportRows([]);setClassImportErrors([]);setClassImportUnmapped([]);
    Alert.alert("일괄 등록 완료",count+"개 수업을 등록했습니다.");
    await load();
-  }catch(error:any){Alert.alert("일괄 등록 실패",error?.message||"수업 및 시간표를 등록하지 못했습니다. 데이터는 트랜잭션으로 보호됩니다.");}
+  }catch(error:any){Alert.alert("일괄 등록 실패",getUserErrorMessage(error,"수업 및 시간표를 등록하지 못했습니다. 데이터는 트랜잭션으로 보호됩니다."));}
   finally{setClassImportBusy(false);}
  };
  const toggleClassSelection=(id:string)=>{
@@ -266,7 +267,7 @@ export default function StudioManager(){
    setSelectedClassIds([]);setClassSelectionMode(false);invalidateClassesForStudio(studioId);
    Alert.alert("선택 삭제 완료",count+"개 수업을 삭제했습니다.");
    await load();
-  }catch(error:any){Alert.alert("일괄 삭제 실패",error?.message||"선택한 수업을 삭제하지 못했습니다.");}
+  }catch(error:any){Alert.alert("일괄 삭제 실패",getUserErrorMessage(error,"선택한 수업을 삭제하지 못했습니다."));}
   finally{setSaving(false);}
  };
  const saveClass=async()=>{
@@ -280,7 +281,7 @@ export default function StudioManager(){
    invalidateClassesForStudio(studioId);
    setClassTitle("");setClassLevel("");setClassType("");setClassDuration("60");
    Alert.alert("수업 등록 완료","학원 수업 목록에 반영됩니다.");await load();
-  }catch(error:any){Alert.alert("수업 등록 실패",error?.message||"수업을 저장하지 못했습니다.");}
+  }catch(error:any){Alert.alert("수업 등록 실패",getUserErrorMessage(error,"수업을 저장하지 못했습니다."));}
   finally{setSaving(false);}
  };
  const deleteOwnerClass=async(item:any)=>{
@@ -292,13 +293,13 @@ export default function StudioManager(){
    invalidateClassesForStudio(studioId);
    Alert.alert("수업 삭제 완료","수업 정보를 삭제했습니다.");
    await load();
-  }catch(error:any){Alert.alert("수업 삭제 실패",error?.message||"수업을 삭제하지 못했습니다.");}
+  }catch(error:any){Alert.alert("수업 삭제 실패",getUserErrorMessage(error,"수업을 삭제하지 못했습니다."));}
   finally{setSaving(false);}
  };
  const toggleOwnerClass=async(item:any)=>{
   if(!supabase)return;
   const {error}=await supabase.from("classes").update({is_active:!item.is_active}).eq("id",item.id).eq("studio_id",studioId);
-  if(error)Alert.alert("수업 변경 실패",error.message);else{invalidateClassesForStudio(studioId);await load();}
+  if(error)Alert.alert("수업 변경 실패",getUserErrorMessage(error));else{invalidateClassesForStudio(studioId);await load();}
  };
  const saveCoupon=async()=>{
   if(!supabase||!owner||couponTitle.trim().length<2||!couponDiscount.trim()){Alert.alert("혜택 정보","혜택명과 할인 내용을 입력해 주세요.");return;}
@@ -308,13 +309,13 @@ export default function StudioManager(){
    if(error)throw error;
    setCouponTitle("");setCouponDiscount("");setCouponDescription("");
    Alert.alert("혜택 등록 완료","학원 혜택 목록에 반영됩니다.");await load();
-  }catch(error:any){Alert.alert("혜택 등록 실패",error?.message||"혜택을 저장하지 못했습니다.");}
+  }catch(error:any){Alert.alert("혜택 등록 실패",getUserErrorMessage(error,"혜택을 저장하지 못했습니다."));}
   finally{setSaving(false);}
  };
  const toggleOwnerCoupon=async(item:any)=>{
   if(!supabase)return;
   const {error}=await supabase.from("coupons").update({is_active:!item.is_active}).eq("id",item.id).eq("studio_id",studioId);
-  if(error)Alert.alert("혜택 변경 실패",error.message);else await load();
+  if(error)Alert.alert("혜택 변경 실패",getUserErrorMessage(error));else await load();
  };
  const pickRepresentativeImage=async()=>{
   if(!supabase||!owner)return;
@@ -337,7 +338,7 @@ export default function StudioManager(){
    Alert.alert("대표 사진 변경 완료","새 대표 사진이 학원 상세 페이지에 반영됩니다.");
   }catch(error:any){
    if(uploadedPath)await supabase.storage.from("studio-representative-images").remove([uploadedPath]);
-   Alert.alert("대표 사진 변경 실패",error?.message||"대표 사진을 변경하지 못했습니다.");
+   Alert.alert("대표 사진 변경 실패",getUserErrorMessage(error,"대표 사진을 변경하지 못했습니다."));
   }finally{setSaving(false);}
  };
  const pickStudioPhotos=async()=>{
@@ -386,7 +387,7 @@ export default function StudioManager(){
   }catch(error:any){
    if(uploadedGalleryPaths.length){await supabase.from("studio_gallery_images").delete().eq("studio_id",studioId).in("image_path",uploadedGalleryPaths);await supabase.storage.from("studio-public-materials").remove(uploadedGalleryPaths);}
    if(representativePath)await supabase.storage.from("studio-representative-images").remove([representativePath]);
-   Alert.alert("사진 등록 실패",error?.message||"사진을 등록하지 못했습니다.");
+   Alert.alert("사진 등록 실패",getUserErrorMessage(error,"사진을 등록하지 못했습니다."));
   }finally{setSaving(false);}
  };
  const deactivateGalleryImage=async(item:any)=>{
@@ -399,7 +400,7 @@ export default function StudioManager(){
    if(storageError)console.warn("Gallery image storage cleanup failed:",storageError.message);
    Alert.alert("사진 삭제 완료","학원 사진에서 삭제했습니다.");
    await load();
-  }catch(error:any){Alert.alert("사진 삭제 실패",error?.message||"사진을 삭제하지 못했습니다.");}
+  }catch(error:any){Alert.alert("사진 삭제 실패",getUserErrorMessage(error,"사진을 삭제하지 못했습니다."));}
   finally{setSaving(false);}
  };
  const pickMaterialImage=async(kind:"schedule"|"price")=>{
@@ -426,7 +427,7 @@ export default function StudioManager(){
    const {error}=await supabase.from("studio_public_schedules").insert({studio_id:studioId,schedule_text:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
    if(error)throw error;
    setScheduleImage(null);invalidateStudioPublicMaterials(studioId);Alert.alert("시간표 등록 완료","이미지 시간표가 학원 상세 페이지에 공개됩니다.");await load();
-  }catch(e:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("시간표 등록 실패",e.message||"시간표를 저장하지 못했습니다.");}
+  }catch(e:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("시간표 등록 실패",getUserErrorMessage(e)||"시간표를 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
  const savePrice=async()=>{
@@ -437,7 +438,7 @@ export default function StudioManager(){
    const {error}=await supabase.from("studio_public_prices").insert({studio_id:studioId,amount_krw:null,price_period:null,frequency_per_week:null,image_path:uploadedPath,published_by:session.user.id,expires_at:dateAfterDays(180),is_active:true});
    if(error)throw error;
    setPriceImage(null);invalidateStudioPublicMaterials(studioId);Alert.alert("가격표 등록 완료","이미지 가격표가 학원 상세 페이지에 공개됩니다.");await load();
-  }catch(e:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("가격표 등록 실패",e.message||"가격표를 저장하지 못했습니다.");}
+  }catch(e:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("가격표 등록 실패",getUserErrorMessage(e)||"가격표를 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
 
@@ -452,7 +453,7 @@ export default function StudioManager(){
    if(error)throw error;
    setNoticeTitle("");setNoticeBody("");setEditingNotice(null);setNoticeEditorOpen(false);
    Alert.alert(editingNotice?"공지 수정 완료":"공지 등록 완료",editingNotice?"공지사항을 수정했습니다.":"학원 상세 페이지에 공지사항이 공개됩니다.");await load();
-  }catch(e:any){Alert.alert(editingNotice?"공지 수정 실패":"공지 등록 실패",e.message||"공지사항을 저장하지 못했습니다.");}
+  }catch(e:any){Alert.alert(editingNotice?"공지 수정 실패":"공지 등록 실패",getUserErrorMessage(e)||"공지사항을 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
 
@@ -468,7 +469,7 @@ export default function StudioManager(){
    const {error}=await supabase.from(table).insert(payload);if(error)throw error;
    for(const item of materials.filter(item=>item.kind===kind&&item.is_active)){const {error:hideError}=await supabase.from(table).update({is_active:false}).eq("id",item.id).eq("studio_id",studioId);if(hideError)throw hideError;}
    invalidateStudioPublicMaterials(studioId);Alert.alert(kind==="schedule"?"시간표 공개 완료":"가격표 공개 완료","새 이미지가 학원 상세 페이지에 공개되었습니다.");await load();
-  }catch(error:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("이미지 변경 실패",error?.message||"이미지를 공개하지 못했습니다.");}
+  }catch(error:any){if(uploadedPath)await supabase.storage.from("studio-public-materials").remove([uploadedPath]);Alert.alert("이미지 변경 실패",getUserErrorMessage(error,"이미지를 공개하지 못했습니다."));}
   finally{setSaving(false);}
  };
  const setGalleryAsRepresentative=async(item:any)=>{
@@ -483,7 +484,7 @@ export default function StudioManager(){
    const {error}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:newPath});if(error)throw error;
    const previous=representativeImagePath;setRepresentativeImagePath(newPath);if(previous)await supabase.storage.from("studio-representative-images").remove([previous]);
    Alert.alert("대표 사진 변경 완료","선택한 사진을 대표 사진으로 설정했습니다.");
-  }catch(error:any){if(newPath)await supabase.storage.from("studio-representative-images").remove([newPath]);Alert.alert("대표 사진 변경 실패",error?.message||"대표 사진을 변경하지 못했습니다.");}
+  }catch(error:any){if(newPath)await supabase.storage.from("studio-representative-images").remove([newPath]);Alert.alert("대표 사진 변경 실패",getUserErrorMessage(error,"대표 사진을 변경하지 못했습니다."));}
   finally{setSaving(false);}
  };
  const showGalleryActions=(item:any)=>Alert.alert("사진 관리","이 사진으로 할 작업을 선택하세요.",[
@@ -495,7 +496,7 @@ export default function StudioManager(){
   if(!supabase)return;
   const table=item.kind==="schedule"?"studio_public_schedules":"studio_public_prices";
   const {error}=await supabase.from(table).update({is_active:false}).eq("id",item.id).eq("studio_id",studioId);
-  if(error)Alert.alert("자료 삭제 실패",error.message);else{invalidateStudioPublicMaterials(studioId);await load();}
+  if(error)Alert.alert("자료 삭제 실패",getUserErrorMessage(error));else{invalidateStudioPublicMaterials(studioId);await load();}
  };
  const deleteNotice=async(item:any)=>{
   if(!supabase||!owner)return;
@@ -505,13 +506,13 @@ export default function StudioManager(){
    if(error)throw error;
    Alert.alert("공지 삭제 완료","공지사항을 삭제했습니다.");
    await load();
-  }catch(error:any){Alert.alert("공지 삭제 실패",error?.message||"공지를 삭제하지 못했습니다.");}
+  }catch(error:any){Alert.alert("공지 삭제 실패",getUserErrorMessage(error,"공지를 삭제하지 못했습니다."));}
   finally{setSaving(false);}
  };
  const toggleNotice=async(item:any)=>{
   if(!supabase)return;
   const {error}=await supabase.from("studio_owner_notices").update({is_active:!item.is_active,updated_at:new Date().toISOString()}).eq("id",item.id).eq("studio_id",studioId);
-  if(error)Alert.alert("공지 변경 실패",error.message);else await load();
+  if(error)Alert.alert("공지 변경 실패",getUserErrorMessage(error));else await load();
  };
 
  const button=(label:string,onPress:()=>void,disabled=false,destructive=false)=><Pressable disabled={disabled} onPress={onPress} style={[s.button,{backgroundColor:isDark?"#7652B8":C.pale},destructive&&s.danger,disabled&&{opacity:0.5}]}><Text style={[s.buttonText,{color:isDark?"#FFFFFF":C.purple},destructive&&{color:C.red}]}>{label}</Text></Pressable>;
