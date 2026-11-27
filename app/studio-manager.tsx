@@ -26,6 +26,7 @@ export default function StudioManager(){
  const [session,setSession]=useState<any>(null);
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
+ const [activeTab,setActiveTab]=useState<"profile"|"photos"|"classes"|"notices">("profile");
  const [studioSearch,setStudioSearch]=useState("");
  const [studioSearchResults,setStudioSearchResults]=useState<any[]>([]);
  const [studioSearchBusy,setStudioSearchBusy]=useState(false);
@@ -375,9 +376,11 @@ export default function StudioManager(){
   :owner?
    <>
     <View style={s.card}><Text style={s.cardTitle}>승인된 원장님 계정</Text><Text style={s.body}>이 학원의 정보와 공개 자료를 관리할 수 있습니다. 등록한 내용은 학원 상세 페이지에 바로 공개됩니다.</Text></View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:7,paddingVertical:5}}>
-     {([{key:"photos",label:"사진"},{key:"profile",label:"기본 정보"},{key:"materials",label:"가격·시간표"},{key:"classes",label:"수업"},{key:"coupons",label:"혜택"},{key:"notices",label:"공지"}]).map(item=><Pressable key={item.key} onPress={()=>jumpToSection(item.key)} style={{paddingHorizontal:14,paddingVertical:10,borderRadius:18,backgroundColor:isDark?"#332744":C.pale}}><Text style={{fontSize:12,fontWeight:"800",color:isDark?"#E5D8F8":C.purple}}>{item.label}</Text></Pressable>)}
-    </ScrollView>
+    <View style={s.tabBar}>
+     {([{key:"profile",label:"기본정보"},{key:"photos",label:"사진"},{key:"classes",label:"수업정보"},{key:"notices",label:"공지사항"}] as const).map(item=><Pressable key={item.key} onPress={()=>setActiveTab(item.key)} style={[s.tab,{borderBottomColor:activeTab===item.key?C.purple:"transparent"}]}><Text style={[s.tabText,{color:activeTab===item.key?C.purple:C.muted}]}>{item.label}</Text></Pressable>)}
+    </View>
+    <Text style={s.tabHint}>{({profile:"학원 소개와 연락처, 기본 정보를 관리합니다.",photos:"대표 이미지와 갤러리 사진을 관리합니다.",classes:"시간표·가격표, 수업, 혜택, 수강 인증을 관리합니다.",notices:"학원 상세 페이지에 노출할 공지사항을 관리합니다."} as Record<string,string>)[activeTab]}</Text>
+    {activeTab==="photos"&&<>
     <View onLayout={event=>{sectionOffsets.current.photos=event.nativeEvent.layout.y;}} style={s.card}>
      <Text style={s.cardTitle}>학원 사진</Text>
      <Text style={s.body}>여러 장을 한 번에 선택할 수 있습니다. 첫 번째 사진은 대표 이미지로 설정되며, 나머지는 학원 사진 탭에 함께 공개됩니다.</Text>
@@ -388,9 +391,15 @@ export default function StudioManager(){
      <Text style={s.label}>등록된 사진 · {galleryImages.filter(x=>x.is_active).length}장</Text>
      {galleryImages.filter(x=>x.is_active).length?<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:9,paddingVertical:8}}>{galleryImages.filter(x=>x.is_active).map(item=><View key={item.id} style={{width:118}}><Image source={{uri:supabase?.storage.from("studio-public-materials").getPublicUrl(item.image_path).data.publicUrl}} style={{width:118,height:94,borderRadius:9}} resizeMode="cover"/><Pressable disabled={saving} onPress={()=>Alert.alert("사진 삭제","이 사진을 학원 사진에서 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deactivateGalleryImage(item)}])} style={{paddingVertical:7}}><Text style={{fontSize:11,fontWeight:"800",color:C.red}}>삭제</Text></Pressable></View>)}</ScrollView>:<Text style={s.body}>등록된 사진이 없습니다.</Text>}
     </View>
+    </>}
+    {activeTab==="profile"&&<>
     <View onLayout={event=>{sectionOffsets.current.profile=event.nativeEvent.layout.y;}} style={s.card}><Text style={s.cardTitle}>학원 기본 정보 수정</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("대표 홈페이지 URL",profileWebsite,setProfileWebsite,"일반 홈페이지·네이버 블로그·인스타그램 URL (https://)") }<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:90,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
+    </>}
+    {activeTab==="classes"&&<>
     <View onLayout={event=>{sectionOffsets.current.materials=event.nativeEvent.layout.y;}} style={s.card}><Text style={s.cardTitle}>시간표 이미지 등록</Text><Text style={s.body}>글자 입력은 지원하지 않습니다. 시간표가 보이는 이미지 한 장을 선택해 주세요.</Text>{scheduleImage&&<Image source={{uri:scheduleImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(scheduleImage?"시간표 이미지 다시 선택":"시간표 이미지 선택",()=>pickMaterialImage("schedule"),saving)}{button("시간표 이미지 공개",saveSchedule,saving||!scheduleImage)}</View>
     <View style={s.card}><Text style={s.cardTitle}>가격표 이미지 등록</Text><Text style={s.body}>가격과 이용 조건이 표시된 이미지로만 등록할 수 있습니다.</Text>{priceImage&&<Image source={{uri:priceImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(priceImage?"가격표 이미지 다시 선택":"가격표 이미지 선택",()=>pickMaterialImage("price"),saving)}{button("가격표 이미지 공개",savePrice,saving||!priceImage)}</View>
+    </>}
+    {activeTab==="notices"&&<>
     <View onLayout={event=>{sectionOffsets.current.notices=event.nativeEvent.layout.y;}} style={s.card}><Text style={s.cardTitle}>공지사항 작성</Text>{field("제목",noticeTitle,setNoticeTitle,"공지 제목") }<TextInput value={noticeBody} onChangeText={setNoticeBody} placeholder="휴강, 모집, 행사 등 공지 내용을 입력하세요." multiline style={[s.input,{height:110,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("공지사항 등록",saveNotice,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>등록한 시간표 및 가격표</Text>{materials.length?materials.map(item=>{const imagePath=item.image_path?supabase?.storage.from("studio-public-materials").getPublicUrl(item.image_path).data.publicUrl:null;return <View key={item.kind+"-"+item.id} style={s.item}><Text style={s.itemTitle}>{item.kind==="schedule"?"시간표 이미지":"가격표 이미지"}</Text>{imagePath&&<Image source={{uri:imagePath}} style={{width:"100%",height:180,borderRadius:10,marginTop:8}} resizeMode="contain"/>}<Text style={s.body}>{item.is_active?"공개 중":"비공개"}</Text>{item.is_active&&button("공개 중단",()=>Alert.alert("공개 중단","이 자료를 비공개로 전환할까요?",[{text:"취소",style:"cancel"},{text:"중단",style:"destructive",onPress:()=>deactivateMaterial(item)}]),saving,true)}</View>}):<Text style={s.body}>등록한 자료가 없습니다.</Text>}</View>
     <View onLayout={event=>{sectionOffsets.current.classes=event.nativeEvent.layout.y;}} style={s.card}><Text style={s.cardTitle}>수업 관리</Text>
@@ -413,7 +422,10 @@ export default function StudioManager(){
     </View>
     <View style={s.card}><Text style={s.cardTitle}>수강 인증 코드</Text><Text style={s.body}>실제 수강을 완료한 회원에게만 코드를 전달해 주세요. 회원은 이 코드를 입력해야 학원 리뷰를 작성할 수 있습니다. 코드는 72시간 후 만료되고 한 번만 사용할 수 있습니다.</Text>{!!reviewCode&&<Text selectable style={{fontSize:22,fontWeight:"900",letterSpacing:2,color:C.purple,marginTop:10}}>{reviewCode}</Text>}{button(reviewCodeBusy?"발급 중…":"수강 인증 코드 발급",issueReviewCode,reviewCodeBusy)}</View>
     <View style={s.card}><Text style={s.cardTitle}>공지사항 관리</Text>{notices.length?notices.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.body}</Text>{button(item.is_active?"공지 숨기기":"공지 다시 공개",()=>toggleNotice(item),saving)}{button("공지 삭제",()=>Alert.alert("공지 삭제","이 공지사항을 완전히 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deleteNotice(item)}]),saving,true)}</View>):<Text style={s.body}>등록한 공지사항이 없습니다.</Text>}</View>
-    <View style={s.card}><Text style={s.cardTitle}>최근 수정 이력</Text>{editHistory.length?editHistory.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.entity==="studios"?"학원 기본 정보":item.entity==="studio_public_prices"?"가격표":item.entity==="studio_public_schedules"?"시간표":"공지사항"} · {item.action==="insert"?"등록":item.action==="delete"?"삭제":"수정"}</Text><Text style={s.body}>{new Date(item.created_at).toLocaleString("ko-KR")} · {(item.changed_fields||[]).map((field:string)=>(({name:"학원명",district:"지역",address:"주소",phone:"전화번호",website_url:"홈페이지",description:"소개",schedule_text:"시간표",amount_krw:"가격",price_period:"가격 기간",frequency_per_week:"주당 횟수",title:"공지 제목",body:"공지 내용",is_active:"공개 상태",expires_at:"만료일"} as Record<string,string>)[field]||field)).join(", ")||"변경 내용"}</Text></View>):<Text style={s.body}>수정 이력이 없습니다.</Text>}</View>
+    </>}
+    {activeTab==="profile"&&<>
+    <View style={s.card}><Text style={s.cardTitle}>최근 수정 이력</Text>{editHistory.length?editHistory.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.entity==="studios"?"학원 기본 정보":item.entity==="studio_public_prices"?"가격표":item.entity==="studio_public_schedules"?"시간표":"공지사항"} · {item.action==="insert"?"등록":item.action==="delete"?"삭제":"수정"}</Text><Text style={s.body}>{new Date(item.created_at).toLocaleString("ko-KR")} · {(item.changed_fields||[]).map((field:string)=>(({name:"학원명",district:"지역",address:"주소",phone:"전화번호",website_url:"홈페이지",description:"소개",schedule_text:"시간표",amount_krw:"가격",price_period:"가격 기간",frequency_per_week:"주당 횟수",title:"공지 제목",body:"공지 내용",is_active:"공개 상태",expires_at:"만료일"} as Record<string,string>)[field]||field)).join(", ")||"변경 내용"}</Text></View>):<Text style={s.body}>수정 이력이 없습니다.</Text>}</View>    </>}
+
    </>
   :application&&application.status!=="needs_info"?
    <View style={s.card}><Text style={s.cardTitle}>관리 권한 신청 상태</Text><Text style={s.status}>{application.status==="pending"?"운영자 심사 대기":application.status==="needs_info"?"추가 확인 요청":application.status==="approved"?"승인 완료":"반려"}</Text><Text style={s.body}>운영 관계 확인 후 운영자가 권한을 승인합니다.</Text>{application.review_note&&<Text style={s.body}>운영자 메모: {application.review_note}</Text>}{application.status==="rejected"&&button("다시 신청하기",()=>setApplication(null))}</View>
@@ -438,6 +450,7 @@ const createS = (dark:boolean) => StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:C.bg},content:{padding:16,paddingBottom:40},back:{color:C.muted,fontWeight:"700",paddingVertical:8},
  brand:{fontSize:13,fontWeight:"900",color:C.purple,marginTop:12},title:{fontSize:23,fontWeight:"900",color:C.ink,marginTop:5,marginBottom:14},
  card:{backgroundColor:"#fff",borderRadius:16,borderWidth:1,borderColor:C.line,padding:15,marginTop:12},
+ tabBar:{flexDirection:"row",borderBottomWidth:1,borderBottomColor:C.line,marginTop:14},tab:{flex:1,alignItems:"center",paddingVertical:13,borderBottomWidth:3},tabText:{fontSize:12,fontWeight:"900"},tabHint:{fontSize:11,color:C.muted,marginTop:8,marginBottom:2},
  cardTitle:{fontSize:15,fontWeight:"900",color:C.ink,marginBottom:7},body:{fontSize:12,lineHeight:19,color:C.muted,marginTop:5},
  label:{fontSize:12,fontWeight:"800",color:C.ink,marginBottom:6},input:{borderWidth:1,borderColor:C.line,borderRadius:11,paddingHorizontal:12,paddingVertical:11,fontSize:13,color:C.ink,backgroundColor:"#fff"},
  button:{backgroundColor:C.pale,borderRadius:11,minHeight:50,paddingHorizontal:16,paddingVertical:14,alignItems:"center",justifyContent:"center",marginTop:12},buttonText:{fontSize:14,fontWeight:"900",color:C.purple},
