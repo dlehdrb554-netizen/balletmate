@@ -1,4 +1,5 @@
 import React, {useEffect, useState, useMemo} from "react";
+import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles } from "../lib/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -71,7 +72,7 @@ export default function Account(){
    if(!data.url)throw new Error("로그인 주소를 만들지 못했습니다. Supabase 제공자 설정을 확인하세요.");
    await Linking.openURL(data.url);
   }catch(error:any){
-   Alert.alert("소셜 로그인 실패",error?.message||"잠시 후 다시 시도해 주세요.");
+   Alert.alert("소셜 로그인 실패",getUserErrorMessage(error,"잠시 후 다시 시도해 주세요."));
   }finally{setLoadingProvider(null);}
  };
 
@@ -90,7 +91,7 @@ export default function Account(){
    if(!data.url)throw new Error("연결 주소를 만들지 못했습니다.");
    await Linking.openURL(data.url);
   }catch(error:any){
-   Alert.alert("계정 연결 실패",error?.message||"잠시 후 다시 시도해 주세요.");
+   Alert.alert("계정 연결 실패",getUserErrorMessage(error,"잠시 후 다시 시도해 주세요."));
   }finally{setLoadingProvider(null);}
  };
 
@@ -111,14 +112,14 @@ export default function Account(){
     if(setSessionError)throw setSessionError;
    }
   }catch(error:any){
-   Alert.alert("로그인 실패",error?.message||"아이디와 비밀번호를 확인해 주세요.");
+   Alert.alert("로그인 실패",getUserErrorMessage(error,"아이디와 비밀번호를 확인해 주세요."));
   }finally{setLoading(false);}
  };
 
  const logout=async()=>{
   if(!supabase)return;
   const {error}=await supabase.auth.signOut();
-  if(error)Alert.alert("로그아웃 실패",error.message);
+  if(error)Alert.alert("로그아웃 실패",getUserErrorMessage(error));
  };
  const deleteAccount=()=>{
   const client=supabase;
@@ -138,7 +139,7 @@ export default function Account(){
       setSession(null);
       Alert.alert("탈퇴 완료","회원 계정 삭제가 완료되었습니다.");
      }catch(error:any){
-      Alert.alert("탈퇴 실패",error?.message||"계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      Alert.alert("탈퇴 실패",getUserErrorMessage(error,"계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요."));
      }finally{setLoading(false);}
     }}
    ]
