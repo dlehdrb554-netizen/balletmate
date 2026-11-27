@@ -581,9 +581,11 @@ export default function StudioManager(){
     <Text style={[s.body,{marginTop:12}]}>신청 정보는 선택한 인증 방식에 필요한 공식 채널 정보만 전달됩니다. 운영자 확인 후 승인되면 별도 신청 없이 학원 관리 기능을 사용할 수 있습니다.</Text>{button(application?.status==="needs_info"?"확인 정보 다시 제출":"관리자 권한 신청",submitApplication,saving||(verificationMethod==="phone"&&!profilePhone.trim())||((verificationMethod==="blog"||verificationMethod==="instagram")&&(!blogUrl.trim()||!blogVerificationCode.trim())))}
    </View>}
  </ScrollView>
- <Modal visible={classImportOpen} transparent animationType="slide" onRequestClose={()=>{if(!classImportBusy)setClassImportOpen(false);}}>
-  <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.42)"}}><Pressable style={{flex:1}} onPress={()=>{if(!classImportBusy)setClassImportOpen(false);}}/>
-   <View style={{maxHeight:"86%",padding:18,paddingBottom:28,borderTopLeftRadius:22,borderTopRightRadius:22,backgroundColor:isDark?"#211E29":"#FFFFFF"}}>
+ <Modal visible={classImportOpen} transparent animationType="slide" statusBarTranslucent onRequestClose={()=>{if(!classImportBusy)setClassImportOpen(false);}}>
+  <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.48)"}}><Pressable style={{flex:1}} onPress={()=>{if(!classImportBusy)setClassImportOpen(false);}}/>
+   <KeyboardAvoidingView style={{width:"100%"}} behavior={Platform.OS==="ios"?"padding":"height"}>
+   <View style={{maxHeight:"92%",padding:18,paddingBottom:Math.max(24,managerBottomPadding),borderTopLeftRadius:24,borderTopRightRadius:24,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
+    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
     <Text style={{fontSize:18,fontWeight:"900",color:isDark?"#F3EFFA":C.ink}}>엑셀 등록 미리보기</Text>
     <Text style={s.body}>선택 {classImportRows.filter(row=>row.selected).length}개 / 전체 {classImportRows.length}개 · 오류 {classImportErrors.length}개</Text>
     {classImportUnmapped.length>0&&<View style={{padding:10,marginTop:8,borderRadius:9,backgroundColor:isDark?"#3A3020":"#FFF4D9"}}><Text style={{fontSize:11,color:isDark?"#FFE0A3":"#78520A",fontWeight:"800"}}>인식하지 못한 열: {classImportUnmapped.join(", ")}</Text><Text style={{fontSize:10,color:isDark?"#E8D4AD":"#78520A",marginTop:3}}>해당 열은 등록하지 않습니다.</Text></View>}
@@ -593,17 +595,23 @@ export default function StudioManager(){
     </Pressable>)}{classImportErrors.map((error,index)=><Text key={"error"+index} style={{fontSize:11,color:C.red,marginTop:7}}>{error}</Text>)}</ScrollView>
     <Pressable disabled={classImportBusy||!classImportRows.some(row=>row.selected)} onPress={confirmImportClasses} style={{marginTop:12,padding:15,borderRadius:11,backgroundColor:C.purple,alignItems:"center",opacity:classImportRows.some(row=>row.selected)?1:0.5}}><Text style={{fontSize:13,fontWeight:"900",color:"#FFFFFF"}}>{classImportBusy?"등록 중…":classImportRows.filter(row=>row.selected).length+"개 선택 항목 등록"}</Text></Pressable>
     <Pressable disabled={classImportBusy} onPress={()=>setClassImportOpen(false)} style={{padding:12,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:C.muted}}>취소</Text></Pressable>
+    </ScrollView>
    </View>
+   </KeyboardAvoidingView>
   </View>
  </Modal>
- <Modal visible={noticeEditorOpen} transparent animationType="slide" onRequestClose={()=>{if(!saving)setNoticeEditorOpen(false);}}>
-  <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.42)"}}><Pressable style={{flex:1}} onPress={()=>{if(!saving)setNoticeEditorOpen(false);}}/>
-   <KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined}><View style={{padding:20,paddingBottom:28,borderTopLeftRadius:22,borderTopRightRadius:22,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
+ <Modal visible={noticeEditorOpen} transparent animationType="slide" statusBarTranslucent onRequestClose={()=>{if(!saving)setNoticeEditorOpen(false);}}>
+  <View style={{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.48)"}}><Pressable style={{flex:1}} onPress={()=>{if(!saving)setNoticeEditorOpen(false);}}/>
+   <KeyboardAvoidingView style={{width:"100%"}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}>
+    <View style={{maxHeight:"92%",padding:20,paddingBottom:Math.max(24,managerBottomPadding),borderTopLeftRadius:24,borderTopRightRadius:24,backgroundColor:isDark?"#211E29":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40384D":C.line}}>
+     <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
     <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><Text style={{fontSize:18,fontWeight:"900",color:isDark?"#F3EFFA":C.ink}}>{editingNotice?"공지 수정":"새 공지 작성"}</Text><Pressable onPress={()=>{if(!saving)setNoticeEditorOpen(false);}}><Text style={{fontSize:22,color:isDark?"#D6CDE4":C.muted}}>×</Text></Pressable></View>
     <Text style={[s.label,{color:isDark?"#E9E2F2":C.ink}]}>제목</Text><TextInput value={noticeTitle} onChangeText={setNoticeTitle} placeholder="공지 제목을 입력하세요." placeholderTextColor={isDark?"#9B93A8":"#8A8493"} style={[s.input,{backgroundColor:isDark?"#302B39":"#FFFFFF",color:isDark?"#FFFFFF":C.ink,borderColor:isDark?"#514568":C.line}]}/>
     <Text style={[s.label,{color:isDark?"#E9E2F2":C.ink,marginTop:14}]}>내용</Text><TextInput value={noticeBody} onChangeText={setNoticeBody} placeholder="휴강, 모집, 행사 등 공지 내용을 입력하세요." placeholderTextColor={isDark?"#9B93A8":"#8A8493"} multiline textAlignVertical="top" style={[s.input,{height:150,backgroundColor:isDark?"#302B39":"#FFFFFF",color:isDark?"#FFFFFF":C.ink,borderColor:isDark?"#514568":C.line}]}/>
     {button(saving?"저장 중…":editingNotice?"공지 수정":"공지 공개하기",saveNotice,saving||!noticeTitle.trim()||!noticeBody.trim())}
-   </View></KeyboardAvoidingView>
+     </ScrollView>
+    </View>
+   </KeyboardAvoidingView>
   </View>
  </Modal>
  </KeyboardAvoidingView></SafeAreaView>;
