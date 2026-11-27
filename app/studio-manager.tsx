@@ -27,7 +27,7 @@ export default function StudioManager(){
  const studioId=String(params.studioId||"");
  const studioName=String(params.studioName||"선택한 학원");
  const managerScrollRef=useRef<ScrollView|null>(null);
- const managerBottomPadding=useBottomPadding(24);
+ const managerBottomPadding=useBottomPadding(40);
  const sectionOffsets=useRef<Record<string,number>>({});
  const tabScrollOffsets=useRef<Record<string,number>>({});
  const [activeTab,setActiveTab]=useState<"profile"|"photos"|"classes"|"notices">("profile");
@@ -521,7 +521,7 @@ export default function StudioManager(){
  const button=(label:string,onPress:()=>void,disabled=false,destructive=false)=><Pressable disabled={disabled} onPress={onPress} style={[s.button,{backgroundColor:isDark?"#7652B8":C.pale},destructive&&s.danger,disabled&&{opacity:0.5}]}><Text style={[s.buttonText,{color:isDark?"#FFFFFF":C.purple},destructive&&{color:C.red}]}>{label}</Text></Pressable>;
  const field=(label:string,value:string,onChangeText:(v:string)=>void,placeholder:string="",keyboardType:any="default")=><View style={{marginTop:12}}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} keyboardType={keyboardType} style={s.input}/></View>;
 
- return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView ref={managerScrollRef} contentContainerStyle={[s.content,{paddingBottom:managerBottomPadding}]} keyboardShouldPersistTaps="handled" stickyHeaderIndices={owner?[3]:[]} onScroll={event=>{tabScrollOffsets.current[activeTab]=event.nativeEvent.contentOffset.y;}} scrollEventThrottle={100}>
+ return <SafeAreaView edges={["top"]} style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView ref={managerScrollRef} contentContainerStyle={[s.content,{flexGrow:1,paddingBottom:managerBottomPadding+24}]} keyboardShouldPersistTaps="handled" stickyHeaderIndices={owner?[3]:[]} onScroll={event=>{tabScrollOffsets.current[activeTab]=event.nativeEvent.contentOffset.y;}} scrollEventThrottle={100}>
   <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
   <Text style={s.brand}>Balletmate · 학원 관리</Text><Text style={s.title}>{studioName}</Text>
   {loading?<ActivityIndicator color={C.purple} style={{marginTop:28}}/>:!session?
