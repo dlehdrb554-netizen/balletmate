@@ -181,6 +181,17 @@ export default function StudioManager(){
   }catch(error:any){Alert.alert("수업 등록 실패",error?.message||"수업을 저장하지 못했습니다.");}
   finally{setSaving(false);}
  };
+ const deleteOwnerClass=async(item:any)=>{
+  if(!supabase||!owner)return;
+  setSaving(true);
+  try{
+   const {error}=await supabase.from("classes").delete().eq("id",item.id).eq("studio_id",studioId);
+   if(error)throw error;
+   Alert.alert("수업 삭제 완료","수업 정보를 삭제했습니다.");
+   await load();
+  }catch(error:any){Alert.alert("수업 삭제 실패",error?.message||"수업을 삭제하지 못했습니다.");}
+  finally{setSaving(false);}
+ };
  const toggleOwnerClass=async(item:any)=>{
   if(!supabase)return;
   const {error}=await supabase.from("classes").update({is_active:!item.is_active}).eq("id",item.id).eq("studio_id",studioId);
@@ -317,6 +328,17 @@ export default function StudioManager(){
   const {error}=await supabase.from(table).update({is_active:false}).eq("id",item.id).eq("studio_id",studioId);
   if(error)Alert.alert("자료 삭제 실패",error.message);else{invalidateStudioPublicMaterials(studioId);await load();}
  };
+ const deleteNotice=async(item:any)=>{
+  if(!supabase||!owner)return;
+  setSaving(true);
+  try{
+   const {error}=await supabase.from("studio_owner_notices").delete().eq("id",item.id).eq("studio_id",studioId);
+   if(error)throw error;
+   Alert.alert("공지 삭제 완료","공지사항을 삭제했습니다.");
+   await load();
+  }catch(error:any){Alert.alert("공지 삭제 실패",error?.message||"공지를 삭제하지 못했습니다.");}
+  finally{setSaving(false);}
+ };
  const toggleNotice=async(item:any)=>{
   if(!supabase)return;
   const {error}=await supabase.from("studio_owner_notices").update({is_active:!item.is_active,updated_at:new Date().toISOString()}).eq("id",item.id).eq("studio_id",studioId);
@@ -370,7 +392,7 @@ export default function StudioManager(){
      {field("수업 유형",classType,setClassType,"기초 / 포인트 / 발레핏")}
      {field("수업 시간(분)",classDuration,setClassDuration,"60","numeric")}
      {button("수업 등록",saveClass,saving)}
-     {ownerClasses.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.audience==="kids"?"키즈":item.audience==="all"?"전체":"성인"} · {item.level||"수준 미입력"} · {item.duration_minutes||60}분</Text>{button(item.is_active?"수업 비공개":"수업 공개",()=>toggleOwnerClass(item),saving)}</View>)}
+     {ownerClasses.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.audience==="kids"?"키즈":item.audience==="all"?"전체":"성인"} · {item.level||"수준 미입력"} · {item.duration_minutes||60}분</Text>{button(item.is_active?"수업 비공개":"수업 공개",()=>toggleOwnerClass(item),saving)}{button("수업 삭제",()=>Alert.alert("수업 삭제","이 수업을 완전히 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deleteOwnerClass(item)}]),saving,true)}</View>)}
      {!ownerClasses.length&&<Text style={s.body}>등록된 수업이 없습니다.</Text>}
     </View>
     <View style={s.card}><Text style={s.cardTitle}>할인·혜택 관리</Text>
@@ -382,7 +404,7 @@ export default function StudioManager(){
      {!ownerCoupons.length&&<Text style={s.body}>등록된 혜택이 없습니다.</Text>}
     </View>
     <View style={s.card}><Text style={s.cardTitle}>수강 인증 코드</Text><Text style={s.body}>실제 수강을 완료한 회원에게만 코드를 전달해 주세요. 회원은 이 코드를 입력해야 학원 리뷰를 작성할 수 있습니다. 코드는 72시간 후 만료되고 한 번만 사용할 수 있습니다.</Text>{!!reviewCode&&<Text selectable style={{fontSize:22,fontWeight:"900",letterSpacing:2,color:C.purple,marginTop:10}}>{reviewCode}</Text>}{button(reviewCodeBusy?"발급 중…":"수강 인증 코드 발급",issueReviewCode,reviewCodeBusy)}</View>
-    <View style={s.card}><Text style={s.cardTitle}>공지사항 관리</Text>{notices.length?notices.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.body}</Text>{button(item.is_active?"공지 숨기기":"공지 다시 공개",()=>toggleNotice(item),saving)}</View>):<Text style={s.body}>등록한 공지사항이 없습니다.</Text>}</View>
+    <View style={s.card}><Text style={s.cardTitle}>공지사항 관리</Text>{notices.length?notices.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.body}</Text>{button(item.is_active?"공지 숨기기":"공지 다시 공개",()=>toggleNotice(item),saving)}{button("공지 삭제",()=>Alert.alert("공지 삭제","이 공지사항을 완전히 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deleteNotice(item)}]),saving,true)}</View>):<Text style={s.body}>등록한 공지사항이 없습니다.</Text>}</View>
     <View style={s.card}><Text style={s.cardTitle}>최근 수정 이력</Text>{editHistory.length?editHistory.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.entity==="studios"?"학원 기본 정보":item.entity==="studio_public_prices"?"가격표":item.entity==="studio_public_schedules"?"시간표":"공지사항"} · {item.action==="insert"?"등록":item.action==="delete"?"삭제":"수정"}</Text><Text style={s.body}>{new Date(item.created_at).toLocaleString("ko-KR")} · {(item.changed_fields||[]).map((field:string)=>(({name:"학원명",district:"지역",address:"주소",phone:"전화번호",website_url:"홈페이지",description:"소개",schedule_text:"시간표",amount_krw:"가격",price_period:"가격 기간",frequency_per_week:"주당 횟수",title:"공지 제목",body:"공지 내용",is_active:"공개 상태",expires_at:"만료일"} as Record<string,string>)[field]||field)).join(", ")||"변경 내용"}</Text></View>):<Text style={s.body}>수정 이력이 없습니다.</Text>}</View>
    </>
   :application&&application.status!=="needs_info"?
