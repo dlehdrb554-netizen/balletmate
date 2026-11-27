@@ -31,8 +31,8 @@ export type ClassExcelParseResult = {
 const COLUMN_PATTERNS: Record<string, string[]> = {
   title: ["수업명", "수업이름", "클래스명", "클래스", "수업", "class name", "classname", "class", "name"],
   days: ["요일", "수업일", "수업요일", "day", "days", "날짜"],
-  start_time: ["시작시간", "수업시작", "시작", "start time", "start", "time"],
-  duration: ["수업시간분", "시간분", "소요시간", "진행시간", "duration", "length", "분"],
+  duration: ["수업시간분", "수업시간", "시간분", "소요시간", "진행시간", "duration", "length", "분"],
+  start_time: ["시작시간", "수업시작", "시작", "start time", "start", "time", "시간"],
   level: ["레벨", "수준", "난이도", "등급", "level"],
   audience: ["대상", "수업대상", "연령", "성인키즈", "구분", "target", "audience"],
   price: ["가격", "수강료", "금액", "비용", "price", "fee", "요금"],
