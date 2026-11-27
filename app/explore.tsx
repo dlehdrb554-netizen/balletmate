@@ -902,10 +902,9 @@ export default function Home() {
       }
       const r={latitude:p.coords.latitude,longitude:p.coords.longitude,latitudeDelta:0.018,longitudeDelta:0.018};
       setHasMapSearchRequested(true);
-      setPendingMapTarget(null);
       setRegion(r);setSearchedRegion(r);setAreaLocked(false);setLocationGranted(true);setCurrentLocation({latitude:p.coords.latitude,longitude:p.coords.longitude});setMapMoved(false);
-      // Send directly to the native map ref; it queues the command if Kakao's WebView is still initializing.
-      map.current?.animateToRegion(r,650);
+      // Keep the target in state so map effect can retry if the WebView ref is not mounted yet.
+      setPendingMapTarget(r);
     } catch { Alert.alert("위치 확인 실패","현재 위치를 가져오지 못했습니다. 위치 서비스 설정을 확인하거나 지도를 직접 이동해 이용해주세요."); }
     finally {setLocationLoading(false);}
   };
