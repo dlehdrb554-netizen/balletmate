@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Stack, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
+import { Stack, useGlobalSearchParams, usePathname, useRootNavigationState, useRouter } from "expo-router";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
@@ -50,16 +50,18 @@ function BottomNavigation(){
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
   const [showSplash,setShowSplash]=useState(true);
   useEffect(()=>{
     const timer=setTimeout(()=>setShowSplash(false),1600);
     return()=>clearTimeout(timer);
   },[]);
   useEffect(()=>{
-    // 앱을 새로 실행하면 저장된 마지막 화면 대신 지도를 시작 화면으로 표시합니다.
-    const resetTimer=setTimeout(()=>router.replace("/"),100);
-    return()=>clearTimeout(resetTimer);
-  },[router]);
+    // 네비게이션 복원/초기화가 끝난 뒤 이전 실행의 화면 스택을 비우고 지도로 시작합니다.
+    if(!rootNavigationState?.key)return;
+    router.dismissAll();
+    router.replace("/");
+  },[rootNavigationState?.key,router]);
   useEffect(() => {
     AsyncStorage.getItem("balletmate.screen_lock").then(enabled => {
       if (enabled === "1" && supabase) return supabase.auth.signOut({ scope: "local" });
