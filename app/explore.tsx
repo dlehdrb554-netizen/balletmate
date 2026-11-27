@@ -562,6 +562,16 @@ export default function Home() {
     for(const group of groups)group.cities.sort((a,b)=>a.city.localeCompare(b.city,"ko"));
     return groups;
   },[listDistricts]);
+  const handleRegionPickerBack=()=>{
+    if(expandedCity){
+      if(expandedCity==="__districts__"){
+        setExpandedCity(null);setExpandedProvince(null);setRegionProvince("전체");setRegionCity("전체");
+      }else{setExpandedCity(null);setRegionCity("전체");}
+      return;
+    }
+    if(expandedProvince){setExpandedProvince(null);setRegionProvince("전체");setRegionCity("전체");return;}
+    setRegionPickerOpen(false);
+  };
   const directoryResults=useMemo(()=>[...new Map([...directoryStudios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()].filter(s=>{
     if(normalizedSearch&&!globalSearchIdSet.has(s.id)&&!s.name.toLowerCase().includes(normalizedSearch)&&!s.area.toLowerCase().includes(normalizedSearch)&&!s.tags.some(t=>t.toLowerCase().includes(normalizedSearch))&&!classSearchIdSet.has(s.id))return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
@@ -1146,7 +1156,49 @@ export default function Home() {
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
-    <Modal visible={regionPickerOpen} transparent animationType="fade" onRequestClose={()=>{if(expandedCity)setExpandedCity(null);else if(expandedProvince)setExpandedProvince(null);else setRegionPickerOpen(false);}}><View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><View style={[styles.modal,{height:"68%",maxHeight:"78%",paddingHorizontal:14,paddingBottom:Math.max(16,insets.bottom+12)}]}><View style={styles.modalHead}><Text style={styles.modalTitle}>지역 선택</Text><Pressable onPress={()=>{if(expandedCity)setExpandedCity(null);else if(expandedProvince)setExpandedProvince(null);else setRegionPickerOpen(false);}} hitSlop={10} style={{minWidth:64,alignItems:"flex-end"}}><Text style={[styles.dismissText,{fontSize:14,fontWeight:"800",color:COLORS.purple}]}>{expandedCity||expandedProvince?"‹ 뒤로":"닫기"}</Text></Pressable></View><Text style={styles.photoCredit}>지역을 누르면 해당 범위가 적용됩니다. 구·군을 선택하면 더 좁혀집니다.</Text><ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:12}}><Pressable onPress={()=>{setRegionProvince("전체");setRegionCity("전체");setSelectedListRegion("전체");setExpandedProvince(null);setExpandedCity(null);setRegionPickerOpen(false);}} style={{paddingVertical:12,paddingHorizontal:12,borderRadius:9,backgroundColor:regionProvince==="전체"&&regionCity==="전체"&&selectedListRegion==="전체"?(isDark?"#292333":"#F2ECFF"):(isDark?"#242424":"#F8F7FA"),marginBottom:8}}><Text style={{fontSize:13,fontWeight:"900",color:COLORS.purple}}>전국 전체</Text></Pressable>{regionGroups.map(group=><View key={group.province} style={{marginBottom:10,borderWidth:1,borderColor:COLORS.line,borderRadius:10,overflow:"hidden"}}><Pressable onPress={()=>{setRegionProvince(group.province);setRegionCity("전체");setSelectedListRegion("전체");setExpandedProvince(current=>current===group.province?null:group.province);setExpandedCity(null);}} style={{paddingVertical:12,paddingHorizontal:12,backgroundColor:isDark?"#292333":COLORS.pale,flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}><Text style={{fontSize:13,fontWeight:"900",color:isDark?"#E0D2FF":COLORS.purple}}>{group.province} 전체</Text><Text style={{color:isDark?"#E0D2FF":COLORS.purple}}>{expandedProvince===group.province?"−":"＋"}</Text></Pressable>{expandedProvince===group.province&&group.cities.map(cityGroup=><View key={group.province+"-"+(cityGroup.city||"region")} style={{borderTopWidth:1,borderTopColor:COLORS.line}}>{!!cityGroup.city&&<Pressable onPress={()=>{setRegionProvince(group.province);setRegionCity(cityGroup.city);setSelectedListRegion("전체");setExpandedCity(current=>current===cityGroup.city?null:cityGroup.city);}} style={{paddingVertical:11,paddingHorizontal:16,backgroundColor:isDark?"#202020":COLORS.bg,flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>{cityGroup.city} 전체</Text><Text style={{color:COLORS.purple}}>{expandedCity===cityGroup.city?"−":"＋"}</Text></Pressable>}{expandedCity===cityGroup.city&&<View style={{flexDirection:"row",flexWrap:"wrap",paddingHorizontal:10,paddingVertical:8,gap:6,backgroundColor:isDark?"#1D1D1D":COLORS.bg}}>{cityGroup.areas.map(area=><Pressable key={area} onPress={()=>{setRegionProvince(group.province);setRegionCity(cityGroup.city||"전체");setSelectedListRegion(area);setRegionPickerOpen(false);}} style={{paddingVertical:8,paddingHorizontal:10,borderRadius:8,backgroundColor:selectedListRegion===area?(isDark?"#3A2C55":COLORS.pale):(isDark?"#292929":COLORS.white),borderWidth:1,borderColor:selectedListRegion===area?COLORS.purple:COLORS.line}}><Text style={{fontSize:11,fontWeight:selectedListRegion===area?"900":"600",color:selectedListRegion===area?(isDark?"#D8C6FF":COLORS.purple):(isDark?"#F3EFFA":COLORS.ink)}}>{districtOptionLabel(area,cityGroup.city||"전체")}</Text></Pressable>)}</View>}</View>)}</View>)}</ScrollView><Pressable style={[styles.applyButton,{flex:0,minHeight:52,width:"100%",marginTop:8,paddingVertical:12}]} onPress={()=>{if(expandedCity)setExpandedCity(null);else if(expandedProvince)setExpandedProvince(null);else setRegionPickerOpen(false);}}><Text style={styles.applyText}>{expandedCity||expandedProvince?"뒤로가기":"닫기"}</Text></Pressable></View></View></Modal>
+    <Modal visible={regionPickerOpen} transparent animationType="fade" onRequestClose={handleRegionPickerBack}>
+      <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}>
+        <View style={[styles.modal,{height:"82%",maxHeight:"90%",paddingHorizontal:14,paddingBottom:Math.max(16,insets.bottom+12)}]}>
+          <View style={styles.modalHead}>
+            <Text style={styles.modalTitle}>지역 선택</Text>
+            <Pressable onPress={handleRegionPickerBack} hitSlop={10} style={{minWidth:64,alignItems:"flex-end"}}>
+              <Text style={[styles.dismissText,{fontSize:14,fontWeight:"800",color:COLORS.purple}]}>{expandedCity||expandedProvince?"‹ 뒤로":"닫기"}</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.photoCredit}>지역을 누르면 해당 범위가 적용됩니다. 구·군을 선택하면 더 좁혀집니다.</Text>
+          <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:100}}>
+            <Pressable onPress={()=>{setRegionProvince("전체");setRegionCity("전체");setSelectedListRegion("전체");setExpandedProvince(null);setExpandedCity(null);setRegionPickerOpen(false);}} style={{paddingVertical:12,paddingHorizontal:12,borderRadius:9,backgroundColor:regionProvince==="전체"&&regionCity==="전체"&&selectedListRegion==="전체"?(isDark?"#292333":"#F2ECFF"):(isDark?"#242424":"#F8F7FA"),marginBottom:8}}>
+              <Text style={{fontSize:13,fontWeight:"900",color:COLORS.purple}}>전국 전체</Text>
+            </Pressable>
+            {regionGroups.map(group=><View key={group.province} style={{marginBottom:10,borderWidth:1,borderColor:COLORS.line,borderRadius:10,overflow:"hidden"}}>
+              <Pressable onPress={()=>{
+                const isOpen=expandedProvince===group.province;
+                setRegionProvince(group.province);setRegionCity("전체");setSelectedListRegion("전체");
+                setExpandedProvince(isOpen?null:group.province);
+                setExpandedCity(isOpen?null:(group.cities.some(item=>!item.city)?"__districts__":null));
+              }} style={{paddingVertical:12,paddingHorizontal:12,backgroundColor:isDark?"#292333":COLORS.pale,flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}>
+                <Text style={{fontSize:13,fontWeight:"900",color:isDark?"#E0D2FF":COLORS.purple}}>{group.province} 전체</Text>
+                <Text style={{color:isDark?"#E0D2FF":COLORS.purple}}>{expandedProvince===group.province?"−":"＋"}</Text>
+              </Pressable>
+              {expandedProvince===group.province&&group.cities.map(cityGroup=><View key={group.province+"-"+(cityGroup.city||"region")} style={{borderTopWidth:1,borderTopColor:COLORS.line}}>
+                {!!cityGroup.city&&<Pressable onPress={()=>{setRegionProvince(group.province);setRegionCity(cityGroup.city);setSelectedListRegion("전체");setExpandedCity(current=>current===cityGroup.city?null:cityGroup.city);}} style={{paddingVertical:11,paddingHorizontal:16,backgroundColor:isDark?"#202020":COLORS.bg,flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}>
+                  <Text style={{fontSize:12,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>{cityGroup.city} 전체</Text>
+                  <Text style={{color:COLORS.purple}}>{expandedCity===cityGroup.city?"−":"＋"}</Text>
+                </Pressable>}
+                {expandedCity===(cityGroup.city||"__districts__")&&<View style={{paddingHorizontal:10,paddingVertical:8,backgroundColor:isDark?"#1D1D1D":COLORS.bg}}>
+                  {cityGroup.areas.map(area=><Pressable key={area} onPress={()=>{setRegionProvince(group.province);setRegionCity(cityGroup.city||"전체");setSelectedListRegion(area);setRegionPickerOpen(false);}} style={{width:"100%",paddingVertical:11,paddingHorizontal:12,marginBottom:6,borderRadius:9,backgroundColor:selectedListRegion===area?(isDark?"#3A2C55":COLORS.pale):(isDark?"#292929":COLORS.white),borderWidth:1,borderColor:selectedListRegion===area?COLORS.purple:COLORS.line}}>
+                    <Text style={{fontSize:12,fontWeight:selectedListRegion===area?"900":"700",color:selectedListRegion===area?(isDark?"#D8C6FF":COLORS.purple):(isDark?"#F3EFFA":COLORS.ink)}}>{districtOptionLabel(area,cityGroup.city||"전체")}</Text>
+                  </Pressable>)}
+                </View>}
+              </View>)}
+            </View>)}
+          </ScrollView>
+          <Pressable style={[styles.applyButton,{flex:0,minHeight:52,width:"100%",marginTop:8,paddingVertical:12}]} onPress={handleRegionPickerBack}>
+            <Text style={styles.applyText}>{expandedCity||expandedProvince?"뒤로가기":"닫기"}</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
 <Modal visible={!!detailStudio} animationType="slide" transparent onRequestClose={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}>
 <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}><View style={[styles.modalShade,{paddingBottom:insets.bottom}]}><Animated.View style={[styles.modal,{backgroundColor:isDark?"#1D1D22":"#F0F0F3",height:detailExpanded?"92%":"65%",maxHeight:"94%",paddingHorizontal:14,paddingBottom:Math.max(24,insets.bottom+32),transform:[{translateY:detailDragY}]}]}>
 <View style={styles.dragHeader}><View style={[styles.dragGestureZone,{height:60}]} {...detailPan.panHandlers}><View style={[styles.dragHandle,{width:64,height:7}]}/></View><View style={styles.modalHead}><Text style={styles.modalTitle}>학원 상세 정보</Text><Pressable hitSlop={4} accessibilityRole="button" accessibilityLabel="학원 상세정보 닫기" style={{width:48,height:48,marginLeft:8,alignItems:"center",justifyContent:"center",borderRadius:14,backgroundColor:isDark?"#292633":"#F2EEF8"}} onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}><Ionicons name="close" size={24} color={isDark?"#E7E1F0":COLORS.ink}/></Pressable></View><Text style={styles.dragHint}>내용은 위아래로 스크롤 · 좌우로 밀어 탭 이동</Text></View>
