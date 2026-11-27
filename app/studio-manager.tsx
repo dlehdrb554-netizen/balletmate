@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState, useMemo} from "react";
+import React, {useCallback, useEffect, useState, useMemo, useRef} from "react";
 import {themeStyles } from "../lib/theme";
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -20,6 +20,9 @@ export default function StudioManager(){
  const params=useLocalSearchParams<{studioId?:string;studioName?:string}>();
  const studioId=String(params.studioId||"");
  const studioName=String(params.studioName||"선택한 학원");
+ const managerScrollRef=useRef<ScrollView|null>(null);
+ const sectionOffsets=useRef<Record<string,number>>({});
+ const jumpToSection=(key:string)=>managerScrollRef.current?.scrollTo({y:Math.max(0,(sectionOffsets.current[key]||0)-12),animated:true});
  const [session,setSession]=useState<any>(null);
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
@@ -257,7 +260,7 @@ export default function StudioManager(){
    Alert.alert("사진 등록 완료",uploadedGalleryPaths.length+"장의 사진을 등록했습니다. 첫 번째 사진은 대표 이미지로도 설정했습니다.");
    await load();
   }catch(error:any){
-   if(uploadedGalleryPaths.length)await supabase.storage.from("studio-public-materials").remove(uploadedGalleryPaths);
+   if(uploadedGalleryPaths.length){await supabase.from("studio_gallery_images").delete().eq("studio_id",studioId).in("image_path",uploadedGalleryPaths);await supabase.storage.from("studio-public-materials").remove(uploadedGalleryPaths);}
    if(representativePath)await supabase.storage.from("studio-representative-images").remove([representativePath]);
    Alert.alert("사진 등록 실패",error?.message||"사진을 등록하지 못했습니다.");
   }finally{setSaving(false);}
@@ -351,7 +354,7 @@ export default function StudioManager(){
  const button=(label:string,onPress:()=>void,disabled=false,destructive=false)=><Pressable disabled={disabled} onPress={onPress} style={[s.button,{backgroundColor:isDark?"#7652B8":C.pale},destructive&&s.danger,disabled&&{opacity:0.5}]}><Text style={[s.buttonText,{color:isDark?"#FFFFFF":C.purple},destructive&&{color:C.red}]}>{label}</Text></Pressable>;
  const field=(label:string,value:string,onChangeText:(v:string)=>void,placeholder:string="",keyboardType:any="default")=><View style={{marginTop:12}}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} keyboardType={keyboardType} style={s.input}/></View>;
 
- return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+ return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}><ScrollView ref={managerScrollRef} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
   <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
   <Text style={s.brand}>Balletmate · 학원 관리</Text><Text style={s.title}>{studioName}</Text>
   {loading?<ActivityIndicator color={C.purple} style={{marginTop:28}}/>:!session?
@@ -373,7 +376,10 @@ export default function StudioManager(){
   :owner?
    <>
     <View style={s.card}><Text style={s.cardTitle}>승인된 원장님 계정</Text><Text style={s.body}>이 학원의 정보와 공개 자료를 관리할 수 있습니다. 등록한 내용은 학원 상세 페이지에 바로 공개됩니다.</Text></View>
-    <View style={s.card}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:7,paddingVertical:5}}>
+     {([{key:"photos",label:"사진"},{key:"profile",label:"기본 정보"},{key:"materials",label:"가격·시간표"},{key:"classes",label:"수업"},{key:"coupons",label:"혜택"},{key:"notices",label:"공지"}]).map(item=><Pressable key={item.key} onPress={()=>jumpToSection(item.key)} style={{paddingHorizontal:14,paddingVertical:10,borderRadius:18,backgroundColor:isDark?"#332744":C.pale}}><Text style={{fontSize:12,fontWeight:"800",color:isDark?"#E5D8F8":C.purple}}>{item.label}</Text></Pressable>)}
+    </ScrollView>
+    <View onLayout={event=>{sectionOffsets.current.photos=event.nativeEvent.layout.y;}} style={s.card}>
      <Text style={s.cardTitle}>학원 사진</Text>
      <Text style={s.body}>여러 장을 한 번에 선택할 수 있습니다. 첫 번째 사진은 대표 이미지로 설정되며, 나머지는 학원 사진 탭에 함께 공개됩니다.</Text>
      {!!representativeImagePath&&<View style={{marginTop:10}}><Text style={s.label}>현재 대표 이미지</Text><Image source={{uri:supabase?.storage.from("studio-representative-images").getPublicUrl(representativeImagePath).data.publicUrl}} style={{width:"100%",height:170,borderRadius:10,marginTop:6}} resizeMode="cover"/>{button("대표 이미지 제거",()=>Alert.alert("대표 이미지 제거","대표 이미지를 제거할까요?",[{text:"취소",style:"cancel"},{text:"제거",style:"destructive",onPress:async()=>{if(!supabase)return;setSaving(true);const previousPath=representativeImagePath;const {error}=await supabase.rpc("owner_update_studio_representative_image",{p_studio_id:studioId,p_image_path:null});if(error)Alert.alert("제거 실패",error.message);else{setRepresentativeImagePath(null);if(previousPath)await supabase.storage.from("studio-representative-images").remove([previousPath]);await load();}setSaving(false);}}]),saving,true)}</View>}
@@ -383,12 +389,12 @@ export default function StudioManager(){
      <Text style={s.label}>등록된 사진 · {galleryImages.filter(x=>x.is_active).length}장</Text>
      {galleryImages.filter(x=>x.is_active).length?<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:9,paddingVertical:8}}>{galleryImages.filter(x=>x.is_active).map(item=><View key={item.id} style={{width:118}}><Image source={{uri:supabase?.storage.from("studio-public-materials").getPublicUrl(item.image_path).data.publicUrl}} style={{width:118,height:94,borderRadius:9}} resizeMode="cover"/><Pressable disabled={saving} onPress={()=>Alert.alert("사진 삭제","이 사진을 학원 사진에서 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deactivateGalleryImage(item)}])} style={{paddingVertical:7}}><Text style={{fontSize:11,fontWeight:"800",color:C.red}}>삭제</Text></Pressable></View>)}</ScrollView>:<Text style={s.body}>등록된 사진이 없습니다.</Text>}
     </View>
-    <View style={s.card}><Text style={s.cardTitle}>학원 기본 정보 수정</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("대표 홈페이지 URL",profileWebsite,setProfileWebsite,"일반 홈페이지·네이버 블로그·인스타그램 URL (https://)") }<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:90,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
-    <View style={s.card}><Text style={s.cardTitle}>시간표 이미지 등록</Text><Text style={s.body}>글자 입력은 지원하지 않습니다. 시간표가 보이는 이미지 한 장을 선택해 주세요.</Text>{scheduleImage&&<Image source={{uri:scheduleImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(scheduleImage?"시간표 이미지 다시 선택":"시간표 이미지 선택",()=>pickMaterialImage("schedule"),saving)}{button("시간표 이미지 공개",saveSchedule,saving||!scheduleImage)}</View>
+    <View onLayout={event=>{sectionOffsets.current.profile=event.nativeEvent.layout.y;}} style={s.card}><Text style={s.cardTitle}>학원 기본 정보 수정</Text>{field("학원명",profileName,setProfileName,"학원명")}{field("지역/구",profileDistrict,setProfileDistrict,"예: 서울 강남구")}{field("주소",profileAddress,setProfileAddress,"사업장 주소")}{field("전화번호",profilePhone,setProfilePhone,"연락처","phone-pad")}{field("대표 홈페이지 URL",profileWebsite,setProfileWebsite,"일반 홈페이지·네이버 블로그·인스타그램 URL (https://)") }<TextInput value={profileDescription} onChangeText={setProfileDescription} placeholder="학원 소개를 입력하세요." multiline style={[s.input,{height:90,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("기본 정보 저장",saveProfile,saving)}</View>
+    <View onLayout={event=>{sectionOffsets.current.materials=event.nativeEvent.layout.y;}} style={s.card}><Text style={s.cardTitle}>시간표 이미지 등록</Text><Text style={s.body}>글자 입력은 지원하지 않습니다. 시간표가 보이는 이미지 한 장을 선택해 주세요.</Text>{scheduleImage&&<Image source={{uri:scheduleImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(scheduleImage?"시간표 이미지 다시 선택":"시간표 이미지 선택",()=>pickMaterialImage("schedule"),saving)}{button("시간표 이미지 공개",saveSchedule,saving||!scheduleImage)}</View>
     <View style={s.card}><Text style={s.cardTitle}>가격표 이미지 등록</Text><Text style={s.body}>가격과 이용 조건이 표시된 이미지로만 등록할 수 있습니다.</Text>{priceImage&&<Image source={{uri:priceImage.uri}} style={{width:"100%",height:190,marginTop:10,borderRadius:10}} resizeMode="contain"/>}{button(priceImage?"가격표 이미지 다시 선택":"가격표 이미지 선택",()=>pickMaterialImage("price"),saving)}{button("가격표 이미지 공개",savePrice,saving||!priceImage)}</View>
-    <View style={s.card}><Text style={s.cardTitle}>공지사항 작성</Text>{field("제목",noticeTitle,setNoticeTitle,"공지 제목") }<TextInput value={noticeBody} onChangeText={setNoticeBody} placeholder="휴강, 모집, 행사 등 공지 내용을 입력하세요." multiline style={[s.input,{height:110,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("공지사항 등록",saveNotice,saving)}</View>
+    <View onLayout={event=>{sectionOffsets.current.notices=event.nativeEvent.layout.y;}} style={s.card}><Text style={s.cardTitle}>공지사항 작성</Text>{field("제목",noticeTitle,setNoticeTitle,"공지 제목") }<TextInput value={noticeBody} onChangeText={setNoticeBody} placeholder="휴강, 모집, 행사 등 공지 내용을 입력하세요." multiline style={[s.input,{height:110,textAlignVertical:"top",paddingTop:12,marginTop:10}]}/>{button("공지사항 등록",saveNotice,saving)}</View>
     <View style={s.card}><Text style={s.cardTitle}>등록한 시간표 및 가격표</Text>{materials.length?materials.map(item=>{const imagePath=item.image_path?supabase?.storage.from("studio-public-materials").getPublicUrl(item.image_path).data.publicUrl:null;return <View key={item.kind+"-"+item.id} style={s.item}><Text style={s.itemTitle}>{item.kind==="schedule"?"시간표 이미지":"가격표 이미지"}</Text>{imagePath&&<Image source={{uri:imagePath}} style={{width:"100%",height:180,borderRadius:10,marginTop:8}} resizeMode="contain"/>}<Text style={s.body}>{item.is_active?"공개 중":"비공개"}</Text>{item.is_active&&button("공개 중단",()=>Alert.alert("공개 중단","이 자료를 비공개로 전환할까요?",[{text:"취소",style:"cancel"},{text:"중단",style:"destructive",onPress:()=>deactivateMaterial(item)}]),saving,true)}</View>}):<Text style={s.body}>등록한 자료가 없습니다.</Text>}</View>
-    <View style={s.card}><Text style={s.cardTitle}>수업 관리</Text>
+    <View onLayout={event=>{sectionOffsets.current.classes=event.nativeEvent.layout.y;}} style={s.card}><Text style={s.cardTitle}>수업 관리</Text>
      {field("수업명 *",classTitle,setClassTitle,"예: 성인 기초 발레")}
      <Text style={s.label}>수업 대상</Text><View style={{flexDirection:"row",gap:7,marginTop:6}}>{([{value:"adult",label:"성인"},{value:"kids",label:"키즈"},{value:"all",label:"전체"}] as const).map(option=><Pressable key={option.value} onPress={()=>setClassAudience(option.value)} style={{paddingHorizontal:12,paddingVertical:9,borderRadius:9,backgroundColor:classAudience===option.value?C.purple:C.pale}}><Text style={{fontSize:11,fontWeight:"800",color:classAudience===option.value?"#fff":C.purple}}>{option.label}</Text></Pressable>)}</View>
      {field("수업 수준",classLevel,setClassLevel,"입문 / 초급 / 중급 / 고급")}
@@ -398,7 +404,7 @@ export default function StudioManager(){
      {ownerClasses.map(item=><View key={item.id} style={s.item}><Text style={s.itemTitle}>{item.title}</Text><Text style={s.body}>{item.audience==="kids"?"키즈":item.audience==="all"?"전체":"성인"} · {item.level||"수준 미입력"} · {item.duration_minutes||60}분</Text>{button(item.is_active?"수업 비공개":"수업 공개",()=>toggleOwnerClass(item),saving)}{button("수업 삭제",()=>Alert.alert("수업 삭제","이 수업을 완전히 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:()=>deleteOwnerClass(item)}]),saving,true)}</View>)}
      {!ownerClasses.length&&<Text style={s.body}>등록된 수업이 없습니다.</Text>}
     </View>
-    <View style={s.card}><Text style={s.cardTitle}>할인·혜택 관리</Text>
+    <View onLayout={event=>{sectionOffsets.current.coupons=event.nativeEvent.layout.y;}} style={s.card}><Text style={s.cardTitle}>할인·혜택 관리</Text>
      {field("혜택명 *",couponTitle,setCouponTitle,"예: 첫 등록 할인")}
      {field("할인 내용 *",couponDiscount,setCouponDiscount,"예: 첫 달 10% 할인")}
      {field("상세 안내",couponDescription,setCouponDescription,"적용 조건 등")}
