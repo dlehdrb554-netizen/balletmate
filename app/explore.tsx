@@ -135,7 +135,6 @@ export default function Home() {
   const [searchSubmitting,setSearchSubmitting]=useState(false);
   const areaSearchRequestId=useRef(0);
   const searchSubmitRequestId=useRef(0);
-  const classSearchRequestId=useRef(0);
   const [pendingMapTarget,setPendingMapTarget]=useState<Region|null>(null);
   const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
@@ -806,7 +805,6 @@ export default function Home() {
     const queryAtStart=search.trim();
     setSearchedRegion(target);setAreaLocked(true);setMapMoved(false);setSelected(null);
     setSearchSubmitting(true);
-    classSearchRequestId.current++;
     setClassSearchIds([]);setClassSearchLoading(false);
     try{
       // A viewport search must query Kakao Local around the map center as well as
