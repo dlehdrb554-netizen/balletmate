@@ -69,7 +69,7 @@ export default function StudioManager(){
   setSession(current);
   if(!current){setOwner(false);setApplication(null);setOwnedStudios([]);setLoading(false);return;}
   if(!studioId){
-   const {data:ownerRows,error:ownerListError}=await supabase.from("studio_owners").select("studio_id,status").eq("user_id",current.user.id).eq("status","approved");
+   const {data:ownerRows,error:ownerListError}=await supabase.from("studio_owners").select("studio_id").eq("user_id",current.user.id);
    if(ownerListError){setOwnedStudios([]);Alert.alert("관리 학원 조회 실패",ownerListError.message);}
    else if(ownerRows?.length){
     const ids=ownerRows.map((row:any)=>row.studio_id);
@@ -80,7 +80,7 @@ export default function StudioManager(){
    setLoading(false);return;
   }
   const [ownerResult,appResult,studioResult]=await Promise.all([
-   supabase.from("studio_owners").select("studio_id,status").eq("studio_id",studioId).eq("user_id",current.user.id).eq("status","approved").maybeSingle(),
+   supabase.from("studio_owners").select("studio_id").eq("studio_id",studioId).eq("user_id",current.user.id).maybeSingle(),
    supabase.from("studio_owner_applications").select("id,status,auto_match_status,auto_match_details,review_note,created_at,verification_url,verification_code,verification_method").eq("studio_id",studioId).eq("user_id",current.user.id).order("created_at",{ascending:false}).limit(1).maybeSingle(),
    supabase.from("studios").select("name,district,address,phone,website_url,description,representative_image_path").eq("id",studioId).maybeSingle()
   ]);
