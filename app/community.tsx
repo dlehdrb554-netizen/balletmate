@@ -247,6 +247,8 @@ export default function Community(){
  const removeComposerPhoto=(index:number)=>{
   const next=editorBlocks.filter(block=>block.type!=="image"||block.photoIndex!==index).map(block=>block.type==="image"&&block.photoIndex!==undefined&&block.photoIndex>index?{...block,photoIndex:block.photoIndex-1}:block);
   setEditorBlocks(next);setBody(getComposerText(next));
+  const removed=selectedPhotos[index];const removedKey=removed?.assetId||removed?.uri;
+  if(removedKey){const uploaded=uploadedPhotoFiles[removedKey];if(uploaded&&supabase)void supabase.storage.from("community-photos").remove([uploaded.path]);setUploadedPhotoFiles(current=>{const value={...current};delete value[removedKey];return value;});setPhotoUploadStatus(current=>{const value={...current};delete value[removedKey];return value;});}
   setSelectedPhotos(current=>current.filter((_,i)=>i!==index));
   setPhotoCaptions(current=>current.filter((_,i)=>i!==index));
   setFinalConfirmed(false);
