@@ -43,7 +43,7 @@ function buildHtml(initialRegion: MapRegion) {
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
-  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkOverlayAdded=false, darkModeEnabled=false, regionTimer=null;
+  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkModeEnabled=false, regionTimer=null;
   var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
@@ -134,37 +134,18 @@ function buildHtml(initialRegion: MapRegion) {
     var center=map.getCenter(), bounds=map.getBounds(), sw=bounds.getSouthWest(), ne=bounds.getNorthEast();
     post({type:'region',region:{latitude:center.getLat(),longitude:center.getLng(),latitudeDelta:Math.max(0.002,ne.getLat()-sw.getLat()),longitudeDelta:Math.max(0.002,ne.getLng()-sw.getLng())}});
   }
-  function ensureDarkOverlay(){
-    if(!map||!darkModeEnabled)return;
-    if(!kakao.maps.MapTypeId.BALLET_DARK_DIM){
-      var dimTiles=new kakao.maps.Tileset({width:256,height:256,dark:true,getTile:function(){
-        var tile=document.createElement('div');
-        tile.style.width='256px';
-        tile.style.height='256px';
-        tile.style.background='rgba(18,20,24,0.46)';
-        tile.style.pointerEvents='none';
-        return tile;
-      }});
-      kakao.maps.Tileset.add('BALLET_DARK_DIM',dimTiles);
-    }
-    // Rebuild the dim layer after the map settles from a pan or zoom.
-    if(darkOverlayAdded)map.removeOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
-    map.addOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
-    darkOverlayAdded=true;
-  }
   function setDarkMode(enabled){
     darkModeEnabled=enabled;
     var load=document.getElementById('load');
+    var mapElement=document.getElementById('map');
     var surface=enabled?'#18181B':'#f4f1f8';
     document.body.style.background=surface;
-    document.getElementById('map').style.background=surface;
+    mapElement.style.background=surface;
     if(load)load.style.background=surface;
-    if(!map)return;
-    if(enabled)ensureDarkOverlay();
-    else if(darkOverlayAdded){
-      map.removeOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
-      darkOverlayAdded=false;
-    }
+    // Keep the dimming effect on the map viewport itself. A Kakao overlay tile
+    // sits above marker layers and can hide every marker; re-adding it on idle
+    // also causes a visible bright/dark flash during pinch zoom.
+    mapElement.style.filter=enabled?'brightness(0.78) saturate(0.88)':'none';
   }
   function apply(message){
     if(!map){pending.push(message);return;}
@@ -192,7 +173,7 @@ function buildHtml(initialRegion: MapRegion) {
       if(kakao.maps.MarkerClusterer){clusterer=new kakao.maps.MarkerClusterer({map:map,averageCenter:true,minLevel:6,styles:[{width:'42px',height:'42px',background:'rgba(101,59,183,0.92)',borderRadius:'21px',color:'#fff',textAlign:'center',fontWeight:'700',lineHeight:'42px',fontSize:'13px'}]});}
       kakao.maps.event.addListener(map,'dragend',emitRegion);
       kakao.maps.event.addListener(map,'zoom_changed',emitRegion);
-      kakao.maps.event.addListener(map,'idle',function(){if(darkModeEnabled)ensureDarkOverlay();});
+      kakao.maps.event.addListener(map,'idle',function(){emitRegion();});
       // WebView can initially report a very small height on compact devices.
       // Recalculate Kakao's viewport after the native layout settles or changes.
       var resizeMap=function(){
