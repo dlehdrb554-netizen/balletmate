@@ -7,7 +7,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions} from "react-native";
+  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomPadding } from "../hooks/useBottomPadding";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
