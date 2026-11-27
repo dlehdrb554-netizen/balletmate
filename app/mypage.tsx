@@ -119,7 +119,7 @@ export default function MyPage(){
   const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
    if(profileOpen){setProfileOpen(false);return true;}
    if(modeOpen){setModeOpen(false);return true;}
-   if(menu==="notifications"){if(routeParams.returnTo==="map")router.replace("/");else setMenu("settings");return true;}
+   if(menu==="notifications"){if(routeParams.returnTo==="map"||routeParams.open==="settings"){setMenu(null);router.replace("/");}else setMenu("settings");return true;}
    if(menu){setMenu(null);return true;}
    router.replace("/");return true;
   });
