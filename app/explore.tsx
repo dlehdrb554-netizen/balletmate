@@ -151,6 +151,8 @@ export default function Home() {
   const [classSearchIds,setClassSearchIds]=useState<string[]>([]);
   const [globalSearchStudios,setGlobalSearchStudios]=useState<Studio[]>([]);
   const [searchMatches,setSearchMatches]=useState<Studio[]>([]);
+   const [liveRemoteStudios,setLiveRemoteStudios]=useState<Studio[]>([]);
+   const [liveSearchLoading,setLiveSearchLoading]=useState(false);
   const [searchResultsOpen,setSearchResultsOpen]=useState(false);
   const [searchSubmitting,setSearchSubmitting]=useState(false);
   const areaSearchRequestId=useRef(0);
@@ -731,16 +733,37 @@ export default function Home() {
   },[searchFocused]);
   const liveClassSearchRequestId=useRef(0);
   const normalizedLiveQuery=deferredSearch.trim().toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+  const liveSearchRequestId=useRef(0);
   const liveSearchMatches=useMemo(()=>{
     if(!normalizedLiveQuery)return [];
     const unique=new Map<string,Studio>();
-    [...studios,...directoryStudios,...globalSearchStudios].forEach(studio=>{
+    [...studios,...directoryStudios,...globalSearchStudios,...liveRemoteStudios].forEach(studio=>{
       const searchable=[studio.name,studio.area,studio.address||"",...(studio.tags||[])].join(" ").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
       if(searchable.includes(normalizedLiveQuery))unique.set(studio.id,studio);
     });
     return [...unique.values()].filter(studio=>!isExcludedStudioSearchResult(studio.name))
       .sort((a,b)=>a.name.localeCompare(b.name,"ko")).slice(0,15);
-  },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios]);
+  },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
+  // Local matches render immediately; query the indexed directory after typing pauses.
+  // Kakao and class-name lookups remain submit-only to avoid expensive per-keystroke requests.
+  useEffect(()=>{
+    const requestId=++liveSearchRequestId.current;
+    const query=deferredSearch.trim();
+    setLiveRemoteStudios([]);
+    if(!searchFocused||!supabase||query.length<2){setLiveSearchLoading(false);return;}
+    setLiveSearchLoading(true);
+    const timer=setTimeout(()=>{
+      searchStudiosByName(query).then(rows=>{
+        if(requestId!==liveSearchRequestId.current)return;
+        setLiveRemoteStudios(rows.map(mapStudioRecord));
+      }).catch(error=>{
+        if(requestId===liveSearchRequestId.current)console.warn("Live studio search failed:",error);
+      }).finally(()=>{
+        if(requestId===liveSearchRequestId.current)setLiveSearchLoading(false);
+      });
+    },220);
+    return()=>{clearTimeout(timer);};
+  },[deferredSearch,searchFocused]);
   // 수업명 검색은 검색 확정 시에만 실행합니다. 입력 중에는 로컬 데이터만 필터링합니다.
   useEffect(()=>{if(!searchFocused)setClassSearchLoading(false);},[searchFocused]);
   const submitSearch=async(queryOverride?:string)=>{
@@ -1524,9 +1547,9 @@ export default function Home() {
             </>:<>
               <View style={styles.liveSearchHeading}>
                 <Text style={{fontSize:13,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>{searchSubmitting?"검색 중…":`검색 결과 ${liveSearchMatches.length}곳`}</Text>
-                {classSearchLoading&&<ActivityIndicator size="small" color={COLORS.purple}/>}
+                {(classSearchLoading||liveSearchLoading)&&<ActivityIndicator size="small" color={COLORS.purple}/>}
               </View>
-              <FlatList data={liveSearchMatches} keyExtractor={item=>item.id} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingHorizontal:16,paddingBottom:10}} ItemSeparatorComponent={()=><View style={{height:1,backgroundColor:isDark?"#393342":COLORS.line}}/>} ListEmptyComponent={<Text style={{paddingHorizontal:20,paddingVertical:20,fontSize:12,color:isDark?"#B9B1C5":COLORS.muted}}>{searchSubmitting?"학원과 수업 정보를 확인하고 있어요.":"일치하는 학원이 없습니다. 전체 검색으로 더 찾아볼 수 있어요."}</Text>} renderItem={({item})=><Pressable style={styles.liveSearchRow} onPress={()=>{
+              <FlatList data={liveSearchMatches} keyExtractor={item=>item.id} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingHorizontal:16,paddingBottom:10}} ItemSeparatorComponent={()=><View style={{height:1,backgroundColor:isDark?"#393342":COLORS.line}}/>} ListEmptyComponent={<Text style={{paddingHorizontal:20,paddingVertical:20,fontSize:12,color:isDark?"#B9B1C5":COLORS.muted}}>{searchSubmitting||liveSearchLoading?"학원 정보를 검색하고 있어요.":"일치하는 학원이 없습니다. 전체 검색으로 더 찾아볼 수 있어요."}</Text>} renderItem={({item})=><Pressable style={styles.liveSearchRow} onPress={()=>{
                 const next={latitude:item.lat,longitude:item.lng,latitudeDelta:0.009,longitudeDelta:0.009};
                 setGlobalSearchStudios(liveSearchMatches);setSearchMatches(liveSearchMatches);setSearchResultsOpen(false);setSearchFocused(false);Keyboard.dismiss();setSelected(item);setAreaLocked(false);setMapMoved(false);setSearchedRegion(next);setRegion(next);setPendingMapTarget(next);setView("map");
               }}>
