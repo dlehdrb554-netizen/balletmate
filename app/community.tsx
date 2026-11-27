@@ -14,6 +14,7 @@ type Comment={id:string;post_id:string;author_id:string;author_name:string;conte
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F3F0FF",line:"#EAE7F0",red:"#D04444",green:"#18875B"};
 const categories:Category[]=["전체","학원 추천","발레복 추천","자유"];
 const timeLabel=(value:string)=>{const date=new Date(value);return Number.isNaN(date.getTime())?"":date.toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});};
+const postDateLabel=(value:string)=>{const date=new Date(value);if(Number.isNaN(date.getTime()))return "";const now=new Date();if(date.getFullYear()===now.getFullYear()&&date.getMonth()===now.getMonth()&&date.getDate()===now.getDate())return "오늘 "+date.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false});if(date.getFullYear()===now.getFullYear())return date.toLocaleDateString("ko-KR",{month:"numeric",day:"numeric"});return date.toLocaleDateString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit"});};
 const cooldownMessage="도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.";
 const COMMUNITY_TERMS_VERSION="2026-11-27-community-policy-1";
 const containsSensitiveInfo=(value:string)=>/(?:\b\d{2,3}[- .]?\d{3,4}[- .]?\d{4}\b)|(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i.test(value);
@@ -329,7 +330,7 @@ export default function Community(){
     </ScrollView>
     {loading?<ActivityIndicator color={C.purple} style={{marginTop:40}}/>:
      <FlatList data={posts.filter(item=>!blockedUserIds.includes(item.author_id))} keyExtractor={item=>item.id} contentContainerStyle={s.list} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadPosts();}} tintColor={C.purple}/>} renderItem={({item})=><Pressable style={s.postCard} onPress={()=>openPost(item)}>
-      <View style={s.postTop}><View style={s.categoryBadge}><Text style={s.categoryText}>{item.category}</Text></View><Text style={s.meta}>{timeLabel(item.created_at)}</Text></View>
+      <View style={s.postTop}><View style={s.categoryBadge}><Text style={s.categoryText}>{item.category}</Text></View><Text style={s.meta}>{postDateLabel(item.created_at)}</Text></View>
       <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
       <Text style={s.preview} numberOfLines={2}>{item.content}</Text>
       {!!item.image_urls?.length&&<View style={s.postPhotos}>{item.image_urls.slice(0,2).map((url,index)=><Image key={url} source={{uri:url}} style={s.listPhoto} resizeMode="cover"/>)}</View>}
