@@ -1207,7 +1207,7 @@ export default function Home() {
 </View>}<FlatList data={visibleListRows} keyExtractor={i=>i.id} renderItem={renderStudioListItem} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" initialNumToRender={25} maxToRenderPerBatch={25} windowSize={7} onEndReached={loadMoreListRows} onEndReachedThreshold={0.45} ListFooterComponent={listRows.length>visibleListRows.length?<Pressable onPress={loadMoreListRows} style={{padding:16,alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>학원 더 불러오기 · {visibleListRows.length}/{listRows.length}</Text></Pressable>:listRows.length>0?<Text style={{padding:16,textAlign:"center",fontSize:11,color:COLORS.muted}}>모든 학원을 확인했습니다.</Text>:null} ListEmptyComponent={<View style={{alignItems:"center",paddingHorizontal:24,paddingVertical:30,gap:9}}><Ionicons name="search-outline" size={28} color={COLORS.muted}/><Text style={styles.empty}>{view==="favorites"?"찜한 학원이 아직 없어요.":backendState==="error"?"학원 정보를 불러올 수 없습니다.":"조건에 맞는 학원이 없어요."}</Text>{view==="list"&&<>{backendState==="error"?<Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>서버 연결 상태를 확인한 뒤 다시 시도해 주세요.</Text>:<><Text style={{fontSize:11,color:COLORS.muted,textAlign:"center"}}>지역이나 수업 필터 때문에 결과가 없을 수 있어요.</Text><Pressable onPress={resetListFilters} style={{marginTop:4,paddingHorizontal:16,paddingVertical:9,borderRadius:10,backgroundColor:COLORS.pale}}><Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>지역·검색·필터 초기화</Text></Pressable></>}</>}</View>}/></>}
     </View>
     
-    <Modal visible={searchResultsOpen} transparent animationType="fade" onRequestClose={()=>setSearchResultsOpen(false)}>
+    <Modal visible={searchResultsOpen} transparent animationType="none" onRequestClose={()=>setSearchResultsOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={()=>setSearchResultsOpen(false)} />
         <View style={[styles.modal,{width:"100%",maxHeight:"82%",padding:16,paddingBottom:Math.max(24,insets.bottom+12)}]}>
@@ -1235,7 +1235,7 @@ export default function Home() {
         </View>
       </View>
     </Modal>
-    <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={()=>setMenuOpen(false)}>
+    <Modal visible={menuOpen} transparent animationType="none" onRequestClose={()=>setMenuOpen(false)}>
       <View style={styles.drawerShade}>
         <Pressable style={StyleSheet.absoluteFill} onPress={()=>setMenuOpen(false)} accessibilityLabel="메뉴 닫기"/>
         <View style={[styles.drawerPanel,{paddingBottom:Math.max(16,insets.bottom+12)}]}>
@@ -1256,7 +1256,7 @@ export default function Home() {
         </View>
       </View>
     </Modal>
-    <Modal visible={mapSettingsOpen} transparent animationType="fade" onRequestClose={()=>{setMapSettingsOpen(false);setPendingDirectionsStudio(null);}}>
+    <Modal visible={mapSettingsOpen} transparent animationType="none" onRequestClose={()=>{setMapSettingsOpen(false);setPendingDirectionsStudio(null);}}>
       <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{paddingBottom:Math.max(30,insets.bottom+18)}]}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>기본 길찾기 앱</Text><Pressable onPress={()=>{setMapSettingsOpen(false);setPendingDirectionsStudio(null);}}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.filterHint}>선택한 지도 앱을 기본으로 저장합니다. 다음부터는 길찾기를 누르면 바로 이 앱으로 열립니다.</Text>
@@ -1264,7 +1264,7 @@ export default function Home() {
         <Pressable style={[styles.mapProviderOption,mapProvider==="kakao"&&styles.mapProviderSelected]} onPress={()=>selectMapProvider("kakao")}><Ionicons name="navigate-outline" size={22} color={COLORS.purple}/><View style={{flex:1}}><Text style={styles.mapProviderTitle}>카카오맵</Text><Text style={styles.mapProviderSub}>카카오맵 앱 우선, 미설치 시 웹 지도</Text></View><Text style={styles.mapProviderCheck}>{mapProvider==="kakao"?"기본":"선택"}</Text></Pressable>
       </View></View>
     </Modal>
-    <Modal visible={compareOpen} animationType="slide" transparent onRequestClose={()=>setCompareOpen(false)}>
+    <Modal visible={compareOpen} animationType="none" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
         <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
@@ -1295,7 +1295,7 @@ export default function Home() {
         <Pressable accessibilityRole="button" accessibilityLabel="학원 비교 확인 및 닫기" style={[styles.applyButton,{flex:0,width:"100%",minHeight:52,alignSelf:"stretch",paddingVertical:14,marginTop:8}]} onPress={()=>setCompareOpen(false)}><Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>비교 완료</Text></Pressable>
       </View></View>
     </Modal>
-    <Modal visible={regionPickerOpen} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
+    <Modal visible={regionPickerOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:modalBottomInset}]}>
         <View style={[styles.modal,modalSheetStyle]}>
           <View style={styles.modalHead}>
@@ -1338,7 +1338,7 @@ export default function Home() {
         </View>
       </View>
     </Modal>
-<Modal visible={!!detailStudio} animationType="fade" transparent statusBarTranslucent onRequestClose={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}>
+<Modal visible={!!detailStudio} animationType="none" transparent statusBarTranslucent onRequestClose={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}>
 <GestureHandlerRootView style={{flex:1}}><View style={{flex:1}}>
 <View style={styles.modalShade}>
 <Pressable style={StyleSheet.absoluteFillObject} onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}} accessibilityRole="button" accessibilityLabel="학원 상세정보 닫기"/>
@@ -1450,7 +1450,7 @@ export default function Home() {
 <Pressable onPress={()=>setVerifiedReviewsOnly(v=>!v)} style={{marginHorizontal:2,marginTop:8,marginBottom:12,minHeight:46,paddingVertical:12,borderRadius:10,backgroundColor:verifiedReviewsOnly?COLORS.pale:"#F8F7FA",alignItems:"center"}}><Text style={{fontSize:12,fontWeight:"800",color:COLORS.purple}}>{verifiedReviewsOnly?"전체 리뷰 보기":"인증 후기만 보기"}</Text></Pressable>{reviewsLoading?<ActivityIndicator color={COLORS.purple} style={{margin:20}}/>:((verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).length?(verifiedReviewsOnly?studioReviews.filter((item:any)=>!!item.verified_at):studioReviews).map((item:any)=><View key={String(item.id)} style={[styles.classBlock,{marginHorizontal:0}]}><Text style={styles.classTitle}>{"★".repeat(Number(item.rating))}{"☆".repeat(5-Number(item.rating))}</Text><Text style={styles.photoCredit}>{item.user_id===reviewUserId?"내 리뷰":"방문자 리뷰"} · {item.verified_at?"수강 인증":"일반 리뷰"} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</Text><Text style={styles.sessionText}>{item.content}</Text>{item.user_id!==reviewUserId&&<Pressable onPress={()=>Alert.alert("리뷰 신고","신고 사유를 선택해 주세요.",[{text:"광고/홍보",onPress:()=>submitReviewReport(item.id,"광고/홍보")},{text:"욕설/비방",onPress:()=>submitReviewReport(item.id,"욕설/비방")},{text:"허위 정보",onPress:()=>submitReviewReport(item.id,"허위 정보")},{text:"도배/스팸",onPress:()=>submitReviewReport(item.id,"도배/스팸")},{text:"기타",onPress:()=>submitReviewReport(item.id,"기타")},{text:"취소",style:"cancel"}])} style={{alignSelf:"flex-end",paddingVertical:8}}><Text style={{fontSize:11,color:COLORS.muted}}>신고</Text></Pressable>}</View>):<Text style={styles.filterHint}>아직 등록된 리뷰가 없습니다.</Text>)}</BottomSheetScrollView>}
 </>}</View></GestureDetector>
 {detailShowTop&&<Pressable onPress={()=>detailScrollRef.current?.scrollTo({y:0,animated:true})} accessibilityRole="button" accessibilityLabel="학원 상세정보 맨 위로 이동" style={{position:"absolute",right:18,bottom:Math.max(22,insets.bottom+12),width:46,height:46,borderRadius:23,backgroundColor:isDark?"#3A2D50":"#FFFFFF",borderWidth:1,borderColor:isDark?"#66518B":"#DED7EB",alignItems:"center",justifyContent:"center",elevation:5,shadowColor:"#000000",shadowOpacity:0.16,shadowRadius:8,shadowOffset:{width:0,height:3},zIndex:30}}><Ionicons name="arrow-up" size={21} color={isDark?"#E0D5F7":COLORS.purple}/></Pressable>}
-</BottomSheet></View></View></GestureHandlerRootView></Modal><Modal visible={reportOpen} transparent animationType="slide" onRequestClose={()=>setReportOpen(false)}>
+</BottomSheet></View></View></GestureHandlerRootView></Modal><Modal visible={reportOpen} transparent animationType="none" onRequestClose={()=>setReportOpen(false)}>
       <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}><View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)}]}>
         <View style={styles.modalHead}><Text style={styles.modalTitle}>학원 정보 제보</Text><Pressable onPress={()=>setReportOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View>
         <Text style={styles.sectionTitle}>제보 유형</Text><View style={styles.filterChoices}>{["폐업/이전","주소 오류","전화/홈페이지 오류","가격/시간표 오류","기타"].map(v=><Chip key={v} label={v} active={reportCategory===v} onPress={()=>setReportCategory(v)}/>)}</View>
