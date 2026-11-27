@@ -146,7 +146,7 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
 SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname='balletmate-neis-kakao-verification';
-SELECT cron.schedule('balletmate-neis-kakao-verification','*/10 * * * *',$$
+SELECT cron.schedule('balletmate-neis-kakao-verification','30 * * * *',$$
  SELECT net.http_post(
   url:='https://ykxvcqgdvifogahbbbwr.supabase.co/functions/v1/neis-ballet-kakao-verification',
   headers:=jsonb_build_object('Content-Type','application/json','x-crawl-secret',(select decrypted_secret from vault.decrypted_secrets where name='balletmate_crawl_worker_secret' order by created_at desc limit 1)),
