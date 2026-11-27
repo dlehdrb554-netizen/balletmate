@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles } from "../lib/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
@@ -123,7 +124,7 @@ export default function Admin() {
     const {data,error}=await supabase!.rpc("is_balletmate_admin");
     setAuthorized(!error&&data===true);
     setChecking(false);
-    if(error)Alert.alert("관리자 권한 확인 실패",error.message||"관리자 권한을 확인하지 못했습니다.");
+    if(error)Alert.alert("관리자 권한 확인 실패",getUserErrorMessage(error)||"관리자 권한을 확인하지 못했습니다.");
   },[]);
 
   useEffect(()=>{
@@ -137,7 +138,7 @@ export default function Admin() {
   if(!supabase||!authorized)return;
   setReportsBusy(true);setReportsError(null);
   const {data,error}=await supabase.from("studio_user_reports").select("id,studio_id,category,description,status,created_at").order("created_at",{ascending:false}).limit(100);
-  if(error){setReportsError(error.message);setReportRows([]);}
+  if(error){setReportsError(getUserErrorMessage(error));setReportRows([]);}
   else{
    const items=data||[],ids=[...new Set(items.map((row:any)=>row.studio_id).filter(Boolean))];
    const studios=ids.length?await supabase.from("studios").select("id,name").in("id",ids):{data:[],error:null};
@@ -146,13 +147,13 @@ export default function Admin() {
   }
   setReportsBusy(false);
  },[authorized]);
- const loadStudioChangeAlerts=useCallback(async()=>{if(!supabase||!authorized)return;setStudioChangeBusy(true);const {data,error}=await supabase.from("studio_admin_change_alerts").select("id,studio_id,studio_name,change_type,summary,created_at,read_at").order("created_at",{ascending:false}).limit(100);if(error){Alert.alert("학원 변경 알림 조회 실패",error.message);setStudioChangeAlerts([]);}else setStudioChangeAlerts(data||[]);setStudioChangeBusy(false);},[authorized]);
- const markStudioChangeRead=async(id:number)=>{if(!supabase)return;const {error}=await supabase.from("studio_admin_change_alerts").update({read_at:new Date().toISOString()}).eq("id",id);if(error)Alert.alert("읽음 처리 실패",error.message);else setStudioChangeAlerts(items=>items.map(item=>item.id===id?{...item,read_at:new Date().toISOString()}:item));};
+ const loadStudioChangeAlerts=useCallback(async()=>{if(!supabase||!authorized)return;setStudioChangeBusy(true);const {data,error}=await supabase.from("studio_admin_change_alerts").select("id,studio_id,studio_name,change_type,summary,created_at,read_at").order("created_at",{ascending:false}).limit(100);if(error){Alert.alert("학원 변경 알림 조회 실패",getUserErrorMessage(error));setStudioChangeAlerts([]);}else setStudioChangeAlerts(data||[]);setStudioChangeBusy(false);},[authorized]);
+ const markStudioChangeRead=async(id:number)=>{if(!supabase)return;const {error}=await supabase.from("studio_admin_change_alerts").update({read_at:new Date().toISOString()}).eq("id",id);if(error)Alert.alert("읽음 처리 실패",getUserErrorMessage(error));else setStudioChangeAlerts(items=>items.map(item=>item.id===id?{...item,read_at:new Date().toISOString()}:item));};
  useEffect(()=>{if(authorized)void loadStudioChangeAlerts();},[authorized,loadStudioChangeAlerts]);
  const updateReportStatus=async(id:number,status:"in_review"|"resolved"|"rejected")=>{
   if(!supabase)return;
   const {error}=await supabase.rpc("admin_update_studio_user_report",{p_report_id:id,p_status:status});
-  if(error)Alert.alert("제보 상태 변경 실패",error.message);else await loadReports();
+  if(error)Alert.alert("제보 상태 변경 실패",getUserErrorMessage(error));else await loadReports();
  };
  const loadDashboard=useCallback(async()=>{
     if(!supabase||!authorized)return;
@@ -162,7 +163,7 @@ export default function Admin() {
       supabase.from("studio_discovery_runs").select("id,region_name,queried_at,result_count,inserted_count,duplicate_count,error")
         .order("queried_at",{ascending:false}).limit(40)
     ]);
-    if(stats.error){setDashboardError(stats.error.message);setDashboard(null);}
+    if(stats.error){setDashboardError(getUserErrorMessage(stats.error));setDashboard(null);}
     else setDashboard(stats.data);
     if(!logs.error){
       setDiscoveryDuplicateTotal((logs.data||[]).reduce((sum:any,row:any)=>sum+Number(row.duplicate_count||0),0));
@@ -194,7 +195,7 @@ export default function Admin() {
       setStudioDbOffset(page.length);
       setStudioHasMore(page.length===STUDIO_PAGE_SIZE);
       setStudioVisibleLimit(100);
-    }catch(error:any){Alert.alert("조회 실패",error?.message||"학원 목록을 불러오지 못했습니다.");}
+    }catch(error:any){Alert.alert("조회 실패",getUserErrorMessage(error,"학원 목록을 불러오지 못했습니다."));}
     finally{setBusy(false);}
   },[authorized]);
 
@@ -214,7 +215,7 @@ export default function Admin() {
       setRows(deduped.rows as StudioRow[]);
       setStudioDbOffset(start+page.length);
       setStudioHasMore(page.length===STUDIO_PAGE_SIZE);
-    }catch(error:any){Alert.alert("추가 조회 실패",error?.message||"다음 학원 목록을 불러오지 못했습니다.");}
+    }catch(error:any){Alert.alert("추가 조회 실패",getUserErrorMessage(error,"다음 학원 목록을 불러오지 못했습니다."));}
     finally{setBusy(false);}
   };
 
@@ -240,7 +241,7 @@ export default function Admin() {
       setStudioDbOffset(combined.length);
       setStudioHasMore(combined.length>=STUDIO_PAGE_SIZE);
       setStudioVisibleLimit(100);
-    }catch(error:any){Alert.alert("학원 검색 실패",error?.message||"전체 학원 검색을 완료하지 못했습니다.");}
+    }catch(error:any){Alert.alert("학원 검색 실패",getUserErrorMessage(error,"전체 학원 검색을 완료하지 못했습니다."));}
     finally{setBusy(false);}
   };
 
@@ -260,7 +261,7 @@ export default function Admin() {
     const {data,error}=await supabase.from("studio_owner_applications")
       .select("id,user_id,studio_id,verification_method,verification_url,verification_code,status,review_note,created_at")
       .in("status",["pending","needs_info"]).order("created_at",{ascending:true}).limit(100);
-    if(error){Alert.alert("원장 신청 조회 실패",error.message);setOwnerApplications([]);}
+    if(error){Alert.alert("원장 신청 조회 실패",getUserErrorMessage(error));setOwnerApplications([]);}
     else{
       const applications=data||[];const ids=[...new Set(applications.map((item:any)=>item.studio_id))];
       const studios=ids.length?await supabase.from("studios").select("id,name,phone").in("id",ids):{data:[],error:null};
@@ -274,7 +275,7 @@ export default function Admin() {
     if(!supabase||!authorized)return;
     setApprovedOwnersBusy(true);
     const {data,error}=await supabase.from("studio_owners").select("studio_id,user_id,business_name,representative_name,approved_at,approved_by").order("approved_at",{ascending:false});
-    if(error){Alert.alert("승인된 학원 관리자 조회 실패",error.message);setApprovedOwners([]);}
+    if(error){Alert.alert("승인된 학원 관리자 조회 실패",getUserErrorMessage(error));setApprovedOwners([]);}
     else{
       const owners=data||[],ids=[...new Set(owners.map((item:any)=>item.studio_id))];
       const studios=ids.length?await supabase.from("studios").select("id,name,district,address").in("id",ids):{data:[],error:null};
@@ -290,7 +291,7 @@ export default function Admin() {
       if(!supabase)return;
       setApprovedOwnersBusy(true);
       const {error}=await supabase.rpc("admin_revoke_studio_owner",{p_studio_id:item.studio_id});
-      if(error)Alert.alert("권한 해제 실패",error.message);
+      if(error)Alert.alert("권한 해제 실패",getUserErrorMessage(error));
       else Alert.alert("권한 해제 완료","학원 관리자 권한을 해제했습니다.");
       await loadApprovedOwners();
     }}
@@ -306,7 +307,7 @@ export default function Admin() {
         const method=item.verification_method==="blog"?"네이버 블로그 인증":item.verification_method==="instagram"?"인스타그램 인증":item.verification_method==="phone"?"공개 전화 확인":"운영자 직접 확인";
         const note=decision==="approved"?method+" 확인 완료":decision==="rejected"?"운영 관계 확인 불가":"추가 확인 요청";
         const {error}=await supabase.rpc("admin_review_studio_owner_application",{p_application_id:item.id,p_decision:decision,p_note:note});
-        if(error)Alert.alert("심사 처리 실패",error.message);else Alert.alert("심사 완료",label+" 처리했습니다.");
+        if(error)Alert.alert("심사 처리 실패",getUserErrorMessage(error));else Alert.alert("심사 완료",label+" 처리했습니다.");
         await loadOwnerApplications();setOwnerReviewBusy(false);
       }}
     ]);
@@ -318,7 +319,7 @@ export default function Admin() {
     const normalized=username.trim().toLowerCase();
     if(!/^[a-z0-9_]{3,24}$/.test(normalized)){Alert.alert("아이디 확인","아이디는 영문 소문자, 숫자, 밑줄로 3~24자 입력하세요.");setBusy(false);return;}
     const {data,error}=await supabase.auth.signInWithPassword({email:normalized+"@balletmate.app",password});
-    if(error)Alert.alert("로그인 실패",error.message);else {setSession(data.session);await checkAdmin(data.session);}
+    if(error)Alert.alert("로그인 실패",getUserErrorMessage(error));else {setSession(data.session);await checkAdmin(data.session);}
     setBusy(false);
   };
   const logout=async()=>{await supabase?.auth.signOut();setSession(null);setAuthorized(false);};
@@ -340,13 +341,13 @@ export default function Admin() {
       setReportEditingId(Number(report.id));
       startEdit(data as StudioRow);
       setStudioActionId(null);
-    }catch(error:any){Alert.alert("학원 정보 조회 실패",error?.message||"수정할 학원 정보를 불러오지 못했습니다.");}
+    }catch(error:any){Alert.alert("학원 정보 조회 실패",getUserErrorMessage(error,"수정할 학원 정보를 불러오지 못했습니다."));}
     finally{setBusy(false);}
   };
   const showStudioChangeHistory=async(report:any)=>{
     if(!supabase)return;
     const {data,error}=await supabase.rpc("admin_list_studio_information_change_logs",{p_studio_id:report.studio_id});
-    if(error){Alert.alert("변경 이력 조회 실패",error.message);return;}
+    if(error){Alert.alert("변경 이력 조회 실패",getUserErrorMessage(error));return;}
     const logs=Array.isArray(data)?data:[];
     if(!logs.length){Alert.alert("변경 이력","이 학원의 관리자 정보 수정 이력이 아직 없습니다.");return;}
     const summary=logs.slice(0,8).map((log:any)=>new Date(log.changed_at).toLocaleString("ko-KR")+"\n"+Object.keys(log.changed_fields||{}).join(", ")).join("\n\n");
@@ -378,7 +379,7 @@ export default function Admin() {
     const completedReportId=reportEditingId;
     const q=editing?supabase.from("studios").update(payload).eq("id",editing):supabase.from("studios").insert(payload);
     const {error}=await q;
-    if(error)Alert.alert("저장 실패",error.message);
+    if(error)Alert.alert("저장 실패",getUserErrorMessage(error));
     else{
       let reportStatusError:any=null;
       if(completedReportId!==null){
@@ -388,7 +389,7 @@ export default function Admin() {
       reset();
       await load();
       if(completedReportId!==null)await loadReports();
-      if(reportStatusError)Alert.alert("정보 수정 완료","학원 정보는 저장했지만 제보 상태 변경에 실패했습니다. 제보 목록에서 다시 처리해 주세요.\n"+reportStatusError.message);
+      if(reportStatusError)Alert.alert("정보 수정 완료","학원 정보는 저장했지만 제보 상태 변경에 실패했습니다. 제보 목록에서 다시 처리해 주세요.\n"+getUserErrorMessage(reportStatusError));
       else Alert.alert("저장 완료",completedReportId!==null?"학원 정보 수정 및 제보 처리를 완료했습니다.":form.is_active?"앱 공개 목록에 반영됩니다.":"비공개 상태로 저장했습니다.");
     }
     setBusy(false);
@@ -403,7 +404,7 @@ export default function Admin() {
     const get=(row:string[],key:string)=>{const idx=headers.indexOf(key);return idx<0?"":(row[idx]||"").trim();};
     const candidateNames=[...new Set(parsed.slice(1).map(row=>get(row,"name")).filter(Boolean))];
     const {data:existingRows,error:existingError}=await supabase.from("studios").select("name,address,phone").in("name",candidateNames).limit(1000);
-    if(existingError){Alert.alert("중복 확인 실패",existingError.message);return;}
+    if(existingError){Alert.alert("중복 확인 실패",getUserErrorMessage(existingError));return;}
     const identityKey=(name:string,address:string,phone:string)=>name.trim().toLowerCase().replace(/\s/g,"")+"|"+(phone?phone.replace(/[^0-9]/g,""):(address?address.replace(/\s/g,"").toLowerCase():""));
     const existing=new Set((existingRows||[]).map(r=>identityKey(r.name,r.address||"",r.phone||"")));
     const payload:any[]=[];let skipped=0;
@@ -423,7 +424,7 @@ export default function Admin() {
     if(!payload.length){Alert.alert("등록할 데이터 없음","중복 또는 형식 오류로 제외 "+skipped+"개");return;}
     setImporting(true);
     const {error}=await supabase.from("studios").insert(payload);
-    if(error)Alert.alert("일괄 등록 실패",error.message);
+    if(error)Alert.alert("일괄 등록 실패",getUserErrorMessage(error));
     else{setCsvText("");Alert.alert("일괄 등록 완료",payload.length+"개 등록, "+skipped+"개 제외. Kakao·NEIS 및 대표 홈페이지 정보로 등록했습니다.");await load();}
     setImporting(false);
   };
@@ -431,7 +432,7 @@ export default function Admin() {
     if(!supabase)return;
     setClassBusy(true);
     const {data,error}=await supabase.from("classes").select("id,studio_id,title,audience,level,class_type,duration_minutes,is_active,class_sessions(id,weekday,start_time,end_time,note,is_active)").eq("studio_id",studioId).order("created_at",{ascending:false}).limit(100);
-    if(error)Alert.alert("수업 조회 실패",error.message);else setClassRows(data||[]);
+    if(error)Alert.alert("수업 조회 실패",getUserErrorMessage(error));else setClassRows(data||[]);
     setClassBusy(false);
   },[]);
   useEffect(()=>{if(classStudio)loadClasses(classStudio.id);else setClassRows([]);},[classStudio,loadClasses]);
@@ -490,18 +491,18 @@ export default function Admin() {
       Alert.alert("저장 완료","수업과 시간표를 저장했습니다.");
       resetClass();
       await loadClasses(classStudio.id);
-    }catch(error:any){Alert.alert("저장 실패",error?.message||"수업 저장 중 오류가 발생했습니다.");}
+    }catch(error:any){Alert.alert("저장 실패",getUserErrorMessage(error,"수업 저장 중 오류가 발생했습니다."));}
     finally{setClassBusy(false);}
   };
   const deleteClass=(id:string,title:string)=>Alert.alert("수업 삭제",title+" 수업을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
     if(!supabase)return;setClassBusy(true);
     const {error}=await supabase.from("classes").delete().eq("id",id);
-    if(error)Alert.alert("삭제 실패",error.message);else await loadClasses(classStudio!.id);
+    if(error)Alert.alert("삭제 실패",getUserErrorMessage(error));else await loadClasses(classStudio!.id);
     setClassBusy(false);
   }}]);
   const classField=(label:string,key:keyof typeof classForm,keyboard:any="default")=><View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput style={[styles.input,key==="sessions"&&{minHeight:110,textAlignVertical:"top"}]} multiline={key==="sessions"} value={String(classForm[key])} onChangeText={v=>setClassForm(x=>({...x,[key]:v}))} keyboardType={keyboard} placeholder={label}/></View>;
-  const cleanupUnrelatedStudios=()=>Alert.alert("발레 무관 업체 자동 삭제","병원·의원·약국·헬스장·미용실 등 명백히 무관한 업체만 삭제합니다. 원장 소유권이 연결된 학원은 보호됩니다. 삭제 전 데이터는 복구용 이력으로 보관합니다.",[{text:"취소",style:"cancel"},{text:"자동 삭제 실행",style:"destructive",onPress:async()=>{if(!supabase||busy)return;setBusy(true);try{const {data,error}=await supabase.rpc("admin_cleanup_unrelated_studios");if(error)throw error;const deleted=Number(data?.deleted_count)||0;const deletedIds=Array.isArray(data?.deleted_ids)?data.deleted_ids.map(String):[];setRows(current=>current.filter(row=>!deletedIds.includes(row.id)));Alert.alert("자동 정리 완료",deleted+"개 업체를 삭제했습니다. 삭제 전 데이터는 복구용 이력에 보관했습니다.");}catch(error:any){Alert.alert("자동 정리 실패",error?.message||"자동 정리를 실행하지 못했습니다. SQL 설정을 확인해 주세요.");}finally{setBusy(false);}}}]);
-  const remove=(id:string,name:string)=>Alert.alert("학원 삭제",name+" 정보를 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{setBusy(true);try{const {error}=await supabase!.from("studios").delete().eq("id",id);if(error)throw error;setRows(current=>current.filter(row=>row.id!==id));setStudioActionId(null);Alert.alert("삭제 완료",name+" 학원을 삭제했습니다.");}catch(error:any){Alert.alert("삭제 실패",error?.message||"학원 삭제 중 오류가 발생했습니다.");}finally{setBusy(false);}}}]);
+  const cleanupUnrelatedStudios=()=>Alert.alert("발레 무관 업체 자동 삭제","병원·의원·약국·헬스장·미용실 등 명백히 무관한 업체만 삭제합니다. 원장 소유권이 연결된 학원은 보호됩니다. 삭제 전 데이터는 복구용 이력으로 보관합니다.",[{text:"취소",style:"cancel"},{text:"자동 삭제 실행",style:"destructive",onPress:async()=>{if(!supabase||busy)return;setBusy(true);try{const {data,error}=await supabase.rpc("admin_cleanup_unrelated_studios");if(error)throw error;const deleted=Number(data?.deleted_count)||0;const deletedIds=Array.isArray(data?.deleted_ids)?data.deleted_ids.map(String):[];setRows(current=>current.filter(row=>!deletedIds.includes(row.id)));Alert.alert("자동 정리 완료",deleted+"개 업체를 삭제했습니다. 삭제 전 데이터는 복구용 이력에 보관했습니다.");}catch(error:any){Alert.alert("자동 정리 실패",getUserErrorMessage(error,"자동 정리를 실행하지 못했습니다. SQL 설정을 확인해 주세요."));}finally{setBusy(false);}}}]);
+  const remove=(id:string,name:string)=>Alert.alert("학원 삭제",name+" 정보를 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{setBusy(true);try{const {error}=await supabase!.from("studios").delete().eq("id",id);if(error)throw error;setRows(current=>current.filter(row=>row.id!==id));setStudioActionId(null);Alert.alert("삭제 완료",name+" 학원을 삭제했습니다.");}catch(error:any){Alert.alert("삭제 실패",getUserErrorMessage(error,"학원 삭제 중 오류가 발생했습니다."));}finally{setBusy(false);}}}]);
   const field=(label:string,key:keyof typeof blank,keyboard:any="default")=><View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={String(form[key])} onChangeText={v=>setForm(f=>({...f,[key]:v}))} keyboardType={keyboard} placeholder={label}/></View>;
   const toggle=(label:string,key:"adult_classes"|"kids_classes"|"is_active")=><Pressable onPress={()=>setForm(f=>({...f,[key]:!f[key]}))} style={styles.toggle}><Text style={[styles.toggleText,form[key]&&styles.toggleOn]}>{form[key]?"✓ ":"○ "}{label}</Text></Pressable>;
 
