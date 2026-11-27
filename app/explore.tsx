@@ -930,20 +930,24 @@ export default function Home() {
     }).catch(()=>{});
     return()=>{active=false;};
   },[]));
-  // Warm up GPS as soon as the screen opens, but only when permission was already granted.
-  // Do not show a permission prompt unexpectedly during app launch.
+  // Request foreground location permission on the first app entry.
+  // OS permission state prevents repeatedly prompting after a user has already decided.
   useEffect(()=>{
     let active=true;
     void (async()=>{
       try{
-        const permission=await Location.getForegroundPermissionsAsync();
+        let permission=await Location.getForegroundPermissionsAsync();
+        if(!active)return;
+        if(permission.status==="undetermined"){
+          permission=await Location.requestForegroundPermissionsAsync();
+        }
         if(!active||permission.status!=="granted")return;
         const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
         if(!active)return;
         if(cached)warmedLocationRef.current=cached;
         void startLocationWarmup();
       }catch(error){
-        console.warn("Initial location warm-up failed:",error);
+        console.warn("Initial location permission or warm-up failed:",error);
       }
     })();
     return()=>{active=false;};
