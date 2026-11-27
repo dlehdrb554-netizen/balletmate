@@ -474,6 +474,17 @@ export default function Home() {
   const [maxDistance,setMaxDistance]=useState<number|null>(null);
   const [locationLoading,setLocationLoading]=useState(false);
   const locationRequestId=useRef(0);
+  const warmedLocationRef=useRef<Location.LocationObject|null>(null);
+  const locationWarmupRef=useRef<Promise<Location.LocationObject|null>|null>(null);
+  const startLocationWarmup=()=>{
+    if(!locationWarmupRef.current){
+      locationWarmupRef.current=Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced})
+        .then(position=>{warmedLocationRef.current=position;return position;})
+        .catch(error=>{console.warn("Location warm-up unavailable:",error);return null;})
+        .finally(()=>{locationWarmupRef.current=null;});
+    }
+    return locationWarmupRef.current;
+  };
   const [locationGranted,setLocationGranted]=useState(false);
   const [currentLocation,setCurrentLocation]=useState<{latitude:number;longitude:number}|null>(null);
   const [searchedRegion,setSearchedRegion]=useState(INITIAL);
@@ -918,6 +929,24 @@ export default function Home() {
     }).catch(()=>{});
     return()=>{active=false;};
   },[]));
+  // Warm up GPS as soon as the screen opens, but only when permission was already granted.
+  // Do not show a permission prompt unexpectedly during app launch.
+  useEffect(()=>{
+    let active=true;
+    void (async()=>{
+      try{
+        const permission=await Location.getForegroundPermissionsAsync();
+        if(!active||permission.status!=="granted")return;
+        const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
+        if(!active)return;
+        if(cached)warmedLocationRef.current=cached;
+        void startLocationWarmup();
+      }catch(error){
+        console.warn("Initial location warm-up failed:",error);
+      }
+    })();
+    return()=>{active=false;};
+  },[]);
   const locate=async()=>{
     const requestId=++locationRequestId.current;
     setLocationLoading(true);
@@ -953,20 +982,25 @@ export default function Home() {
         return;
       }
 
-      // Move immediately with a recent cached fix; refresh the position in parallel with map use.
-      const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
+      // Use the position warmed during app startup (or the OS cache) before waiting for GPS.
+      let cached=warmedLocationRef.current;
+      if(!cached||Date.now()-cached.timestamp>120000){
+        cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
+      }
       if(requestId!==locationRequestId.current)return;
       if(cached){
+        warmedLocationRef.current=cached;
         moveToPosition(cached);
         movedWithCachedLocation=true;
       }
 
       try{
-        const fresh=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
+        // Reuse an in-flight startup GPS request instead of starting a duplicate request.
+        const fresh=await startLocationWarmup();
         if(requestId!==locationRequestId.current)return;
-        moveToPosition(fresh);
+        if(fresh)moveToPosition(fresh);
+        else if(!movedWithCachedLocation)throw new Error("No cached or fresh location available");
       }catch(currentError){
-        // Keep the map at the cached position if a fresh fix is temporarily unavailable.
         if(!movedWithCachedLocation)throw currentError;
         console.warn("Fresh location update unavailable; keeping cached position:",currentError);
       }
