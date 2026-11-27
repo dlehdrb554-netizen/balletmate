@@ -85,37 +85,7 @@ begin
  end if;
  normalized_name:=lower(regexp_replace(trim(p_name),'[^a-z0-9가-힣]','','g'));
  normalized_phone:=regexp_replace(coalesce(p_phone,''),'[^0-9]','','g');
- normalized_url:=nullif(regexp_replace(trim(coalesce(p_place_url,'')),'/+
- if normalized_url is not null then
-  select s.id into new_id from public.studios s
-  where regexp_replace(trim(coalesce(s.source_url,'')),'/+$','')=normalized_url
-  order by s.created_at asc limit 1;
- end if;
- if new_id is null then
-  select s.id into new_id from public.studios s
-  where nullif(regexp_replace(trim(coalesce(s.address,'')),'[^a-z0-9가-힣]','','g'),'') is not null
-    and nullif(regexp_replace(trim(coalesce(p_address,'')),'[^a-z0-9가-힣]','','g'),'') is not null
-    and lower(regexp_replace(trim(s.address),'[^a-z0-9가-힣]','','g'))=lower(regexp_replace(trim(p_address),'[^a-z0-9가-힣]','','g'))
-    and sqrt(power((s.latitude-p_latitude)*111.0,2)+power((s.longitude-p_longitude)*111.0*cos(radians(p_latitude)),2))<=0.10
-    and (lower(regexp_replace(trim(s.name),'[^a-z0-9가-힣]','','g'))=normalized_name
-      or (normalized_phone<>'' and regexp_replace(coalesce(s.phone,''),'[^0-9]','','g')=normalized_phone))
-  order by s.created_at asc limit 1;
- end if;
- if new_id is null then
-  select s.id into new_id from public.studios s
-  where normalized_name<>'' and lower(regexp_replace(trim(s.name),'[^a-z0-9가-힣]','','g'))=normalized_name
-    and (nullif(trim(coalesce(s.address,'')),'') is null or nullif(trim(coalesce(p_address,'')),'') is null)
-    and sqrt(power((s.latitude-p_latitude)*111.0,2)+power((s.longitude-p_longitude)*111.0*cos(radians(p_latitude)),2))<=0.035
-  order by s.created_at asc limit 1;
- end if;
- if new_id is not null then return query select false,new_id; return; end if;
- insert into public.studios(name,latitude,longitude,district,address,phone,source_url,source_name,verified_at,is_active,adult_classes,kids_classes,updated_at)
- values(trim(p_name),p_latitude,p_longitude,p_region,p_address,nullif(trim(coalesce(p_phone,'')),''),normalized_url,
-  'Kakao Local Search 자동 발견',now(),true,false,false,now()) returning id into new_id;
- return query select true,new_id;
-end $$;
-revoke all on function public.register_discovered_studio(text,double precision,double precision,text,text,text,text) from public;
-grant execute on function public.register_discovered_studio(text,double precision,double precision,text,text,text,text) to service_role;,''),'');
+ normalized_url:=nullif(regexp_replace(trim(coalesce(p_place_url,'')),'/+$',''),'');
  -- Block previously deleted studios before attempting any match or insert.
  if exists (
   select 1 from public.studio_discovery_exclusions e
