@@ -106,12 +106,12 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     if(clusterer&&newMarkers.length)clusterer.addMarkers(newMarkers,true);
     Object.keys(markers).forEach(function(id){if(!keep[id]){if(clusterer)clusterer.removeMarker(markers[id],true);kakao.maps.event.removeListener(markers[id],'click',markerListeners[id]);markers[id].setMap(null);delete markers[id];delete markerMeta[id];delete markerListeners[id];}});
     if(clusterer){
-      // New markers can be registered before Kakao finishes its current map frame.
-      // Repaint once immediately and once on the next frame so pins appear without
-      // requiring the user to pan/zoom the map.
-      clusterer.repaint();
+      // addMarkers/removeMarker(..., true) intentionally defer cluster calculation.
+      // repaint() only paints existing clusters; redraw() recalculates membership
+      // and creates the newly added cluster markers without waiting for map movement.
+      clusterer.redraw();
       requestAnimationFrame(function(){
-        if(clusterer)clusterer.repaint();
+        if(clusterer)clusterer.redraw();
       });
     }
     if(location && location.latitude!=null && location.longitude!=null){
