@@ -1302,7 +1302,7 @@ export default function Home() {
             </View>;
           })}
         </View>}
-        <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="학원 비교 확인 및 닫기" style={[styles.applyButton,{flex:0,width:"100%",minHeight:52,alignSelf:"stretch",paddingVertical:14,marginTop:8}]} onPress={()=>setCompareOpen(false)}><Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>비교 완료</Text></Pressable>
       </View></View>
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
