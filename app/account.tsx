@@ -1,6 +1,7 @@
 import React, {useEffect, useState, useMemo} from "react";
 import {themeStyles } from "../lib/theme";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
@@ -18,6 +19,7 @@ export default function Account(){
  const routeParams=useLocalSearchParams<{returnTo?:string;studioId?:string;studioName?:string}>();
  const [name,setName]=useState("");
  const [pw,setPw]=useState("");
+ const [showPassword,setShowPassword]=useState(false);
  const [loading,setLoading]=useState(false);
  const [loadingProvider,setLoadingProvider]=useState<"google"|"kakao"|null>(null);
  const [session,setSession]=useState<any>(null);
@@ -147,11 +149,11 @@ export default function Account(){
 
  return <SafeAreaView style={s.safe}>
   <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}>
-   <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-    <Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable>
+   <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+    <Pressable onPress={()=>router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="뒤로가기"><Text style={s.back}>‹ 돌아가기</Text></Pressable>
     <Text style={s.brand}>Balletmate<Text style={{color:C.purple}}>.</Text></Text>
     <Text style={s.title}>{session?"내 계정":"간편하게 시작하기"}</Text>
-    <Text style={s.sub}>{session?"로그인 정보와 연결된 계정을 관리할 수 있어요." :"아이디 또는 이메일로 로그인하거나 소셜 계정으로 간편하게 시작하세요."}</Text>
+    <Text style={s.sub}>{session?"로그인 정보와 연결된 계정을 관리할 수 있어요." :"소셜 계정으로 간편하게 시작하거나 기존 계정으로 로그인하세요."}</Text>
     {session?
      <View style={s.card}>
       <View style={s.avatar}><MaterialCommunityIcons name="human-female-dance" size={30} color={C.purple} /></View>
@@ -160,12 +162,15 @@ export default function Account(){
 {adminRole===true&&<Pressable style={s.primary} onPress={()=>router.push("/admin")}><Text style={s.primaryText}>관리자 페이지</Text></Pressable>}
       <View style={s.connectedBox}>
        <Text style={s.connectedTitle}>소셜 계정 연결</Text>
-       <Pressable style={s.googleButton} disabled={!!loadingProvider||connected("google")} onPress={()=>linkSocial("google")}>
-        <Text style={s.googleText}>{connected("google")?"✓ Google 연결됨":loadingProvider==="google"?"연결 중…":"Google 계정 연결"}</Text>
-       </Pressable>
-       <Pressable style={s.kakaoButton} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")}>
-        <Text style={s.kakaoText}>{connected("kakao")?"✓ Kakao 연결됨":loadingProvider==="kakao"?"연결 중…":"카카오 계정 연결"}</Text>
-       </Pressable>
+       <View style={s.socialRow}>
+        <Pressable style={[s.googleConnectButton,isDark&&s.googleLoginButtonDark]} disabled={!!loadingProvider||connected("google")} onPress={()=>linkSocial("google")} accessibilityRole="button" accessibilityLabel="Google 계정 연결">
+         <View style={s.googleLogoWrap}><Image source={{uri:"https://developers.google.com/static/identity/images/g-logo.png"}} contentFit="contain" style={s.googleLogo}/></View>
+         <Text style={[s.googleLoginText,isDark&&s.googleLoginTextDark]}>{connected("google")?"Google 연결됨":loadingProvider==="google"?"연결 중…":"Google 계정 연결"}</Text>
+        </Pressable>
+        <Pressable style={s.kakaoConnectButton} disabled={!!loadingProvider||connected("kakao")} onPress={()=>linkSocial("kakao")} accessibilityRole="button" accessibilityLabel="카카오 계정 연결">
+         <Text style={s.kakaoConnectText}>{connected("kakao")?"카카오 계정 연결됨":loadingProvider==="kakao"?"연결 중…":"카카오 계정 연결"}</Text>
+        </Pressable>
+       </View>
       </View>
       <Pressable style={s.primary} disabled={loading} onPress={logout}><Text style={s.primaryText}>로그아웃</Text></Pressable>
       <Pressable style={s.deleteAccount} disabled={loading} onPress={deleteAccount}><Text style={s.deleteAccountText}>{loading?"처리 중…":"회원 탈퇴"}</Text></Pressable>
@@ -173,23 +178,25 @@ export default function Account(){
      :
      <View style={s.card}>
       <>
-       <Text style={s.legacyTitle}>아이디 또는 이메일 로그인</Text>
+       <Text style={s.legacyTitle}>소셜 계정으로 계속하기</Text>
+       <View style={s.socialRow}>
+        <Pressable style={[s.googleLoginButton,isDark&&s.googleLoginButtonDark]} disabled={!!loadingProvider} onPress={()=>signInSocial("google")} accessibilityRole="button" accessibilityLabel="Google 계정으로 계속">
+         <View style={s.googleLogoWrap}><Image source={{uri:"https://developers.google.com/static/identity/images/g-logo.png"}} contentFit="contain" style={s.googleLogo}/></View>
+         <Text style={[s.googleLoginText,isDark&&s.googleLoginTextDark]}>{loadingProvider==="google"?"연결 중…":"Google 계정으로 계속"}</Text>
+        </Pressable>
+        <Pressable style={s.kakaoLoginButton} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")} accessibilityRole="button" accessibilityLabel={loadingProvider==="kakao"?"카카오 계정 연결 중":"카카오 계정으로 계속"}>
+         <Image source={{uri:"https://developers.kakao.com/tool/images/resource/preview/login-complete-ko.svg"}} contentFit="contain" style={s.kakaoLoginImage}/>
+         {loadingProvider==="kakao"&&<Text style={s.kakaoLoading}>연결 중…</Text>}
+        </Pressable>
+       </View>
+       <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 이메일로 계속하기</Text><View style={s.separatorLine}/></View>
        <Text style={s.label}>아이디 또는 이메일</Text>
        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="아이디 또는 이메일" autoCapitalize="none" autoCorrect={false} maxLength={254} returnKeyType="next"/>
        <Text style={s.label}>비밀번호</Text>
-       <TextInput style={s.input} value={pw} onChangeText={setPw} placeholder="비밀번호" secureTextEntry autoCapitalize="none" onSubmitEditing={submitLegacyLogin} returnKeyType="go"/>
+       <View style={[s.input,{flexDirection:"row",alignItems:"center"}]}><TextInput style={{flex:1,height:"100%",padding:0,color:isDark?"#FFFFFF":C.ink}} value={pw} onChangeText={setPw} placeholder="비밀번호" placeholderTextColor={C.muted} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} onSubmitEditing={submitLegacyLogin} returnKeyType="go"/><Pressable onPress={()=>setShowPassword(value=>!value)} hitSlop={8} accessibilityRole="button" accessibilityLabel={showPassword?"비밀번호 숨기기":"비밀번호 표시"} accessibilityState={{selected:showPassword}} style={{width:40,height:44,alignItems:"center",justifyContent:"center"}}><MaterialCommunityIcons name={showPassword?"eye-off-outline":"eye-outline"} size={21} color={isDark?"#D0D0D0":C.muted}/></Pressable></View>
        <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
        <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
-       <View style={s.separator}><View style={s.separatorLine}/><Text style={s.separatorText}>또는 소셜 계정으로 로그인</Text><View style={s.separatorLine}/></View>
-       <Pressable style={s.googleButton} disabled={!!loadingProvider} onPress={()=>signInSocial("google")}>
-        <Text style={s.googleMark}>G</Text>
-        <Text style={s.googleText}>{loadingProvider==="google"?"Google 연결 중…":"Google로 계속하기"}</Text>
-       </Pressable>
-       <Pressable style={s.kakaoButton} disabled={!!loadingProvider} onPress={()=>signInSocial("kakao")}>
-        <MaterialCommunityIcons name="chat" size={19} color="#191600"/>
-        <Text style={s.kakaoText}>{loadingProvider==="kakao"?"카카오 연결 중…":"카카오로 계속하기"}</Text>
-       </Pressable>
-       <Text style={s.note}>처음 이용하면 자동으로 회원가입되고, 이미 가입한 계정이면 로그인됩니다.</Text>
+       <Text style={s.note}>Google·카카오 계정은 처음 이용하면 가입이 자동으로 진행되고, 기존 계정은 로그인됩니다.</Text>
       </>
      </View>
     }
@@ -205,24 +212,50 @@ export default function Account(){
 }
 
 const createS = (dark:boolean) => StyleSheet.create(themeStyles({
- safe:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:8,paddingBottom:24},back:{color:C.muted,paddingVertical:10,fontWeight:"700"},
- brand:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:18},title:{fontSize:22,fontWeight:"900",color:C.ink,marginTop:14},
- sub:{fontSize:13,color:C.muted,marginTop:8,lineHeight:19},card:{backgroundColor:"#fff",borderRadius:18,borderWidth:1,borderColor:C.line,padding:16,marginTop:20},
- googleButton:{height:50,borderWidth:1,borderColor:C.line,borderRadius:13,backgroundColor:"#fff",flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,marginTop:10},
- googleMark:{fontSize:19,fontWeight:"900",color:"#4285F4"},googleText:{fontSize:14,fontWeight:"800",color:C.ink},
- kakaoButton:{height:50,borderRadius:13,backgroundColor:C.yellow,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:9,marginTop:10},
- kakaoText:{fontSize:14,fontWeight:"900",color:"#191600"},
- note:{fontSize:11,color:C.muted,lineHeight:17,marginTop:12},separator:{flexDirection:"row",alignItems:"center",gap:10,marginTop:22},
- separatorLine:{height:1,backgroundColor:C.line,flex:1},separatorText:{fontSize:11,color:C.muted},
- legacyLink:{alignItems:"center",paddingVertical:13},legacyLinkText:{fontSize:12,fontWeight:"800",color:C.purple},
- legacyTitle:{fontSize:17,fontWeight:"900",color:C.ink,marginBottom:8},
- label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:12,marginBottom:7},
- input:{height:46,borderWidth:1,borderColor:C.line,borderRadius:12,paddingHorizontal:12,fontSize:14,color:C.ink},
- primary:{backgroundColor:C.purple,height:46,borderRadius:13,alignItems:"center",justifyContent:"center",marginTop:20},primaryText:{color:"#fff",fontWeight:"900"},
+ safe:{flex:1,backgroundColor:C.bg},
+ content:{paddingHorizontal:20,paddingTop:12,paddingBottom:36},
+ back:{color:C.muted,paddingVertical:12,fontSize:13,fontWeight:"700"},
+ brand:{fontSize:24,fontWeight:"900",letterSpacing:-0.6,color:C.ink,marginTop:22},
+ title:{fontSize:26,fontWeight:"900",letterSpacing:-0.8,color:C.ink,marginTop:18},
+ sub:{fontSize:13,color:C.muted,marginTop:9,lineHeight:20},
+ card:{backgroundColor:"#FFFFFF",borderRadius:22,borderWidth:1,borderColor:C.line,padding:20,marginTop:24},
+ socialRow:{flexDirection:"column",alignItems:"stretch",justifyContent:"center",gap:12,marginTop:16,marginBottom:6},
+ socialItem:{minWidth:52,alignItems:"center",gap:7},
+ googleLoginButton:{width:"100%",height:54,minHeight:54,maxHeight:54,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
+ googleConnectButton:{width:"100%",height:50,paddingHorizontal:12,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#747775",borderRadius:12},
+ googleLoginButtonDark:{backgroundColor:"#131314",borderColor:"#8E918F"},
+ googleLogoWrap:{width:24,height:24,borderRadius:12,backgroundColor:"#FFFFFF",alignItems:"center",justifyContent:"center"},
+ googleLogo:{width:20,height:20},
+ googleLoginText:{flexShrink:1,fontSize:14,lineHeight:20,fontWeight:"600",color:"#1F1F1F",textAlign:"center"},
+ googleLoginTextDark:{color:"#E3E3E3"},
+ kakaoLoginButton:{width:"100%",height:54,minHeight:54,maxHeight:54,justifyContent:"center",alignItems:"center",backgroundColor:"#FEE500",borderRadius:12,overflow:"hidden"},
+ kakaoLoginImage:{width:"100%",height:54},
+ kakaoLoading:{position:"absolute",fontSize:12,fontWeight:"800",color:"#000000",backgroundColor:"#FEE500",paddingHorizontal:10,paddingVertical:5,borderRadius:7},
+ kakaoConnectButton:{width:"100%",height:50,paddingHorizontal:12,alignItems:"center",justifyContent:"center",backgroundColor:"#FEE500",borderRadius:12},
+ kakaoConnectText:{fontSize:13,fontWeight:"800",color:"#000000"},
+ socialIconButton:{width:52,height:52,borderRadius:26,alignItems:"center",justifyContent:"center",borderWidth:1},
+ googleIconCircle:{backgroundColor:"#FFFFFF",borderColor:"#DADCE0"},
+ googleMark:{fontSize:23,fontWeight:"900",color:"#4285F4"},
+ socialLabel:{fontSize:12,fontWeight:"700",color:dark?"#A1A1AA":C.muted},
+ note:{fontSize:11,color:C.muted,lineHeight:18,marginTop:13},
+ separator:{flexDirection:"row",alignItems:"center",gap:10,marginTop:24,marginBottom:4},
+ separatorLine:{height:1,backgroundColor:C.line,flex:1},
+ separatorText:{fontSize:11,color:C.muted,fontWeight:"600"},
+ legacyLink:{alignItems:"center",paddingVertical:15},
+ legacyLinkText:{fontSize:13,fontWeight:"800",color:C.purple},
+ legacyTitle:{fontSize:16,fontWeight:"900",color:C.ink,marginBottom:4},
+ label:{fontSize:12,color:C.ink,fontWeight:"800",marginTop:15,marginBottom:8},
+ input:{height:50,borderWidth:1,borderColor:C.line,borderRadius:13,paddingHorizontal:14,fontSize:14,color:C.ink,backgroundColor:dark?"#242429":"#FFFFFF"},
+ primary:{backgroundColor:C.purple,height:50,borderRadius:13,alignItems:"center",justifyContent:"center",marginTop:20},
+ primaryText:{color:"#FFFFFF",fontSize:14,fontWeight:"900"},
  avatar:{height:58,width:58,borderRadius:19,backgroundColor:C.pale,alignItems:"center",justifyContent:"center",alignSelf:"center"},
  name:{fontSize:20,color:C.ink,fontWeight:"900",textAlign:"center",marginTop:12},
- connectedBox:{backgroundColor:C.pale,padding:12,borderRadius:14,marginTop:20},connectedTitle:{fontSize:13,fontWeight:"900",color:C.purple,marginBottom:4},
- info:{backgroundColor:C.pale,padding:13,borderRadius:14,marginTop:18},infoTitle:{fontWeight:"900",color:C.purple,marginBottom:6},
- deleteAccount:{alignItems:"center",paddingVertical:14,marginTop:8},deleteAccountText:{fontSize:12,color:"#B33A45",fontWeight:"800"},
- legalLinks:{flexDirection:"row",justifyContent:"center",alignItems:"center",gap:10,marginTop:20},legalLink:{fontSize:12,color:C.purple,fontWeight:"800"}
+ connectedBox:{backgroundColor:C.pale,padding:14,borderRadius:16,marginTop:20},
+ connectedTitle:{fontSize:13,fontWeight:"900",color:C.purple,marginBottom:4},
+ info:{backgroundColor:C.pale,padding:15,borderRadius:16,marginTop:20},
+ infoTitle:{fontWeight:"900",color:C.purple,marginBottom:6},
+ deleteAccount:{alignItems:"center",paddingVertical:14,marginTop:8},
+ deleteAccountText:{fontSize:12,color:"#B33A45",fontWeight:"800"},
+ legalLinks:{flexDirection:"row",justifyContent:"center",alignItems:"center",gap:10,marginTop:20},
+ legalLink:{fontSize:12,color:C.purple,fontWeight:"800"}
 },dark));

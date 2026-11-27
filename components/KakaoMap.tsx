@@ -28,6 +28,7 @@ type Props = {
   currentLocation?: { latitude: number; longitude: number } | null;
   onRegionChangeComplete?: (region: MapRegion) => void;
   onMarkerPress?: (id: string) => void;
+  darkMode?: boolean;
 };
 
 const JS_KEY = String(Constants.expoConfig?.extra?.kakaoJavascriptKey ?? "");
@@ -42,7 +43,7 @@ function buildHtml(initialRegion: MapRegion) {
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
-  var map=null, markers={}, markerMeta={}, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[];
+  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkOverlayAdded=false, darkModeEnabled=false, regionTimer=null;
   var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
@@ -87,8 +88,9 @@ function buildHtml(initialRegion: MapRegion) {
       var pos=new kakao.maps.LatLng(item.latitude,item.longitude);
       if(!markers[item.id]){
         var marker=new kakao.maps.Marker({position:pos,image:pinImage(markerState(item.id,selectedId,currentSearched,currentCompared)),title:item.name});
-        marker.setMap(map);
-        kakao.maps.event.addListener(marker,'click',function(){updateSelectedMarker(item.id);post({type:'marker',id:item.id});});
+        if(clusterer)clusterer.addMarker(marker,true);else marker.setMap(map);
+        markerListeners[item.id]=function(){updateSelectedMarker(item.id);post({type:'marker',id:item.id});};
+        kakao.maps.event.addListener(marker,'click',markerListeners[item.id]);
         markers[item.id]=marker;
         markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,state:markerState(item.id,selectedId,currentSearched,currentCompared)};
       }else{
@@ -100,7 +102,8 @@ function buildHtml(initialRegion: MapRegion) {
         markerMeta[item.id]={latitude:item.latitude,longitude:item.longitude,name:item.name,state:state};
       }
     });
-    Object.keys(markers).forEach(function(id){if(!keep[id]){markers[id].setMap(null);delete markers[id];delete markerMeta[id];}});
+    Object.keys(markers).forEach(function(id){if(!keep[id]){if(clusterer)clusterer.removeMarker(markers[id],true);kakao.maps.event.removeListener(markers[id],'click',markerListeners[id]);markers[id].setMap(null);delete markers[id];delete markerMeta[id];delete markerListeners[id];}});
+    if(clusterer)clusterer.repaint();
     if(location && location.latitude!=null && location.longitude!=null){
       var here=new kakao.maps.LatLng(location.latitude,location.longitude);
       if(!currentMarker){var locationSvg='<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="#ffffff" stroke="#3478F6" stroke-width="3"/><circle cx="18" cy="18" r="7" fill="#3478F6"/><circle cx="18" cy="18" r="3" fill="#ffffff"/></svg>';currentMarker=new kakao.maps.Marker({position:here,image:new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(locationSvg),new kakao.maps.Size(36,36),{offset:new kakao.maps.Point(18,18)}),zIndex:1000});currentMarker.setMap(map);}
@@ -123,14 +126,53 @@ function buildHtml(initialRegion: MapRegion) {
   }
   function emitRegion(){
     if(!map)return;
+    if(regionTimer)clearTimeout(regionTimer);
+    regionTimer=setTimeout(function(){emitRegionNow();},350);
+  }
+  function emitRegionNow(){
+    if(!map)return;
     var center=map.getCenter(), bounds=map.getBounds(), sw=bounds.getSouthWest(), ne=bounds.getNorthEast();
     post({type:'region',region:{latitude:center.getLat(),longitude:center.getLng(),latitudeDelta:Math.max(0.002,ne.getLat()-sw.getLat()),longitudeDelta:Math.max(0.002,ne.getLng()-sw.getLng())}});
+  }
+  function ensureDarkOverlay(){
+    if(!map||!darkModeEnabled)return;
+    if(!kakao.maps.MapTypeId.BALLET_DARK_DIM){
+      var dimTiles=new kakao.maps.Tileset({width:256,height:256,dark:true,getTile:function(){
+        var tile=document.createElement('div');
+        tile.style.width='256px';
+        tile.style.height='256px';
+        tile.style.background='rgba(18,20,24,0.46)';
+        tile.style.pointerEvents='none';
+        return tile;
+      }});
+      kakao.maps.Tileset.add('BALLET_DARK_DIM',dimTiles);
+    }
+    // Rebuild the dim layer after the map settles from a pan or zoom.
+    if(darkOverlayAdded)map.removeOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
+    map.addOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
+    darkOverlayAdded=true;
+  }
+  function setDarkMode(enabled){
+    darkModeEnabled=enabled;
+    var load=document.getElementById('load');
+    var surface=enabled?'#18181B':'#f4f1f8';
+    document.body.style.background=surface;
+    document.getElementById('map').style.background=surface;
+    if(load)load.style.background=surface;
+    if(!map)return;
+    if(enabled)ensureDarkOverlay();
+    else if(darkOverlayAdded){
+      map.removeOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
+      darkOverlayAdded=false;
+    }
   }
   function apply(message){
     if(!map){pending.push(message);return;}
     if(message.type==='markers')updateMarkers(message.markers,message.selectedId,message.searchedIds,message.compareIds,message.currentLocation);
     if(message.type==='animate')moveTo(message.region,message.duration);
+    if(message.type==='theme')setDarkMode(!!message.darkMode);
   }
+  window.addEventListener('pagehide',function(){if(regionTimer)clearTimeout(regionTimer);if(clusterer)clusterer.clear();Object.keys(markers).forEach(function(id){kakao.maps.event.removeListener(markers[id],'click',markerListeners[id]);markers[id].setMap(null);});if(currentMarker)currentMarker.setMap(null);});
   window.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
   document.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
   function fail(reason){
@@ -147,14 +189,17 @@ function buildHtml(initialRegion: MapRegion) {
     try{
       var mapEl=document.getElementById('map');
       map=new kakao.maps.Map(mapEl,{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level}});
+      if(kakao.maps.MarkerClusterer){clusterer=new kakao.maps.MarkerClusterer({map:map,averageCenter:true,minLevel:6,styles:[{width:'42px',height:'42px',background:'rgba(101,59,183,0.92)',borderRadius:'21px',color:'#fff',textAlign:'center',fontWeight:'700',lineHeight:'42px',fontSize:'13px'}]});}
       kakao.maps.event.addListener(map,'dragend',emitRegion);
       kakao.maps.event.addListener(map,'zoom_changed',emitRegion);
+      kakao.maps.event.addListener(map,'idle',function(){if(darkModeEnabled)ensureDarkOverlay();});
       // WebView can initially report a very small height on compact devices.
       // Recalculate Kakao's viewport after the native layout settles or changes.
       var resizeMap=function(){
         if(!map)return;
         var center=map.getCenter();
         kakao.maps.event.trigger(map,'resize');
+        if(typeof map.relayout==='function')map.relayout();
         if(center)map.setCenter(center);
       };
       if(typeof ResizeObserver!=='undefined'){
@@ -170,8 +215,12 @@ function buildHtml(initialRegion: MapRegion) {
       pending.forEach(apply);pending=[];
     }catch(e){fail('지도 초기화 오류: '+(e&&e.message?e.message:String(e)));}
   }
+  if(!${JSON.stringify(JS_KEY)}){
+    fail('카카오 JavaScript 키가 앱 빌드에 포함되지 않았습니다. EAS Preview 환경에 EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY가 등록되어 있는지 확인해주세요.');
+    return;
+  }
   var sdk=document.createElement('script');
-  sdk.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey=${JS_KEY}&autoload=false';
+  sdk.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey=${JS_KEY}&autoload=false&libraries=clusterer';
   sdk.onload=function(){
     if(!window.kakao || !window.kakao.maps){fail('SDK 응답은 받았지만 kakao.maps 객체가 없습니다. JavaScript 키 종류와 카카오맵 사용 설정을 확인해주세요.');return;}
     try{kakao.maps.load(initMap);}catch(e){fail('SDK 실행 오류: '+(e&&e.message?e.message:String(e)));}
@@ -183,7 +232,7 @@ function buildHtml(initialRegion: MapRegion) {
 }
 
 const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
-  { initialRegion, markers, selectedId, searchedIds, compareIds, currentLocation, onRegionChangeComplete, onMarkerPress },
+  { initialRegion, markers, selectedId, searchedIds, compareIds, currentLocation, onRegionChangeComplete, onMarkerPress, darkMode = false },
   ref
 ) {
   const webRef = useRef<WebView>(null);
@@ -194,7 +243,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
       const type=(message as any)?.type;
-      if(type==="markers"||type==="animate") pendingMessages.current=pendingMessages.current.filter(item=>JSON.parse(item).type!==type);
+      if(type==="markers"||type==="animate"||type==="theme") pendingMessages.current=pendingMessages.current.filter(item=>JSON.parse(item).type!==type);
       pendingMessages.current.push(serialized);
       return;
     }
@@ -205,6 +254,9 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
       sendToMap({ type: "animate", region, duration });
     },
   }), [sendToMap]);
+  useEffect(() => {
+    sendToMap({ type: "theme", darkMode });
+  }, [darkMode, sendToMap]);
   useEffect(() => {
     sendToMap({
       type: "markers",
@@ -232,6 +284,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
           compareIds: compareIds ?? [],
           currentLocation: currentLocation ?? null,
         }));
+        webRef.current?.postMessage(JSON.stringify({type:"theme",darkMode}));
       }
       if (message.type === "region" && message.region) onRegionChangeComplete?.(message.region);
       if (message.type === "marker" && typeof message.id === "string") onMarkerPress?.(message.id);

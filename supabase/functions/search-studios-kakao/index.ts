@@ -11,6 +11,10 @@ const json = (body: unknown, status = 200, extraHeaders: Record<string, string> 
     headers: { "Content-Type": "application/json", ...CORS_HEADERS, ...extraHeaders },
   });
 
+type SearchCacheEntry = { expiresAt: number; payload: unknown };
+const SEARCH_CACHE = new Map<string, SearchCacheEntry>();
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+
 async function hashClientAddress(address: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -75,6 +79,15 @@ Deno.serve(async (req) => {
     "";
   if (!clientAddress) return json({ error: "요청 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요." }, 503);
 
+  const latitude = Number(body.latitude), longitude = Number(body.longitude);
+  const hasBounds = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+    Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+  const radius = hasBounds ? Math.min(20000, Math.max(1000, Math.floor(Number(body.radius) || 5000))) : null;
+  const cacheKey = [normalize(query), hasBounds ? latitude.toFixed(3) : "all", hasBounds ? longitude.toFixed(3) : "all", radius ?? 0].join(":");
+  const cached = SEARCH_CACHE.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return json(cached.payload);
+  if (cached) SEARCH_CACHE.delete(cacheKey);
+
   try {
     const clientHash = await hashClientAddress(clientAddress, serviceKey);
     const { data: limitRows, error: limitError } = await db.rpc("consume_kakao_search_rate_limit", {
@@ -99,18 +112,15 @@ Deno.serve(async (req) => {
     return json({ error: "검색 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요." }, 503);
   }
 
-  const latitude = Number(body.latitude), longitude = Number(body.longitude);
-  const hasBounds = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
-    Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
-  const radius = hasBounds ? Math.min(20000, Math.max(1000, Math.floor(Number(body.radius) || 5000))) : null;
+
   const found = new Map<string, any>();
-  const queries = queryVariants(query);
+  const queries = queryVariants(query).slice(0, 2);
   let requestCount = 0;
   const errors: string[] = [];
 
   for (const term of queries) {
-    if (requestCount >= 8) break;
-    for (let page = 1; page <= 3 && requestCount < 8; page++) {
+    if (requestCount >= 2) break;
+    for (let page = 1; page <= 2 && requestCount < 2; page++) {
       const endpoint = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
       endpoint.searchParams.set("query", term);
       endpoint.searchParams.set("page", String(page));
@@ -164,6 +174,7 @@ Deno.serve(async (req) => {
         break;
       }
     }
+    if (found.size >= 5) break;
   }
 
   const registered: string[] = [];
@@ -193,5 +204,14 @@ Deno.serve(async (req) => {
     if (error) errors.push("검색 결과 조회 실패: " + error.message.slice(0, 120));
     else studios = data ?? [];
   }
-  return json({ query, queries, requestCount, found: found.size, registered: ids.length, radius, center: hasBounds ? { latitude, longitude } : null, studios, errors: errors.slice(0, 5) });
+  const responseBody = { query, queries, requestCount, found: found.size, registered: ids.length, radius, center: hasBounds ? { latitude, longitude } : null, studios, errors: errors.slice(0, 5) };
+  if (!errors.length) {
+    if (SEARCH_CACHE.size >= 500) {
+      const now = Date.now();
+      for (const [key, value] of SEARCH_CACHE) if (value.expiresAt <= now) SEARCH_CACHE.delete(key);
+      if (SEARCH_CACHE.size >= 500) SEARCH_CACHE.delete(SEARCH_CACHE.keys().next().value!);
+    }
+    SEARCH_CACHE.set(cacheKey, { expiresAt: Date.now() + SEARCH_CACHE_TTL_MS, payload: responseBody });
+  }
+  return json(responseBody);
 });
