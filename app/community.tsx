@@ -12,7 +12,7 @@ import Animated, {runOnJS,useAnimatedStyle,useSharedValue,withSpring} from "reac
 
 type Category="전체"|"학원 추천"|"발레복 추천"|"자유";
 type Post={id:string;author_id:string;author_name:string;category:Exclude<Category,"전체">;title:string;content:string;image_urls:string[];created_at:string};
-type Comment={id:string;post_id:string;author_id:string;author_name:string;content:string;created_at:string};
+type Comment={id:string;post_id:string;author_id:string;author_name:string;content:string;image_urls?:string[];created_at:string};
 type ComposerBlock={id:string;type:"text"|"image";value?:string;photoIndex?:number};
 type RenderBlock={type:"text"|"image";value?:string;photoIndex?:number};
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F3F0FF",line:"#EAE7F0",red:"#D04444",green:"#18875B"};
@@ -63,11 +63,15 @@ export default function Community(){
  const params=useLocalSearchParams<{postId?:string}>();
  const [bookmarkedIds,setBookmarkedIds]=useState<string[]>([]);
  const [posts,setPosts]=useState<Post[]>([]);
+ const [postMetrics,setPostMetrics]=useState<Record<string,{likes:number;comments:number;liked:boolean}>>({});
+ const [sortMode,setSortMode]=useState<"latest"|"likes"|"comments">("latest");
  const [category,setCategory]=useState<Category>("전체");
  const [selected,setSelected]=useState<Post|null>(null);
  const [comments,setComments]=useState<Comment[]>([]);
  const [visibleCommentCount,setVisibleCommentCount]=useState(5);
  const [commentText,setCommentText]=useState("");
+ const [commentPhoto,setCommentPhoto]=useState<ImagePicker.ImagePickerAsset|null>(null);
+ const [commentPhotoUploading,setCommentPhotoUploading]=useState(false);
  const [loading,setLoading]=useState(true);
  const [loadError,setLoadError]=useState(false);
  const [refreshing,setRefreshing]=useState(false);
@@ -113,10 +117,30 @@ export default function Community(){
 
    const {data,error}=await query;
    if(error)throw error;
-   if(requestId===postRequestId.current)setPosts((data||[]) as Post[]);
+   if(requestId===postRequestId.current){
+    const rows=(data||[]) as Post[];
+    setPosts(rows);
+    if(rows.length){
+     const ids=rows.map(post=>post.id);
+     const [likesResult,commentsResult,ownLikesResult]=await Promise.all([
+      supabase.from("community_post_likes").select("post_id").in("post_id",ids),
+      supabase.from("community_comments").select("post_id").in("post_id",ids),
+      userId?supabase.from("community_post_likes").select("post_id").eq("user_id",userId).in("post_id",ids):Promise.resolve({data:[],error:null} as any)
+     ]);
+     if(likesResult.error)throw likesResult.error;
+     if(commentsResult.error)throw commentsResult.error;
+     if(ownLikesResult.error)throw ownLikesResult.error;
+     const next:Record<string,{likes:number;comments:number;liked:boolean}>={};
+     for(const id of ids)next[id]={likes:0,comments:0,liked:false};
+     for(const row of likesResult.data||[])if(next[row.post_id])next[row.post_id].likes++;
+     for(const row of commentsResult.data||[])if(next[row.post_id])next[row.post_id].comments++;
+     for(const row of ownLikesResult.data||[])if(next[row.post_id])next[row.post_id].liked=true;
+     if(requestId===postRequestId.current)setPostMetrics(next);
+    }else setPostMetrics({});
+   }
   }catch(error:any){if(requestId===postRequestId.current){setLoadError(true);Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}}
   finally{if(requestId===postRequestId.current){setLoading(false);setRefreshing(false);}}
- },[category]);
+ },[category,userId]);
 
  useEffect(()=>{loadPosts();},[loadPosts]);
  useEffect(()=>{const show=Keyboard.addListener("keyboardDidShow",()=>setKeyboardVisible(true));const hide=Keyboard.addListener("keyboardDidHide",()=>setKeyboardVisible(false));return()=>{show.remove();hide.remove();};},[]);
@@ -188,6 +212,19 @@ export default function Community(){
   setComments([]);
   setVisibleCommentCount(5);
   await loadComments(post.id,requestId);
+ };
+ const toggleLike=async(post:Post)=>{
+  if(!userId||!supabase){requireLogin();return;}
+  const current=postMetrics[post.id]||{likes:0,comments:0,liked:false};
+  setPostMetrics(value=>({...value,[post.id]:{...current,liked:!current.liked,likes:Math.max(0,current.likes+(current.liked?-1:1))}}));
+  const result=current.liked?await supabase.from("community_post_likes").delete().eq("post_id",post.id).eq("user_id",userId):await supabase.from("community_post_likes").insert({post_id:post.id,user_id:userId});
+  if(result.error){setPostMetrics(value=>({...value,[post.id]:current}));Alert.alert("좋아요 처리 실패",result.error.message);}
+ };
+ const pickCommentPhoto=async()=>{
+  const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if(!permission.granted){Alert.alert("사진 접근 권한","댓글 사진을 첨부하려면 사진 접근 권한이 필요합니다.");return;}
+  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],quality:0.85});
+  if(!result.canceled&&result.assets?.[0])setCommentPhoto(result.assets[0]);
  };
  const toggleBookmark=async(post:Post)=>{if(!userId||!supabase){requireLogin();return;}const exists=bookmarkedIds.includes(post.id);if(exists){const {error}=await supabase.from("community_post_bookmarks").delete().eq("user_id",userId).eq("post_id",post.id);if(error){Alert.alert("북마크 해제 실패",error.message);return;}setBookmarkedIds(v=>v.filter(id=>id!==post.id));}else{const {error}=await supabase.from("community_post_bookmarks").insert({user_id:userId,post_id:post.id});if(error){Alert.alert("북마크 저장 실패",error.message);return;}setBookmarkedIds(v=>[...v,post.id]);}};
  useEffect(()=>{if(!supabase||!userId)return;supabase.from("community_post_bookmarks").select("post_id").eq("user_id",userId).then(({data})=>setBookmarkedIds((data||[]).map(x=>x.post_id)));},[userId]);
