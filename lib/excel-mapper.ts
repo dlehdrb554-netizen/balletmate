@@ -48,10 +48,11 @@ function detectColumns(headers: string[]) {
   const used = new Set<string>();
   for (const header of headers) {
     const normalized = normalizeHeader(header);
-    // "수업시간(분)" is duration, while plain "시간" is a start-time candidate.
-    const field = Object.entries(COLUMN_PATTERNS).find(([key, patterns]) =>
-      !used.has(key) && patterns.some(pattern => normalized.includes(normalizeHeader(pattern)))
-    )?.[0];
+    const candidates = Object.entries(COLUMN_PATTERNS).flatMap(([field, patterns]) =>
+      patterns.map(pattern => ({ field, pattern: normalizeHeader(pattern) }))
+    ).filter(item => item.pattern && normalized.includes(item.pattern))
+      .sort((a, b) => b.pattern.length - a.pattern.length);
+    const field = candidates.find(item => !used.has(item.field))?.field;
     if (field) { result[header] = field; used.add(field); }
   }
   return result;
