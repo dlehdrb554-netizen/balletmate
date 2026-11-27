@@ -223,7 +223,7 @@ export default function Community(){
 
  const loadComments=async(postId:string,requestId=++commentRequestId.current)=>{
   if(!supabase)return;
-  let query=supabase.from("community_comments").select("id,post_id,author_id,author_name,content,image_urls,created_at").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
+  let query=supabase.from("community_comments").select("id,post_id,author_id,author_name,content,image_urls,created_at").eq("post_id",postId).order("created_at",{ascending:false}).limit(100);
 
   const {data,error}=await query;
   if(requestId!==commentRequestId.current||selectedPostIdRef.current!==postId)return;
