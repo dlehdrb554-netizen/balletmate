@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState, useMemo} from "react";
+import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles } from "../lib/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Alert, BackHandler, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, Keyboard, Linking, useColorScheme} from "react-native";
@@ -155,7 +156,7 @@ export default function Community(){
     setPostMetrics(next);
    })().catch(error=>console.warn("Community post metrics unavailable:",error));
   }catch(error:any){
-   if(requestId===postRequestId.current){setLoadError(true);Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}
+   if(requestId===postRequestId.current){setLoadError(true);Alert.alert("커뮤니티 불러오기 실패",getUserErrorMessage(error,"잠시 후 다시 시도해 주세요."));}
   }finally{
    if(requestId===postRequestId.current){setLoading(false);setRefreshing(false);}
   }
@@ -173,7 +174,7 @@ export default function Community(){
   let active=true;
   supabase.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version",COMMUNITY_TERMS_VERSION).maybeSingle().then(({data,error})=>{
    if(!active)return;
-   if(error){Alert.alert("이용규칙 확인 실패",error.message);return;}
+   if(error){Alert.alert("이용규칙 확인 실패",getUserErrorMessage(error));return;}
    if(!data){setTermsReturnTo("entry");setTermsConsentOpen(true);}
   });
   return()=>{active=false;};
@@ -196,7 +197,7 @@ export default function Community(){
   let active=true;
   supabase.from("community_user_blocks").select("blocked_user_id").eq("blocker_id",userId).then(({data,error})=>{
    if(!active)return;
-   if(error){Alert.alert("차단 목록 조회 실패",error.message);return;}
+   if(error){Alert.alert("차단 목록 조회 실패",getUserErrorMessage(error));return;}
    setBlockedUserIds((data||[]).map(row=>row.blocked_user_id));
   });
   return()=>{active=false;};
@@ -226,7 +227,7 @@ export default function Community(){
 
   const {data,error}=await query;
   if(requestId!==commentRequestId.current||selectedPostIdRef.current!==postId)return;
-  if(error){Alert.alert("댓글 불러오기 실패",error.message);return;}
+  if(error){Alert.alert("댓글 불러오기 실패",getUserErrorMessage(error));return;}
   setComments((data||[]) as Comment[]);
  };
  const openPost=async(post:Post)=>{
@@ -242,7 +243,7 @@ export default function Community(){
   const current=postMetrics[post.id]||{likes:0,comments:0,liked:false};
   setPostMetrics(value=>({...value,[post.id]:{...current,liked:!current.liked,likes:Math.max(0,current.likes+(current.liked?-1:1))}}));
   const result=current.liked?await supabase.from("community_post_likes").delete().eq("post_id",post.id).eq("user_id",userId):await supabase.from("community_post_likes").insert({post_id:post.id,user_id:userId});
-  if(result.error){setPostMetrics(value=>({...value,[post.id]:current}));Alert.alert("좋아요 처리 실패",result.error.message);}
+  if(result.error){setPostMetrics(value=>({...value,[post.id]:current}));Alert.alert("좋아요 처리 실패",getUserErrorMessage(result.error));}
  };
  const pickCommentPhoto=async()=>{
   const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -250,11 +251,11 @@ export default function Community(){
   const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],quality:0.85});
   if(!result.canceled&&result.assets?.[0])setCommentPhoto(result.assets[0]);
  };
- const toggleBookmark=async(post:Post)=>{if(!userId||!supabase){requireLogin();return;}const exists=bookmarkedIds.includes(post.id);if(exists){const {error}=await supabase.from("community_post_bookmarks").delete().eq("user_id",userId).eq("post_id",post.id);if(error){Alert.alert("북마크 해제 실패",error.message);return;}setBookmarkedIds(v=>v.filter(id=>id!==post.id));}else{const {error}=await supabase.from("community_post_bookmarks").insert({user_id:userId,post_id:post.id});if(error){Alert.alert("북마크 저장 실패",error.message);return;}setBookmarkedIds(v=>[...v,post.id]);}};
+ const toggleBookmark=async(post:Post)=>{if(!userId||!supabase){requireLogin();return;}const exists=bookmarkedIds.includes(post.id);if(exists){const {error}=await supabase.from("community_post_bookmarks").delete().eq("user_id",userId).eq("post_id",post.id);if(error){Alert.alert("북마크 해제 실패",getUserErrorMessage(error));return;}setBookmarkedIds(v=>v.filter(id=>id!==post.id));}else{const {error}=await supabase.from("community_post_bookmarks").insert({user_id:userId,post_id:post.id});if(error){Alert.alert("북마크 저장 실패",getUserErrorMessage(error));return;}setBookmarkedIds(v=>[...v,post.id]);}};
  useEffect(()=>{if(!supabase||!userId)return;supabase.from("community_post_bookmarks").select("post_id").eq("user_id",userId).then(({data})=>setBookmarkedIds((data||[]).map(x=>x.post_id)));},[userId]);
  useEffect(()=>{if(!params.postId||!supabase)return;let active=true;supabase.from("community_posts").select("id,author_id,author_name,category,title,content,image_urls,created_at").eq("id",params.postId).maybeSingle().then(({data,error})=>{if(active&&data&&!error)void openPost(data as Post);});return()=>{active=false;};},[params.postId]);
  const requireLogin=()=>{Alert.alert("로그인이 필요합니다","게시글과 댓글 작성은 가입한 회원만 이용할 수 있습니다.",[{text:"취소",style:"cancel"},{text:"로그인",onPress:()=>router.push("/account")}]);};
- const requireMemberProfile=async()=>{if(!supabase||!userId)return false;const {data,error}=await supabase.from("user_profiles").select("display_name").eq("user_id",userId).maybeSingle();if(error){Alert.alert("회원 정보 확인 실패",error.message);return false;}if(!String(data?.display_name||"").trim()){Alert.alert("회원정보 등록 필요","게시글과 댓글을 작성하려면 회원정보 등록을 완료해 주세요.",[{text:"취소",style:"cancel"},{text:"등록하기",onPress:()=>router.push("/onboarding")}]);return false;}return true;};
+ const requireMemberProfile=async()=>{if(!supabase||!userId)return false;const {data,error}=await supabase.from("user_profiles").select("display_name").eq("user_id",userId).maybeSingle();if(error){Alert.alert("회원 정보 확인 실패",getUserErrorMessage(error));return false;}if(!String(data?.display_name||"").trim()){Alert.alert("회원정보 등록 필요","게시글과 댓글을 작성하려면 회원정보 등록을 완료해 주세요.",[{text:"취소",style:"cancel"},{text:"등록하기",onPress:()=>router.push("/onboarding")}]);return false;}return true;};
  const explainError=(error:any)=>{
   const message=String(error?.message||"");
   const constraint=String(error?.constraint||"");
@@ -300,7 +301,7 @@ export default function Community(){
   activeEditorBlockId.current=trailingBlock.id;
   editorSelection.current={blockId:trailingBlock.id,start:0,end:0};
   setFocusEditorBlockId(trailingBlock.id);
-  }catch(error:any){Alert.alert("사진 첨부 실패",error?.message||"사진을 불러오지 못했습니다. 다시 시도해 주세요.");}
+  }catch(error:any){Alert.alert("사진 첨부 실패",getUserErrorMessage(error,"사진을 불러오지 못했습니다. 다시 시도해 주세요."));}
  };
  const updateEditorText=(id:string,value:string)=>{
   const next=editorBlocks.map(block=>block.id===id?{...block,value}:block);
@@ -344,9 +345,9 @@ export default function Community(){
    });
    const uploaded={url:supabase.storage.from("community-photos").getPublicUrl(path).data.publicUrl,path};
    setUploadedPhotoFiles(current=>({...current,[key]:uploaded}));setPhotoUploadStatus(current=>({...current,[key]:{state:"done",percent:100}}));return uploaded;
-  }catch(error:any){setPhotoUploadStatus(current=>({...current,[key]:{state:"failed",percent:0,message:error?.message||"업로드에 실패했습니다."}}));throw error;}
+  }catch(error:any){setPhotoUploadStatus(current=>({...current,[key]:{state:"failed",percent:0,message:getUserErrorMessage(error,"업로드에 실패했습니다.")}}));throw error;}
  };
- const retryPhotoUpload=async(index:number)=>{try{await uploadOnePhoto(index);}catch(error:any){Alert.alert("사진 업로드 실패",error?.message||"해당 사진을 다시 시도해 주세요.");}};
+ const retryPhotoUpload=async(index:number)=>{try{await uploadOnePhoto(index);}catch(error:any){Alert.alert("사진 업로드 실패",getUserErrorMessage(error,"해당 사진을 다시 시도해 주세요."));}};
  const editComposerPhoto=async(index:number,mode:"rotate"|"crop"|"mosaic")=>{
   const asset=selectedPhotos[index];if(!asset||editingPhoto)return;setEditingPhoto(true);
   try{
@@ -356,7 +357,7 @@ export default function Community(){
    setSelectedPhotos(current=>current.map((photo,i)=>i===index?updated:photo));
    setUploadedPhotoFiles(current=>{const next={...current};delete next[oldKey];return next;});
    setPhotoUploadStatus(current=>{const next={...current};delete next[oldKey];return next;});
-  }catch(error:any){Alert.alert("사진 편집 실패",error?.message||"사진을 편집하지 못했습니다.");}
+  }catch(error:any){Alert.alert("사진 편집 실패",getUserErrorMessage(error,"사진을 편집하지 못했습니다."));}
   finally{setEditingPhoto(false);}
  };
  const uploadCommunityPhotos=async()=>{
@@ -387,7 +388,7 @@ export default function Community(){
   const client=supabase;
   if(!client||!selected||!(await requireMemberProfile()))return;
   const accepted=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version",COMMUNITY_TERMS_VERSION).maybeSingle();
-  if(accepted.error){Alert.alert("이용규칙 확인 실패",accepted.error.message);return;}
+  if(accepted.error){Alert.alert("이용규칙 확인 실패",getUserErrorMessage(accepted.error));return;}
   if(!accepted.data){setTermsReturnTo("comment");setTermsConsentOpen(true);return;}
   if(!commentText.trim()&&!commentPhoto){Alert.alert("댓글 내용","댓글 내용이나 사진을 첨부해 주세요.");return;}
   setSubmitting(true);
@@ -424,7 +425,7 @@ export default function Community(){
   const client=supabase;
   if(!client||!(await requireMemberProfile()))return;
   const {data,error}=await client.from("community_terms_acceptances").select("terms_version").eq("user_id",userId).eq("terms_version",COMMUNITY_TERMS_VERSION).maybeSingle();
-  if(error){Alert.alert("이용규칙 확인 실패",error.message);return;}
+  if(error){Alert.alert("이용규칙 확인 실패",getUserErrorMessage(error));return;}
   if(data){setFinalConfirmed(false);setComposer(true);return;}
   setTermsReturnTo("post");setTermsConsentOpen(true);
  };
@@ -438,7 +439,7 @@ export default function Community(){
    setTermsConsentOpen(false);
    if(termsReturnTo==="post"){setFinalConfirmed(false);setComposer(true);}
    else if(termsReturnTo==="comment")await submitComment();
-  }catch(error:any){Alert.alert("동의 처리 실패",error?.message||"이용규칙 동의를 저장하지 못했습니다.");}
+  }catch(error:any){Alert.alert("동의 처리 실패",getUserErrorMessage(error,"이용규칙 동의를 저장하지 못했습니다."));}
   finally{setTermsAccepting(false);}
  };
  const reportContent=(contentType:"post"|"comment",contentId:string,targetUserId:string)=>{
@@ -450,7 +451,7 @@ export default function Community(){
    {text:"취소",style:"cancel"},
    ...reasons.map(reason=>({text:reason,onPress:async()=>{
     const {error}=await client.from("community_reports").insert({reporter_id:userId,target_user_id:targetUserId,content_type:contentType,content_id:contentId,reason,details:""});
-    if(error){Alert.alert("신고 실패",error.code==="23505"?"이미 신고한 콘텐츠입니다.":error.message);return;}
+    if(error){Alert.alert("신고 실패",error.code==="23505"?"이미 신고한 콘텐츠입니다.":getUserErrorMessage(error));return;}
     Alert.alert("신고 접수","신고가 접수되었습니다. 운영자가 검토하겠습니다.");
    }}))
   ]);
@@ -463,7 +464,7 @@ export default function Community(){
    {text:"취소",style:"cancel"},
    {text:"차단",style:"destructive",onPress:async()=>{
     const {error}=await client.from("community_user_blocks").insert({blocker_id:userId,blocked_user_id:targetUserId});
-    if(error&&error.code!=="23505"){Alert.alert("차단 실패",error.message);return;}
+    if(error&&error.code!=="23505"){Alert.alert("차단 실패",getUserErrorMessage(error));return;}
     setBlockedUserIds(current=>current.includes(targetUserId)?current:[...current,targetUserId]);
     if(selected?.author_id===targetUserId){commentRequestId.current++;selectedPostIdRef.current=null;setSelected(null);setComments([]);}
     else if(selected){setComments(current=>current.filter(comment=>comment.author_id!==targetUserId));}
@@ -476,7 +477,7 @@ export default function Community(){
   if(!client||(post.author_id!==userId&&!isAdmin))return;
   Alert.alert("게시글 삭제","이 게시글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
    const {error}=await client.from("community_posts").delete().eq("id",post.id);
-   if(error){Alert.alert("삭제 실패",error.message);return;}
+   if(error){Alert.alert("삭제 실패",getUserErrorMessage(error));return;}
    const paths=(post.image_urls||[]).map(url=>{const marker="/community-photos/";const index=url.indexOf(marker);return index>=0?decodeURIComponent(url.slice(index+marker.length)):"";}).filter(Boolean);
    if(paths.length)await client.storage.from("community-photos").remove(paths);
    commentRequestId.current++;selectedPostIdRef.current=null;setSelected(null);setComments([]);loadPosts();
@@ -492,7 +493,7 @@ export default function Community(){
     const {error}=await client.from("community_comments").delete().eq("id",comment.id);
     if(error)throw error;
     if(selectedPostIdRef.current===postId)await loadComments(postId);
-   }catch(error:any){Alert.alert("댓글 처리 실패",error?.message||"댓글을 삭제하거나 새로고침하지 못했습니다.");}
+   }catch(error:any){Alert.alert("댓글 처리 실패",getUserErrorMessage(error,"댓글을 삭제하거나 새로고침하지 못했습니다."));}
   }}]);
  };
 
