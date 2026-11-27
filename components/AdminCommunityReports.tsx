@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useState, useMemo} from "react";
+import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles } from "../lib/theme";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View, useColorScheme} from "react-native";
 import { supabase } from "../lib/supabase";
@@ -18,7 +19,7 @@ export default function AdminCommunityReports(){
    const {data,error}=await supabase.rpc("admin_list_community_reports");
    if(error)throw error;
    setRows((Array.isArray(data)?data:[]) as Report[]);
-  }catch(e:any){Alert.alert("커뮤니티 신고 조회 실패",e?.message||"신고 목록을 불러오지 못했습니다.");}
+  }catch(e:any){Alert.alert("커뮤니티 신고 조회 실패",getUserErrorMessage(e,"신고 목록을 불러오지 못했습니다."));}
   finally{setLoading(false);}
  },[]);
  useEffect(()=>{load();},[load]);
@@ -46,9 +47,9 @@ export default function AdminCommunityReports(){
      setRows(current=>current.map(item=>item.id===row.id?{...item,status:"actioned"}:item));
      if(photoPaths.length){
       const {error:photoError}=await supabase!.storage.from("community-photos").remove(photoPaths);
-      if(photoError)Alert.alert("콘텐츠는 삭제됐지만 사진 정리 실패", "게시글은 삭제됐습니다. 일부 사진 파일이 Storage에 남아 있을 수 있습니다.\n"+photoError.message);
+      if(photoError)Alert.alert("콘텐츠는 삭제됐지만 사진 정리 실패", "게시글은 삭제됐습니다. 일부 사진 파일이 Storage에 남아 있을 수 있습니다.\n"+getUserErrorMessage(photoError));
      }
-    }catch(e:any){Alert.alert("콘텐츠 삭제 실패",e?.message||"삭제하지 못했습니다.");}
+    }catch(e:any){Alert.alert("콘텐츠 삭제 실패",getUserErrorMessage(e,"삭제하지 못했습니다."));}
     finally{setBusyId(null);}
    }}
   ]);
@@ -60,7 +61,7 @@ export default function AdminCommunityReports(){
    const {error}=await supabase.rpc("admin_update_community_report",{p_report_id:row.id,p_status:status,p_admin_note:null});
    if(error)throw error;
    setRows(current=>current.map(item=>item.id===row.id?{...item,status}:item));
-  }catch(e:any){Alert.alert("신고 처리 실패",e?.message||"상태를 변경하지 못했습니다.");}
+  }catch(e:any){Alert.alert("신고 처리 실패",getUserErrorMessage(e,"상태를 변경하지 못했습니다."));}
   finally{setBusyId(null);}
  };
  return <View style={s.wrap}>
