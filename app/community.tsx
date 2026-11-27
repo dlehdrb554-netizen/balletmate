@@ -124,20 +124,36 @@ export default function Community(){
    setLoading(false);
    if(!rows.length){setPostMetrics({});return;}
    const ids=rows.map(post=>post.id);
-   void Promise.all([
+   void (async()=>{
+    // One server-side aggregate query prevents transferring every like/comment row to the phone.
+    const metricsResult=await supabase.rpc("get_community_post_metrics",{p_post_ids:ids});
+    if(requestId!==postRequestId.current)return;
+    if(!metricsResult.error&&metricsResult.data){
+     const next:Record<string,{likes:number;comments:number;liked:boolean}>={};
+     for(const id of ids)next[id]={likes:0,comments:0,liked:false};
+     for(const row of metricsResult.data as any[]){
+      if(next[row.post_id])next[row.post_id]={likes:Number(row.likes_count)||0,comments:Number(row.comments_count)||0,liked:!!row.liked_by_me};
+     }
+     setPostMetrics(next);
+     return;
+    }
+
+    // Keep compatibility until the accompanying SQL function has been installed.
+    console.warn("Community metrics RPC unavailable; using legacy fallback:",metricsResult.error);
+    const [likesResult,commentsResult,ownLikesResult]=await Promise.all([
      supabase.from("community_post_likes").select("post_id").in("post_id",ids),
      supabase.from("community_comments").select("post_id").in("post_id",ids),
      userId?supabase.from("community_post_likes").select("post_id").eq("user_id",userId).in("post_id",ids):Promise.resolve({data:[],error:null} as any)
-   ]).then(([likesResult,commentsResult,ownLikesResult])=>{
-     if(requestId!==postRequestId.current)return;
-     if(likesResult.error||commentsResult.error||ownLikesResult.error)throw likesResult.error||commentsResult.error||ownLikesResult.error;
-     const next:Record<string,{likes:number;comments:number;liked:boolean}>={};
-     for(const id of ids)next[id]={likes:0,comments:0,liked:false};
-     for(const row of likesResult.data||[])if(next[row.post_id])next[row.post_id].likes++;
-     for(const row of commentsResult.data||[])if(next[row.post_id])next[row.post_id].comments++;
-     for(const row of ownLikesResult.data||[])if(next[row.post_id])next[row.post_id].liked=true;
-     setPostMetrics(next);
-   }).catch(error=>console.warn("Community post metrics unavailable:",error));
+    ]);
+    if(requestId!==postRequestId.current)return;
+    if(likesResult.error||commentsResult.error||ownLikesResult.error)throw likesResult.error||commentsResult.error||ownLikesResult.error;
+    const next:Record<string,{likes:number;comments:number;liked:boolean}>={};
+    for(const id of ids)next[id]={likes:0,comments:0,liked:false};
+    for(const row of likesResult.data||[])if(next[row.post_id])next[row.post_id].likes++;
+    for(const row of commentsResult.data||[])if(next[row.post_id])next[row.post_id].comments++;
+    for(const row of ownLikesResult.data||[])if(next[row.post_id])next[row.post_id].liked=true;
+    setPostMetrics(next);
+   })().catch(error=>console.warn("Community post metrics unavailable:",error));
   }catch(error:any){
    if(requestId===postRequestId.current){setLoadError(true);Alert.alert("커뮤니티 불러오기 실패",error?.message||"잠시 후 다시 시도해 주세요.");}
   }finally{
@@ -145,6 +161,10 @@ export default function Community(){
   }
  },[category,userId]);
 
+  const visiblePosts=useMemo(
+   ()=>posts.filter(item=>!blockedUserIds.includes(item.author_id)).sort((a,b)=>sortMode==="latest"?new Date(b.created_at).getTime()-new Date(a.created_at).getTime():sortMode==="likes"?(postMetrics[b.id]?.likes||0)-(postMetrics[a.id]?.likes||0):(postMetrics[b.id]?.comments||0)-(postMetrics[a.id]?.comments||0)),
+   [posts,blockedUserIds,sortMode,postMetrics]
+  );
   useEffect(()=>{loadPosts();},[loadPosts]);
  useEffect(()=>{const show=Keyboard.addListener("keyboardDidShow",()=>setKeyboardVisible(true));const hide=Keyboard.addListener("keyboardDidHide",()=>setKeyboardVisible(false));return()=>{show.remove();hide.remove();};},[]);
  useEffect(()=>{
@@ -529,7 +549,7 @@ export default function Community(){
      </View>
     </View>
     {loading?<ActivityIndicator color={C.purple} style={{marginTop:40}}/>:
-     <FlatList data={[...posts.filter(item=>!blockedUserIds.includes(item.author_id))].sort((a,b)=>sortMode==="latest"?new Date(b.created_at).getTime()-new Date(a.created_at).getTime():sortMode==="likes"?(postMetrics[b.id]?.likes||0)-(postMetrics[a.id]?.likes||0):(postMetrics[b.id]?.comments||0)-(postMetrics[a.id]?.comments||0))} keyExtractor={item=>item.id} contentContainerStyle={s.list} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadPosts();}} tintColor={C.purple}/>} renderItem={({item})=><Pressable style={s.postCard} onPress={()=>openPost(item)}>
+     <FlatList data={visiblePosts} keyExtractor={item=>item.id} contentContainerStyle={s.list} initialNumToRender={8} maxToRenderPerBatch={8} windowSize={5} updateCellsBatchingPeriod={50} removeClippedSubviews={Platform.OS==="android"} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadPosts();}} tintColor={C.purple}/>} renderItem={({item})=><Pressable style={s.postCard} onPress={()=>openPost(item)}>
       <View style={s.postTop}><View style={s.categoryBadge}><Text style={s.categoryText}>{item.category}</Text></View><Text style={s.meta}>{postDateLabel(item.created_at)}</Text></View>
       <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
       <Text style={s.preview} numberOfLines={2}>{parsePostContent(item.content).body}</Text>
