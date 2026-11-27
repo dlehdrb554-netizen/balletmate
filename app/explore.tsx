@@ -123,7 +123,16 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const modalBottomInset = Math.max(insets.bottom, Platform.OS === "android" ? 24 : 0);
-  const modalSheetHeight = Math.max(320, Math.min(windowHeight * 0.88, windowHeight - insets.top - modalBottomInset - 16));
+  const modalAvailableHeight = Math.max(1, windowHeight - insets.top - modalBottomInset - 16);
+  const modalSheetHeight = Math.min(windowHeight * 0.88, modalAvailableHeight);
+  const modalSheetStyle = {
+    height: modalSheetHeight,
+    maxHeight: modalSheetHeight,
+    minHeight: 0,
+    flexShrink: 1,
+    padding: 16,
+    paddingBottom: 12,
+  } as const;
   const bottomInsetPadding = useBottomPadding(0);
   const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>([]);
@@ -521,14 +530,14 @@ export default function Home() {
     if(timeFilter&&!s.time.includes(timeFilter))return false;
 
     if(durationFilter!==null&&!(s.classDurations?.length?s.classDurations.includes(durationFilter):s.duration===durationFilter))return false;
-    if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
+    if(maxDistance!==null&&distanceKm(region.latitude,region.longitude,s.lat,s.lng)>maxDistance)return false;
     if(areaLocked){
       const latSpan=searchedRegion.latitudeDelta/2;
       const lngSpan=searchedRegion.longitudeDelta/2;
       if(Math.abs(s.lat-searchedRegion.latitude)>latSpan||Math.abs(s.lng-searchedRegion.longitude)>lngSpan)return false;
     }
     return true;
-  }),[mergedStudios,globalSearchIdSet,normalizedSearch,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion]);
+  }),[mergedStudios,globalSearchIdSet,normalizedSearch,classSearchIdSet,adult,kids,coupon,level,dayFilter,timeFilter,durationFilter,hasClassLevelFilters,classFilterIdSet,maxDistance,areaLocked,searchedRegion,region]);
 
   const mapMarkers=useMemo(()=>results.map(studio=>({id:studio.id,name:studio.name,area:studio.area,latitude:studio.lat,longitude:studio.lng})),[results]);
   const searchedStudioIds=useMemo(()=>searchMatches.map(item=>item.id),[searchMatches]);
@@ -574,11 +583,11 @@ export default function Home() {
     if(durationFilter!==null&&!(s.classDurations?.length?s.classDurations.includes(durationFilter):s.duration===durationFilter))return false;
     if(maxDistance!==null&&distanceKm(searchedRegion.latitude,searchedRegion.longitude,s.lat,s.lng)>maxDistance)return false;
     return true;
-  }),[directoryStudios,globalSearchStudios,normalizedSearch,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,searchedRegion]);
+  }),[directoryStudios,globalSearchStudios,normalizedSearch,globalSearchIdSet,classSearchIdSet,adult,kids,coupon,hasClassLevelFilters,classFilterIdSet,level,dayFilter,timeFilter,durationFilter,maxDistance,region]);
   const listRows=useMemo(()=>{
     const rows=view==="favorites"?favoriteStudios:directoryResults.filter(studio=>selectedListRegion!=="전체"?canonicalArea(studio.area)===selectedListRegion:(regionProvince==="전체"||parseArea(studio.area).province===regionProvince)&&(regionCity==="전체"||parseArea(studio.area).city===regionCity));
-    return [...rows].sort((a,b)=>distanceKm(searchedRegion.latitude,searchedRegion.longitude,a.lat,a.lng)-distanceKm(searchedRegion.latitude,searchedRegion.longitude,b.lat,b.lng));
-  },[view,favoriteStudios,directoryResults,searchedRegion,selectedListRegion,regionProvince,regionCity]);
+    return [...rows].sort((a,b)=>distanceKm(region.latitude,region.longitude,a.lat,a.lng)-distanceKm(region.latitude,region.longitude,b.lat,b.lng));
+   },[view,favoriteStudios,directoryResults,region,selectedListRegion,regionProvince,regionCity]);
    const visibleListRows=useMemo(()=>listRows.slice(0,visibleListCount),[listRows,visibleListCount]);
    useEffect(()=>{setVisibleListCount(25);},[view,selectedListRegion,regionProvince,regionCity,search,adult,kids,coupon,hasClassLevelFilters,level,dayFilter,timeFilter,durationFilter,maxDistance]);
    const loadMoreListRows=useCallback(()=>{setVisibleListCount(current=>Math.min(current+25,listRows.length));},[listRows.length]);
@@ -1211,7 +1220,7 @@ export default function Home() {
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:modalBottomInset}]}>
-        <View style={[styles.modal,{height:modalSheetHeight,maxHeight:modalSheetHeight,minHeight:0,flexShrink:1,padding:16,paddingBottom:12}]}>
+        <View style={[styles.modal,modalSheetStyle]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>지역 선택</Text>
             <Pressable onPress={handleRegionPickerBack} hitSlop={10} style={{minWidth:64,alignItems:"flex-end"}}>
