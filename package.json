@@ -37,7 +37,10 @@
     "react-dom": "19.1.0",
     "@gorhom/bottom-sheet": "5.2.14",
     "react-native-gesture-handler": "2.28.0",
-    "react-native-reanimated": "3.19.5"
+    "react-native-reanimated": "3.19.5",
+    "expo-document-picker": "~14.0.8",
+    "expo-sharing": "~14.0.8",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
