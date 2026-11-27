@@ -88,6 +88,7 @@ export default function Community(){
  const [photoUploadStatus,setPhotoUploadStatus]=useState<Record<string,{state:"uploading"|"failed"|"done";percent:number;message?:string}>>({});
  const [uploadedPhotoFiles,setUploadedPhotoFiles]=useState<Record<string,{url:string;path:string}>>({});
  const [composerPhotoPreview,setComposerPhotoPreview]=useState<number|null>(null);
+ const [viewerIndex,setViewerIndex]=useState<number|null>(null);
  const [editingPhoto,setEditingPhoto]=useState(false);
  const [userId,setUserId]=useState<string|null>(null);
   const [isAdmin,setIsAdmin]=useState(false);
