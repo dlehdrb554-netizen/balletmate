@@ -807,7 +807,7 @@ export default function Home() {
       }).filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
     // Show already-loaded map markers immediately; network search enriches the result in parallel.
     if(localMatches.length)setGlobalSearchStudios(localMatches);
-    const classSearchPromise=supabase&&query.length>=2?searchStudioIdsByClassName(query).catch(()=>classSearchIds):Promise.resolve(classSearchIds);
+
     let remoteRows:any[]=[];
     let kakaoSearchFailure:any|null=null;
     if(supabase&&query.length>=2){
@@ -829,7 +829,7 @@ export default function Home() {
     const mapped:Studio[]=remoteRows.map(mapStudioRecord);
     setGlobalSearchStudios(mapped);
     let matchingClassIds=classSearchIds;
-    if(!mapped.length&&supabase&&query.length>=2){try{matchingClassIds=await classSearchPromise;if(requestId!==searchSubmitRequestId.current)return;setClassSearchIds(matchingClassIds);}catch{}}
+    if(!mapped.length&&!localMatches.length&&supabase&&query.length>=2){try{matchingClassIds=await searchStudioIdsByClassName(query);}catch{matchingClassIds=classSearchIds;}if(requestId!==searchSubmitRequestId.current)return;setClassSearchIds(matchingClassIds);}
     if(requestId!==searchSubmitRequestId.current)return;
     const matching=[...new Map([...mapped,...localMatches,...studios.filter(studio=>matchingClassIds.includes(studio.id)),...directoryStudios.filter(studio=>matchingClassIds.includes(studio.id))].filter(studio=>!isExcludedStudioSearchResult(studio.name)).map(studio=>[studio.id,studio])).values()];
     if(!matching.length&&kakaoSearchFailure&&!regionKey){
