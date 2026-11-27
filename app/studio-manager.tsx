@@ -193,12 +193,12 @@ export default function StudioManager(){
   try{
    const workbook=XLSX.utils.book_new();
    const sheet=XLSX.utils.aoa_to_sheet([
-    ["수업명","대상(성인/키즈/전체)","수준","유형","수업시간(분)"],
-    ["성인 기초 발레","성인","입문","기초",60],
-    ["키즈 발레 A반","키즈","초급","기초",50],
-    ["발레핏 전체반","전체","중급","발레핏",60]
+    ["수업명","요일","시작시간","수업시간(분)","대상(성인/키즈/전체)","수준","유형","가격(원)","강사"],
+    ["성인 기초 발레","월/수","19:00",60,"성인","입문","기초",120000,"김강사"],
+    ["키즈 발레 A반","화/목","16:00",50,"키즈","초급","기초",100000,"이강사"],
+    ["발레핏 전체반","토","11:00",60,"전체","중급","발레핏",150000,"박강사"]
    ]);
-   sheet["!cols"]=[{wch:24},{wch:24},{wch:16},{wch:18},{wch:18}];
+   sheet["!cols"]=[{wch:24},{wch:14},{wch:14},{wch:18},{wch:24},{wch:16},{wch:18},{wch:16},{wch:16}];
    XLSX.utils.book_append_sheet(workbook,sheet,"수업 등록 양식");
    const base64=XLSX.write(workbook,{bookType:"xlsx",type:"base64"});
    const uri=FileSystem.cacheDirectory+"balletmate_class_template.xlsx";
