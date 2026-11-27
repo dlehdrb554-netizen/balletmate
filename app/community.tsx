@@ -77,6 +77,7 @@ export default function Community(){
  const [title,setTitle]=useState("");
  const [body,setBody]=useState("");
  const [editorBlocks,setEditorBlocks]=useState<ComposerBlock[]>([{id:"text-0",type:"text",value:""}]);
+ const [focusEditorBlockId,setFocusEditorBlockId]=useState<string|null>(null);
  const activeEditorBlockId=useRef("text-0");
  const editorSelection=useRef({blockId:"text-0",start:0,end:0});
  const [selectedPhotos,setSelectedPhotos]=useState<ImagePicker.ImagePickerAsset[]>([]);
@@ -202,25 +203,24 @@ export default function Community(){
   const startIndex=selectedPhotos.length;
   setSelectedPhotos(current=>[...current,...assets].slice(0,4));
   setPhotoCaptions(current=>[...current,...assets.map(()=>"")].slice(0,4));
-  setEditorBlocks(current=>{
-   const next=[...current];
-   let insertAt=next.findIndex(block=>block.id===activeEditorBlockId.current&&block.type==="text");
-   if(insertAt<0)insertAt=next.length-1;
-   const active=next[insertAt];
-   const original=active?.value||"";
-   const selection=editorSelection.current.blockId===active?.id?editorSelection.current:{blockId:active?.id||"",start:original.length,end:original.length};
-   const splitAt=Math.max(0,Math.min(original.length,selection.start));
-   if(active)next[insertAt]={...active,value:original.slice(0,splitAt)};
-   const trailing=original.slice(Math.max(splitAt,selection.end));
-   const additions:ComposerBlock[]=[];
-   assets.forEach((_,offset)=>additions.push({id:"image-"+(startIndex+offset)+"-"+Date.now()+"-"+offset,type:"image",photoIndex:startIndex+offset}));
-   const trailingBlock:ComposerBlock={id:"text-"+Date.now()+"-after-"+Math.random().toString(36).slice(2,6),type:"text",value:trailing};
-   additions.push(trailingBlock);
-   next.splice(insertAt+1,0,...additions);
-   activeEditorBlockId.current=trailingBlock.id;
-   editorSelection.current={blockId:trailingBlock.id,start:0,end:0};
-   return next;
-  });
+  const next=[...editorBlocks];
+  let insertAt=next.findIndex(block=>block.id===activeEditorBlockId.current&&block.type==="text");
+  if(insertAt<0)insertAt=next.length-1;
+  const active=next[insertAt];
+  const original=active?.value||"";
+  const selection=editorSelection.current.blockId===active?.id?editorSelection.current:{blockId:active?.id||"",start:original.length,end:original.length};
+  const splitAt=Math.max(0,Math.min(original.length,selection.start));
+  if(active)next[insertAt]={...active,value:original.slice(0,splitAt)};
+  const trailing=original.slice(Math.max(splitAt,selection.end));
+  const additions:ComposerBlock[]=[];
+  assets.forEach((_,offset)=>additions.push({id:"image-"+(startIndex+offset)+"-"+Date.now()+"-"+offset,type:"image",photoIndex:startIndex+offset}));
+  const trailingBlock:ComposerBlock={id:"text-"+Date.now()+"-after-"+Math.random().toString(36).slice(2,6),type:"text",value:trailing};
+  additions.push(trailingBlock);
+  next.splice(insertAt+1,0,...additions);
+  setEditorBlocks(next);
+  activeEditorBlockId.current=trailingBlock.id;
+  editorSelection.current={blockId:trailingBlock.id,start:0,end:0};
+  setFocusEditorBlockId(trailingBlock.id);
  };
  const updateEditorText=(id:string,value:string)=>{
   const next=editorBlocks.map(block=>block.id===id?{...block,value}:block);
@@ -265,7 +265,7 @@ export default function Community(){
    const uploaded=await uploadCommunityPhotos();uploadedPaths=uploaded.paths;
    const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:serializedContent,image_urls:uploaded.urls});
    if(error)throw error;
-   setComposer(false);setTitle("");setBody("");setEditorBlocks([{id:"text-0",type:"text",value:""}]);activeEditorBlockId.current="text-0";setSelectedPhotos([]);setPhotoCaptions([]);setLoading(true);
+   setComposer(false);setTitle("");setBody("");setEditorBlocks([{id:"text-0",type:"text",value:""}]);activeEditorBlockId.current="text-0";setFocusEditorBlockId(null);setSelectedPhotos([]);setPhotoCaptions([]);setLoading(true);
    if(category!=="전체")setCategory("전체");else await loadPosts();
    Alert.alert("등록 완료","게시글이 등록되었습니다.");
   }catch(error:any){
@@ -454,7 +454,7 @@ export default function Community(){
      <View style={s.inputWithClear}><TextInput style={[s.titleInput,{flex:1}]} value={title} onChangeText={value=>{setTitle(value);setFinalConfirmed(false);}} placeholder="예: 성인 초급 발레 학원 추천 부탁드려요" maxLength={80} returnKeyType="next"/>{!!title&&<Pressable style={s.clearField} onPress={()=>{setTitle("");setFinalConfirmed(false);}} accessibilityRole="button" accessibilityLabel="제목 전체 삭제"><Ionicons name="close-circle" size={19} color={C.muted}/></Pressable>}</View>
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={s.label}>내용 <Text style={{fontSize:10,color:C.muted,fontWeight:"500"}}>(최소 2자)</Text></Text><Text style={{fontSize:11,color:C.muted}}>{body.length}/5,000자</Text></View>
      <View style={s.inlineEditor}>
-      {editorBlocks.map((block,index)=>block.type==="text"?<View key={block.id} style={s.editorTextBlock}><TextInput style={s.editorTextInput} autoFocus={block.id===activeEditorBlockId.current} value={block.value||""} onFocus={()=>{activeEditorBlockId.current=block.id;}} onSelectionChange={({nativeEvent})=>{editorSelection.current={blockId:block.id,start:nativeEvent.selection.start,end:nativeEvent.selection.end};}} onChangeText={value=>updateEditorText(block.id,value)} placeholder={index===0?(newCategory==="학원 추천"?"지역, 수업 수준, 수업 시간, 가격, 시설 경험을 적어주세요.":newCategory==="발레복 추천"?"제품명, 사이즈, 착용감, 가격, 구매처를 적어주세요.":"경험과 의견을 구체적으로 나눠주세요."):"사진 다음 내용을 이어서 작성하세요."} multiline textAlignVertical="top" maxLength={5000}/></View>:<View key={block.id} style={s.inlineEditorPhoto}>
+      {editorBlocks.map((block,index)=>block.type==="text"?<View key={block.id} style={s.editorTextBlock}><TextInput style={s.editorTextInput} autoFocus={block.id===focusEditorBlockId} value={block.value||""} onFocus={()=>{activeEditorBlockId.current=block.id;setFocusEditorBlockId(null);}} onSelectionChange={({nativeEvent})=>{editorSelection.current={blockId:block.id,start:nativeEvent.selection.start,end:nativeEvent.selection.end};}} onChangeText={value=>updateEditorText(block.id,value)} placeholder={index===0?(newCategory==="학원 추천"?"지역, 수업 수준, 수업 시간, 가격, 시설 경험을 적어주세요.":newCategory==="발레복 추천"?"제품명, 사이즈, 착용감, 가격, 구매처를 적어주세요.":"경험과 의견을 구체적으로 나눠주세요."):"사진 다음 내용을 이어서 작성하세요."} multiline textAlignVertical="top" maxLength={5000}/></View>:<View key={block.id} style={s.inlineEditorPhoto}>
        <View style={s.inlineEditorPhotoHead}><Text style={s.inlinePhotoLabel}>본문 사진 {Number(block.photoIndex)+1}</Text><Pressable style={s.inlineRemoveButton} onPress={()=>removeComposerPhoto(block.photoIndex||0)} accessibilityRole="button" accessibilityLabel="본문 사진 삭제"><Ionicons name="trash-outline" size={17} color={C.red}/><Text style={s.inlineRemoveText}>삭제</Text></Pressable></View>
        {selectedPhotos[block.photoIndex||0]&&<Image source={{uri:selectedPhotos[block.photoIndex||0].uri}} style={s.inlineEditorImage} resizeMode="cover"/>}
        <TextInput style={s.captionInput} value={photoCaptions[block.photoIndex||0]||""} onChangeText={value=>{const photoIndex=block.photoIndex||0;setPhotoCaptions(current=>current.map((caption,i)=>i===photoIndex?value:caption));setFinalConfirmed(false);}} placeholder="이 사진에 대한 설명을 입력하세요" maxLength={200}/>
