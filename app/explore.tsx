@@ -2,7 +2,7 @@ import React, {useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import { getUserErrorMessage } from "../lib/error-utils";
 import BottomSheet, {BottomSheetScrollView} from "@gorhom/bottom-sheet";
 import {Gesture, GestureDetector, GestureHandlerRootView} from "react-native-gesture-handler";
-import {Animated as ReanimatedAnimated,runOnJS,useSharedValue,useAnimatedStyle,withSpring} from "react-native-reanimated";
+import ReanimatedAnimated, {runOnJS,useSharedValue,useAnimatedStyle,withSpring} from "react-native-reanimated";
 import {themeStyles } from "../lib/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRootNavigationState, useRouter } from "expo-router";
