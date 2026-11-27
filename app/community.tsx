@@ -81,7 +81,6 @@ export default function Community(){
  const [selectedPhotos,setSelectedPhotos]=useState<ImagePicker.ImagePickerAsset[]>([]);
  const [photoCaptions,setPhotoCaptions]=useState<string[]>([]);
  const [viewerIndex,setViewerIndex]=useState<number|null>(null);
- const [viewerZoomed,setViewerZoomed]=useState(false);
  const [userId,setUserId]=useState<string|null>(null);
   const [isAdmin,setIsAdmin]=useState(false);
  const [authorName,setAuthorName]=useState("발레메이트 회원");
@@ -417,14 +416,14 @@ export default function Community(){
    </>
   }
 
-  <Modal visible={viewerIndex!==null&&!!selected?.image_urls?.length} transparent animationType="fade" onRequestClose={()=>{setViewerIndex(null);setViewerZoomed(false);}}>
+  <Modal visible={viewerIndex!==null&&!!selected?.image_urls?.length} transparent animationType="fade" onRequestClose={()=>setViewerIndex(null)}>
    <View style={s.viewerRoot}>
-    <View style={s.viewerHeader}><Pressable style={s.viewerControl} onPress={()=>{setViewerIndex(null);setViewerZoomed(false);}} accessibilityRole="button" accessibilityLabel="사진 보기 닫기"><Ionicons name="close" size={25} color="#FFFFFF"/></Pressable><Text style={s.viewerCounter}>{viewerIndex===null?0:viewerIndex+1} / {selected?.image_urls?.length||0}</Text><View style={s.viewerControl}/></View>
+    <View style={s.viewerHeader}><Pressable style={s.viewerControl} onPress={()=>setViewerIndex(null)} accessibilityRole="button" accessibilityLabel="사진 보기 닫기"><Ionicons name="close" size={25} color="#FFFFFF"/></Pressable><Text style={s.viewerCounter}>{viewerIndex===null?0:viewerIndex+1} / {selected?.image_urls?.length||0}</Text><View style={s.viewerControl}/></View>
     {viewerIndex!==null&&selected?.image_urls?.[viewerIndex]&&<ZoomablePhoto uri={selected.image_urls[viewerIndex]}/>}
     <View style={s.viewerFooter}>
-     <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex===0} onPress={()=>{setViewerIndex(index=>index===null?null:Math.max(0,index-1));setViewerZoomed(false);}}><Ionicons name="chevron-back" size={25} color={viewerIndex===0?"#777":"#FFFFFF"}/></Pressable>
+     <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex===0} onPress={()=>setViewerIndex(index=>index===null?null:Math.max(0,index-1))}><Ionicons name="chevron-back" size={25} color={viewerIndex===0?"#777":"#FFFFFF"}/></Pressable>
      <Text style={s.viewerHint}>두 손가락 확대 · 두 번 탭으로 확대/축소</Text>
-     <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex>=(selected?.image_urls?.length||1)-1} onPress={()=>{setViewerIndex(index=>index===null?null:Math.min((selected?.image_urls?.length||1)-1,index+1));setViewerZoomed(false);}}><Ionicons name="chevron-forward" size={25} color={viewerIndex===(selected?.image_urls?.length||1)-1?"#777":"#FFFFFF"}/></Pressable>
+     <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex>=(selected?.image_urls?.length||1)-1} onPress={()=>setViewerIndex(index=>index===null?null:Math.min((selected?.image_urls?.length||1)-1,index+1))}><Ionicons name="chevron-forward" size={25} color={viewerIndex===(selected?.image_urls?.length||1)-1?"#777":"#FFFFFF"}/></Pressable>
     </View>
    </View>
   </Modal>
