@@ -114,7 +114,7 @@ export default function Community(){
   finally{if(requestId===postRequestId.current){setLoading(false);setRefreshing(false);}}
  },[category]);
 
- $1
+ useEffect(()=>{loadPosts();},[loadPosts]);
  useEffect(()=>{const show=Keyboard.addListener("keyboardDidShow",()=>setKeyboardVisible(true));const hide=Keyboard.addListener("keyboardDidHide",()=>setKeyboardVisible(false));return()=>{show.remove();hide.remove();};},[]);
  useEffect(()=>{
   if(!userId||!supabase||termsEntryChecked.current)return;
