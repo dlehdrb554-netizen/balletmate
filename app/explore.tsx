@@ -404,7 +404,7 @@ export default function Home() {
       if(view==="map"){
         if(Platform.OS==="android"){
           const now=Date.now();
-          if(now-lastMapBackPress.current<2000)return false;
+          if(now-lastMapBackPress.current<2000){BackHandler.exitApp();return true;}
           lastMapBackPress.current=now;
           ToastAndroid.show("버튼을 한 번 더 누르면 종료됩니다",ToastAndroid.SHORT);
           return true;
