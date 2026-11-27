@@ -82,7 +82,7 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     currentSelected=selectedId||null;
     currentSearched=searchedIds||[];
     currentCompared=compareIds||[];
-    var keep={}, newMarkers=[];
+    var keep={};
     (list||[]).forEach(function(item){
       keep[item.id]=true;
       var pos=new kakao.maps.LatLng(item.latitude,item.longitude);
