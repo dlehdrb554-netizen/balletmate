@@ -31,8 +31,8 @@ function BottomNavigation(){
     {key:"map",label:"지도",icon:"map-outline" as const,active:pathname==="/"&&params.view!=="favorites",onPress:()=>router.replace("/?view=map")},
     {key:"favorites",label:"찜",icon:"heart-outline" as const,active:pathname==="/"&&params.view==="favorites",onPress:()=>router.replace("/?view=favorites")},
     {key:"compare",label:"비교",icon:"swap-horizontal-outline" as const,active:false,onPress:()=>router.push("/?openCompare=1")},
-    {key:"community",label:"커뮤니티",icon:"chatbubbles-outline" as const,active:pathname==="/community",onPress:()=>router.push("/community")},
-    {key:"mypage",label:"마이페이지",icon:"person-circle-outline" as const,active:pathname==="/mypage",onPress:()=>router.push("/mypage")},
+    {key:"community",label:"커뮤니티",icon:"chatbubbles-outline" as const,active:pathname==="/community",onPress:()=>router.navigate("/community")},
+    {key:"mypage",label:"마이페이지",icon:"person-circle-outline" as const,active:pathname==="/mypage",onPress:()=>router.navigate("/mypage")},
   ];
   return <View style={{backgroundColor:dark?"#17151D":"#FFFFFF",paddingBottom:insets.bottom,borderTopWidth:1,borderTopColor:dark?"#393342":"#EAE7F0"}}>
     <View style={styles.bottomNav}>
