@@ -81,12 +81,11 @@ export default function Community(){
  const activeEditorBlockId=useRef("text-0");
  const editorSelection=useRef({blockId:"text-0",start:0,end:0});
  const [selectedPhotos,setSelectedPhotos]=useState<ImagePicker.ImagePickerAsset[]>([]);
- $1
+ const [photoCaptions,setPhotoCaptions]=useState<string[]>([]);
  const [keyboardVisible,setKeyboardVisible]=useState(false);
  const [limitedPhotoAccess,setLimitedPhotoAccess]=useState(false);
  const [uploadProgress,setUploadProgress]=useState({completed:0,total:0});
  const [composerPhotoPreview,setComposerPhotoPreview]=useState<number|null>(null);
-  $1
  const [userId,setUserId]=useState<string|null>(null);
   const [isAdmin,setIsAdmin]=useState(false);
  const [authorName,setAuthorName]=useState("발레메이트 회원");
@@ -256,7 +255,7 @@ export default function Community(){
   setEditorBlocks(current=>current.map(block=>{if(block.type!=="image"||block.photoIndex===undefined)return block;let photoIndex=block.photoIndex;if(photoIndex===from)photoIndex=to;else if(from<to&&photoIndex>from&&photoIndex<=to)photoIndex--;else if(from>to&&photoIndex>=to&&photoIndex<from)photoIndex++;return {...block,photoIndex};}));
   setFinalConfirmed(false);
  };
-$1
+ const uploadCommunityPhotos=async()=>{
   if(!supabase||!userId)return {urls:[] as string[],paths:[] as string[]};
   const urls:string[]=[],paths:string[]=[];
   setUploadProgress({completed:0,total:selectedPhotos.length});
@@ -271,7 +270,7 @@ $1
     const {error}=await supabase.storage.from("community-photos").upload(path,bytes,{contentType:"image/jpeg",upsert:false});
     if(error)throw error;
     paths.push(path);
-    $1
+    urls.push(supabase.storage.from("community-photos").getPublicUrl(path).data.publicUrl);
     setUploadProgress({completed:index+1,total:selectedPhotos.length});
    }
    return {urls,paths};
@@ -490,7 +489,7 @@ $1
      <Pressable style={s.finalCheck} onPress={()=>setFinalConfirmed(value=>!value)} accessibilityRole="checkbox" accessibilityState={{checked:finalConfirmed}}><View style={[s.checkBox,finalConfirmed&&s.checkBoxActive]}>{finalConfirmed&&<Ionicons name="checkmark" size={14} color="#FFFFFF"/>}</View><Text style={s.finalCheckText}>개인정보와 저작권·초상권을 확인했고, 커뮤니티 운영정책을 지키는 글임을 확인합니다.</Text></Pressable>
      <Text style={s.cooldownNote}>제목·내용 각각 최소 2자, 최대 80자·5,000자입니다. 등록 후 30초 동안 댓글을 포함한 새 작성이 제한됩니다.</Text>
      </ScrollView>
-     {composerPhotoPreview!==null&&<View style={s.composerPhotoPreview}><Pressable style={s.previewClose} onPress={()=>setComposerPhotoPreview(null)} accessibilityRole="button" accessibilityLabel="사진 미리보기 닫기"><Ionicons name="close" size={25} color="#FFFFFF"/></Pressable>{selectedPhotos[composerPhotoPreview]&&<Image source={{uri:selectedPhotos[composerPhotoPreview].uri}} style={s.composerPreviewImage} resizeMode="contain"/>}<View style={s.previewNav}><Pressable style={s.previewNavButton} disabled={composerPhotoPreview===0} onPress={()=>setComposerPhotoPreview(index=>index===null?null:Math.max(0,index-1))}><Ionicons name="chevron-back" size={25} color="#FFFFFF"/></Pressable><Text style={s.previewCounter}>{composerPhotoPreview+1}/{selectedPhotos.length}</Text><Pressable style={s.previewNavButton} disabled={composerPhotoPreview===selectedPhotos.length-1} onPress={()=>setComposerPhotoPreview(index=>index===null?null:Math.min(selectedPhotos.length-1,index+1))}><Ionicons name="chevron-forward" size={25} color="#FFFFFF"/></Pressable></View></View>}{keyboardVisible&&<View style={s.keyboardPhotoToolbar"}><Text style={s.keyboardToolbarLabel}>사진 첨부</Text><Pressable style={s.keyboardToolbarButton} onPress={()=>pickPhotos("camera")} accessibilityRole="button" accessibilityLabel="카메라 열기"><Ionicons name="camera-outline" size={20} color={C.purple}/></Pressable><Pressable style={s.keyboardToolbarButton} onPress={()=>pickPhotos("library")} accessibilityRole="button" accessibilityLabel="갤러리 열기"><Ionicons name="image-outline" size={20} color={C.purple}/><Text style={s.keyboardToolbarCount}>{selectedPhotos.length}/4</Text></Pressable></View>}
+     {composerPhotoPreview!==null&&<View style={s.composerPhotoPreview}><Pressable style={s.previewClose} onPress={()=>setComposerPhotoPreview(null)} accessibilityRole="button" accessibilityLabel="사진 미리보기 닫기"><Ionicons name="close" size={25} color="#FFFFFF"/></Pressable>{selectedPhotos[composerPhotoPreview]&&<Image source={{uri:selectedPhotos[composerPhotoPreview].uri}} style={s.composerPreviewImage} resizeMode="contain"/>}<View style={s.previewNav}><Pressable style={s.previewNavButton} disabled={composerPhotoPreview===0} onPress={()=>setComposerPhotoPreview(index=>index===null?null:Math.max(0,index-1))}><Ionicons name="chevron-back" size={25} color="#FFFFFF"/></Pressable><Text style={s.previewCounter}>{composerPhotoPreview+1}/{selectedPhotos.length}</Text><Pressable style={s.previewNavButton} disabled={composerPhotoPreview===selectedPhotos.length-1} onPress={()=>setComposerPhotoPreview(index=>index===null?null:Math.min(selectedPhotos.length-1,index+1))}><Ionicons name="chevron-forward" size={25} color="#FFFFFF"/></Pressable></View></View>}{keyboardVisible&&<View style={s.keyboardPhotoToolbar}><Text style={s.keyboardToolbarLabel}>사진 첨부</Text><Pressable style={s.keyboardToolbarButton} onPress={()=>pickPhotos("camera")} accessibilityRole="button" accessibilityLabel="카메라 열기"><Ionicons name="camera-outline" size={20} color={C.purple}/></Pressable><Pressable style={s.keyboardToolbarButton} onPress={()=>pickPhotos("library")} accessibilityRole="button" accessibilityLabel="갤러리 열기"><Ionicons name="image-outline" size={20} color={C.purple}/><Text style={s.keyboardToolbarCount}>{selectedPhotos.length}/4</Text></Pressable></View>}
      {submitting&&uploadProgress.total>0&&<View style={s.uploadProgress}><ActivityIndicator size="small" color={C.purple}/><Text style={s.uploadProgressText}>사진 업로드 {uploadProgress.completed}/{uploadProgress.total}</Text></View>}
     </View>
    </KeyboardAvoidingView>
