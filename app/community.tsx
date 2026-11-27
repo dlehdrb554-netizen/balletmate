@@ -15,6 +15,9 @@ const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F3F0
 const categories:Category[]=["전체","학원 추천","발레복 추천","자유"];
 const timeLabel=(value:string)=>{const date=new Date(value);return Number.isNaN(date.getTime())?"":date.toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});};
 const postDateLabel=(value:string)=>{const date=new Date(value);if(Number.isNaN(date.getTime()))return "";const now=new Date();if(date.getFullYear()===now.getFullYear()&&date.getMonth()===now.getMonth()&&date.getDate()===now.getDate())return "오늘 "+date.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false});if(date.getFullYear()===now.getFullYear())return date.toLocaleDateString("ko-KR",{month:"numeric",day:"numeric"});return date.toLocaleDateString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit"});};
+const CAPTION_MARKER="\\n\\n[BALLET_MATE_PHOTO_CAPTIONS]";
+const serializePostContent=(text:string,captions:string[])=>{const entries=captions.map((value,index)=>value.trim()?String(index+1)+"|"+value.trim():"").filter(Boolean);return entries.length?text.trim()+CAPTION_MARKER+"\\n"+entries.join("\\n"):text.trim();};
+const parsePostContent=(value:string)=>{const marker=value.indexOf(CAPTION_MARKER);if(marker<0)return {body:value,captions:[] as string[]};const body=value.slice(0,marker);const captions=value.slice(marker+CAPTION_MARKER.length).split("\\n").filter(Boolean).reduce((result,line)=>{const split=line.indexOf("|");if(split>0){const index=Number(line.slice(0,split))-1;if(Number.isInteger(index)&&index>=0)result[index]=line.slice(split+1);}return result;},[] as string[]);return {body,captions};};
 const cooldownMessage="도배 방지를 위해 작성 후 30초가 지나야 다음 글이나 댓글을 작성할 수 있습니다.";
 const COMMUNITY_TERMS_VERSION="2026-11-27-community-policy-1";
 const containsSensitiveInfo=(value:string)=>/(?:\b\d{2,3}[- .]?\d{3,4}[- .]?\d{4}\b)|(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i.test(value);
@@ -187,12 +190,12 @@ export default function Community(){
  const submitPost=async()=>{
   if(!userId){requireLogin();return;}
   if(!supabase||!(await requireMemberProfile()))return;
-  if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목과 내용은 각각 2자 이상 입력해 주세요.");return;}if(title.trim().length>80||body.trim().length>5000){Alert.alert("내용 확인","제목은 최대 80자, 내용은 최대 5,000자까지 입력할 수 있습니다.");return;}if(!finalConfirmed){Alert.alert("게시 전 확인","개인정보와 저작권·초상권, 커뮤니티 운영정책을 확인해 주세요.");return;}
+  const serializedContent=serializePostContent(body,photoCaptions);if(title.trim().length<2||body.trim().length<2){Alert.alert("내용 확인","제목과 내용은 각각 2자 이상 입력해 주세요.");return;}if(title.trim().length>80||serializedContent.length>5000){Alert.alert("내용 확인","제목은 최대 80자, 사진 설명을 포함한 내용은 최대 5,000자까지 입력할 수 있습니다.");return;}if(!finalConfirmed){Alert.alert("게시 전 확인","개인정보와 저작권·초상권, 커뮤니티 운영정책을 확인해 주세요.");return;}
   setSubmitting(true);
   let uploadedPaths:string[]=[];
   try{
    const uploaded=await uploadCommunityPhotos();uploadedPaths=uploaded.paths;
-   const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:body.trim(),image_urls:uploaded.urls,image_captions:photoCaptions.map(caption=>caption.trim())});
+   const {error}=await supabase.from("community_posts").insert({author_id:userId,author_name:authorName,category:newCategory,title:title.trim(),content:serializedContent,image_urls:uploaded.urls});
    if(error)throw error;
    setComposer(false);setTitle("");setBody("");setSelectedPhotos([]);setPhotoCaptions([]);setLoading(true);
    if(category!=="전체")setCategory("전체");else await loadPosts();
@@ -311,10 +314,10 @@ export default function Community(){
      <View style={s.categoryBadge}><Text style={s.categoryText}>{selected.category}</Text></View>
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={[s.postTitle,{flex:1}]}>{selected.title}</Text><Pressable onPress={()=>void toggleBookmark(selected)} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(selected.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(selected.id)?"bookmark":"bookmark-outline"} size={22} color={C.purple}/></Pressable></View>
      <Text style={s.meta}>{selected.author_name||"발레메이트 회원"} · {timeLabel(selected.created_at)}</Text>
-     <Text style={s.postBody}>{selected.content}</Text>
+     <Text style={s.postBody}>{parsePostContent(selected.content).body}</Text>
      {!!selected.image_urls?.length&&<View style={s.detailPhotoList}>{selected.image_urls.map((url,index)=><View key={url} style={s.detailPhotoItem}>
       <Pressable onPress={()=>setViewerIndex(index)} accessibilityRole="button" accessibilityLabel={"사진 "+(index+1)+" 크게 보기"}><Image source={{uri:url}} style={s.detailPhoto} resizeMode="cover"/></Pressable>
-      {Boolean((selected as any).image_captions?.[index])&&<Text style={s.photoCaption}>{(selected as any).image_captions[index]}</Text>}
+      {Boolean(parsePostContent(selected.content).captions[index])&&<Text style={s.photoCaption}>{parsePostContent(selected.content).captions[index]}</Text>}
      </View>)}</View>}
      {selected.author_id===userId||isAdmin?<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>{isAdmin&&selected.author_id!==userId?"관리자 삭제":"게시글 삭제"}</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>
@@ -342,7 +345,7 @@ export default function Community(){
      <FlatList data={posts.filter(item=>!blockedUserIds.includes(item.author_id))} keyExtractor={item=>item.id} contentContainerStyle={s.list} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadPosts();}} tintColor={C.purple}/>} renderItem={({item})=><Pressable style={s.postCard} onPress={()=>openPost(item)}>
       <View style={s.postTop}><View style={s.categoryBadge}><Text style={s.categoryText}>{item.category}</Text></View><Text style={s.meta}>{postDateLabel(item.created_at)}</Text></View>
       <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
-      <Text style={s.preview} numberOfLines={2}>{item.content}</Text>
+      <Text style={s.preview} numberOfLines={2}>{parsePostContent(item.content).body}</Text>
       {!!item.image_urls?.length&&<View style={s.postPhotos}>{item.image_urls.slice(0,2).map((url,index)=><Image key={url} source={{uri:url}} style={s.listPhoto} resizeMode="cover"/>)}</View>}
       <View style={s.cardFoot}><Text style={s.author}>{item.author_name||"발레메이트 회원"}</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable onPress={(event:any)=>{event.stopPropagation?.();void toggleBookmark(item);}} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(item.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(item.id)?"bookmark":"bookmark-outline"} size={18} color={C.purple}/></Pressable><Text style={s.openLabel}>댓글 보기 ›</Text></View></View>
      </Pressable>} ListEmptyComponent={loadError?<View><Text style={s.empty}>게시글을 불러오지 못했습니다.</Text><Pressable onPress={()=>{setLoading(true);loadPosts();}}><Text style={s.openLabel}>다시 시도</Text></Pressable></View>:<Text style={s.empty}>아직 게시글이 없습니다. 첫 추천을 남겨보세요!</Text>}/>
