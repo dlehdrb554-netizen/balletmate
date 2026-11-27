@@ -134,18 +134,40 @@ function buildHtml(initialRegion: MapRegion) {
     var center=map.getCenter(), bounds=map.getBounds(), sw=bounds.getSouthWest(), ne=bounds.getNorthEast();
     post({type:'region',region:{latitude:center.getLat(),longitude:center.getLng(),latitudeDelta:Math.max(0.002,ne.getLat()-sw.getLat()),longitudeDelta:Math.max(0.002,ne.getLng()-sw.getLng())}});
   }
+  var darkTilesetRegistered=false;
+  var darkOverlayActive=false;
+  function registerDarkTileset(){
+    if(darkTilesetRegistered)return;
+    kakao.maps.Tileset.add('BALLET_DARK_DIM',new kakao.maps.Tileset({
+      width:256,
+      height:256,
+      getTile:function(){
+        var tile=document.createElement('div');
+        tile.style.width='256px';
+        tile.style.height='256px';
+        tile.style.background='rgba(12,14,20,0.34)';
+        tile.style.pointerEvents='none';
+        return tile;
+      }
+    }));
+    darkTilesetRegistered=true;
+  }
   function setDarkMode(enabled){
-    darkModeEnabled=enabled;
+    darkModeEnabled=!!enabled;
     var load=document.getElementById('load');
-    var mapElement=document.getElementById('map');
-    var surface=enabled?'#18181B':'#f4f1f8';
+    var surface=darkModeEnabled?'#18181B':'#f4f1f8';
     document.body.style.background=surface;
-    mapElement.style.background=surface;
+    document.getElementById('map').style.background=surface;
     if(load)load.style.background=surface;
-    // Keep the dimming effect on the map viewport itself. A Kakao overlay tile
-    // sits above marker layers and can hide every marker; re-adding it on idle
-    // also causes a visible bright/dark flash during pinch zoom.
-    mapElement.style.filter=enabled?'brightness(0.78) saturate(0.88)':'none';
+    if(!map)return;
+    registerDarkTileset();
+    if(darkModeEnabled&&!darkOverlayActive){
+      map.addOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
+      darkOverlayActive=true;
+    }else if(!darkModeEnabled&&darkOverlayActive){
+      map.removeOverlayMapTypeId(kakao.maps.MapTypeId.BALLET_DARK_DIM);
+      darkOverlayActive=false;
+    }
   }
   function apply(message){
     if(!map){pending.push(message);return;}
@@ -169,7 +191,7 @@ function buildHtml(initialRegion: MapRegion) {
   function initMap(){
     try{
       var mapEl=document.getElementById('map');
-      map=new kakao.maps.Map(mapEl,{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level}});
+      map=new kakao.maps.Map(mapEl,{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level},tileAnimation:false});
       if(kakao.maps.MarkerClusterer){clusterer=new kakao.maps.MarkerClusterer({map:map,averageCenter:true,minLevel:6,styles:[{width:'42px',height:'42px',background:'rgba(101,59,183,0.92)',borderRadius:'21px',color:'#fff',textAlign:'center',fontWeight:'700',lineHeight:'42px',fontSize:'13px'}]});}
       kakao.maps.event.addListener(map,'dragend',emitRegion);
       kakao.maps.event.addListener(map,'zoom_changed',emitRegion);
@@ -192,6 +214,7 @@ function buildHtml(initialRegion: MapRegion) {
       setTimeout(resizeMap,500);
       setTimeout(resizeMap,1100);
       document.getElementById('load').style.display='none';
+      if(darkModeEnabled)setDarkMode(true);
       post({type:'ready'});
       pending.forEach(apply);pending=[];
     }catch(e){fail('지도 초기화 오류: '+(e&&e.message?e.message:String(e)));}
