@@ -18,6 +18,7 @@ const cooldownMessage="도배 방지를 위해 작성 후 30초가 지나야 다
 const COMMUNITY_TERMS_VERSION="2026-11-27-community-policy-1";
 const containsSensitiveInfo=(value:string)=>/(?:\b\d{2,3}[- .]?\d{3,4}[- .]?\d{4}\b)|(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i.test(value);
 const containsPromotion=(value:string)=>/(https?:\/\/|www\.|무료\s*체험|공동구매|구매\s*문의|홍보|협찬|할인\s*코드)/i.test(value);
+const containsAbuse=(value:string)=>/(?:^|[\s.,!?])(?:시발|씨발|병신|개새끼|좆같아|꺼져|죽어)(?=$|[\s.,!?])/i.test(value);
 
 export default function Community(){
  const isDark=useColorScheme()==="dark";
