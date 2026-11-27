@@ -6,6 +6,18 @@
 ALTER TABLE public.studios
   ADD COLUMN IF NOT EXISTS image_urls text[] NOT NULL DEFAULT '{}';
 
+-- Owners must be able to list their inactive records too, otherwise hidden
+-- classes/notices cannot be restored or deleted from the management screen.
+DROP POLICY IF EXISTS "owners view own studio classes" ON public.classes;
+CREATE POLICY "owners view own studio classes"
+  ON public.classes FOR SELECT TO authenticated
+  USING (public.is_studio_owner(studio_id));
+
+DROP POLICY IF EXISTS "owners view own studio notices" ON public.studio_owner_notices;
+CREATE POLICY "owners view own studio notices"
+  ON public.studio_owner_notices FOR SELECT TO authenticated
+  USING (public.is_studio_owner(studio_id));
+
 -- Owners can manage only classes belonging to a studio they own.
 GRANT INSERT, UPDATE, DELETE ON public.classes TO authenticated;
 
