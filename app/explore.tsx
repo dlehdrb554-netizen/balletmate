@@ -553,6 +553,18 @@ export default function Home() {
 
   const globalSearchIdSet=useMemo(()=>new Set(globalSearchStudios.map(studio=>studio.id)),[globalSearchStudios]);
   const deferredSearch=useDeferredValue(search);
+  const normalizedLiveQuery=deferredSearch.trim().toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+  const liveSearchRequestId=useRef(0);
+  const liveSearchMatches=useMemo(()=>{
+    if(!normalizedLiveQuery)return [];
+    const unique=new Map<string,Studio>();
+    [...studios,...directoryStudios,...globalSearchStudios,...liveRemoteStudios].forEach(studio=>{
+      const searchable=[studio.name,studio.area,studio.address||"",...(studio.tags||[])].join(" ").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+      if(searchable.includes(normalizedLiveQuery))unique.set(studio.id,studio);
+    });
+    return [...unique.values()].filter(studio=>!isExcludedStudioSearchResult(studio.name))
+      .sort((a,b)=>a.name.localeCompare(b.name,"ko")).slice(0,15);
+  },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
   const normalizedSearch=deferredSearch.trim().toLowerCase();
   const classSearchIdSet=useMemo(()=>new Set(classSearchIds),[classSearchIds]);
   const classFilterIdSet=useMemo(()=>new Set(classFilterIds),[classFilterIds]);
@@ -744,18 +756,6 @@ export default function Home() {
     return()=>subscription.remove();
   },[searchFocused]);
   const liveClassSearchRequestId=useRef(0);
-  const normalizedLiveQuery=deferredSearch.trim().toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
-  const liveSearchRequestId=useRef(0);
-  const liveSearchMatches=useMemo(()=>{
-    if(!normalizedLiveQuery)return [];
-    const unique=new Map<string,Studio>();
-    [...studios,...directoryStudios,...globalSearchStudios,...liveRemoteStudios].forEach(studio=>{
-      const searchable=[studio.name,studio.area,studio.address||"",...(studio.tags||[])].join(" ").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
-      if(searchable.includes(normalizedLiveQuery))unique.set(studio.id,studio);
-    });
-    return [...unique.values()].filter(studio=>!isExcludedStudioSearchResult(studio.name))
-      .sort((a,b)=>a.name.localeCompare(b.name,"ko")).slice(0,15);
-  },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
   // Local matches render immediately; query the indexed directory after typing pauses.
   // Kakao and class-name lookups remain submit-only to avoid expensive per-keystroke requests.
   useEffect(()=>{
