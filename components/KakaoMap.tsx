@@ -105,7 +105,15 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     // Batch marker registration to avoid repeated clusterer work for large search results.
     if(clusterer&&newMarkers.length)clusterer.addMarkers(newMarkers,true);
     Object.keys(markers).forEach(function(id){if(!keep[id]){if(clusterer)clusterer.removeMarker(markers[id],true);kakao.maps.event.removeListener(markers[id],'click',markerListeners[id]);markers[id].setMap(null);delete markers[id];delete markerMeta[id];delete markerListeners[id];}});
-    if(clusterer)clusterer.repaint();
+    if(clusterer){
+      // New markers can be registered before Kakao finishes its current map frame.
+      // Repaint once immediately and once on the next frame so pins appear without
+      // requiring the user to pan/zoom the map.
+      clusterer.repaint();
+      requestAnimationFrame(function(){
+        if(clusterer)clusterer.repaint();
+      });
+    }
     if(location && location.latitude!=null && location.longitude!=null){
       var here=new kakao.maps.LatLng(location.latitude,location.longitude);
       if(!currentMarker){var locationSvg='<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="#ffffff" stroke="#3478F6" stroke-width="3"/><circle cx="18" cy="18" r="7" fill="#3478F6"/><circle cx="18" cy="18" r="3" fill="#ffffff"/></svg>';currentMarker=new kakao.maps.Marker({position:here,image:new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(locationSvg),new kakao.maps.Size(36,36),{offset:new kakao.maps.Point(18,18)}),zIndex:1000});currentMarker.setMap(map);}
