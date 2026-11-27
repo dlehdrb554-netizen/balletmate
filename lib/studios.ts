@@ -114,11 +114,12 @@ const studioNameSearchCache = new Map<string, { savedAt: number; rows: StudioRec
 const studioNameSearchInFlight = new Map<string, Promise<StudioRecord[]>>();
 const STUDIO_NAME_SEARCH_CACHE_MS = 60_000;
 
-export function searchStudiosByName(query:string):Promise<StudioRecord[]> {
+export function searchStudiosByName(query:string, options?:{limit?:number}):Promise<StudioRecord[]> {
   if(!supabase)return Promise.resolve([]);
   const term=query.trim().replace(/[,%()]/g," ").replace(/\s+/g," ").trim();
   if(term.length<2)return Promise.resolve([]);
-  const cacheKey=term.toLocaleLowerCase("ko-KR");
+  const resultLimit=Math.max(1,Math.min(300,Math.floor(options?.limit??300)));
+  const cacheKey=term.toLocaleLowerCase("ko-KR")+":"+resultLimit;
   const cached=studioNameSearchCache.get(cacheKey);
   if(cached&&Date.now()-cached.savedAt<STUDIO_NAME_SEARCH_CACHE_MS)return Promise.resolve(cached.rows);
   const pending=studioNameSearchInFlight.get(cacheKey);
@@ -131,7 +132,7 @@ export function searchStudiosByName(query:string):Promise<StudioRecord[]> {
     if(/퀸스/.test(term)){variants.add(term.replace(/퀸스/g,"퀸즈"));variants.add(term.replace(/퀸스/g,"Queens"));variants.add("퀸즈발레");variants.add("퀸즈");}
     if(/퀸즈/.test(term)){variants.add(term.replace(/퀸즈/g,"퀸스"));variants.add(term.replace(/퀸즈/g,"Queens"));variants.add("퀸스발레");}
     if(/더블유|\bW\b|wballet/i.test(term)){variants.add(term.replace(/더블유/gi,"W"));variants.add(term.replace(/\bW\b/gi,"더블유"));variants.add("W발레");variants.add("더블유발레");variants.add("wballet");}
-    const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(300);
+    const searchQuery=(table:"studio_map_search_app_with_source"|"studios",needle:string)=>supabase!.from(table).select(columns).eq("is_active",true).or(needle).order("name").limit(resultLimit);
     const runSearch=async(needle:string)=>{
       let result=await searchQuery("studio_map_search_app_with_source",needle);
       if(result.error) {
@@ -164,7 +165,7 @@ export function searchStudiosByName(query:string):Promise<StudioRecord[]> {
         rows.forEach(row=>results.set(row.id,row));
       }
     }
-    const rows=[...results.values()].filter((row:any)=>!isExcludedStudioSearchResult(row.name)).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
+    const rows=[...results.values()].filter((row:any)=>!isExcludedStudioSearchResult(row.name)).slice(0,resultLimit).map((row:any)=>({...row,class_durations:[]})) as StudioRecord[];
     if(studioNameSearchCache.size>=100)studioNameSearchCache.delete(studioNameSearchCache.keys().next().value!);
     studioNameSearchCache.set(cacheKey,{savedAt:Date.now(),rows});
     return rows;
