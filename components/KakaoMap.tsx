@@ -88,7 +88,9 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
       var pos=new kakao.maps.LatLng(item.latitude,item.longitude);
       if(!markers[item.id]){
         var marker=new kakao.maps.Marker({position:pos,image:pinImage(markerState(item.id,selectedId,currentSearched,currentCompared)),title:item.name});
-        if(clusterer)newMarkers.push(marker);else marker.setMap(map);
+        // Render pins directly on the Kakao map. Clusterer batching caused
+        // newly searched markers to remain invisible until the map was moved.
+        marker.setMap(map);
         markerListeners[item.id]=function(){updateSelectedMarker(item.id);post({type:'marker',id:item.id});};
         kakao.maps.event.addListener(marker,'click',markerListeners[item.id]);
         markers[item.id]=marker;
@@ -103,17 +105,9 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
       }
     });
     // Batch marker registration to avoid repeated clusterer work for large search results.
-    if(clusterer&&newMarkers.length)clusterer.addMarkers(newMarkers,true);
+    // Direct markers are already attached to the map; no clusterer redraw needed.
     Object.keys(markers).forEach(function(id){if(!keep[id]){if(clusterer)clusterer.removeMarker(markers[id],true);kakao.maps.event.removeListener(markers[id],'click',markerListeners[id]);markers[id].setMap(null);delete markers[id];delete markerMeta[id];delete markerListeners[id];}});
-    if(clusterer){
-      // addMarkers/removeMarker(..., true) intentionally defer cluster calculation.
-      // repaint() only paints existing clusters; redraw() recalculates membership
-      // and creates the newly added cluster markers without waiting for map movement.
-      clusterer.redraw();
-      requestAnimationFrame(function(){
-        if(clusterer)clusterer.redraw();
-      });
-    }
+
     if(location && location.latitude!=null && location.longitude!=null){
       var here=new kakao.maps.LatLng(location.latitude,location.longitude);
       if(!currentMarker){var locationSvg='<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="#ffffff" stroke="#3478F6" stroke-width="3"/><circle cx="18" cy="18" r="7" fill="#3478F6"/><circle cx="18" cy="18" r="3" fill="#ffffff"/></svg>';currentMarker=new kakao.maps.Marker({position:here,image:new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(locationSvg),new kakao.maps.Size(36,36),{offset:new kakao.maps.Point(18,18)}),zIndex:1000});currentMarker.setMap(map);}
@@ -186,7 +180,7 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     try{
       var mapEl=document.getElementById('map');
       map=new kakao.maps.Map(mapEl,{center:new kakao.maps.LatLng(${center}.lat,${center}.lng),level:${level},tileAnimation:false});
-      if(kakao.maps.MarkerClusterer){clusterer=new kakao.maps.MarkerClusterer({map:map,averageCenter:true,minLevel:6,styles:[{width:'42px',height:'42px',background:'rgba(101,59,183,0.92)',borderRadius:'21px',color:'#fff',textAlign:'center',fontWeight:'700',lineHeight:'42px',fontSize:'13px'}]});}
+      // Clusterer disabled: direct Marker.setMap(map) keeps search results immediately visible.
       kakao.maps.event.addListener(map,'dragstart',function(){if(programmaticMoveTimer){clearTimeout(programmaticMoveTimer);programmaticMoveTimer=null;}programmaticMove=false;});
       kakao.maps.event.addListener(map,'zoom_start',function(){if(programmaticMoveTimer){clearTimeout(programmaticMoveTimer);programmaticMoveTimer=null;}programmaticMove=false;});
       kakao.maps.event.addListener(map,'dragend',emitRegion);
