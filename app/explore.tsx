@@ -128,6 +128,11 @@ export default function Home() {
   const [region,setRegion]=useState(INITIAL);
   const [mapMoved,setMapMoved]=useState(false);
   const [search,setSearch]=useState("");
+ const [searchFocused,setSearchFocused]=useState(false);
+ const [recentSearches,setRecentSearches]=useState<string[]>([]);
+ const searchInputRef=useRef<TextInput|null>(null);
+ const MAX_RECENT=10;
+ const RECENT_SEARCH_KEY="recent_searches_v1";
   const [classSearchIds,setClassSearchIds]=useState<string[]>([]);
   const [globalSearchStudios,setGlobalSearchStudios]=useState<Studio[]>([]);
   const [searchMatches,setSearchMatches]=useState<Studio[]>([]);
@@ -608,6 +613,56 @@ export default function Home() {
     "천안":{latitude:36.8151,longitude:127.1139},"아산":{latitude:36.7898,longitude:127.0017},"전주":{latitude:35.8242,longitude:127.1480},"광주":{latitude:35.1595,longitude:126.8526},"대구":{latitude:35.8714,longitude:128.6014},
     "부산":{latitude:35.1796,longitude:129.0756},"울산":{latitude:35.5384,longitude:129.3114},"창원":{latitude:35.2281,longitude:128.6811},"제주":{latitude:33.4996,longitude:126.5312}
   };
+  const loadRecentSearches=useCallback(async()=>{
+    try{
+      const current=await AsyncStorage.getItem(RECENT_SEARCH_KEY);
+      const legacy=current===null?await AsyncStorage.getItem("recent_searches"):null;
+      const parsed=JSON.parse(current??legacy??"[]");
+      const values=Array.isArray(parsed)?parsed.filter((item:any)=>typeof item==="string"&&item.trim()).map((item:string)=>item.trim()):[];
+      const unique=[...new Set(values)].slice(0,MAX_RECENT);
+      setRecentSearches(unique);
+      if(current===null&&unique.length)await AsyncStorage.setItem(RECENT_SEARCH_KEY,JSON.stringify(unique));
+    }catch{setRecentSearches([]);}
+  },[]);
+  const saveRecentSearch=useCallback(async(keyword:string)=>{
+    const normalized=keyword.trim();
+    if(!normalized)return;
+    const prev=await AsyncStorage.getItem(RECENT_SEARCH_KEY);
+    const parsed=JSON.parse(prev||"[]");
+    const values=Array.isArray(parsed)?parsed.filter((item:any)=>typeof item==="string"):[];
+    const next=[normalized,...values.filter((item:string)=>item!==normalized)].slice(0,MAX_RECENT);
+    await AsyncStorage.setItem(RECENT_SEARCH_KEY,JSON.stringify(next));
+    setRecentSearches(next);
+  },[]);
+  const deleteRecentSearch=async(keyword:string)=>{
+    const next=recentSearches.filter(item=>item!==keyword);
+    setRecentSearches(next);
+    await AsyncStorage.setItem(RECENT_SEARCH_KEY,JSON.stringify(next)).catch(()=>{});
+  };
+  const clearAllRecent=()=>{
+    Alert.alert("최근 검색어 전체 삭제","저장된 검색어를 모두 삭제할까요?",[
+      {text:"취소",style:"cancel"},
+      {text:"전체 삭제",style:"destructive",onPress:()=>{
+        setRecentSearches([]);
+        void AsyncStorage.removeItem(RECENT_SEARCH_KEY);
+        void AsyncStorage.removeItem("recent_searches");
+      }}
+    ]);
+  };
+  const openSearchOverlay=()=>{
+    setSearchFocused(true);
+    void loadRecentSearches();
+    setTimeout(()=>searchInputRef.current?.focus(),100);
+  };
+  const closeSearchOverlay=()=>{
+    Keyboard.dismiss();
+    setSearchFocused(false);
+  };
+  useEffect(()=>{
+    if(!searchFocused)return;
+    const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{closeSearchOverlay();return true;});
+    return()=>subscription.remove();
+  },[searchFocused]);
   const submitSearch=async(queryOverride?:string)=>{
     if(searchSubmitting)return;
     const requestId=++searchSubmitRequestId.current;
@@ -616,6 +671,7 @@ export default function Home() {
     const query=(queryOverride??search).trim();
     if(queryOverride!==undefined)setSearch(query);
     if(!query){setAreaLocked(false);setSelected(null);setGlobalSearchStudios([]);setSearchSubmitting(false);return;}
+    try{await saveRecentSearch(query);}catch(error){console.warn("Recent search save failed:",error);}
 
     const q=query.toLowerCase();
     const regionKey=Object.keys(REGIONAL_SEARCH).sort((a,b)=>b.length-a.length).find(key=>q.includes(key));
@@ -1024,7 +1080,7 @@ export default function Home() {
       <View style={styles.headerActions}><Pressable style={[styles.menuButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>{setMenuOpen(true);refreshAdminAccess();}} accessibilityRole="button" accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage?open=settings&returnTo=map")} accessibilityRole="button" accessibilityLabel="알림 설정"><Ionicons name="settings-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage")} accessibilityRole="button" accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
-      <Pressable accessibilityRole="button" accessibilityLabel="학원 및 지역 검색" onPress={()=>router.push("/search")} style={[styles.searchBox,{flexDirection:"row",alignItems:"center"}]}><Ionicons name="search-outline" size={19} color={COLORS.muted}/><Text numberOfLines={1} style={[styles.searchInput,{color:search?COLORS.ink:COLORS.muted,flex:1}]}>{search||"학원명, 지역, 수업명 검색"}</Text><Ionicons name="chevron-forward" size={16} color={COLORS.muted}/></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="학원 및 지역 검색" onPress={openSearchOverlay} style={[styles.searchBox,{flexDirection:"row",alignItems:"center"}]}><Ionicons name="search-outline" size={19} color={COLORS.muted}/><Text numberOfLines={1} style={[styles.searchInput,{color:search?COLORS.ink:COLORS.muted,flex:1}]}>{search||"학원명, 지역, 수업명 검색"}</Text><Ionicons name="chevron-forward" size={16} color={COLORS.muted}/></Pressable>
       <Pressable style={[styles.filterButton,{backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>setFilterOpen(true)}><Ionicons name="options-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} />{activeFilters>0&&<View style={styles.filterCount}><Text style={styles.filterCountText}>{activeFilters}</Text></View>}</Pressable>
     </View>
     {!!search.trim()&&search.trim().length>=2&&<Text style={styles.searchHint}>{classSearchLoading?"수업명 검색 중…":"학원명·지역·태그·등록 수업명 검색"}</Text>}
@@ -1340,11 +1396,32 @@ export default function Home() {
         </View>
       </View>
     </Modal>
+    {searchFocused&&<View style={[styles.searchOverlay,{backgroundColor:isDark?"#101014":"#FFFFFF",paddingTop:insets.top}]} >
+      <View style={[styles.searchOverlayHeader,{borderBottomColor:isDark?"#393342":COLORS.line}]}>
+        <Pressable onPress={closeSearchOverlay} hitSlop={10} style={styles.searchOverlayBack}><Ionicons name="arrow-back" size={24} color={isDark?"#F3EFFA":COLORS.ink}/></Pressable>
+        <View style={[styles.searchOverlayInputBox,{backgroundColor:isDark?"#24212C":"#F8F6FB",borderColor:isDark?"#514568":COLORS.line}]}>
+          <Ionicons name="search-outline" size={18} color={COLORS.muted}/>
+          <TextInput ref={searchInputRef} autoFocus value={search} onChangeText={setSearch} onSubmitEditing={()=>{const q=search.trim();if(q){Keyboard.dismiss();setSearchFocused(false);void submitSearch(q);}}} returnKeyType="search" placeholder="학원명, 지역, 수업명 검색" placeholderTextColor={COLORS.muted} style={[styles.searchInput,{color:isDark?"#F3EFFA":COLORS.ink}]} autoCorrect={false} autoCapitalize="none"/>
+          {!!search&&<Pressable onPress={()=>setSearch("")} hitSlop={9}><Ionicons name="close-circle" size={19} color={COLORS.muted}/></Pressable>}
+        </View>
+      </View>
+      {!search.trim()&&<View style={styles.recentSearchHeader}>
+        <Text style={[styles.recentSearchTitle,{color:isDark?"#F3EFFA":COLORS.ink}]}>최근 검색어</Text>
+        {recentSearches.length>0&&<Pressable onPress={clearAllRecent}><Text style={{fontSize:12,fontWeight:"800",color:isDark?"#C7AEFF":COLORS.purple}}>전체 삭제</Text></Pressable>}
+      </View>}
+      {!search.trim()&&<FlatList data={recentSearches} keyExtractor={item=>item} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingHorizontal:18,paddingBottom:insets.bottom+20}} ItemSeparatorComponent={()=><View style={{height:1,backgroundColor:isDark?"#393342":COLORS.line}}/>} renderItem={({item})=><View style={styles.recentSearchRow}>
+        <Pressable onPress={()=>{setSearch(item);Keyboard.dismiss();setSearchFocused(false);void submitSearch(item);}} style={styles.recentSearchItem}><Ionicons name="time-outline" size={17} color={COLORS.muted}/><Text numberOfLines={1} style={[styles.recentSearchText,{color:isDark?"#F3EFFA":COLORS.ink}]}>{item}</Text></Pressable>
+        <Pressable onPress={()=>void deleteRecentSearch(item)} hitSlop={10} style={styles.recentSearchDelete}><Ionicons name="close" size={17} color={COLORS.muted}/></Pressable>
+      </View>} ListEmptyComponent={<View style={{alignItems:"center",paddingTop:54}}><Ionicons name="time-outline" size={28} color={COLORS.muted}/><Text style={{fontSize:13,color:COLORS.muted,marginTop:10}}>최근 검색어가 없습니다.</Text></View>}/>}
+      {!!search.trim()&&<Pressable style={[styles.searchOverlaySubmit,{backgroundColor:isDark?"#24212C":"#F8F6FB"}]} onPress={()=>{const q=search.trim();Keyboard.dismiss();setSearchFocused(false);void submitSearch(q);}}>
+        <Ionicons name="search" size={17} color={isDark?"#F3EFFA":COLORS.ink}/><Text style={{fontSize:13,color:isDark?"#F3EFFA":COLORS.ink}}>"{search.trim()}" 검색하기</Text>
+      </Pressable>}
+    </View>}
   </KeyboardAvoidingView></SafeAreaView>;
 }
 const createStyles = (dark:boolean) => StyleSheet.create(themeStyles({
  safe:{flex:1,backgroundColor:COLORS.bg},header:{paddingHorizontal:12,paddingTop:2,paddingBottom:3,flexDirection:"row",justifyContent:"space-between",alignItems:"center"},headerActions:{flexDirection:"row",alignItems:"center",gap:8},menuButton:{height:34,width:34,borderRadius:11,backgroundColor:"#fff",alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},menuButtonText:{fontSize:19,color:COLORS.ink,fontWeight:"700"},brand:{fontSize:20,fontWeight:"900",letterSpacing:-0.7,color:COLORS.ink},brandDot:{color:COLORS.purple,fontSize:19},subtitle:{fontSize:11,color:COLORS.muted,marginTop:3},profileButton:{height:34,width:34,borderRadius:11,backgroundColor:"#fff",alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},
- searchRow:{paddingHorizontal:10,paddingTop:0,flexDirection:"row",gap:6},searchSubmitButton:{width:48,height:48,borderRadius:12,backgroundColor:COLORS.purple,alignItems:"center",justifyContent:"center"},searchHint:{fontSize:10,color:COLORS.muted,paddingHorizontal:20,paddingTop:4},searchBox:{flex:1,flexDirection:"row",alignItems:"center",backgroundColor:"#fff",borderRadius:12,paddingHorizontal:11,height:48,borderWidth:1,borderColor:COLORS.line,gap:8},searchInput:{flex:1,fontSize:14,color:COLORS.ink,height:48,paddingVertical:0,includeFontPadding:false},clear:{fontSize:21,color:COLORS.muted},filterButton:{width:48,height:48,backgroundColor:"#fff",borderRadius:12,alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},filterCount:{position:"absolute",top:4,right:4,backgroundColor:COLORS.purple,width:16,height:16,borderRadius:8,alignItems:"center",justifyContent:"center"},filterCountText:{fontSize:10,color:"#fff",fontWeight:"700"},
+ searchOverlay:{position:"absolute",top:0,left:0,right:0,bottom:0,zIndex:100,elevation:30},searchOverlayHeader:{height:58,flexDirection:"row",alignItems:"center",paddingHorizontal:12,gap:8,borderBottomWidth:1},searchOverlayBack:{width:34,height:44,alignItems:"center",justifyContent:"center"},searchOverlayInputBox:{height:43,flex:1,flexDirection:"row",alignItems:"center",gap:8,borderWidth:1,borderRadius:12,paddingHorizontal:11},recentSearchHeader:{height:56,flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:20},recentSearchTitle:{fontSize:15,fontWeight:"900"},recentSearchRow:{minHeight:52,flexDirection:"row",alignItems:"center"},recentSearchItem:{flex:1,minHeight:52,flexDirection:"row",alignItems:"center",gap:11},recentSearchText:{fontSize:14,flex:1},recentSearchDelete:{width:38,height:46,alignItems:"center",justifyContent:"center"},searchOverlaySubmit:{minHeight:52,marginHorizontal:16,marginTop:10,paddingHorizontal:14,borderRadius:12,flexDirection:"row",alignItems:"center",gap:10}, searchRow:{paddingHorizontal:10,paddingTop:0,flexDirection:"row",gap:6},searchSubmitButton:{width:48,height:48,borderRadius:12,backgroundColor:COLORS.purple,alignItems:"center",justifyContent:"center"},searchHint:{fontSize:10,color:COLORS.muted,paddingHorizontal:20,paddingTop:4},searchBox:{flex:1,flexDirection:"row",alignItems:"center",backgroundColor:"#fff",borderRadius:12,paddingHorizontal:11,height:48,borderWidth:1,borderColor:COLORS.line,gap:8},searchInput:{flex:1,fontSize:14,color:COLORS.ink,height:48,paddingVertical:0,includeFontPadding:false},clear:{fontSize:21,color:COLORS.muted},filterButton:{width:48,height:48,backgroundColor:"#fff",borderRadius:12,alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:COLORS.line},filterCount:{position:"absolute",top:4,right:4,backgroundColor:COLORS.purple,width:16,height:16,borderRadius:8,alignItems:"center",justifyContent:"center"},filterCountText:{fontSize:10,color:"#fff",fontWeight:"700"},
  quickFilters:{flexDirection:"row",paddingHorizontal:10,paddingVertical:4,gap:8},chip:{height:38,borderRadius:19,borderWidth:1,borderColor:COLORS.line,backgroundColor:"#fff",paddingHorizontal:14,justifyContent:"center"},chipActive:{borderColor:COLORS.purple,backgroundColor:COLORS.pale},chipText:{fontSize:14,color:"#625E70"},chipTextActive:{color:COLORS.purple,fontWeight:"700"},
  content:{flex:1,marginTop:2},mapWrap:{flex:1,overflow:"hidden",borderTopLeftRadius:22,borderTopRightRadius:22},map:{flex:1},pin:{backgroundColor:"#fff",paddingHorizontal:10,paddingVertical:7,borderRadius:18,borderColor:"#DCD6F8",borderWidth:1.5,elevation:3,shadowColor:"#000",shadowOpacity:0.1,shadowRadius:4},pinSelected:{backgroundColor:COLORS.purple,borderColor:COLORS.purple},pinText:{fontSize:11,fontWeight:"800",color:COLORS.purple},pinTextSelected:{color:"#fff"},areaSearch:{position:"absolute",top:14,alignSelf:"center",backgroundColor:"#fff",paddingHorizontal:16,paddingVertical:11,borderRadius:24,elevation:4,shadowColor:"#000",shadowOpacity:0.12,shadowRadius:5},areaSearchText:{color:COLORS.ink,fontSize:13,fontWeight:"700"},locateButton:{position:"absolute",right:14,bottom:76,width:44,height:44,borderRadius:14,backgroundColor:"#fff",alignItems:"center",justifyContent:"center",elevation:3},mapCount:{position:"absolute",left:12,bottom:12,backgroundColor:"#fff",paddingHorizontal:15,paddingVertical:13,borderRadius:13,elevation:2},mapCountText:{fontSize:12,color:COLORS.ink,fontWeight:"700"},selectedCard:{position:"absolute",bottom:10,left:8,right:8,backgroundColor:dark?"#1D1D22":"#F0F0F3",borderRadius:22,padding:10,minHeight:0,elevation:7,shadowColor:"#000",shadowOpacity:0.18,shadowRadius:10},studioCard:{backgroundColor:dark?"#24242A":"#FFFFFF",borderRadius:14,padding:12,marginBottom:9,borderWidth:1,borderColor:dark?"#38383F":"#E8E6ED",elevation:1,shadowColor:"#000",shadowOpacity:dark?0:0.025,shadowRadius:4,shadowOffset:{width:0,height:1}},compactCard:{marginBottom:0,padding:0,borderWidth:0,elevation:0,shadowOpacity:0},cardTop:{flexDirection:"row",alignItems:"center",gap:10},studioIcon:{width:68,height:68,borderRadius:12,backgroundColor:COLORS.pink,alignItems:"center",justifyContent:"center",overflow:"hidden"},studioThumb:{width:68,height:68},studioName:{fontSize:15,fontWeight:"800",color:dark?"#F2F2F5":COLORS.ink},studioArea:{fontSize:12,color:dark?"#B9B9C2":COLORS.muted,marginTop:3},couponBadge:{backgroundColor:"#FFF1D9",borderRadius:8,paddingHorizontal:7,paddingVertical:4},couponText:{fontSize:10,color:"#B87922",fontWeight:"700"},tagsRow:{flexDirection:"row",gap:5,marginTop:7},tag:{backgroundColor:dark?"#34343B":"#E5E5EA",borderRadius:7,paddingHorizontal:8,paddingVertical:5},tagText:{fontSize:10,color:dark?"#D5D5DC":"#555560"},cardBottom:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:7},priceText:{fontSize:14,fontWeight:"800",color:COLORS.ink},priceUnit:{fontSize:11,fontWeight:"400",color:COLORS.muted},metaText:{fontSize:12,color:dark?"#B9B9C2":COLORS.muted,fontWeight:"600"},cardActions:{flexDirection:"row",gap:7,marginTop:9},actionChip:{backgroundColor:"#F7F5FA",borderRadius:10,minHeight:40,paddingHorizontal:14,paddingVertical:9},actionText:{fontSize:10,color:COLORS.purple,fontWeight:"700"},compareFloating:{position:"absolute",bottom:72,alignSelf:"center",backgroundColor:COLORS.purple,paddingHorizontal:18,paddingVertical:12,borderRadius:24,zIndex:20,elevation:10},compareFloatingText:{fontSize:12,fontWeight:"800",color:"#fff"},dragHeader:{paddingBottom:6},dragGestureZone:{height:48,alignItems:"center",justifyContent:"center"},dragHandle:{width:48,height:6,borderRadius:3,backgroundColor:"#D8D4E1",alignSelf:"center"},dragHint:{fontSize:10,color:COLORS.muted,marginTop:5,textAlign:"center"},expandText:{fontSize:12,color:COLORS.purple,fontWeight:"800"},studioPhoto:{width:250,height:158,borderRadius:13,backgroundColor:"#F3F0F5"},photoEmpty:{backgroundColor:"#F8F6FB",padding:14,borderRadius:12},photoSourceLink:{fontSize:12,color:COLORS.purple,fontWeight:"800"},photoCredit:{fontSize:10,color:COLORS.muted,marginTop:5},classBlock:{backgroundColor:"#F8F6FB",borderRadius:12,padding:12,marginBottom:8},classTitle:{fontSize:13,fontWeight:"800",color:COLORS.ink},classMeta:{fontSize:11,color:COLORS.muted,marginTop:4},sessionText:{fontSize:11,color:"#625E70",marginTop:5},compareRow:{borderBottomWidth:1,borderBottomColor:COLORS.line,paddingVertical:13},compareColumn:{width:230,backgroundColor:COLORS.white,borderWidth:1,borderColor:COLORS.line,borderRadius:13,padding:10},compareColumnHead:{minHeight:86,borderBottomWidth:1,borderBottomColor:COLORS.line,paddingBottom:8},compareName:{fontSize:14,fontWeight:"800",color:COLORS.ink},compareInfo:{fontSize:11,color:COLORS.muted,marginTop:4},compareSectionTitle:{fontSize:12,fontWeight:"900",color:COLORS.purple,marginTop:13,marginBottom:7},compareMaterial:{marginBottom:8,backgroundColor:"#F8F6FB",borderRadius:9,padding:6},compareMaterialImage:{width:"100%",height:180,backgroundColor:"#fff",borderRadius:6},compareEmpty:{fontSize:11,color:COLORS.muted,backgroundColor:"#F8F6FB",padding:12,borderRadius:8},compareClass:{padding:8,backgroundColor:"#F8F6FB",borderRadius:8,marginBottom:6},compareClassTitle:{fontSize:12,fontWeight:"800",color:COLORS.ink},comparePrice:{fontSize:14,fontWeight:"900",color:COLORS.purple,marginTop:6},removeCompare:{fontSize:11,color:"#B66B77",marginTop:6},detailDescription:{fontSize:13,color:"#625E70",lineHeight:20},infoRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingVertical:9,borderBottomWidth:1,borderBottomColor:COLORS.line},infoLabel:{fontSize:12,color:COLORS.muted},infoValue:{fontSize:12,color:COLORS.ink,fontWeight:"700"},detailDisclaimer:{fontSize:10,color:"#A29EAC",marginTop:14},reportInput:{minHeight:110,borderWidth:1,borderColor:COLORS.line,borderRadius:13,padding:12,fontSize:13,color:COLORS.ink,marginBottom:15},detailBtn:{backgroundColor:dark?"#352A48":COLORS.pale,alignItems:"center",padding:10,borderRadius:12,marginTop:7},detailBtnText:{fontSize:12,fontWeight:"700",color:dark?"#E0D4FF":COLORS.purple},dismiss:{position:"absolute",top:-9,right:8,width:36,height:36,zIndex:10,elevation:10,borderRadius:18,backgroundColor:"#F0ECF7",alignItems:"center",justifyContent:"center"},dismissText:{fontSize:20,color:COLORS.muted},listSortRow:{flexDirection:"row",alignItems:"center",gap:7,paddingHorizontal:12,paddingVertical:8,backgroundColor:COLORS.bg},listSortLabel:{flex:1,fontSize:12,color:COLORS.muted,fontWeight:"700"},listSortChip:{paddingHorizontal:10,paddingVertical:6,borderRadius:14,borderWidth:1,borderColor:COLORS.line,backgroundColor:"#fff"},listSortChipActive:{borderColor:COLORS.purple,backgroundColor:COLORS.pale},listSortChipText:{fontSize:11,color:COLORS.muted,fontWeight:"700"},listSortChipTextActive:{color:COLORS.purple},listContent:{padding:12,paddingBottom:20},empty:{textAlign:"center",padding:30,color:COLORS.muted},
  bottomNav:{height:61,backgroundColor:"#fff",borderTopWidth:1,borderTopColor:COLORS.line,flexDirection:"row",justifyContent:"space-around",alignItems:"center",paddingBottom:3},navItem:{alignItems:"center",justifyContent:"center",gap:2,flex:1},navIcon:{fontSize:20,color:"#9D98AA"},navLabel:{fontSize:10,color:"#9D98AA"},navActive:{color:COLORS.purple,fontWeight:"800"},
