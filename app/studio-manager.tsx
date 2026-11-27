@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState, useMemo, useRef} from "react";
+import React, {useCallback, useEffect, useState, useMemo} from "react";
 import {themeStyles } from "../lib/theme";
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -11,7 +11,6 @@ import { parseClassExcel, type ParsedClass } from "../lib/excel-mapper";
 import { invalidateStudioPublicMaterials } from "../lib/studio-public-materials";
 import { searchStudiosByName } from "../lib/studios";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomPadding } from "../hooks/useBottomPadding";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { invalidateClassesForStudio } from "../lib/classes";
@@ -26,10 +25,7 @@ export default function StudioManager(){
  const params=useLocalSearchParams<{studioId?:string;studioName?:string}>();
  const studioId=String(params.studioId||"");
  const studioName=String(params.studioName||"선택한 학원");
- const managerScrollRef=useRef<ScrollView|null>(null);
- const managerBottomPadding=useBottomPadding(40);
- const sectionOffsets=useRef<Record<string,number>>({});
- const tabScrollOffsets=useRef<Record<string,number>>({});
+ const insets=useSafeAreaInsets();
  const [activeTab,setActiveTab]=useState<"profile"|"photos"|"classes"|"notices">("profile");
  const [noticeEditorOpen,setNoticeEditorOpen]=useState(false);
  const [editingNotice,setEditingNotice]=useState<any|null>(null);
