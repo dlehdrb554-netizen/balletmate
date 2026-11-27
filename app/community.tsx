@@ -345,8 +345,8 @@ export default function Community(){
      <Text style={s.rulesIntro}>서로의 발레 경험을 편안하게 나눌 수 있도록 아래 네 가지 약속을 확인해 주세요. 동의하면 게시글과 댓글을 작성할 수 있습니다.</Text>
      {["서로 존중하는 표현을 사용하고 욕설·비방·괴롭힘은 피해 주세요.","학원·상품 광고는 허용된 안내 범위를 지키고 반복 홍보나 도배는 삼가 주세요.","본인과 타인의 전화번호·주소·계정정보 등 개인정보는 공개하지 말아 주세요.","사진과 글은 저작권·초상권 등 필요한 권리와 동의를 확인한 뒤 올려 주세요."].map((rule,index)=><View key={index} style={s.ruleRow}><Text style={s.ruleNumber}>{index+1}</Text><Text style={s.ruleText}>{rule}</Text></View>)}
     </ScrollView>
-    <Pressable style={s.termsFullLink} onPress={()=>router.push("/terms")}><Text style={s.openLabel}>서비스 이용약관 전문 보기</Text></Pressable>
-    <Pressable style={[s.submitBtn,termsAccepting&&{opacity:.5}]} disabled={termsAccepting} onPress={acceptCommunityTerms}><Text style={s.submitText}>{termsAccepting?"저장 중…":termsReturnTo==="comment"?"동의하고 댓글 등록":"동의하고 글쓰기"}</Text></Pressable>
+    <Pressable style={s.termsFullLink} onPress={()=>router.push("/community-policy")}><Text style={s.openLabel}>커뮤니티 운영정책 전체보기</Text></Pressable>
+    <Pressable style={[s.submitBtn,termsAccepting&&{opacity:.5}]} disabled={termsAccepting} onPress={acceptCommunityTerms}><Text style={s.submitText}>{termsAccepting?"저장 중…":termsReturnTo==="comment"?"동의하고 댓글 등록":termsReturnTo==="post"?"동의하고 글쓰기":"동의하고 커뮤니티 이용"}</Text></Pressable>
     <Pressable style={s.legacyLink} onPress={()=>setTermsConsentOpen(false)}><Text style={s.legacyLinkText}>동의하지 않음</Text></Pressable>
    </View></View>
   </Modal>
