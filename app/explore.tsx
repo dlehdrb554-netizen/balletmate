@@ -1128,9 +1128,9 @@ export default function Home() {
         <Pressable style={styles.applyButton} onPress={()=>setCompareOpen(false)}><Text style={styles.applyText}>확인</Text></Pressable>
       </View></View>
     </Modal>
-    <Modal visible={regionPickerOpen} transparent animationType="fade" onRequestClose={handleRegionPickerBack}>
-      <View style={[styles.modalShade,{paddingBottom:insets.bottom}]}>
-        <View style={[styles.modal,{height:"86%",maxHeight:"94%",paddingHorizontal:14,paddingBottom:Math.max(12,insets.bottom+8)}]}>
+    <Modal visible={regionPickerOpen} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
+      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:insets.bottom}]}>
+        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingHorizontal:14,paddingBottom:20}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>지역 선택</Text>
             <Pressable onPress={handleRegionPickerBack} hitSlop={10} style={{minWidth:64,alignItems:"flex-end"}}>
@@ -1138,7 +1138,7 @@ export default function Home() {
             </Pressable>
           </View>
           <Text style={styles.photoCredit}>지역을 누르면 해당 범위가 적용됩니다. 구·군을 선택하면 더 좁혀집니다.</Text>
-          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" overScrollMode="always" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:24}} scrollEventThrottle={16}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" overScrollMode="always" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:16}} scrollEventThrottle={16}>
             <Pressable onPress={()=>{setRegionProvince("전체");setRegionCity("전체");setSelectedListRegion("전체");setExpandedProvince(null);setExpandedCity(null);setRegionPickerOpen(false);}} style={{paddingVertical:12,paddingHorizontal:12,borderRadius:9,backgroundColor:regionProvince==="전체"&&regionCity==="전체"&&selectedListRegion==="전체"?(isDark?"#292333":"#F2ECFF"):(isDark?"#242424":"#F8F7FA"),marginBottom:8}}>
               <Text style={{fontSize:13,fontWeight:"900",color:COLORS.purple}}>전국 전체</Text>
             </Pressable>
@@ -1291,7 +1291,7 @@ export default function Home() {
     </Modal>
 
     <Modal visible={filterOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setFilterOpen(false)}>
-      <View style={[styles.modalShade,{paddingTop:insets.top+8,paddingBottom:insets.bottom+32}]}>
+      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:insets.bottom}]}>
         <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingBottom:20}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>검색 필터</Text>
