@@ -199,15 +199,19 @@ export async function searchStudiosByKakao(query: string, bounds?: SearchBounds)
   if (pending) return pending;
 
   const request = (async () => {
+    // Keep Kakao fallback bounded: two 15-item Kakao pages at most.
+    const resultLimit=30;
     const { data, error } = await supabase!.functions.invoke("search-studios-kakao", {
-      body: bounds ? { query: term, latitude: bounds.latitude, longitude: bounds.longitude, radius } : { query: term },
+      body: bounds
+        ? { query: term, latitude: bounds.latitude, longitude: bounds.longitude, radius, limit: resultLimit }
+        : { query: term, limit: resultLimit },
     });
     if (error) throw error;
     const rows = Array.isArray(data?.studios) ? data.studios : [];
     if (!rows.length && Array.isArray(data?.errors) && data.errors.length) {
       throw new Error(data.errors.join(" · ").slice(0, 240));
     }
-    const filtered = rows.filter((row:any)=>!isExcludedStudioSearchResult(row?.name)) as StudioRecord[];
+    const filtered = rows.filter((row:any)=>!isExcludedStudioSearchResult(row?.name)).slice(0,resultLimit) as StudioRecord[];
     if (kakaoStudioSearchCache.size >= 100) {
       const now = Date.now();
       for (const [cacheKey, value] of kakaoStudioSearchCache) if (value.expiresAt <= now) kakaoStudioSearchCache.delete(cacheKey);
