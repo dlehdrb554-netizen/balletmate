@@ -94,7 +94,11 @@ export default function MyPage(){
    if(alive){setMode((v[0][1] as Mode)||"system");setLocked(v[1][1]==="1");if(v[2][1])try{const saved=JSON.parse(v[2][1]);setAlerts({...{announcements:true,favoriteNotices:true,favoritePrices:true,favoriteSchedules:true,postComments:true,bookmarkComments:true},...saved});setPushEnabled(saved.pushEnabled!==false);}catch{}}
   }).catch(()=>{});
   return()=>{alive=false;};
- },[router,routeParams.open]);
+ },[router]);
+ useEffect(()=>{
+  if(routeParams.open==="settings"||routeParams.open==="notifications")setMenu("notifications");
+  else setMenu(current=>current==="notifications"?null:current);
+ },[routeParams.open]);
  useEffect(()=>{if(!menu||!user||!supabase)return;let active=true;(async()=>{let data:any[]=[];let r:any;
   if(menu==="bookmarks"){r=await supabase.from("community_post_bookmarks").select("post_id,created_at,community_posts(id,title,content,category,created_at)").eq("user_id",user.id).order("created_at",{ascending:false});data=(r.data||[]).map((x:any)=>x.community_posts).filter(Boolean);}
   else if(menu==="activity"&&activity==="posts"){r=await supabase.from("community_posts").select("id,title,content,category,created_at").eq("author_id",user.id).order("created_at",{ascending:false});data=r.data||[];}
