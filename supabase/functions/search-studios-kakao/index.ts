@@ -115,86 +115,80 @@ Deno.serve(async (req) => {
 
   const found = new Map<string, any>();
   const queries = queryVariants(query).slice(0, 2);
-  let requestCount = 0;
   const errors: string[] = [];
 
-  for (const term of queries) {
-    if (requestCount >= 2) break;
-    for (let page = 1; page <= 2 && requestCount < 2; page++) {
-      const endpoint = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
-      endpoint.searchParams.set("query", term);
-      endpoint.searchParams.set("page", String(page));
-      endpoint.searchParams.set("size", "15");
-      endpoint.searchParams.set("sort", hasBounds ? "distance" : "accuracy");
-      if (hasBounds && radius !== null) {
-        endpoint.searchParams.set("x", String(longitude));
-        endpoint.searchParams.set("y", String(latitude));
-        endpoint.searchParams.set("radius", String(radius));
-      }
-      requestCount++;
-      try {
-        const response = await fetch(endpoint.toString(), {
-          headers: { Authorization: "KakaoAK " + kakaoKey },
-          signal: AbortSignal.timeout(7000),
-        });
-        if (!response.ok) {
-          errors.push("Kakao HTTP " + response.status);
-          break;
-        }
-        const payload = await response.json();
-        for (const item of payload?.documents ?? []) {
-          const id = String(item.id ?? "");
-          const name = String(item.place_name ?? "").trim();
-          const lat = Number(item.y), lng = Number(item.x);
-          if (!id || !name || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-          const category = String(item.category_name ?? "");
-          const text = normalize(name + " " + category);
-          const needle = normalize(query);
-          const tokens = query.split(/[\s·ㆍ()_-]+/).map(normalize).filter(token => token.length >= 2 && !["학원","발레","무용"].includes(token));
-          const nameAliasMatch =
-            (/(퀸즈|퀸스|queens)/i.test(needle) && /(퀸즈|퀸스|queens)/i.test(text)) ||
-            (/(더블유|wballet|w발레)/i.test(needle) && /(더블유|wballet|w발레)/i.test(text)) ||
-            (/현대무용/.test(needle) && /(현대무용|현대댄스)/.test(text));
-          const nameMatch = text.includes(needle) || needle.includes(normalize(name));
-          const meaningfulMatch = nameMatch || nameAliasMatch || tokens.some(token => token.length >= 2 && text.includes(token)) || tokens.length === 0;
-          if (!meaningfulMatch) continue;
-          // Only accept ballet/dance education providers; keyword overlap alone
-          // must never register unrelated places such as motels or restaurants.
-          const categoryText = String(item.category_name ?? "");
-          const relevantName = /(발레|무용|댄스|ballet|dance)/i.test(name);
-          const educationCategory = /(발레|무용|댄스)/.test(categoryText);
-          const excludedCategory = /(숙박|모텔|호텔|음식|카페|주점|미용|병원|의료|의원|산부인과|약국|치과|한의원|보건|사우나|찜질방|목욕탕|부동산)/.test(categoryText);
-          const excludedName = /(산부인과|여성의원|비뇨기과|피부과|정형외과|내과|외과|안과|치과|이비인후과|소아과|의원|병원|의료원|보건소|약국|한의원|요양원|산후조리원|모텔|호텔|숙박|사우나|찜질방|목욕탕)/i.test(name);
-          if (excludedCategory || excludedName || (!relevantName && !educationCategory)) continue;
-          found.set(id, item);
-        }
-        if (payload?.meta?.is_end || (payload?.documents ?? []).length < 15) break;
-      } catch (error) {
-        errors.push(error instanceof Error ? error.message : "Kakao request failed");
-        break;
-      }
+  // Kakao lookups are independent; fetch the first page of two useful variants concurrently.
+  const kakaoTasks = queries.length > 1
+    ? [{ term: queries[0], page: 1 }, { term: queries[1], page: 1 }]
+    : [{ term: queries[0], page: 1 }, { term: queries[0], page: 2 }];
+  const kakaoResults = await Promise.all(kakaoTasks.map(async ({ term, page }) => {
+    const endpoint = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
+    endpoint.searchParams.set("query", term);
+    endpoint.searchParams.set("page", String(page));
+    endpoint.searchParams.set("size", "15");
+    endpoint.searchParams.set("sort", hasBounds ? "distance" : "accuracy");
+    if (hasBounds && radius !== null) {
+      endpoint.searchParams.set("x", String(longitude));
+      endpoint.searchParams.set("y", String(latitude));
+      endpoint.searchParams.set("radius", String(radius));
     }
-    if (found.size >= 5) break;
+    try {
+      const response = await fetch(endpoint.toString(), {
+        headers: { Authorization: "KakaoAK " + kakaoKey },
+        signal: AbortSignal.timeout(7000),
+      });
+      if (!response.ok) return { payload: null, error: "Kakao HTTP " + response.status };
+      return { payload: await response.json(), error: null };
+    } catch (error) {
+      return { payload: null, error: error instanceof Error ? error.message : "Kakao request failed" };
+    }
+  }));
+  const requestCount = kakaoTasks.length;
+  for (const result of kakaoResults) {
+    if (result.error) { errors.push(result.error); continue; }
+    for (const item of result.payload?.documents ?? []) {
+      const id = String(item.id ?? "");
+      const name = String(item.place_name ?? "").trim();
+      const lat = Number(item.y), lng = Number(item.x);
+      if (!id || !name || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const category = String(item.category_name ?? "");
+      const text = normalize(name + " " + category);
+      const needle = normalize(query);
+      const tokens = query.split(/[\\s·ㆍ()_-]+/).map(normalize).filter(token => token.length >= 2 && !["학원","발레","무용"].includes(token));
+      const nameAliasMatch =
+        (/(퀸즈|퀸스|queens)/i.test(needle) && /(퀸즈|퀸스|queens)/i.test(text)) ||
+        (/(더블유|wballet|w발레)/i.test(needle) && /(더블유|wballet|w발레)/i.test(text)) ||
+        (/현대무용/.test(needle) && /(현대무용|현대댄스)/.test(text));
+      const nameMatch = text.includes(needle) || needle.includes(normalize(name));
+      const meaningfulMatch = nameMatch || nameAliasMatch || tokens.some(token => token.length >= 2 && text.includes(token)) || tokens.length === 0;
+      if (!meaningfulMatch) continue;
+      const relevantName = /(발레|무용|댄스|ballet|dance)/i.test(name);
+      const educationCategory = /(발레|무용|댄스)/.test(category);
+      const excludedCategory = /(숙박|모텔|호텔|음식|카페|주점|미용|병원|의료|의원|산부인과|약국|치과|한의원|보건|사우나|찜질방|목욕탕|부동산)/.test(category);
+      const excludedName = /(산부인과|여성의원|비뇨기과|피부과|정형외과|내과|외과|안과|치과|이비인후과|소아과|의원|병원|의료원|보건소|약국|한의원|요양원|산후조리원|모텔|호텔|숙박|사우나|찜질방|목욕탕)/i.test(name);
+      if (excludedCategory || excludedName || (!relevantName && !educationCategory)) continue;
+      found.set(id, item);
+    }
   }
 
-  const registered: string[] = [];
-  for (const item of found.values()) {
+  // Keep canonical IDs, but avoid serial RPC latency for each discovered studio.
+  const registrations = await Promise.all([...found.values()].map(async item => {
     const name = String(item.place_name).trim();
     const lat = Number(item.y), lng = Number(item.x);
     const address = String(item.road_address_name || item.address_name || "").trim() || null;
-    const region = address ? address.split(/\s+/).slice(0, 3).join(" ") : "카카오 검색";
+    const region = address ? address.split(/\\s+/).slice(0, 3).join(" ") : "카카오 검색";
     const { data, error } = await db.rpc("register_discovered_studio", {
       p_name: name, p_latitude: lat, p_longitude: lng, p_address: address,
       p_phone: item.phone || null, p_place_url: item.place_url || null, p_region: region,
     });
-    if (error) {
-      errors.push("학원 등록 실패(" + name + "): " + error.message.slice(0, 100));
-      continue;
-    }
-    const studioId = data?.[0]?.studio_id;
-    if (studioId) registered.push(studioId);
+    if (error) return { name, studioId: null, error };
+    return { name, studioId: data?.[0]?.studio_id ?? null, error: null };
+  }));
+  const registered: string[] = [];
+  for (const result of registrations) {
+    if (result.error) errors.push("학원 등록 실패(" + result.name + "): " + result.error.message.slice(0, 100));
+    else if (result.studioId) registered.push(result.studioId);
   }
-
   const ids = [...new Set(registered)];
   let studios: any[] = [];
   if (ids.length) {
