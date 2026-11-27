@@ -765,7 +765,7 @@ export default function Home() {
     if(!searchFocused||!supabase||query.length<2){setLiveSearchLoading(false);return;}
     setLiveSearchLoading(true);
     const timer=setTimeout(()=>{
-      searchStudiosByName(query).then(rows=>{
+      searchStudiosByName(query,{limit:10}).then(rows=>{
         if(requestId!==liveSearchRequestId.current)return;
         setLiveRemoteStudios(rows.map(mapStudioRecord));
       }).catch(error=>{
@@ -787,7 +787,7 @@ export default function Home() {
     setCommittedSearch(query);
     if(queryOverride!==undefined)setSearch(query);
     if(!query){setAreaLocked(false);setSelected(null);setGlobalSearchStudios([]);setSearchSubmitting(false);setSearchFocused(false);return;}
-    try{await saveRecentSearch(query);}catch(error){console.warn("Recent search save failed:",error);}
+    void saveRecentSearch(query).catch(error=>console.warn("Recent search save failed:",error));
 
     const q=query.toLowerCase();
     const regionKey=Object.keys(REGIONAL_SEARCH).sort((a,b)=>b.length-a.length).find(key=>q.includes(key));
@@ -840,8 +840,8 @@ export default function Home() {
 
     let remoteRows:any[]=[];
     let kakaoSearchFailure:any|null=null;
-    if(supabase&&query.length>=2){
-      const dbRows=await searchStudiosByName(query).catch(error=>{
+    if(supabase&&query.length>=2&&!localMatches.length){
+      const dbRows=await searchStudiosByName(query,{limit:100}).catch(error=>{
         console.warn("Database studio search failed:",error);
         return [] as any[];
       });
