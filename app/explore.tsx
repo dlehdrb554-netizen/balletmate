@@ -715,7 +715,8 @@ export default function Home() {
   useEffect(()=>{
     const query=search.trim();
     const requestId=++liveClassSearchRequestId.current;
-    if(query.length<2){setClassSearchIds([]);setClassSearchLoading(false);return;}
+    setClassSearchIds([]);
+    if(!searchFocused||query.length<2){setClassSearchLoading(false);return;}
     const timer=setTimeout(async()=>{
       setClassSearchLoading(true);
       try{
@@ -726,9 +727,9 @@ export default function Home() {
       }finally{
         if(requestId===liveClassSearchRequestId.current)setClassSearchLoading(false);
       }
-    },280);
+    },500);
     return()=>clearTimeout(timer);
-  },[search]);
+  },[search,searchFocused]);
   const submitSearch=async(queryOverride?:string)=>{
     if(searchSubmitting)return;
     const requestId=++searchSubmitRequestId.current;
@@ -1466,7 +1467,7 @@ export default function Home() {
     <Modal visible={searchFocused} transparent animationType="slide" statusBarTranslucent onRequestClose={closeSearchOverlay}>
       <View style={styles.searchSheetShade}>
         <Pressable style={StyleSheet.absoluteFill} onPress={closeSearchOverlay}/>
-        <KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined} style={styles.searchSheetKeyboard}>
+        <KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":"height"} style={styles.searchSheetKeyboard}>
           <View style={[styles.searchSheet,{backgroundColor:isDark?"#17151D":"#FFFFFF",paddingBottom:Math.max(16,insets.bottom+12)}]}>
             <View style={styles.searchSheetHandle}/>
             <View style={styles.searchSheetHeader}>
