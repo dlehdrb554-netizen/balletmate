@@ -7,7 +7,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, useColorScheme} from "react-native";
+  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, useColorScheme, useWindowDimensions} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomPadding } from "../hooks/useBottomPadding";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
@@ -121,8 +121,9 @@ export default function Home() {
   const router = useRouter();
   const routeParams = useLocalSearchParams<{studioId?:string;searchQuery?:string}>();
   const insets = useSafeAreaInsets();
-  const modalBottomPadding = useBottomPadding(24);
-  const scrollBottomPadding = useBottomPadding(32);
+  const { height: windowHeight } = useWindowDimensions();
+  const modalBottomInset = Math.max(insets.bottom, Platform.OS === "android" ? 24 : 0);
+  const modalSheetHeight = Math.max(320, Math.min(windowHeight * 0.88, windowHeight - insets.top - modalBottomInset - 16));
   const bottomInsetPadding = useBottomPadding(0);
   const map = useRef<KakaoMapHandle | null>(null);
   const [studios,setStudios]=useState<Studio[]>([]);
@@ -1209,8 +1210,8 @@ export default function Home() {
       </View></View>
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
-      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:bottomInsetPadding}]}>
-        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingHorizontal:14,paddingBottom:modalBottomPadding}]}>
+      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:modalBottomInset}]}>
+        <View style={[styles.modal,{height:modalSheetHeight,maxHeight:modalSheetHeight,minHeight:0,flexShrink:1,padding:16,paddingBottom:12}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>지역 선택</Text>
             <Pressable onPress={handleRegionPickerBack} hitSlop={10} style={{minWidth:64,alignItems:"flex-end"}}>
@@ -1218,7 +1219,7 @@ export default function Home() {
             </Pressable>
           </View>
           <Text style={styles.photoCredit}>지역을 누르면 해당 범위가 적용됩니다. 구·군을 선택하면 더 좁혀집니다.</Text>
-          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" overScrollMode="always" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:scrollBottomPadding}} scrollEventThrottle={16}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" overScrollMode="always" showsVerticalScrollIndicator style={{flex:1,minHeight:0,marginTop:10}} contentContainerStyle={{paddingBottom:16}} scrollEventThrottle={16}>
             <Pressable onPress={()=>{setRegionProvince("전체");setRegionCity("전체");setSelectedListRegion("전체");setExpandedProvince(null);setExpandedCity(null);setRegionPickerOpen(false);}} style={{paddingVertical:12,paddingHorizontal:12,borderRadius:9,backgroundColor:regionProvince==="전체"&&regionCity==="전체"&&selectedListRegion==="전체"?(isDark?"#292333":"#F2ECFF"):(isDark?"#242424":"#F8F7FA"),marginBottom:8}}>
               <Text style={{fontSize:13,fontWeight:"900",color:COLORS.purple}}>전국 전체</Text>
             </Pressable>
@@ -1373,15 +1374,15 @@ export default function Home() {
     </Modal>
 
     <Modal visible={filterOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setFilterOpen(false)}>
-      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:bottomInsetPadding}]}>
-        <View style={[styles.modal,{height:"86%",maxHeight:"88%",minHeight:0,flexShrink:1,paddingBottom:modalBottomPadding}]}>
+      <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:modalBottomInset}]}>
+        <View style={[styles.modal,{height:modalSheetHeight,maxHeight:modalSheetHeight,minHeight:0,flexShrink:1,padding:16,paddingBottom:12}]}>
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>검색 필터</Text>
             <Pressable onPress={()=>setFilterOpen(false)} hitSlop={10} style={{width:40,height:40,alignItems:"center",justifyContent:"center"}}>
               <Text style={styles.dismissText}>×</Text>
             </Pressable>
           </View>
-          <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingBottom:scrollBottomPadding}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator>
+          <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingBottom:16}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator>
             <Text style={styles.sectionTitle}>대상</Text><View style={styles.filterChoices}><Chip label="성인" active={adult} onPress={()=>setAdult(!adult)}/><Chip label="키즈" active={kids} onPress={()=>setKids(!kids)}/></View>
             <Text style={styles.sectionTitle}>수준</Text><View style={styles.filterChoices}>{["입문","초급","중급","고급"].map(v=><Chip key={v} label={v} active={level===v} onPress={()=>setLevel(level===v?null:v)}/>)}</View>
             <Text style={styles.sectionTitle}>수업 유형</Text><View style={styles.filterChoices}>{classTypeOptions.length?classTypeOptions.map(v=><Chip key={v} label={v} active={classTypeFilter===v} onPress={()=>setClassTypeFilter(classTypeFilter===v?null:v)}/>):<Text style={styles.filterHint}>등록된 수업 유형 정보가 없습니다.</Text>}</View>
@@ -1393,7 +1394,7 @@ export default function Home() {
             <Text style={styles.sectionTitle}>혜택</Text><View style={styles.filterChoices}><Chip label="쿠폰/할인" active={coupon} onPress={()=>setCoupon(!coupon)}/></View>
             <Text style={styles.filterHint}>거리 필터는 현재 지도 중심을 기준으로 계산합니다.</Text>
           </ScrollView>
-          <View style={[styles.modalActions,{marginTop:10,paddingBottom:Math.max(4,insets.bottom?0:4)}]}>
+          <View style={[styles.modalActions,{marginTop:10,paddingBottom:4}]}>
             <Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>초기화</Text></Pressable>
             <Pressable style={styles.applyButton} onPress={()=>setFilterOpen(false)}><Text style={styles.applyText}>결과 {results.length}곳 보기</Text></Pressable>
           </View>
