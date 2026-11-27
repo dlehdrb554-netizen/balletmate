@@ -424,7 +424,7 @@ export default function Community(){
     <View style={s.viewerFooter}>
      <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex===0} onPress={()=>setViewerIndex(index=>index===null?null:Math.max(0,index-1))}><Ionicons name="chevron-back" size={25} color={viewerIndex===0?"#777":"#FFFFFF"}/></Pressable>
      <Text style={s.viewerHint}>두 손가락 확대 · 두 번 탭으로 확대/축소</Text>
-     <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex>=(selected?getPostImageIndices(selected).length:1)-1} onPress={()=>setViewerIndex(index=>index===null?null:Math.min((selected?getPostImageIndices(selected).length:1)-1,index+1))}><Ionicons name="chevron-forward" size={25} color={viewerIndex===(selected?.image_urls?.length||1)-1?"#777":"#FFFFFF"}/></Pressable>
+     <Pressable style={s.viewerNavButton} disabled={viewerIndex===null||viewerIndex>=(selected?getPostImageIndices(selected).length:1)-1} onPress={()=>setViewerIndex(index=>index===null?null:Math.min((selected?getPostImageIndices(selected).length:1)-1,index+1))}><Ionicons name="chevron-forward" size={25} color={viewerIndex===(selected?getPostImageIndices(selected).length:1)-1?"#777":"#FFFFFF"}/></Pressable>
     </View>
    </View>
   </Modal>
