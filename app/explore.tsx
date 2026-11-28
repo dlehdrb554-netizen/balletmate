@@ -191,6 +191,15 @@ export default function Home() {
   },[selected?.id,selectedCardHeight,locationBtnAnim]);
 
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
+  const viewRef=useRef<"map"|"list"|"favorites">("map");
+  viewRef.current=view;
+  const enterMap=useCallback(()=>{
+    setView("map");
+    setMapFocusGeneration(current=>current+1);
+    void syncLocationPermissionRef.current?.(false).catch(error=>{
+      console.warn("Map activation location refresh failed:",error);
+    });
+  },[]);
 
   const [selectedListRegion,setSelectedListRegion]=useState("전체");
   const [rankMode,setRankMode]=useState<"views"|"favorites">("views");
@@ -400,13 +409,13 @@ export default function Home() {
   useEffect(()=>()=>{if(compareResultTransitionRef.current)clearTimeout(compareResultTransitionRef.current);},[]);
   useEffect(()=>{
     if(routeParams.view==="favorites")setView("favorites");
-    else if(routeParams.view==="map")setView("map");
+    else if(routeParams.view==="map"&&viewRef.current!=="map")enterMap();
     // Wait until Expo Router has mounted the root navigator before consuming URL actions.
     if(routeParams.openCompare==="1"&&rootNavigationState?.key){
       setCompareOpen(true);
       router.setParams({openCompare:undefined});
     }
-  },[routeParams.view,routeParams.openCompare,rootNavigationState?.key,router]);
+  },[routeParams.view,routeParams.openCompare,rootNavigationState?.key,router,enterMap]);
   const [favoriteIds,setFavoriteIds]=useState<string[]>([]);
   const [favoriteStudios,setFavoriteStudios]=useState<Studio[]>([]);
   const [favoritesReady,setFavoritesReady]=useState(false);
@@ -439,7 +448,7 @@ export default function Home() {
       if(filterOpen){setFilterOpen(false);return true;}
       if(detailStudio){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);setDetailTab("home");setDetailShowTop(false);return true;}
       if(selected){setSelected(null);return true;}
-      if(view!=="map"){setView("map");return true;}
+      if(view!=="map"){enterMap();return true;}
       if(Platform.OS==="android"){
         const now=Date.now();
         if(now-lastMapBackPress.current<2000){BackHandler.exitApp();return true;}
@@ -863,7 +872,7 @@ export default function Home() {
       setSelected(null);
       setAreaLocked(false);
       setMapMoved(false);
-      setView("map");
+      enterMap();
       if(valid.length){
         const minLat=Math.min(...valid.map(item=>item.lat));
         const maxLat=Math.max(...valid.map(item=>item.lat));
@@ -888,7 +897,7 @@ export default function Home() {
       setSearchFocused(false);
       setSelected(null);
       setAreaLocked(false);
-      setView("map");
+      enterMap();
     }
 
     let remoteRows:any[]=[];
@@ -931,7 +940,7 @@ export default function Home() {
       }
       const target=ordered[0];
       const next={latitude:target.lat,longitude:target.lng,latitudeDelta:0.018,longitudeDelta:0.018};
-      setPendingMapTarget(next);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(target);setView("map");
+      setPendingMapTarget(next);setRegion(next);setSearchedRegion(next);setAreaLocked(false);setMapMoved(false);setSelected(target);enterMap();
       setSearchMatches([target]);setGlobalSearchStudios([target]);setSearchResultsOpen(false);
       setSearchSubmitting(false);
       setSearchFocused(false);
@@ -940,7 +949,7 @@ export default function Home() {
     if(regionKey){
       const point=REGIONAL_SEARCH[regionKey];
       const next={latitude:point.latitude,longitude:point.longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-      setPendingMapTarget(next);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);setSearchMatches([]);setView("map");setSearchSubmitting(false);setSearchFocused(false);
+      setPendingMapTarget(next);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);setSearchMatches([]);enterMap();setSearchSubmitting(false);setSearchFocused(false);
       return;
     }
     try{
@@ -950,7 +959,7 @@ export default function Home() {
       if(requestId!==searchSubmitRequestId.current)return;
       if(geocoded.length){
         const next={latitude:geocoded[0].latitude,longitude:geocoded[0].longitude,latitudeDelta:0.035,longitudeDelta:0.035};
-        setPendingMapTarget(next);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);setSearchMatches([]);setView("map");setSearchSubmitting(false);setSearchFocused(false);
+        setPendingMapTarget(next);setRegion(next);setSearchedRegion(next);setAreaLocked(true);setMapMoved(false);setSelected(null);setGlobalSearchStudios([]);setSearchMatches([]);enterMap();setSearchSubmitting(false);setSearchFocused(false);
         return;
       }
       setSearchFocused(false);
@@ -1045,15 +1054,15 @@ export default function Home() {
   };
   syncLocationPermissionRef.current=syncLocationPermission;
 
-  // A stacked community screen can leave the Kakao WebView suspended. Recreate it
-  // when Explore regains focus, then restore current props and refresh the OS GPS fix.
+  // Returning from any stacked route uses the same map activation lifecycle.
+  // viewRef avoids remounting on ordinary map/list state renders.
   useFocusEffect(useCallback(()=>{
-    if(view!=="map")return;
+    if(viewRef.current!=="map")return;
     setMapFocusGeneration(current=>current+1);
     void syncLocationPermissionRef.current?.(false).catch(error=>{
       console.warn("Map focus location refresh failed:",error);
     });
-  },[view]));
+  },[]));
 
   // Request permission on startup when absent; re-read OS state on every app resume.
   useEffect(()=>{
@@ -1478,14 +1487,14 @@ export default function Home() {
     const pending=studioCardTapRef.current;
     if(pending.timer&&pending.id===studio.id){
       clearTimeout(pending.timer);studioCardTapRef.current={id:"",timer:null};
-      setSelected(studio);setView("map");
+      setSelected(studio);enterMap();
       const target={latitude:studio.lat,longitude:studio.lng,latitudeDelta:0.009,longitudeDelta:0.009};
       setPendingMapTarget(target);setRegion(target);setSearchedRegion(target);setAreaLocked(false);
       return;
     }
     if(pending.timer)clearTimeout(pending.timer);
     studioCardTapRef.current={id:studio.id,timer:setTimeout(()=>{
-      studioCardTapRef.current={id:"",timer:null};setSelected(studio);setView("map");void openDetail(studio);
+      studioCardTapRef.current={id:"",timer:null};setSelected(studio);enterMap();void openDetail(studio);
     },260)};
   };
   const studioCard=useCallback((s:Studio,compact=false)=><Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`${s.name} 학원 상세 보기`} onPress={()=>handleStudioCardPress(s)} style={[styles.studioCard,compact&&styles.compactCard,{backgroundColor:isDark?"#24242A":"#FFFFFF",borderColor:isDark?"#3A3A42":"#E8E6ED"},selected?.id===s.id&&{backgroundColor:isDark?"#2B2B32":"#EAEAEF",borderColor:isDark?"#4A4A53":"#D5D5DC"},searchMatches.some(item=>item.id===s.id)&&{backgroundColor:isDark?"#292930":"#EEEEF1"},compareIds.includes(s.id)&&{backgroundColor:isDark?"#292930":"#EEEEF1"}]}>
@@ -1552,7 +1561,7 @@ export default function Home() {
       <Text style={{fontSize:11,fontWeight:"900",color:COLORS.purple,flexShrink:0}}>{rankMode==="views"?r.view_count+"회":r.favorite_count+"명"}</Text>
       <Ionicons name="chevron-forward" size={15} color={COLORS.muted}/>
     </Pressable>):<Text style={styles.photoCredit}>{rankMode==="views"?"10회 이하 조회는 데이터가 쌓이면 표시됩니다.":"즐겨찾기가 쌓이면 표시됩니다."}</Text>}
-    {selectedRankStudio&&<Pressable onPress={()=>{const item=selectedRankStudio;const next={latitude:item.lat,longitude:item.lng,latitudeDelta:0.009,longitudeDelta:0.009};setGlobalSearchStudios([]);setSelected(item);setAreaLocked(false);setMapMoved(false);setSearchedRegion(next);setRegion(next);setPendingMapTarget(next);setView("map");}} style={{marginTop:11,padding:11,borderRadius:12,backgroundColor:isDark?"#242424":"#EEE7FF",borderWidth:1,borderColor:isDark?"#484848":"#D6C5FF"}}>
+    {selectedRankStudio&&<Pressable onPress={()=>{const item=selectedRankStudio;const next={latitude:item.lat,longitude:item.lng,latitudeDelta:0.009,longitudeDelta:0.009};setGlobalSearchStudios([]);setSelected(item);setAreaLocked(false);setMapMoved(false);setSearchedRegion(next);setRegion(next);setPendingMapTarget(next);enterMap();}} style={{marginTop:11,padding:11,borderRadius:12,backgroundColor:isDark?"#242424":"#EEE7FF",borderWidth:1,borderColor:isDark?"#484848":"#D6C5FF"}}>
       <View style={{flexDirection:"row",alignItems:"center",gap:6,marginBottom:5}}><Ionicons name="location" size={15} color={COLORS.purple}/><Text style={{fontSize:11,fontWeight:"900",color:COLORS.purple}}>선택한 학원 · 지도에서 보기</Text></View>      <Text numberOfLines={2} style={{fontSize:13,fontWeight:"900",color:COLORS.ink,lineHeight:18}}>{selectedRankStudio.name}</Text>
       <Text numberOfLines={2} style={{fontSize:10,color:COLORS.muted,marginTop:4}}>{selectedRankStudio.address||selectedRankStudio.area||"주소 정보 없음"}</Text>
       <View style={{flexDirection:"row",alignItems:"center",justifyContent:"flex-end",marginTop:7}}><Text style={{fontSize:11,fontWeight:"900",color:COLORS.purple}}>지도에서 위치 확인  ›</Text></View>
@@ -1576,7 +1585,7 @@ export default function Home() {
             renderItem={({item})=><Pressable style={styles.searchResultRow} onPress={()=>{
               // A selected search result should jump directly to that studio, not first to a broad area.
               const next={latitude:item.lat,longitude:item.lng,latitudeDelta:0.009,longitudeDelta:0.009};
-              setGlobalSearchStudios(searchMatches);setSearchResultsOpen(false);setSelected(item);setAreaLocked(false);setMapMoved(false);setSearchedRegion(next);setRegion(next);setPendingMapTarget(next);setView("map");
+              setGlobalSearchStudios(searchMatches);setSearchResultsOpen(false);setSelected(item);setAreaLocked(false);setMapMoved(false);setSearchedRegion(next);setRegion(next);setPendingMapTarget(next);enterMap();
             }}>
               
               <View style={{flex:1,minWidth:0}}>
@@ -1595,7 +1604,7 @@ export default function Home() {
         <View style={[styles.drawerPanel,{paddingBottom:Math.max(16,insets.bottom+12)}]}>
           <View style={styles.drawerHeader}><View><Text style={styles.drawerBrand}>balletmate ✦</Text><Text style={styles.drawerSubtitle}>발레 생활을 더 편리하게</Text></View><Pressable onPress={()=>setMenuOpen(false)} style={styles.drawerClose}><Ionicons name="close" size={22} color={COLORS.muted} /></Pressable></View>
           <Text style={styles.drawerSection}>탐색</Text>
-          <Pressable style={styles.drawerItem} onPress={()=>{setView("map");setMenuOpen(false);}}><Ionicons name="map-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>지도에서 찾기</Text>{view==="map"&&<Text style={styles.drawerCurrent}>현재</Text>}</Pressable>
+          <Pressable style={styles.drawerItem} onPress={()=>{enterMap();setMenuOpen(false);}}><Ionicons name="map-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>지도에서 찾기</Text>{view==="map"&&<Text style={styles.drawerCurrent}>현재</Text>}</Pressable>
           <Pressable style={styles.drawerItem} onPress={()=>{setView("list");setMenuOpen(false);}}><Ionicons name="list-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>학원 목록</Text>{view==="list"&&<Text style={styles.drawerCurrent}>현재</Text>}</Pressable>
           <Pressable style={styles.drawerItem} onPress={()=>{setView("favorites");setMenuOpen(false);}}><Ionicons name="heart-outline" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>찜한 학원</Text>{view==="favorites"&&<Text style={styles.drawerCurrent}>현재</Text>}</Pressable>
           <Pressable style={styles.drawerItem} onPress={()=>{setMenuOpen(false);setCompareOpen(true);}}><Ionicons name="swap-horizontal" size={21} color={COLORS.purple} /><Text style={styles.drawerItemText}>학원 비교</Text><Text style={styles.drawerCount}>{compareIds.length}/3</Text></Pressable>
@@ -1656,7 +1665,7 @@ export default function Home() {
             })}
           </ScrollView>
           <Pressable accessibilityRole="button" accessibilityLabel={compareIds.length<2?"학원 더 추가하기":"비교 결과 확인"} disabled={compareIds.length>=2&&compareClassLoading} style={[styles.applyButton,{flex:0,width:"100%",minHeight:50,alignSelf:"stretch",paddingVertical:13,marginTop:8,opacity:compareIds.length>=2&&compareClassLoading?0.6:1}]} onPress={()=>{
-            if(compareIds.length<2){setCompareOpen(false);setView("map");return;}
+            if(compareIds.length<2){setCompareOpen(false);enterMap();return;}
             setCompareOpen(false);
             if(compareResultTransitionRef.current)clearTimeout(compareResultTransitionRef.current);
             // Android cannot reliably present a second native Modal in the same frame
@@ -1736,7 +1745,7 @@ export default function Home() {
           </>}
         </ScrollView>
         <View style={{paddingHorizontal:16,paddingTop:10,paddingBottom:12,gap:8,borderTopWidth:1,borderTopColor:isDark?"#393342":COLORS.line,backgroundColor:isDark?"#17151D":"#FAF9FC"}}>
-          {compareIds.length<3?<Pressable accessibilityRole="button" onPress={()=>{setCompareResultOpen(false);setView("map");}} style={{minHeight:52,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
+          {compareIds.length<3?<Pressable accessibilityRole="button" onPress={()=>{setCompareResultOpen(false);enterMap();}} style={{minHeight:52,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
             <Text style={{fontSize:14,fontWeight:"900",color:"#FFFFFF"}}>{compareIds.length>0?"학원 추가하기 ("+compareIds.length+"/3)":"학원 선택하기"}</Text>
           </Pressable>:<View accessibilityRole="text" style={{minHeight:42,borderRadius:12,alignItems:"center",justifyContent:"center",backgroundColor:isDark?"#302B38":"#EFECF3"}}>
             <Text style={{fontSize:12,fontWeight:"800",color:isDark?"#C9C1D3":COLORS.muted}}>최대 3곳을 선택했어요 · 추가하려면 먼저 삭제해 주세요</Text>
@@ -1972,7 +1981,7 @@ export default function Home() {
               </View>
               <FlatList data={liveSearchMatches} keyExtractor={item=>item.id} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingHorizontal:16,paddingBottom:10}} ItemSeparatorComponent={()=><View style={{height:1,backgroundColor:isDark?"#393342":COLORS.line}}/>} ListEmptyComponent={<Text style={{paddingHorizontal:20,paddingVertical:20,fontSize:12,color:isDark?"#B9B1C5":COLORS.muted}}>{searchSubmitting||liveSearchLoading?"학원 정보를 검색하고 있어요.":"일치하는 학원이 없습니다. 전체 검색으로 더 찾아볼 수 있어요."}</Text>} renderItem={({item})=><Pressable style={styles.liveSearchRow} onPress={()=>{
                 const next={latitude:item.lat,longitude:item.lng,latitudeDelta:0.009,longitudeDelta:0.009};
-                setGlobalSearchStudios(liveSearchMatches);setSearchMatches(liveSearchMatches);setSearchResultsOpen(false);setSearchFocused(false);Keyboard.dismiss();setSelected(item);setAreaLocked(false);setMapMoved(false);setSearchedRegion(next);setRegion(next);setPendingMapTarget(next);setView("map");
+                setGlobalSearchStudios(liveSearchMatches);setSearchMatches(liveSearchMatches);setSearchResultsOpen(false);setSearchFocused(false);Keyboard.dismiss();setSelected(item);setAreaLocked(false);setMapMoved(false);setSearchedRegion(next);setRegion(next);setPendingMapTarget(next);enterMap();
               }}>
                 <View style={styles.liveSearchIcon}><Ionicons name="location-outline" size={18} color={COLORS.purple}/></View>
                 <View style={{flex:1,minWidth:0}}>
