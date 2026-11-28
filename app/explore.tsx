@@ -280,7 +280,7 @@ export default function Home() {
   const detailSheetRef=useRef<BottomSheet|null>(null);
   useEffect(()=>{if(detailStudio)detailSheetRef.current?.snapToIndex(0);},[detailStudio?.id]);
   const detailTabRef=useRef(detailTab);detailTabRef.current=detailTab;
-  useEffect(()=>{setDetailShowTop(false);detailScrollRef.current=null;},[detailTab,detailStudio?.id]);
+  useEffect(()=>{setDetailShowTop(false);},[detailTab,detailStudio?.id]);
   const changeDetailTabBySwipe=useCallback((dx:number)=>{
     const index=detailTabs.indexOf(detailTabRef.current);
     const next=Math.max(0,Math.min(detailTabs.length-1,index+(dx<0?1:-1)));
@@ -460,7 +460,7 @@ export default function Home() {
       if(compareOpen){setCompareOpen(false);compareSheetTranslateY.setValue(0);return true;}
       if(regionPickerOpen){if(expandedCity){setExpandedCity(null);return true;}if(expandedProvince){setExpandedProvince(null);return true;}setRegionPickerOpen(false);return true;}
       if(filterOpen){setFilterOpen(false);return true;}
-      if(detailStudio){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);return true;}
+      if(detailStudio){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);setDetailTab("home");setDetailShowTop(false);return true;}
       if(selected){setSelected(null);return true;}
       if(view!=="map"){setView("map");return true;}
       if(Platform.OS==="android"){
@@ -1683,7 +1683,7 @@ export default function Home() {
 <Modal visible={!!detailStudio} animationType="none" transparent statusBarTranslucent onRequestClose={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}}>
 <GestureHandlerRootView style={{flex:1}}><View style={{flex:1}}>
 <View style={styles.modalShade}>
-<Pressable style={StyleSheet.absoluteFillObject} onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}} accessibilityRole="button" accessibilityLabel="학원 상세정보 닫기"/>
+<Pressable style={StyleSheet.absoluteFillObject} onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);setDetailTab("home");setDetailShowTop(false);}} accessibilityRole="button" accessibilityLabel="학원 상세정보 닫기"/>
 <BottomSheet
   key={detailStudio ? detailStudio.id+"-"+detailRequestId.current : "detail-sheet-closed"}
   ref={detailSheetRef}
