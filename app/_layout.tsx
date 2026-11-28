@@ -42,7 +42,7 @@ function BottomNavigation(){
     <View style={styles.bottomNav}>
       {items.map(item=><Pressable key={item.key} accessibilityRole="button" accessibilityLabel={item.label} accessibilityState={{selected:item.active}} onPress={item.onPress} style={styles.navItem}>
         <View style={styles.navIconWrap}>
-          <Ionicons name={item.active?(item.key==="favorites"?"heart":"map") as any:item.icon} size={21} color={item.active?"#653BB7":dark?"#AAA3B5":"#8F899B"}/>
+          <Ionicons name={item.active&&item.key==="favorites"?"heart":item.active&&item.key==="map"?"map":item.icon} size={21} color={item.active?"#653BB7":dark?"#AAA3B5":"#8F899B"}/>
           {item.key==="compare"&&compareCount>0&&<View style={styles.navBadge}><Text style={styles.navBadgeText}>{compareCount}</Text></View>}
         </View>
         <Text style={[styles.navLabel,{color:item.active?"#653BB7":dark?"#AAA3B5":"#8F899B"},item.active&&{fontWeight:"900"}]}>{item.label}</Text>
