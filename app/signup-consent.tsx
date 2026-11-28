@@ -47,7 +47,7 @@ export default function SignupConsent(){
    else router.replace("/account");
   }catch{Alert.alert("저장 실패","동의 정보를 저장하지 못했습니다. 다시 시도해 주세요.");}
  };
- const consentRow=(title:string,description:string,read:boolean,checked:boolean,onPress:()=>void,onCheck:()=>void)=>(
+ const consentRow=(title:string,description:string,read:boolean,checked:boolean,onPress:()=>void)=>(
   <View style={s.row}>
    <Pressable style={s.rowMain} onPress={onPress} accessibilityRole="button">
     <View style={s.rowCopy}><Text style={s.rowTitle}>{title}</Text><Text style={s.rowDescription}>{description}</Text><Text style={s.readHint}>{read?"전문 확인 완료":"눌러서 약관 전문 읽기 ›"}</Text></View>
@@ -66,8 +66,8 @@ export default function SignupConsent(){
   </View>
   <ScrollView contentContainerStyle={s.body}>
    <View style={s.notice}><Text style={s.noticeTitle}>필수 항목 3개</Text><Text style={s.noticeText}>약관 전문을 열어 마지막까지 스크롤하면 동의 체크가 활성화됩니다.</Text></View>
-   {consentRow("이용 약관동의 (필수)","서비스 이용 조건 및 회원의 권리·의무",termsRead,termsAgreed,()=>openDoc("terms"),()=>setTermsAgreed(v=>!v))}
-   {consentRow("개인정보 수집동의 (필수)","개인정보 처리 목적·항목·보유기간 확인",privacyRead,privacyAgreed,()=>openDoc("privacy"),()=>setPrivacyAgreed(v=>!v))}
+   {consentRow("이용 약관동의 (필수)","서비스 이용 조건 및 회원의 권리·의무",termsRead,termsAgreed,()=>openDoc("terms"))}
+   {consentRow("개인정보 수집동의 (필수)","개인정보 처리 목적·항목·보유기간 확인",privacyRead,privacyAgreed,()=>openDoc("privacy"))}
    <View style={s.row}>
     <View style={s.rowMain}><View style={s.rowCopy}><Text style={s.rowTitle}>만 14세 이상입니다 (필수)</Text><Text style={s.rowDescription}>만 14세 미만은 보호자 동의 등 별도 절차가 필요합니다.</Text></View></View>
     <Pressable style={[s.checkButton,ageAgreed&&s.checked]} onPress={()=>setAgeAgreed(v=>!v)} accessibilityRole="checkbox" accessibilityState={{checked:ageAgreed}}><Text style={[s.checkMark,ageAgreed&&s.checkedMark]}>{ageAgreed?"✓":""}</Text></Pressable>
