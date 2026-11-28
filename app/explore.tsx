@@ -139,7 +139,6 @@ export default function Home() {
   const bottomInsetPadding = useBottomPadding(0);
   const locationBtnAnim = useRef(new Animated.Value(5)).current;
   const map = useRef<KakaoMapHandle | null>(null);
-  const [mapFocusGeneration,setMapFocusGeneration]=useState(0);
   const syncLocationPermissionRef=useRef<((requestPermissionOnStartup:boolean)=>Promise<void>)|null>(null);
   const [unreadNotificationCount,setUnreadNotificationCount]=useState(0);
   const refreshUnreadNotificationCount=useCallback(async()=>{
@@ -195,7 +194,6 @@ export default function Home() {
   viewRef.current=view;
   const enterMap=useCallback(()=>{
     setView("map");
-    setMapFocusGeneration(current=>current+1);
     void syncLocationPermissionRef.current?.(false).catch(error=>{
       console.warn("Map activation location refresh failed:",error);
     });
@@ -1058,7 +1056,6 @@ export default function Home() {
   // viewRef avoids remounting on ordinary map/list state renders.
   useFocusEffect(useCallback(()=>{
     if(viewRef.current!=="map")return;
-    setMapFocusGeneration(current=>current+1);
     void syncLocationPermissionRef.current?.(false).catch(error=>{
       console.warn("Map focus location refresh failed:",error);
     });
@@ -1542,7 +1539,7 @@ export default function Home() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow:0,flexShrink:0}} contentContainerStyle={[styles.quickFilters,{alignItems:"center"}]}><Chip label="전체" active={activeFilters===0||!!(adult&&kids&&coupon&&level==="초급")} onPress={resetFilters}/><Chip label="성인" active={adult&&! (kids&&coupon&&level==="초급")} onPress={()=>{const next=!adult;if(next&&kids&&coupon&&level==="초급"){resetFilters();return;}setAdult(next);}}/><Chip label="키즈" active={kids&&! (adult&&coupon&&level==="초급")} onPress={()=>{const next=!kids;if(next&&adult&&coupon&&level==="초급"){resetFilters();return;}setKids(next);}}/><Chip label="쿠폰" active={coupon&&! (adult&&kids&&level==="초급")} onPress={()=>{const next=!coupon;if(next&&adult&&kids&&level==="초급"){resetFilters();return;}setCoupon(next);}}/><Chip label="초급" active={level==="초급"&&! (adult&&kids&&coupon)} onPress={()=>{const next=level!=="초급";if(next&&adult&&kids&&coupon){resetFilters();return;}setLevel(next?"초급":null);}}/></ScrollView>
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
-        <KakaoMap key={`map-focus-${mapFocusGeneration}`} ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} searchedIds={searchedStudioIds} compareIds={compareIds} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} darkMode={isDark} />
+        <KakaoMap ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} searchedIds={searchedStudioIds} compareIds={compareIds} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} darkMode={isDark} />
         {(!hasMapSearchRequested||mapMoved&&isAreaChanged)&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":hasMapSearchRequested?"이 지역에서 재검색":"현재 지역 학원 검색"}</Text></View></Pressable>}
         <Animated.View style={[styles.locateButton,{bottom:locationBtnAnim}]}><Pressable style={{width:44,height:44,alignItems:"center",justifyContent:"center"}} accessibilityRole="button" accessibilityLabel="현재 위치로 이동" onPress={()=>{void locate();}}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable></Animated.View>
         <Pressable style={[styles.mapCount,{bottom:selected?selectedCardHeight+16:5}]} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}곳</Text>{results.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
