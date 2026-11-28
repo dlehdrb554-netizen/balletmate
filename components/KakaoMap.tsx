@@ -34,7 +34,7 @@ type Props = {
 const JS_KEY = String(Constants.expoConfig?.extra?.kakaoJavascriptKey ?? "");
 
 function buildHtml(initialRegion: MapRegion, initialDarkMode: boolean) {
-  // Theme changes create a fresh WebView/Kakao map; latest markers are restored after SDK readiness.
+  // Theme changes are applied in-place; keep the current WebView and map viewport.
   const initialSurface = initialDarkMode ? "#1C1C1E" : "#F2F2F7";
   const initialTileFilter = initialDarkMode ? "brightness(0.68) saturate(0.82)" : "none";
   const center = JSON.stringify({ lat: initialRegion.latitude, lng: initialRegion.longitude });
@@ -138,8 +138,10 @@ function buildHtml(initialRegion: MapRegion, initialDarkMode: boolean) {
     }
   }
   function emitRegion(){
-    if(!map||programmaticMove)return;
+    if(!map)return;
     if(regionTimer)clearTimeout(regionTimer);
+    // Report the final viewport after both user gestures and programmatic moves.
+    // Otherwise GPS/search navigation moves the Kakao map while React keeps stale bounds.
     regionTimer=setTimeout(function(){emitRegionNow();},350);
   }
   function emitRegionNow(){
@@ -196,6 +198,8 @@ function buildHtml(initialRegion: MapRegion, initialDarkMode: boolean) {
       kakao.maps.event.addListener(map,'zoom_start',function(){if(programmaticMoveTimer){clearTimeout(programmaticMoveTimer);programmaticMoveTimer=null;}programmaticMove=false;});
       kakao.maps.event.addListener(map,'dragend',emitRegion);
       kakao.maps.event.addListener(map,'zoom_changed',emitRegion);
+      // Kakao's idle event also fires when panTo/setCenter completes without a dragend.
+      kakao.maps.event.addListener(map,'idle',emitRegion);
       // WebView can initially report a very small height on compact devices.
       // Recalculate Kakao's viewport after the native layout settles or changes.
       var resizeMap=function(){
