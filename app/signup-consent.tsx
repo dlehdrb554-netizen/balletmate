@@ -20,7 +20,8 @@ export default function SignupConsent(){
  const s=useMemo(()=>styles(dark),[dark]);
  const router=useRouter();
  const params=useLocalSearchParams<{next?:string}>();
- const webViewRef=useRef<WebView>(null);\n const [activeDoc,setActiveDoc]=useState<"terms"|"privacy"|null>(null);
+ const webViewRef=useRef<WebView>(null);
+ const [activeDoc,setActiveDoc]=useState<"terms"|"privacy"|null>(null);
  const [docReachedEnd,setDocReachedEnd]=useState(false);
  const [termsRead,setTermsRead]=useState(false);
  const [privacyRead,setPrivacyRead]=useState(false);
