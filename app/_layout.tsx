@@ -7,6 +7,9 @@ import { View, Text, Pressable, StyleSheet, Appearance, Image, useColorScheme } 
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../lib/supabase";
+import * as Notifications from "expo-notifications";
+
+Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowAlert:true,shouldPlaySound:true,shouldSetBadge:true,shouldShowBanner:true,shouldShowList:true})});
 
 
 function BottomNavigation(){
@@ -49,10 +52,44 @@ function BottomNavigation(){
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const router=useRouter();
   const [showSplash,setShowSplash]=useState(true);
   useEffect(()=>{
     const timer=setTimeout(()=>setShowSplash(false),1600);
     return()=>clearTimeout(timer);
+  },[]);
+  useEffect(()=>{
+    let active=true;
+    const openNotification=async(response:Notifications.NotificationResponse)=>{
+      const data=response.notification.request.content.data as Record<string,any>;
+      const notificationId=String(data?.notificationId||"");
+      if(notificationId&&supabase){
+        const {data:{user}}=await supabase.auth.getUser();
+        if(user)await supabase.from("user_notifications").update({read_at:new Date().toISOString()}).eq("id",notificationId).eq("user_id",user.id).is("read_at",null);
+      }
+      if(!active)return;
+      if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});
+      else if(data?.postId)router.push({pathname:"/community",params:{postId:String(data.postId)}});
+      else if(data?.noticeId)router.push("/mypage?open=notices");
+      else router.push("/notifications");
+      void Notifications.clearLastNotificationResponseAsync().catch(()=>{});
+    };
+    const subscription=Notifications.addNotificationResponseReceivedListener(response=>{void openNotification(response);});
+    void Notifications.getLastNotificationResponseAsync().then(response=>{if(response)void openNotification(response);}).catch(()=>{});
+    return()=>{active=false;subscription.remove();};
+  },[router]);
+  useEffect(()=>{
+    let active=true;
+    const syncBadge=async()=>{
+      if(!supabase){await Notifications.setBadgeCountAsync(0).catch(()=>{});return;}
+      const {data:{user}}=await supabase.auth.getUser();
+      if(!user){await Notifications.setBadgeCountAsync(0).catch(()=>{});return;}
+      const {count,error}=await supabase.from("user_notifications").select("id",{count:"exact",head:true}).eq("user_id",user.id).is("read_at",null);
+      if(active&&!error)await Notifications.setBadgeCountAsync(count||0).catch(()=>{});
+    };
+    void syncBadge();
+    const channel=supabase?.channel("root-unread-badge").on("postgres_changes",{event:"*",schema:"public",table:"user_notifications"},()=>{void syncBadge();}).subscribe();
+    return()=>{active=false;if(channel&&supabase)void supabase.removeChannel(channel);};
   },[]);
   useEffect(() => {
     AsyncStorage.getItem("balletmate.screen_lock").then(enabled => {
