@@ -30,7 +30,28 @@ export default function AuthCallback(){
    const {error}=await supabase.auth.exchangeCodeForSession(code);
    if(!active)return;
    if(error){setFailed(true);setMessage(error.message||"로그인 인증을 완료하지 못했습니다.");}
-   else {const {data:{user}}=await supabase.auth.getUser();if(user){const consentRaw=await AsyncStorage.getItem("balletmate.signupConsent.v1");if(consentRaw){try{const consent=JSON.parse(consentRaw);if(consent?.age14Confirmed&&consent?.termsVersion&&consent?.privacyVersion&&consent?.acceptedAt&&!user.user_metadata?.legal_terms_version){const {error:consentError}=await supabase.auth.updateUser({data:{legal_terms_version:consent.termsVersion,privacy_policy_version:consent.privacyVersion,legal_accepted_at:consent.acceptedAt,age_14_confirmed:true}});if(consentError)throw consentError;}}catch(error){setFailed(true);setMessage("필수 약관 동의 정보를 저장하지 못했습니다.");return;}}const [profile,admin]=await Promise.all([supabase.from("user_profiles").select("username,display_name").eq("user_id",user.id).maybeSingle(),supabase.from("admin_users").select("user_id").eq("user_id",user.id).maybeSingle()]);if(admin.error){setFailed(true);setMessage("관리자 계정 권한을 확인하지 못했습니다: "+admin.error.message);return;}const isAdmin=!!admin.data?.user_id;if(!isAdmin&&(profile.error||!profile.data||!profile.data.display_name)){setNextRoute("/onboarding");}else{const destination=await AsyncStorage.getItem("balletmate.auth.returnTo");if(destination==="mypage")setNextRoute("/mypage");else if(destination==="mypage-settings")setNextRoute("/mypage?open=settings");}await AsyncStorage.removeItem("balletmate.auth.returnTo");}setMessage("로그인이 완료되었습니다.");}
+   else {
+     const {data:{user}}=await supabase.auth.getUser();
+     if(user){
+      const [profile,admin]=await Promise.all([
+       supabase.from("user_profiles").select("username,display_name").eq("user_id",user.id).maybeSingle(),
+       supabase.from("admin_users").select("user_id").eq("user_id",user.id).maybeSingle()
+      ]);
+      if(admin.error){setFailed(true);setMessage("관리자 계정 권한을 확인하지 못했습니다: "+admin.error.message);return;}
+      const isAdmin=!!admin.data?.user_id;
+      const hasCompletedProfile=!!String(profile.data?.display_name||"").trim();
+      const hasConsent=!!(user.user_metadata?.legal_terms_version&&user.user_metadata?.privacy_policy_version&&user.user_metadata?.legal_accepted_at&&user.user_metadata?.age_14_confirmed===true);
+      if(!isAdmin&&!hasCompletedProfile&&!hasConsent)setNextRoute("/signup-consent?next=post-auth");
+      else if(!isAdmin&&!hasCompletedProfile)setNextRoute("/onboarding");
+      else{
+       const destination=await AsyncStorage.getItem("balletmate.auth.returnTo");
+       if(destination==="mypage")setNextRoute("/mypage");
+       else if(destination==="mypage-settings")setNextRoute("/mypage?open=settings");
+      }
+      await AsyncStorage.removeItem("balletmate.auth.returnTo");
+     }
+     setMessage("로그인이 완료되었습니다.");
+    }
   };
   const codeParam=Array.isArray(params.code)?params.code[0]:params.code;
   const errorParam=Array.isArray(params.error_description)?params.error_description[0]:params.error_description;
