@@ -536,17 +536,17 @@ export default function Community(){
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={[s.postTitle,{flex:1}]}>{selected.title}</Text><Pressable onPress={()=>void toggleBookmark(selected)} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(selected.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(selected.id)?"bookmark":"bookmark-outline"} size={22} color={C.purple}/></Pressable></View>
      <Text style={s.meta}>{selected.author_name||"발레메이트 회원"} · {timeLabel(selected.created_at)}</Text>
      {parsePostContent(selected.content).hasInlineImages?<View style={s.inlinePostBody}>{parsePostContent(selected.content).blocks.map((block,index)=>block.type==="image"&&block.photoIndex!==undefined&&selected.image_urls[block.photoIndex]?<View key={"photo-"+index} style={s.detailPhotoItem}><Pressable onPress={()=>setViewerIndex(getPostImageIndices(selected).indexOf(block.photoIndex!))} accessibilityRole="button" accessibilityLabel={"사진 "+(block.photoIndex+1)+" 크게 보기"}><Image source={{uri:selected.image_urls[block.photoIndex]}} style={s.detailPhoto} resizeMode="cover"/></Pressable>{Boolean(parsePostContent(selected.content).captions[block.photoIndex])&&<Text style={s.photoCaption}>{parsePostContent(selected.content).captions[block.photoIndex]}</Text>}</View>:<Text key={"text-"+index} style={s.inlinePostText}>{block.value}</Text>)}</View>:<><Text style={s.postBody}>{parsePostContent(selected.content).body}</Text>{!!selected.image_urls?.length&&<View style={s.detailPhotoList}>{selected.image_urls.map((url,index)=><View key={url} style={s.detailPhotoItem}><Pressable onPress={()=>setViewerIndex(index)} accessibilityRole="button" accessibilityLabel={"사진 "+(index+1)+" 크게 보기"}><Image source={{uri:url}} style={s.detailPhoto} resizeMode="cover"/></Pressable>{Boolean(parsePostContent(selected.content).captions[index])&&<Text style={s.photoCaption}>{parsePostContent(selected.content).captions[index]}</Text>}</View>)}</View>}</>}
-     {selected.author_id===userId||isAdmin?<Pressable onPress={()=>removePost(selected)}><Text style={s.deleteText}>{isAdmin&&selected.author_id!==userId?"관리자 삭제":"게시글 삭제"}</Text></Pressable>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
+     {selected.author_id===userId||isAdmin?<View style={{flexDirection:"row",alignItems:"center",gap:16,marginTop:14}}><Pressable onPress={()=>startEditPost(selected)}><Text style={[s.deleteText,{color:C.purple,marginTop:0}]}>수정</Text></Pressable><Pressable onPress={()=>removePost(selected)}><Text style={[s.deleteText,{marginTop:0}]}>{isAdmin&&selected.author_id!==userId?"관리자 삭제":"삭제"}</Text></Pressable></View>:<View style={s.moderationActions}><Pressable onPress={()=>reportContent("post",selected.id,selected.author_id)}><Text style={s.deleteText}>작성자·콘텐츠 신고</Text></Pressable><Pressable onPress={()=>blockUser(selected.author_id,selected.author_name||"해당")}><Text style={s.deleteText}>차단</Text></Pressable></View>}
     </View>
     <View style={s.commentSectionHead}><Text style={s.section}>댓글 {visibleComments.length}</Text><Text style={s.commentSortLabel}>최신순</Text></View>
     {visibleComments.slice(0,visibleCommentCount).map(comment=><View key={comment.id} style={s.commentRow}>
      <View style={s.commentAvatar}><Text style={s.commentAvatarText}>{(comment.author_name||"발").trim().slice(0,1)}</Text></View>
      <View style={s.commentMain}>
       <View style={s.commentMetaRow}><Text style={s.commentAuthor}>{comment.author_name||"발레메이트 회원"}</Text><Text style={s.commentTime}>{timeLabel(comment.created_at)}</Text></View>
-      {!!comment.content&&<Text style={s.commentBody}>{comment.content}</Text>}
+      {editingCommentId===comment.id?<View style={{marginTop:8,gap:8}}><TextInput value={editCommentText} onChangeText={setEditCommentText} multiline maxLength={1000} style={[s.commentInput,{minHeight:72}]} placeholder="댓글 내용을 수정하세요"/><View style={{flexDirection:"row",justifyContent:"flex-end",gap:12}}><Pressable onPress={()=>{setEditingCommentId(null);setEditCommentText("");}}><Text style={s.commentActionText}>취소</Text></Pressable><Pressable disabled={submitting} onPress={saveCommentEdit}><Text style={[s.commentActionText,{color:C.purple,fontWeight:"900"}]}>저장</Text></Pressable></View></View>:!!comment.content&&<Text style={s.commentBody}>{comment.content}</Text>}
       {!!comment.image_urls?.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:9}}>{comment.image_urls.map((url,index)=><Image key={url+index} source={{uri:url}} style={{width:164,height:132,borderRadius:9,marginRight:8}} resizeMode="cover"/>)}</ScrollView>}
       <View style={s.commentActionRow}>
-       {comment.author_id===userId||isAdmin?<Pressable onPress={()=>removeComment(comment)}><Text style={s.commentActionText}>{isAdmin&&comment.author_id!==userId?"관리자 삭제":"삭제"}</Text></Pressable>:<><Pressable onPress={()=>reportContent("comment",comment.id,comment.author_id)}><Text style={s.commentActionText}>신고</Text></Pressable><Pressable onPress={()=>blockUser(comment.author_id,comment.author_name||"해당")}><Text style={s.commentActionText}>차단</Text></Pressable></>}
+       {comment.author_id===userId||isAdmin?<><Pressable onPress={()=>startEditComment(comment)}><Text style={[s.commentActionText,{color:C.purple}]}>수정</Text></Pressable><Pressable onPress={()=>removeComment(comment)}><Text style={s.commentActionText}>{isAdmin&&comment.author_id!==userId?"관리자 삭제":"삭제"}</Text></Pressable></>:<><Pressable onPress={()=>reportContent("comment",comment.id,comment.author_id)}><Text style={s.commentActionText}>신고</Text></Pressable><Pressable onPress={()=>blockUser(comment.author_id,comment.author_name||"해당")}><Text style={s.commentActionText}>차단</Text></Pressable></>}
       </View>
      </View>
     </View>)}
@@ -555,8 +555,8 @@ export default function Community(){
     <View style={s.commentComposerCard}>
      {commentPhoto&&<View style={s.commentPhotoPreview}><Image source={{uri:commentPhoto.uri}} style={{width:58,height:58,borderRadius:8}}/><Pressable onPress={()=>setCommentPhoto(null)} accessibilityRole="button" accessibilityLabel="첨부 사진 삭제"><Ionicons name="close-circle" size={21} color={C.muted}/></Pressable></View>}
      <View style={s.commentComposer}>
-      <TextInput style={s.commentInput} value={commentText} onChangeText={setCommentText} placeholder={userId?"댓글을 입력하세요":"로그인 후 댓글을 작성할 수 있어요"} multiline maxLength={1000}/>
       <Pressable onPress={pickCommentPhoto} style={s.commentAttachButton} accessibilityRole="button" accessibilityLabel="댓글 사진 첨부"><Ionicons name="image-outline" size={21} color={C.purple}/></Pressable>
+      <TextInput style={s.commentInput} value={commentText} onChangeText={setCommentText} placeholder={userId?"댓글을 입력하세요":"로그인 후 댓글을 작성할 수 있어요"} multiline maxLength={1000}/>
       <Pressable style={[s.sendBtn,submitting&&{opacity:.5}]} disabled={submitting||commentPhotoUploading} onPress={submitComment}><Text style={s.sendText}>등록</Text></Pressable>
      </View>
     </View>
@@ -619,6 +619,19 @@ export default function Community(){
    </View></View>
   </Modal>
 
+  <Modal visible={!!editingPost} transparent animationType="none" onRequestClose={()=>setEditingPost(null)}>
+   <KeyboardAvoidingView style={[s.shade,{paddingBottom:insets.bottom}]} behavior={Platform.OS==="ios"?"padding":"height"}>
+    <View style={[s.modal,{maxHeight:"88%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
+     <View style={s.composerHeader}><Pressable onPress={()=>setEditingPost(null)} style={s.composerClose}><Text style={s.close}>×</Text></Pressable><Text style={s.modalTitle}>게시글 수정</Text><Pressable style={[s.composerSubmit,submitting&&{opacity:.5}]} disabled={submitting} onPress={savePostEdit}><Text style={s.composerSubmitText}>{submitting?"저장 중…":"저장"}</Text></Pressable></View>
+     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:12}}>
+      <Text style={s.label}>게시판 선택</Text><View style={s.categoryChoices}>{(["학원 추천","발레복 추천","자유"] as const).map(item=><Pressable key={item} onPress={()=>setEditPostCategory(item)} style={[s.filter,editPostCategory===item&&s.filterActive]}><Text style={[s.filterText,editPostCategory===item&&s.filterTextActive]}>{item}</Text></Pressable>)}</View>
+      <Text style={s.label}>제목</Text><TextInput value={editPostTitle} onChangeText={setEditPostTitle} maxLength={80} style={s.titleInput}/>
+      <Text style={s.label}>내용</Text><TextInput value={editPostBody} onChangeText={setEditPostBody} multiline maxLength={5000} textAlignVertical="top" style={[s.bodyInput,{minHeight:180}]}/>
+      {!!editingPost?.image_urls?.length&&<Text style={s.editorHint}>기존 첨부 사진은 유지됩니다. 사진 편집은 현재 지원하지 않습니다.</Text>}
+     </ScrollView>
+    </View>
+   </KeyboardAvoidingView>
+  </Modal>
   <Modal visible={composer} transparent animationType="none" onRequestClose={closeComposer}>
    <KeyboardAvoidingView style={[s.shade,{paddingBottom:insets.bottom}]} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={0}>
     <View style={[s.modal,{maxHeight:"90%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
