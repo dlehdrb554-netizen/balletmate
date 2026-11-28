@@ -65,13 +65,39 @@ Deno.serve(async (req) => {
       .select("user_id,expo_push_token").in("user_id", userIds);
     if (tokenError) throw tokenError;
 
+    // Persist one inbox item per recipient before sending push notifications.
+    const notificationRows = userIds.map(user_id => ({
+      user_id,
+      title: String(payload.title || "발레메이트 알림").slice(0, 120),
+      body: String(payload.body || "").slice(0, 500),
+      kind: String(payload?.data?.kind || preference).slice(0, 80),
+      data: payload.data && typeof payload.data === "object" ? payload.data : {},
+    }));
+    const { data: createdNotifications, error: notificationError } = await db
+      .from("user_notifications").insert(notificationRows).select("id,user_id");
+    if (notificationError) throw notificationError;
+    const { data: unreadRows, error: unreadError } = await db
+      .from("user_notifications").select("id,user_id").in("user_id", userIds).is("read_at", null);
+    if (unreadError) throw unreadError;
+    const unreadByUser = new Map<string, number>();
+    for (const row of unreadRows || []) {
+      const id = String(row.user_id);
+      unreadByUser.set(id, (unreadByUser.get(id) || 0) + 1);
+    }
+    const notificationByUser = new Map<string, string>();
+    for (const row of createdNotifications || []) notificationByUser.set(String(row.user_id), String(row.id));
+
     const messages = (tokens || []).filter((row: any) => /^ExpoPushToken\[.+\]$/.test(row.expo_push_token))
       .map((row: any) => ({
         to: row.expo_push_token,
         sound: "default",
         title: String(payload.title || "발레메이트 알림").slice(0, 80),
         body: String(payload.body || "").slice(0, 180),
-        data: payload.data && typeof payload.data === "object" ? payload.data : {},
+        badge: unreadByUser.get(String(row.user_id)) || 0,
+        data: {
+          ...(payload.data && typeof payload.data === "object" ? payload.data : {}),
+          notificationId: notificationByUser.get(String(row.user_id)),
+        },
         channelId: "default",
       }));
     let sent = 0;
