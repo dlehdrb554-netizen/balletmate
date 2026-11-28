@@ -985,8 +985,9 @@ export default function Home() {
     return {
       granted:foregroundGranted,
       foregroundGranted,
-      canAskAgain:foregroundGranted?false:(foreground?.canAskAgain??true),
-      status:foregroundGranted?"granted":(foreground?.status??"undetermined")
+      canAskAgain:foregroundGranted?true:(foreground?.canAskAgain??true),
+      status:foregroundGranted?"granted":(foreground?.status??"undetermined"),
+      nativeGranted
     };
   };
   const syncLocationPermission=async(requestPermissionIfUndetermined:boolean)=>{
@@ -1082,10 +1083,18 @@ export default function Home() {
       // when startup or a previous session has already granted location access.
       let permission=await readLocationPermission();
       if(requestId!==locationRequestId.current)return;
-      if(!permission.granted&&permission.canAskAgain){
-        await Location.requestForegroundPermissionsAsync();
+      if(!permission.granted){
+        if(Platform.OS==="android"){
+          // Reconcile Android's runtime permission state directly. This also repairs
+          // stale Expo permission snapshots after process death / Settings changes.
+          await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
+          ]).catch(error=>console.warn("Native location permission request failed:",error));
+        }else{
+          await Location.requestForegroundPermissionsAsync().catch(error=>console.warn("Location permission request failed:",error));
+        }
         if(requestId!==locationRequestId.current)return;
-        // Always verify the result from the OS again instead of trusting the prompt response.
         permission=await readLocationPermission();
       }
       if(requestId!==locationRequestId.current)return;
@@ -1631,39 +1640,41 @@ export default function Home() {
             <Text style={{fontSize:13,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>비교할 학원이 부족해요.</Text>
             <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted}}>학원을 두 곳 이상 선택해 주세요.</Text>
           </View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
-          <View style={{width:"100%"}}>
-            <View style={{flexDirection:"row",borderBottomWidth:1,borderBottomColor:isDark?"#51485E":COLORS.line}}>
-              <View style={{width:70,justifyContent:"center",paddingVertical:8,paddingRight:3}}><Text style={{fontSize:10,fontWeight:"900",color:isDark?"#D8C6FF":COLORS.purple}}>항목</Text></View>
-              {compareIds.map(id=>{
-                const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
-                return <View key={id} style={{flex:1,minWidth:0,paddingHorizontal:4,paddingVertical:8,borderLeftWidth:1,borderLeftColor:isDark?"#3A3544":COLORS.line,justifyContent:"center"}}>
-                  <Text style={{fontSize:10,lineHeight:14,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}} numberOfLines={3}>{studio?.name||"학원 정보 불러오는 중"}</Text>
-                  <Text style={{fontSize:8,lineHeight:11,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}} numberOfLines={2}>{studio?.area||""}</Text>
-                  <Pressable hitSlop={5} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}} style={{alignSelf:"flex-start",marginTop:5}}>
-                    <Text style={[styles.removeCompare,{fontSize:8}]}>제외</Text>
+          <View style={{width:"100%",gap:10}}>
+            {compareIds.map(id=>{
+              const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
+              const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
+              const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
+              const maxDuration=Math.max(studio?.duration||0,...(studio?.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
+              const priceValue=amounts.length?amounts.map(amount=>amount.toLocaleString("ko-KR")+"원").join(" · "):"미등록";
+              const couponValue=compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"없음":"확인 중";
+              const durationValue=maxDuration>0?maxDuration+"분":"미등록";
+              const rows=[
+                {key:"price",label:"가격",icon:"cash-outline" as const,value:priceValue},
+                {key:"coupon",label:"쿠폰",icon:"ticket-outline" as const,value:couponValue},
+                {key:"duration",label:"수업시간",icon:"time-outline" as const,value:durationValue}
+              ];
+              return <View key={id} style={{borderRadius:14,backgroundColor:isDark?"#24212B":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40394B":COLORS.line,overflow:"hidden"}}>
+                <View style={{flexDirection:"row",alignItems:"flex-start",gap:10,paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:isDark?"#40394B":COLORS.line}}>
+                  <View style={{flex:1,minWidth:0}}>
+                    <Text style={{fontSize:14,lineHeight:20,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>{studio?.name||"학원 정보 불러오는 중"}</Text>
+                    {!!studio?.area&&<Text style={{fontSize:11,lineHeight:16,color:isDark?"#B9B1C5":COLORS.muted,marginTop:2}}>{studio.area}</Text>}
+                  </View>
+                  <Pressable hitSlop={8} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}} accessibilityRole="button" accessibilityLabel="이 학원을 비교에서 삭제" style={{width:30,height:30,alignItems:"center",justifyContent:"center",borderRadius:9,backgroundColor:isDark?"#38313F":"#F2EFF6"}}>
+                    <Ionicons name="trash-outline" size={16} color={isDark?"#D5C8E7":COLORS.muted}/>
                   </Pressable>
-                </View>;
-              })}
-            </View>
-            {([
-              {key:"price",label:"가격"},
-              {key:"coupon",label:"쿠폰"},
-              {key:"duration",label:"수업시간"}
-            ] as const).map((row,rowIndex)=><View key={row.key} style={{flexDirection:"row",minHeight:68,borderBottomWidth:1,borderBottomColor:isDark?"#3A3544":COLORS.line,backgroundColor:rowIndex%2===0?(isDark?"#211E27":"#FFFFFF"):"transparent"}}>
-              <View style={{width:70,justifyContent:"center",paddingRight:3}}>
-                <Text style={{fontSize:10,fontWeight:"900",color:isDark?"#D8C6FF":COLORS.purple}}>{row.label}</Text>
-              </View>
-              {compareIds.map(id=>{
-                const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
-                const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
-                const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
-                const maxDuration=Math.max(studio?.duration||0,...(studio?.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
-                const value=row.key==="price"?(amounts.length?amounts.map(amount=>amount.toLocaleString("ko-KR")+"원").join("\n"):"미등록"):row.key==="coupon"?(compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"제공 없음":"확인 불가"):(maxDuration>0?maxDuration+"분":"미등록");
-                return <View key={id} style={{flex:1,minWidth:0,justifyContent:"center",paddingHorizontal:4,paddingVertical:9,borderLeftWidth:1,borderLeftColor:isDark?"#3A3544":COLORS.line}}>
-                  <Text style={{fontSize:10,lineHeight:15,fontWeight:row.key==="price"?"800":"700",color:isDark?"#F3EFFA":COLORS.ink}}>{value}</Text>
-                </View>;
-              })}
-            </View>)}
+                </View>
+                <View style={{paddingHorizontal:14,paddingVertical:4}}>
+                  {rows.map((row,index)=><View key={row.key} style={{minHeight:39,flexDirection:"row",alignItems:"center",gap:9,borderBottomWidth:index===rows.length-1?0:1,borderBottomColor:isDark?"#38323F":"#F0EDF3"}}>
+                    <View style={{width:26,height:26,borderRadius:8,alignItems:"center",justifyContent:"center",backgroundColor:isDark?"#393044":"#F1ECF8"}}>
+                      <Ionicons name={row.icon} size={15} color={isDark?"#D8C6FF":COLORS.purple}/>
+                    </View>
+                    <Text style={{width:62,fontSize:11,fontWeight:"800",color:isDark?"#C9C1D3":COLORS.muted}}>{row.label}</Text>
+                    <Text style={{flex:1,minWidth:0,fontSize:12,lineHeight:18,fontWeight:"700",color:isDark?"#F3EFFA":COLORS.ink}}>{row.value}</Text>
+                  </View>)}
+                </View>
+              </View>;
+            })}
           </View>}
         </ScrollView>
         <Pressable onPress={()=>setCompareResultOpen(false)} style={{marginHorizontal:16,marginBottom:10,minHeight:48,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
