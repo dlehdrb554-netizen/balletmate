@@ -1713,7 +1713,7 @@ export default function Home() {
                 const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
                 const maxDuration=Math.max(studio?.duration||0,...(studio?.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
                 const priceValue=amounts.length?amounts.map(amount=>amount.toLocaleString("ko-KR")+"원").join(" · "):"미등록";
-                const couponValue=compareCouponStates[id]==="available"?"유":compareCouponStates[id]==="none"?"무":"확인 안 됨 (?) · 확인 필요";
+                const couponValue=compareCouponStates[id]==="available"?"유":compareCouponStates[id]==="none"?"무":"확인 필요";
                 const durationValue=maxDuration>0?maxDuration+"분":"미등록";
                 const rows=[
                   {key:"price",label:"가격",icon:"cash-outline" as const,value:priceValue},
