@@ -3,7 +3,7 @@ import { Stack, useGlobalSearchParams, usePathname, useRouter } from "expo-route
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, Pressable, StyleSheet, Appearance, Image, useColorScheme } from "react-native";
+import { View, Text, Pressable, StyleSheet, Appearance, Image, useColorScheme, DeviceEventEmitter } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../lib/supabase";
@@ -88,7 +88,7 @@ export default function RootLayout() {
       if(active&&!error)await Notifications.setBadgeCountAsync(count||0).catch(()=>{});
     };
     void syncBadge();
-    const channel=supabase?.channel("root-unread-badge").on("postgres_changes",{event:"*",schema:"public",table:"user_notifications"},()=>{void syncBadge();}).subscribe();
+    const channel=supabase?.channel("root-unread-badge").on("postgres_changes",{event:"*",schema:"public",table:"user_notifications"},()=>{DeviceEventEmitter.emit("balletmate:user-notifications-changed");void syncBadge();}).subscribe();
     return()=>{active=false;if(channel&&supabase)void supabase.removeChannel(channel);};
   },[]);
   useEffect(() => {
