@@ -1052,8 +1052,7 @@ export default function Home() {
   };
   syncLocationPermissionRef.current=syncLocationPermission;
 
-  // Returning from any stacked route uses the same map activation lifecycle.
-  // viewRef avoids remounting on ordinary map/list state renders.
+  // Returning from any stacked route refreshes location without recreating the map WebView.
   useFocusEffect(useCallback(()=>{
     if(viewRef.current!=="map")return;
     void syncLocationPermissionRef.current?.(false).catch(error=>{
