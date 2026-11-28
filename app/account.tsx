@@ -58,19 +58,6 @@ export default function Account(){
 
  const signInSocial=async(provider:"google"|"kakao")=>{
   if(!supabase){Alert.alert("설정 확인","Supabase 설정을 확인하세요.");return;}
-  // 최초 가입 전 필수 동의. 이미 이 기기에서 동의한 사용자는 기존 소셜 로그인을 계속 이용할 수 있습니다.
-  let consentValid=false;
-  try{
-   const raw=await AsyncStorage.getItem("balletmate.signupConsent.v1");
-   if(raw){
-    const consent=JSON.parse(raw);
-    consentValid=!!(consent?.termsVersion&&consent?.privacyVersion&&consent?.acceptedAt&&consent?.age14Confirmed===true);
-   }
-  }catch{}
-  if(!consentValid){
-   router.push({pathname:"/signup-consent",params:{next:provider}});
-   return;
-  }
   setLoadingProvider(provider);
   try{
    if(routeParams.returnTo)await AsyncStorage.setItem("balletmate.auth.returnTo",routeParams.returnTo);
