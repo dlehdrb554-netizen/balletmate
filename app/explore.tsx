@@ -406,7 +406,7 @@ export default function Home() {
   const compareDragY=useSharedValue(0);
   const compareSheetAnimatedStyle=useAnimatedStyle(()=>({transform:[{translateY:compareDragY.value}]}));
   const compareDismissGesture=useMemo(()=>Gesture.Pan()
-    .activeOffsetY(4).failOffsetX([-24,24]).maxPointers(1)
+    .minDistance(2).activeOffsetY(2).maxPointers(1)
     .onUpdate(event=>{compareDragY.value=Math.max(0,event.translationY);})
     .onEnd(event=>{
       if(event.translationY>110||event.velocityY>900){compareDragY.value=withSpring(520,{damping:28,stiffness:220});runOnJS(setCompareOpen)(false);}
@@ -441,23 +441,23 @@ export default function Home() {
   },[]));
   useFocusEffect(useCallback(()=>{
     const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
-      if(view==="map"){
-        if(Platform.OS==="android"){
-          const now=Date.now();
-          if(now-lastMapBackPress.current<2000){BackHandler.exitApp();return true;}
-          lastMapBackPress.current=now;
-          ToastAndroid.show("버튼을 한 번 더 누르면 종료됩니다",ToastAndroid.SHORT);
-          return true;
-        }
-        return false;
-      }
+      // Close transient UI before handling map-level back navigation.
       if(mapSettingsOpen){setMapSettingsOpen(false);setPendingDirectionsStudio(null);return true;}
       if(menuOpen){setMenuOpen(false);return true;}
-      if(compareOpen){setCompareOpen(false);return true;}
+      if(compareOpen){setCompareOpen(false);compareDragY.value=0;return true;}
       if(regionPickerOpen){if(expandedCity){setExpandedCity(null);return true;}if(expandedProvince){setExpandedProvince(null);return true;}setRegionPickerOpen(false);return true;}
       if(filterOpen){setFilterOpen(false);return true;}
       if(detailStudio){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);return true;}
-      setView("map");return true;
+      if(selected){setSelected(null);return true;}
+      if(view!=="map"){setView("map");return true;}
+      if(Platform.OS==="android"){
+        const now=Date.now();
+        if(now-lastMapBackPress.current<2000){BackHandler.exitApp();return true;}
+        lastMapBackPress.current=now;
+        ToastAndroid.show("버튼을 한 번 더 누르면 종료됩니다",ToastAndroid.SHORT);
+        return true;
+      }
+      return false;
     });
     return()=>subscription.remove();
   },[mapSettingsOpen,menuOpen,compareOpen,regionPickerOpen,expandedProvince,expandedCity,filterOpen,detailStudio,view]));
@@ -1457,7 +1457,7 @@ export default function Home() {
     </Modal>
     <Modal visible={compareOpen} animationType="none" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><ReanimatedAnimated.View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18)},compareSheetAnimatedStyle]}>
-        <View style={{alignItems:"center",paddingTop:14,paddingBottom:6}}><GestureDetector gesture={compareDismissGesture}><View accessibilityRole="adjustable" accessibilityLabel="비교 창을 위아래로 끌어 이동하거나 아래로 끌어 닫기" style={{width:104,height:24,alignItems:"center",justifyContent:"center"}}><View style={{width:46,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View></GestureDetector></View>
+        <View style={{alignItems:"center",paddingTop:14,paddingBottom:6}}><GestureDetector gesture={compareDismissGesture}><View accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{width:"100%",height:44,alignItems:"center",justifyContent:"center"}}><View style={{width:46,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View></GestureDetector></View>
          <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
         {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
