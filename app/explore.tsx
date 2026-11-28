@@ -139,6 +139,8 @@ export default function Home() {
   const bottomInsetPadding = useBottomPadding(0);
   const locationBtnAnim = useRef(new Animated.Value(5)).current;
   const map = useRef<KakaoMapHandle | null>(null);
+  const [mapFocusGeneration,setMapFocusGeneration]=useState(0);
+  const syncLocationPermissionRef=useRef<((requestPermissionOnStartup:boolean)=>Promise<void>)|null>(null);
   const [unreadNotificationCount,setUnreadNotificationCount]=useState(0);
   const refreshUnreadNotificationCount=useCallback(async()=>{
     if(!supabase){setUnreadNotificationCount(0);return;}
@@ -1041,6 +1043,17 @@ export default function Home() {
       setCurrentLocation({latitude:fresh.coords.latitude,longitude:fresh.coords.longitude});
     });
   };
+  syncLocationPermissionRef.current=syncLocationPermission;
+
+  // A stacked community screen can leave the Kakao WebView suspended. Recreate it
+  // when Explore regains focus, then restore current props and refresh the OS GPS fix.
+  useFocusEffect(useCallback(()=>{
+    if(view!=="map")return;
+    setMapFocusGeneration(current=>current+1);
+    void syncLocationPermissionRef.current?.(false).catch(error=>{
+      console.warn("Map focus location refresh failed:",error);
+    });
+  },[view]));
 
   // Request permission on startup when absent; re-read OS state on every app resume.
   useEffect(()=>{
@@ -1520,7 +1533,7 @@ export default function Home() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexGrow:0,flexShrink:0}} contentContainerStyle={[styles.quickFilters,{alignItems:"center"}]}><Chip label="전체" active={activeFilters===0||!!(adult&&kids&&coupon&&level==="초급")} onPress={resetFilters}/><Chip label="성인" active={adult&&! (kids&&coupon&&level==="초급")} onPress={()=>{const next=!adult;if(next&&kids&&coupon&&level==="초급"){resetFilters();return;}setAdult(next);}}/><Chip label="키즈" active={kids&&! (adult&&coupon&&level==="초급")} onPress={()=>{const next=!kids;if(next&&adult&&coupon&&level==="초급"){resetFilters();return;}setKids(next);}}/><Chip label="쿠폰" active={coupon&&! (adult&&kids&&level==="초급")} onPress={()=>{const next=!coupon;if(next&&adult&&kids&&level==="초급"){resetFilters();return;}setCoupon(next);}}/><Chip label="초급" active={level==="초급"&&! (adult&&kids&&coupon)} onPress={()=>{const next=level!=="초급";if(next&&adult&&kids&&coupon){resetFilters();return;}setLevel(next?"초급":null);}}/></ScrollView>
     <View style={styles.content}>
       {view==="map"?<View style={styles.mapWrap}>
-        <KakaoMap ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} searchedIds={searchedStudioIds} compareIds={compareIds} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} darkMode={isDark} />
+        <KakaoMap key={`map-focus-${mapFocusGeneration}`} ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} searchedIds={searchedStudioIds} compareIds={compareIds} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} darkMode={isDark} />
         {(!hasMapSearchRequested||mapMoved&&isAreaChanged)&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":hasMapSearchRequested?"이 지역에서 재검색":"현재 지역 학원 검색"}</Text></View></Pressable>}
         <Animated.View style={[styles.locateButton,{bottom:locationBtnAnim}]}><Pressable style={{width:44,height:44,alignItems:"center",justifyContent:"center"}} accessibilityRole="button" accessibilityLabel="현재 위치로 이동" onPress={()=>{void locate();}}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable></Animated.View>
         <Pressable style={[styles.mapCount,{bottom:selected?selectedCardHeight+16:5}]} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}곳</Text>{results.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
@@ -1658,78 +1671,81 @@ export default function Home() {
         </Animated.View>
       </View>
     </Modal>
-    <Modal visible={compareResultOpen} animationType="slide" presentationStyle="fullScreen" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setCompareResultOpen(false)}>
-      <View style={{flex:1,backgroundColor:isDark?"#17151D":"#FAF9FC",paddingTop:insets.top+8,paddingBottom:Math.max(insets.bottom,Platform.OS==="android"?24:0)+ (Platform.OS==="android"?12:8)}}>
-        <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:18,paddingBottom:12,borderBottomWidth:1,borderBottomColor:isDark?"#393342":COLORS.line}}>
-          <View style={{flex:1}}>
+    <Modal visible={compareResultOpen} animationType="slide" onRequestClose={()=>setCompareResultOpen(false)}>
+      <SafeAreaView edges={["top","bottom"]} style={{flex:1,backgroundColor:isDark?"#17151D":"#FAF9FC"}}>
+        <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:18,paddingVertical:12,borderBottomWidth:1,borderBottomColor:isDark?"#393342":COLORS.line}}>
+          <View style={{flex:1,minWidth:0}}>
             <Text style={{fontSize:20,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>학원 비교 결과</Text>
-            <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}}>선택한 학원의 가격·쿠폰·수업 정보를 비교합니다.</Text>
+            <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}}>선택한 학원의 가격·쿠폰·수업 정보를 비교합니다 · {compareIds.length}/3</Text>
           </View>
-          <Pressable onPress={()=>setCompareResultOpen(false)} hitSlop={10} style={{width:38,height:38,alignItems:"center",justifyContent:"center"}}>
+          <Pressable onPress={()=>setCompareResultOpen(false)} hitSlop={10} style={{width:42,height:42,alignItems:"center",justifyContent:"center"}}>
             <Ionicons name="close" size={25} color={isDark?"#D8D2E0":COLORS.ink}/>
           </Pressable>
         </View>
-        {!!compareMaterialError&&<View style={{marginHorizontal:16,marginTop:12,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
-        <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingHorizontal:12,paddingVertical:14,paddingBottom:24}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+        {!!compareMaterialError&&<View style={{marginHorizontal:16,marginTop:10,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
+        <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingHorizontal:12,paddingVertical:14,paddingBottom:20}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
           {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}>
             <Ionicons name="alert-circle-outline" size={30} color={COLORS.muted}/>
             <Text style={{fontSize:13,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>비교할 학원이 없습니다.</Text>
             <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted}}>지도에서 비교할 학원을 선택해 주세요.</Text>
-          </View>:compareIds.length===1?<View style={{paddingVertical:20,gap:12}}>
-            <View style={{padding:14,borderRadius:14,backgroundColor:isDark?"#24212B":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40394B":COLORS.line}}>
-              <Text style={{fontSize:11,fontWeight:"800",color:COLORS.purple,marginBottom:5}}>현재 선택된 학원 1곳</Text>
-              <Text style={{fontSize:14,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>{(studios.find(x=>x.id===compareIds[0])||favoriteStudios.find(x=>x.id===compareIds[0])||compareCache.find(x=>x.id===compareIds[0]))?.name||"선택한 학원"}</Text>
-              <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}}>한 곳을 더 선택하면 비교 결과를 확인할 수 있어요.</Text>
-            </View>
-          </View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
-          <View style={{width:"100%",gap:10}}>
-            {compareIds.map(id=>{
-              const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
-              const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
-              const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
-              const maxDuration=Math.max(studio?.duration||0,...(studio?.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
-              const priceValue=amounts.length?amounts.map(amount=>amount.toLocaleString("ko-KR")+"원").join(" · "):"미등록";
-              const couponValue=compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"없음":"확인 중";
-              const durationValue=maxDuration>0?maxDuration+"분":"미등록";
-              const rows=[
-                {key:"price",label:"가격",icon:"cash-outline" as const,value:priceValue},
-                {key:"coupon",label:"쿠폰",icon:"ticket-outline" as const,value:couponValue},
-                {key:"duration",label:"수업시간",icon:"time-outline" as const,value:durationValue}
-              ];
-              return <View key={id} style={{borderRadius:14,backgroundColor:isDark?"#24212B":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40394B":COLORS.line,overflow:"hidden"}}>
-                <View style={{flexDirection:"row",alignItems:"flex-start",gap:10,paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:isDark?"#40394B":COLORS.line}}>
-                  <View style={{flex:1,minWidth:0}}>
-                    <Text style={{fontSize:14,lineHeight:20,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>{studio?.name||"학원 정보 불러오는 중"}</Text>
-                    {!!studio?.area&&<Text style={{fontSize:11,lineHeight:16,color:isDark?"#B9B1C5":COLORS.muted,marginTop:2}}>{studio.area}</Text>}
-                  </View>
-                  <Pressable hitSlop={8} onPress={()=>removeCompareStudio(id)} accessibilityRole="button" accessibilityLabel="이 학원을 비교에서 삭제" style={{width:30,height:30,alignItems:"center",justifyContent:"center",borderRadius:9,backgroundColor:isDark?"#38313F":"#F2EFF6"}}>
-                    <Ionicons name="trash-outline" size={16} color={isDark?"#D5C8E7":COLORS.muted}/>
-                  </Pressable>
-                </View>
-                <View style={{paddingHorizontal:14,paddingVertical:4}}>
-                  {rows.map((row,index)=><View key={row.key} style={{minHeight:39,flexDirection:"row",alignItems:"center",gap:9,borderBottomWidth:index===rows.length-1?0:1,borderBottomColor:isDark?"#38323F":"#F0EDF3"}}>
-                    <View style={{width:26,height:26,borderRadius:8,alignItems:"center",justifyContent:"center",backgroundColor:isDark?"#393044":"#F1ECF8"}}>
-                      <Ionicons name={row.icon} size={15} color={isDark?"#D8C6FF":COLORS.purple}/>
+          </View>:<>
+            {compareIds.length===1&&<View style={{padding:13,marginBottom:10,borderRadius:12,backgroundColor:isDark?"#292333":"#F2ECFF"}}>
+              <Text style={{fontSize:12,fontWeight:"900",color:COLORS.purple}}>현재 선택된 학원 1곳</Text>
+              <Text style={{fontSize:11,lineHeight:17,color:isDark?"#D8D2E0":COLORS.muted,marginTop:3}}>이 학원은 아래 휴지통 버튼으로 삭제할 수 있고, 학원 추가하기로 다른 학원을 선택할 수 있어요.</Text>
+            </View>}
+            {compareClassLoading&&<View style={{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,paddingVertical:6}}>
+              <ActivityIndicator size="small" color={COLORS.purple}/>
+              <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted}}>비교 정보를 불러오는 중…</Text>
+            </View>}
+            <View style={{width:"100%",gap:10}}>
+              {compareIds.map(id=>{
+                const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
+                const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
+                const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
+                const maxDuration=Math.max(studio?.duration||0,...(studio?.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
+                const priceValue=amounts.length?amounts.map(amount=>amount.toLocaleString("ko-KR")+"원").join(" · "):"미등록";
+                const couponValue=compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"없음":"확인 중";
+                const durationValue=maxDuration>0?maxDuration+"분":"미등록";
+                const rows=[
+                  {key:"price",label:"가격",icon:"cash-outline" as const,value:priceValue},
+                  {key:"coupon",label:"쿠폰",icon:"ticket-outline" as const,value:couponValue},
+                  {key:"duration",label:"수업시간",icon:"time-outline" as const,value:durationValue}
+                ];
+                return <View key={id} style={{borderRadius:14,backgroundColor:isDark?"#24212B":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40394B":COLORS.line,overflow:"hidden"}}>
+                  <View style={{flexDirection:"row",alignItems:"flex-start",gap:10,paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:isDark?"#40394B":COLORS.line}}>
+                    <View style={{flex:1,minWidth:0}}>
+                      <Text style={{fontSize:14,lineHeight:20,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>{studio?.name||"학원 정보 불러오는 중"}</Text>
+                      {!!studio?.area&&<Text style={{fontSize:11,lineHeight:16,color:isDark?"#B9B1C5":COLORS.muted,marginTop:2}}>{studio.area}</Text>}
                     </View>
-                    <Text style={{width:62,fontSize:11,fontWeight:"800",color:isDark?"#C9C1D3":COLORS.muted}}>{row.label}</Text>
-                    <Text style={{flex:1,minWidth:0,fontSize:12,lineHeight:18,fontWeight:"700",color:isDark?"#F3EFFA":COLORS.ink}}>{row.value}</Text>
-                  </View>)}
-                </View>
-              </View>;
-            })}
-          </View>}
+                    <Pressable hitSlop={10} onPress={()=>removeCompareStudio(id)} accessibilityRole="button" accessibilityLabel="이 학원을 비교에서 삭제" style={{width:38,height:38,alignItems:"center",justifyContent:"center",borderRadius:10,backgroundColor:isDark?"#38313F":"#F2EFF6"}}>
+                      <Ionicons name="trash-outline" size={17} color={isDark?"#D5C8E7":COLORS.muted}/>
+                    </Pressable>
+                  </View>
+                  <View style={{paddingHorizontal:14,paddingVertical:4}}>
+                    {rows.map((row,index)=><View key={row.key} style={{minHeight:40,flexDirection:"row",alignItems:"center",gap:9,borderBottomWidth:index===rows.length-1?0:1,borderBottomColor:isDark?"#38323F":"#F0EDF3"}}>
+                      <View style={{width:26,height:26,borderRadius:8,alignItems:"center",justifyContent:"center",backgroundColor:isDark?"#393044":"#F1ECF8"}}>
+                        <Ionicons name={row.icon} size={15} color={isDark?"#D8C6FF":COLORS.purple}/>
+                      </View>
+                      <Text style={{width:62,fontSize:11,fontWeight:"800",color:isDark?"#C9C1D3":COLORS.muted}}>{row.label}</Text>
+                      <Text style={{flex:1,minWidth:0,fontSize:12,lineHeight:18,fontWeight:"700",color:isDark?"#F3EFFA":COLORS.ink}}>{row.value}</Text>
+                    </View>)}
+                  </View>
+                </View>;
+              })}
+            </View>
+          </>}
         </ScrollView>
-        <View style={{paddingHorizontal:16,paddingBottom:8,gap:8}}>
+        <View style={{paddingHorizontal:16,paddingTop:10,paddingBottom:12,gap:8,borderTopWidth:1,borderTopColor:isDark?"#393342":COLORS.line,backgroundColor:isDark?"#17151D":"#FAF9FC"}}>
           {compareIds.length<3?<Pressable accessibilityRole="button" onPress={()=>{setCompareResultOpen(false);setView("map");}} style={{minHeight:52,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
             <Text style={{fontSize:14,fontWeight:"900",color:"#FFFFFF"}}>{compareIds.length>0?"학원 추가하기 ("+compareIds.length+"/3)":"학원 선택하기"}</Text>
           </Pressable>:<View accessibilityRole="text" style={{minHeight:42,borderRadius:12,alignItems:"center",justifyContent:"center",backgroundColor:isDark?"#302B38":"#EFECF3"}}>
             <Text style={{fontSize:12,fontWeight:"800",color:isDark?"#C9C1D3":COLORS.muted}}>최대 3곳을 선택했어요 · 추가하려면 먼저 삭제해 주세요</Text>
           </View>}
-          <Pressable onPress={()=>setCompareResultOpen(false)} style={{minHeight:44,borderRadius:12,alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:isDark?"#51485E":COLORS.line}}>
+          <Pressable onPress={()=>setCompareResultOpen(false)} style={{minHeight:46,borderRadius:12,alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:isDark?"#51485E":COLORS.line}}>
             <Text style={{fontSize:13,fontWeight:"800",color:isDark?"#D8D2E0":COLORS.ink}}>확인</Text>
           </Pressable>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:modalBottomInset}]}>
