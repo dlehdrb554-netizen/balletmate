@@ -459,7 +459,7 @@ export default function Home() {
       return false;
     });
     return()=>subscription.remove();
-  },[mapSettingsOpen,menuOpen,compareOpen,compareResultOpen,compareSheetTranslateY,regionPickerOpen,expandedProvince,expandedCity,filterOpen,detailStudio,selected,view]));
+  },[mapSettingsOpen,menuOpen,compareOpen,compareResultOpen,compareSheetTranslateY,regionPickerOpen,expandedProvince,expandedCity,filterOpen,detailStudio,selected,view,enterMap]));
   useEffect(()=>{
     if((!compareOpen&&!compareResultOpen)||compareIds.length<2){setCompareMaterialError(null);setCompareClassLoading(false);return;}
     let active=true;
