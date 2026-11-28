@@ -139,6 +139,26 @@ export default function Home() {
   const bottomNavClearance = 62 + Math.max(insets.bottom,Platform.OS === "android" ? 24 : 0);
   const locationBtnAnim = useRef(new Animated.Value(16)).current;
   const map = useRef<KakaoMapHandle | null>(null);
+  const [unreadNotificationCount,setUnreadNotificationCount]=useState(0);
+  const refreshUnreadNotificationCount=useCallback(async()=>{
+    if(!supabase){setUnreadNotificationCount(0);return;}
+    const {data:{user}}=await supabase.auth.getUser();
+    if(!user){setUnreadNotificationCount(0);return;}
+    const {count,error}=await supabase.from("user_notifications").select("id",{count:"exact",head:true}).eq("user_id",user.id).is("read_at",null);
+    if(!error){
+      const next=count||0;
+      setUnreadNotificationCount(next);
+      void (await import("expo-notifications")).setBadgeCountAsync(next).catch(()=>{});
+    }
+  },[]);
+  useFocusEffect(useCallback(()=>{void refreshUnreadNotificationCount();},[refreshUnreadNotificationCount]));
+  useEffect(()=>{
+    if(!supabase)return;
+    const channel=supabase.channel("home-unread-notifications")
+      .on("postgres_changes",{event:"*",schema:"public",table:"user_notifications"},()=>{void refreshUnreadNotificationCount();})
+      .subscribe();
+    return()=>{void supabase.removeChannel(channel);};
+  },[refreshUnreadNotificationCount]);
   const [studios,setStudios]=useState<Studio[]>([]);
   const [backendState,setBackendState]=useState<"loading"|"connected"|"empty"|"error">(supabaseConfigured?"empty":"error");
   const [hasMapSearchRequested,setHasMapSearchRequested]=useState(false);
@@ -1336,7 +1356,7 @@ export default function Home() {
   return <SafeAreaView edges={["top","left","right"]} style={styles.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"}>
     <View style={styles.header}>
       <Text style={styles.brand}>balletmate <Text style={styles.brandDot}>✦</Text></Text>
-      <View style={styles.headerActions}><Pressable style={[styles.menuButton,{width:44,height:44,backgroundColor:"#653BB7",borderColor:"#653BB7"}]} onPress={async()=>{if(!permissionsReady)await refreshAdminAccess();setMenuOpen(true);}} accessibilityRole="button" accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color="#FFFFFF" /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage?open=notifications&returnTo=explore")} accessibilityRole="button" accessibilityLabel="알림 설정"><Ionicons name="settings-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage")} accessibilityRole="button" accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable></View>
+      <View style={styles.headerActions}><Pressable style={[styles.menuButton,{width:44,height:44,backgroundColor:"#653BB7",borderColor:"#653BB7"}]} onPress={async()=>{if(!permissionsReady)await refreshAdminAccess();setMenuOpen(true);}} accessibilityRole="button" accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color="#FFFFFF" /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line,position:"relative"}]} onPress={()=>router.push("/notifications")} accessibilityRole="button" accessibilityLabel="알림함"><Ionicons name="notifications-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} />{unreadNotificationCount>0&&<View style={{position:"absolute",top:-4,right:-4,minWidth:17,height:17,paddingHorizontal:4,borderRadius:9,backgroundColor:"#E64B72",borderWidth:1.5,borderColor:isDark?"#24212C":"#FFFFFF",alignItems:"center",justifyContent:"center"}}><Text style={{fontSize:9,fontWeight:"900",color:"#FFFFFF"}}>{unreadNotificationCount>99?"99+":unreadNotificationCount}</Text></View>}</Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage?open=notifications&returnTo=explore")} accessibilityRole="button" accessibilityLabel="알림 설정"><Ionicons name="settings-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage")} accessibilityRole="button" accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
       <Pressable accessibilityRole="button" accessibilityLabel="학원 및 지역 검색" onPress={openSearchOverlay} style={[styles.searchBox,{flexDirection:"row",alignItems:"center"}]}><Ionicons name="search-outline" size={19} color={COLORS.muted}/><Text numberOfLines={1} style={[styles.searchInput,{color:search?COLORS.ink:COLORS.muted,flex:1}]}>{search||"학원명, 지역, 수업명 검색"}</Text><Ionicons name="chevron-forward" size={16} color={COLORS.muted}/></Pressable>
