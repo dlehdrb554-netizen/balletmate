@@ -829,7 +829,7 @@ export default function Home() {
       });
     },300);
     return()=>clearTimeout(timer);
-  },[search,searchFocused,mergedStudios]);
+  },[search,searchFocused,studios,globalSearchStudios]);
   useEffect(()=>{if(!searchFocused){setClassSearchLoading(false);setLiveClassSearchIds([]);}},[searchFocused]);
   const submitSearch=async(queryOverride?:string)=>{
     if(searchSubmitting)return;
