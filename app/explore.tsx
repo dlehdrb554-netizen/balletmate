@@ -1503,7 +1503,7 @@ export default function Home() {
         </View>}
         </ScrollView>
         <Pressable accessibilityRole="button" accessibilityLabel="학원 비교 확인 및 닫기" style={[styles.applyButton,{flex:0,width:"100%",minHeight:52,alignSelf:"stretch",paddingVertical:14,marginTop:8}]} onPress={()=>setCompareOpen(false)}><Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>비교 완료</Text></Pressable>
-      </ReanimatedAnimated.View></View>
+      </Animated.View></View>
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:modalBottomInset}]}>
