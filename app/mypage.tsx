@@ -13,7 +13,6 @@ import * as FileSystem from "expo-file-system/legacy";
 import {supabase} from "../lib/supabase";
 import {themeStyles} from "../lib/theme";
 import * as Notifications from "expo-notifications";
-Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowAlert:true,shouldPlaySound:true,shouldSetBadge:false,shouldShowBanner:true,shouldShowList:true})});
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F3F0FF",line:"#EAE7F0"};
 const displayCommunityContent=(value:string)=>String(value||"").replace(/\uFFFCBM_IMAGE_\d+\uFFFC/g,"").replace(/\n{3,}/g,"\n\n").trim();
 const decodeBase64=(input:string):Uint8Array=>{
@@ -119,7 +118,6 @@ export default function MyPage(){
  }catch(error){console.warn("Push registration unavailable:",error);}};
  useEffect(()=>{if(user&&notificationPermission==="granted")void registerPushToken();},[user,notificationPermission]);
  const configureNotificationPermission=async()=>{try{let result=await Notifications.getPermissionsAsync();if(result.status!=="granted"&&!result.canAskAgain){await Linking.openSettings();return;}if(result.status!=="granted")result=await Notifications.requestPermissionsAsync();setNotificationPermission(result.status as any);if(result.status==="granted")await registerPushToken();else if(!result.canAskAgain)await Linking.openSettings();}catch{Alert.alert("알림 권한","기기 설정에서 알림 권한을 확인해 주세요.");}};
- useEffect(()=>{const sub=Notifications.addNotificationResponseReceivedListener(response=>{const data=response.notification.request.content.data as any;if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});else if(data?.postId)router.push({pathname:"/community",params:{postId:String(data.postId)}});else if(data?.noticeId)setMenu("notices");});return()=>sub.remove();},[router]);
  useFocusEffect(React.useCallback(()=>{
   const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{
    if(profileOpen){setProfileOpen(false);return true;}
