@@ -19,6 +19,7 @@ import { fetchCouponsForStudio, StudioCoupon } from "../lib/coupons";
 import { fetchStudioPublicPrices, StudioPublicPrice, fetchStudioPublicSchedules, StudioPublicSchedule } from "../lib/studio-public-materials";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import KakaoMap, { KakaoMapHandle } from "../components/KakaoMap";
 
 type Studio = {
@@ -148,7 +149,7 @@ export default function Home() {
     if(!error){
       const next=count||0;
       setUnreadNotificationCount(next);
-      void (await import("expo-notifications")).setBadgeCountAsync(next).catch(()=>{});
+      void Notifications.setBadgeCountAsync(next).catch(()=>{});
     }
   },[]);
   useFocusEffect(useCallback(()=>{void refreshUnreadNotificationCount();},[refreshUnreadNotificationCount]));
