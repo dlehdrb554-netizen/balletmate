@@ -243,7 +243,10 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   const mapReady = useRef(false);
   const pendingMessages = useRef<string[]>([]);
   const lastRegionRef = useRef<MapRegion>(initialRegion);
-  const html = useMemo(() => buildHtml(lastRegionRef.current, darkMode), [darkMode]);
+  // Build the WebView document once; theme changes are applied through postMessage
+  // so changing light/dark mode never reloads the map or resets its viewport.
+  const html = useMemo(() => buildHtml(lastRegionRef.current, darkMode), []);
+  const webViewSource = useMemo(() => ({ html, baseUrl: "https://localhost" }), [html]);
   const sendToMap = useCallback((message: unknown) => {
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
@@ -304,9 +307,8 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   return (
     <View style={styles.container}>
       <WebView
-        key={darkMode ? "kakao-map-dark" : "kakao-map-light"}
         ref={webRef}
-        source={{ html, baseUrl: "https://localhost" }}
+        source={webViewSource}
         originWhitelist={["*"]}
         javaScriptEnabled
         domStorageEnabled
