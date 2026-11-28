@@ -69,7 +69,7 @@ export default function RootLayout() {
         if(user)await supabase.from("user_notifications").update({read_at:new Date().toISOString()}).eq("id",notificationId).eq("user_id",user.id).is("read_at",null);
       }
       if(!active)return;
-      if(data?.studioId)router.push({pathname:"/",params:{studioId:String(data.studioId)}});
+      if(data?.studioId)router.navigate({pathname:"/",params:{studioId:String(data.studioId)}});
       else if(data?.postId)router.push({pathname:"/community",params:{postId:String(data.postId)}});
       else if(data?.noticeId)router.push("/mypage?open=notices");
       else router.push("/notifications");
