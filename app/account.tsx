@@ -58,6 +58,19 @@ export default function Account(){
 
  const signInSocial=async(provider:"google"|"kakao")=>{
   if(!supabase){Alert.alert("설정 확인","Supabase 설정을 확인하세요.");return;}
+  // 최초 가입 전 필수 동의. 이미 이 기기에서 동의한 사용자는 기존 소셜 로그인을 계속 이용할 수 있습니다.
+  let consentValid=false;
+  try{
+   const raw=await AsyncStorage.getItem("balletmate.signupConsent.v1");
+   if(raw){
+    const consent=JSON.parse(raw);
+    consentValid=!!(consent?.termsVersion&&consent?.privacyVersion&&consent?.acceptedAt&&consent?.age14Confirmed===true);
+   }
+  }catch{}
+  if(!consentValid){
+   router.push({pathname:"/signup-consent",params:{next:provider}});
+   return;
+  }
   setLoadingProvider(provider);
   try{
    if(routeParams.returnTo)await AsyncStorage.setItem("balletmate.auth.returnTo",routeParams.returnTo);
@@ -203,7 +216,7 @@ export default function Account(){
        <View style={[s.input,{flexDirection:"row",alignItems:"center"}]}><TextInput style={{flex:1,height:"100%",padding:0,color:isDark?"#FFFFFF":C.ink}} value={pw} onChangeText={setPw} placeholder="비밀번호" placeholderTextColor={C.muted} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} onSubmitEditing={submitLegacyLogin} returnKeyType="go"/><Pressable onPress={()=>setShowPassword(value=>!value)} hitSlop={8} accessibilityRole="button" accessibilityLabel={showPassword?"비밀번호 숨기기":"비밀번호 표시"} accessibilityState={{selected:showPassword}} style={{width:40,height:44,alignItems:"center",justifyContent:"center"}}><MaterialCommunityIcons name={showPassword?"eye-off-outline":"eye-outline"} size={21} color={isDark?"#D0D0D0":C.muted}/></Pressable></View>
        <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
        <Pressable style={s.legacyLink} onPress={async()=>{const consent=await AsyncStorage.getItem("balletmate.signupConsent.v1");router.push(consent?"/signup":{pathname:"/signup-consent",params:{next:"email"}});}}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
-       <Text style={s.note}>Google·카카오 계정은 처음 이용하면 가입이 자동으로 진행되고, 기존 계정은 로그인됩니다.</Text>
+       <Text style={s.note}>카카오·Google은 해당 계정으로 인증하므로 별도 이메일 인증 없이 가입·로그인할 수 있습니다. 이메일 가입은 인증 링크 확인이 필요합니다.</Text>
       </>
      </View>
     }
