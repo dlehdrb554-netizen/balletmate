@@ -177,7 +177,7 @@ export default function Community(){
    [posts,blockedUserIds,sortMode,postMetrics]
   );
   useEffect(()=>{loadPosts();},[loadPosts]);
- useEffect(()=>{const show=Keyboard.addListener("keyboardDidShow",()=>setKeyboardVisible(true));const hide=Keyboard.addListener("keyboardDidHide",()=>setKeyboardVisible(false));return()=>{show.remove();hide.remove();};},[]);
+ useEffect(()=>{const show=Keyboard.addListener("keyboardDidShow",()=>{setKeyboardVisible(true);if(selectedPostIdRef.current)requestAnimationFrame(()=>commentDetailScrollRef.current?.scrollToEnd({animated:true}));});const hide=Keyboard.addListener("keyboardDidHide",()=>setKeyboardVisible(false));return()=>{show.remove();hide.remove();};},[]);
  useEffect(()=>{
   if(!userId||!supabase||termsEntryChecked.current)return;
   termsEntryChecked.current=true;
@@ -559,7 +559,7 @@ export default function Community(){
    <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={openComposer}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>router.replace("/")}><Ionicons name="menu-outline" size={22} color={isDark?"#FFFFFF":"#252238"} /></Pressable></View>
   </View>
   {selected?
-   <ScrollView ref={commentDetailScrollRef} onContentSizeChange={()=>{if(commentPhoto)requestAnimationFrame(()=>commentDetailScrollRef.current?.scrollToEnd({animated:true}));}} contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled">
+   <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={Platform.OS==="ios"?insets.top:0}><ScrollView ref={commentDetailScrollRef} onContentSizeChange={()=>{if(commentPhoto||keyboardVisible)requestAnimationFrame(()=>commentDetailScrollRef.current?.scrollToEnd({animated:true}));}} contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
     <View style={s.postDetail}>
      <View style={s.categoryBadge}><Text style={s.categoryText}>{selected.category}</Text></View>
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={[s.postTitle,{flex:1}]}>{selected.title}</Text><Pressable onPress={()=>void toggleBookmark(selected)} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(selected.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(selected.id)?"bookmark":"bookmark-outline"} size={22} color={C.purple}/></Pressable></View>
@@ -572,7 +572,7 @@ export default function Community(){
      <View style={s.commentAvatar}><Text style={s.commentAvatarText}>{(comment.author_name||"발").trim().slice(0,1)}</Text></View>
      <View style={s.commentMain}>
       <View style={s.commentMetaRow}><Text style={s.commentAuthor}>{comment.author_name||"발레메이트 회원"}</Text><Text style={s.commentTime}>{timeLabel(comment.created_at)}</Text></View>
-      {editingCommentId===comment.id?<View style={{marginTop:8,gap:8}}>{!!editCommentPhotoUri&&<View style={{flexDirection:"row",alignItems:"center",gap:10}}><Image source={{uri:editCommentPhotoUri}} style={{width:64,height:64,borderRadius:8}}/><Pressable onPress={()=>{setEditCommentPhoto(null);setEditCommentPhotoUri(null);}}><Text style={s.commentActionText}>사진 삭제</Text></Pressable></View>}<View style={{flexDirection:"row",alignItems:"center",gap:8}}><Pressable onPress={pickEditCommentPhoto} style={s.commentAttachButton}><Ionicons name="image-outline" size={20} color={C.purple}/></Pressable><Text style={{fontSize:11,color:C.muted}}>사진 변경 또는 삭제</Text></View><TextInput value={editCommentText} onChangeText={setEditCommentText} multiline maxLength={1000} style={[s.commentInput,{minHeight:72}]} placeholder="댓글 내용을 수정하세요"/><View style={{flexDirection:"row",justifyContent:"flex-end",gap:12}}><Pressable onPress={()=>{setEditingCommentId(null);setEditCommentText("");setEditCommentPhoto(null);setEditCommentPhotoUri(null);}}><Text style={s.commentActionText}>취소</Text></Pressable><Pressable disabled={submitting} onPress={saveCommentEdit}><Text style={[s.commentActionText,{color:C.purple,fontWeight:"900"}]}>저장</Text></Pressable></View></View>:!!comment.content&&<Text style={s.commentBody}>{comment.content}</Text>}
+      {editingCommentId===comment.id?<View style={{marginTop:8,gap:8}}>{!!editCommentPhotoUri&&<View style={{flexDirection:"row",alignItems:"center",gap:10}}><Image source={{uri:editCommentPhotoUri}} style={{width:64,height:64,borderRadius:8}}/><Pressable onPress={()=>{setEditCommentPhoto(null);setEditCommentPhotoUri(null);}}><Text style={s.commentActionText}>사진 삭제</Text></Pressable></View>}<View style={{flexDirection:"row",alignItems:"center",gap:8}}><Pressable onPress={pickEditCommentPhoto} style={s.commentAttachButton}><Ionicons name="image-outline" size={20} color={C.purple}/></Pressable><Text style={{fontSize:11,color:C.muted}}>사진 변경 또는 삭제</Text></View><TextInput value={editCommentText} onChangeText={setEditCommentText} onFocus={()=>requestAnimationFrame(()=>commentDetailScrollRef.current?.scrollToEnd({animated:true}))} multiline maxLength={1000} style={[s.commentInput,{minHeight:72}]} placeholder="댓글 내용을 수정하세요"/><View style={{flexDirection:"row",justifyContent:"flex-end",gap:12}}><Pressable onPress={()=>{setEditingCommentId(null);setEditCommentText("");setEditCommentPhoto(null);setEditCommentPhotoUri(null);}}><Text style={s.commentActionText}>취소</Text></Pressable><Pressable disabled={submitting} onPress={saveCommentEdit}><Text style={[s.commentActionText,{color:C.purple,fontWeight:"900"}]}>저장</Text></Pressable></View></View>:!!comment.content&&<Text style={s.commentBody}>{comment.content}</Text>}
       {!!comment.image_urls?.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:9}}>{comment.image_urls.map((url,index)=><Image key={url+index} source={{uri:url}} style={{width:164,height:132,borderRadius:9,marginRight:8}} resizeMode="cover"/>)}</ScrollView>}
       <View style={s.commentActionRow}>
        {comment.author_id===userId||isAdmin?<><Pressable onPress={()=>startEditComment(comment)}><Text style={[s.commentActionText,{color:C.purple}]}>수정</Text></Pressable><Pressable onPress={()=>removeComment(comment)}><Text style={s.commentActionText}>{isAdmin&&comment.author_id!==userId?"관리자 삭제":"삭제"}</Text></Pressable></>:<><Pressable onPress={()=>reportContent("comment",comment.id,comment.author_id)}><Text style={s.commentActionText}>신고</Text></Pressable><Pressable onPress={()=>blockUser(comment.author_id,comment.author_name||"해당")}><Text style={s.commentActionText}>차단</Text></Pressable></>}
@@ -585,12 +585,12 @@ export default function Community(){
      {commentPhoto&&<View style={s.commentPhotoPreview}><Image source={{uri:commentPhoto.uri}} style={{width:58,height:58,borderRadius:8}}/><Pressable onPress={()=>setCommentPhoto(null)} accessibilityRole="button" accessibilityLabel="첨부 사진 삭제"><Ionicons name="close-circle" size={21} color={C.muted}/></Pressable></View>}
      <View style={s.commentComposer}>
       <Pressable onPress={pickCommentPhoto} style={s.commentAttachButton} accessibilityRole="button" accessibilityLabel="댓글 사진 첨부"><Ionicons name="image-outline" size={21} color={C.purple}/></Pressable>
-      <TextInput style={s.commentInput} value={commentText} onChangeText={setCommentText} placeholder={userId?"댓글을 입력하세요":"로그인 후 댓글을 작성할 수 있어요"} multiline maxLength={1000}/>
+      <TextInput style={s.commentInput} value={commentText} onChangeText={setCommentText} onFocus={()=>requestAnimationFrame(()=>commentDetailScrollRef.current?.scrollToEnd({animated:true}))} placeholder={userId?"댓글을 입력하세요":"로그인 후 댓글을 작성할 수 있어요"} multiline maxLength={1000}/>
       <Pressable style={[s.sendBtn,submitting&&{opacity:.5}]} disabled={submitting||commentPhotoUploading} onPress={submitComment}><Text style={s.sendText}>등록</Text></Pressable>
      </View>
     </View>
     <Text style={s.cooldownNote}>게시글과 댓글은 도배 방지를 위해 작성 간격이 30초로 제한됩니다.</Text>
-   </ScrollView>
+   </ScrollView></KeyboardAvoidingView>
    :
    <>
     <Text style={s.intro}>학원 경험과 발레복 정보를 서로 나눠보세요.</Text>
@@ -649,7 +649,7 @@ export default function Community(){
   </Modal>
 
   <Modal visible={!!editingPost} transparent={false} animationType="fade" statusBarTranslucent onRequestClose={()=>{Keyboard.dismiss();setEditingPost(null);}}>
-   <KeyboardAvoidingView style={[s.shade,{flex:1,backgroundColor:isDark?"#17151D":"#FAF9FC",paddingTop:insets.top,paddingBottom:insets.bottom}]} behavior={Platform.OS==="ios"?"padding":undefined} keyboardVerticalOffset={Platform.OS==="ios"?insets.top:0}>
+   <KeyboardAvoidingView style={[s.shade,{flex:1,backgroundColor:isDark?"#17151D":"#FAF9FC",paddingTop:insets.top,paddingBottom:insets.bottom}]} behavior={Platform.OS==="ios"?"padding":"height"} keyboardVerticalOffset={Platform.OS==="ios"?insets.top:0}>
     <View style={[s.modal,{width:"100%",maxHeight:keyboardVisible?"74%":"88%",flexShrink:1,paddingBottom:Math.max(24,insets.bottom+16)}]}>
      <View style={s.composerHeader}><Pressable onPress={()=>setEditingPost(null)} style={s.composerClose}><Text style={s.close}>×</Text></Pressable><Text style={s.modalTitle}>게시글 수정</Text><Pressable style={[s.composerSubmit,submitting&&{opacity:.5}]} disabled={submitting} onPress={savePostEdit}><Text style={s.composerSubmitText}>{submitting?"저장 중…":"저장"}</Text></Pressable></View>
      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:12}}>
