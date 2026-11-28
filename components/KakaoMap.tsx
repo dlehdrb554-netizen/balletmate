@@ -161,10 +161,11 @@ function buildHtml(initialRegion: MapRegion) {
     if(load)load.style.backgroundColor=surface;
     var colorScheme=document.querySelector('meta[name="color-scheme"]');
     if(colorScheme)colorScheme.setAttribute('content',darkModeEnabled?'dark':'light');
-    // Theme changes only affect the map surface and pin imagery.
-    // Keep existing marker attachments intact to avoid transient detach/reattach races.
-    // Re-attach pins after theme transitions to recover Android WebView layers.
-    refreshMarkerImages(true);
+    // Theme is a presentation-only change. Do not recreate, detach, reattach,
+    // or replace markers here: Android WebView can lose Kakao overlay layers
+    // when Marker.setMap(map) is called during a CSS-only theme transition.
+    // Marker state is refreshed only by updateMarkers().
+
   }
   function apply(message){
     if(!map){pending.push(message);return;}
@@ -297,7 +298,6 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   return (
     <View style={styles.container}>
       <WebView
-        key={darkMode ? "kakao-map-dark" : "kakao-map-light"}
         ref={webRef}
         source={{ html, baseUrl: "https://localhost" }}
         originWhitelist={["*"]}
@@ -310,7 +310,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
           // The page may have loaded while the Kakao SDK is still initializing.
           // The explicit {type:"ready"} message flushes all queued commands.
         }}
-        style={[styles.webview, { backgroundColor: "#F2F2F7" }]}
+        style={[styles.webview, { backgroundColor: darkMode ? "#1C1C1E" : "#F2F2F7" }]}
       />
     </View>
   );
