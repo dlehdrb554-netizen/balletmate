@@ -8,7 +8,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRootNavigationState, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, Animated, AppState, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions, PanResponder, DeviceEventEmitter} from "react-native";
+  ActivityIndicator, Animated, AppState, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions, PanResponder, DeviceEventEmitter, PermissionsAndroid} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomPadding } from "../hooks/useBottomPadding";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
@@ -490,14 +490,31 @@ export default function Home() {
   const [locationLoading,setLocationLoading]=useState(false);
   const locationRequestId=useRef(0);
   const locationPermissionSyncId=useRef(0);
+  const locationWarmupGeneration=useRef(0);
   const warmedLocationRef=useRef<Location.LocationObject|null>(null);
   const locationWarmupRef=useRef<Promise<Location.LocationObject|null>|null>(null);
   const startLocationWarmup=()=>{
     if(!locationWarmupRef.current){
-      locationWarmupRef.current=Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced})
-        .then(position=>{warmedLocationRef.current=position;return position;})
+      const generation=locationWarmupGeneration.current;
+      let timeout:ReturnType<typeof setTimeout>|null=null;
+      let task:Promise<Location.LocationObject|null>;
+      const positionRequest=Promise.race([
+        Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced}),
+        new Promise<Location.LocationObject>((_,reject)=>{
+          timeout=setTimeout(()=>reject(new Error("Location request timed out")),12000);
+        })
+      ]);
+      task=positionRequest
+        .then(position=>{
+          if(generation===locationWarmupGeneration.current)warmedLocationRef.current=position;
+          return position;
+        })
         .catch(error=>{console.warn("Location warm-up unavailable:",error);return null;})
-        .finally(()=>{locationWarmupRef.current=null;});
+        .finally(()=>{
+          if(timeout)clearTimeout(timeout);
+          if(locationWarmupRef.current===task)locationWarmupRef.current=null;
+        });
+      locationWarmupRef.current=task;
     }
     return locationWarmupRef.current;
   };
@@ -951,14 +968,26 @@ export default function Home() {
     return()=>{active=false;};
   },[]));
   const readLocationPermission=async()=>{
-    // The map's current-location marker and GPS button require foreground access.
-    // Background access alone must not be treated as foreground permission.
-    const foreground=await Location.getForegroundPermissionsAsync();
-    const foregroundGranted=foreground.granted||foreground.status==="granted";
+    // Cross-check Expo's permission response against Android's native runtime state.
+    // This avoids treating a stale Expo response as the device's actual permission.
+    let foreground:Location.LocationPermissionResponse|null=null;
+    try{foreground=await Location.getForegroundPermissionsAsync();}catch(error){console.warn("Expo foreground permission read failed:",error);}
+    let nativeGranted=false;
+    if(Platform.OS==="android"){
+      try{
+        const [fine,coarse]=await Promise.all([
+          PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION),
+          PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION)
+        ]);
+        nativeGranted=fine||coarse;
+      }catch(error){console.warn("Android native location permission check failed:",error);}
+    }
+    const foregroundGranted=!!(foreground?.granted||foreground?.status==="granted"||nativeGranted);
     return {
       granted:foregroundGranted,
       foregroundGranted,
-      canAskAgain:foreground.canAskAgain
+      canAskAgain:foregroundGranted?false:(foreground?.canAskAgain??true),
+      status:foregroundGranted?"granted":(foreground?.status??"undetermined")
     };
   };
   const syncLocationPermission=async(requestPermissionIfUndetermined:boolean)=>{
@@ -968,13 +997,15 @@ export default function Home() {
     let granted=permission.foregroundGranted;
     let canAskAgain=permission.canAskAgain;
     if(!granted&&requestPermissionIfUndetermined){
-      const current=await Location.getForegroundPermissionsAsync();
+      const current=await Location.getForegroundPermissionsAsync().catch(()=>null);
       if(syncId!==locationPermissionSyncId.current)return;
-      if(current.status==="undetermined"){
-        const requested=await Location.requestForegroundPermissionsAsync();
+      if(!current||current.status==="undetermined"){
+        await Location.requestForegroundPermissionsAsync();
         if(syncId!==locationPermissionSyncId.current)return;
-        granted=requested.granted||requested.status==="granted";
-        canAskAgain=requested.canAskAgain;
+        const refreshed=await readLocationPermission();
+        if(syncId!==locationPermissionSyncId.current)return;
+        granted=refreshed.foregroundGranted;
+        canAskAgain=refreshed.canAskAgain;
       }
     }
     setLocationGranted(granted);
@@ -1018,8 +1049,14 @@ export default function Home() {
           console.warn("Location permission resync failed:",error);
         });
       }else{
-        // Ignore any permission/GPS response that arrives after the app backgrounds.
+        // Invalidate all native GPS work on background/inactive. A hung request from
+        // before a crash or app switch must never block the next foreground request.
         locationPermissionSyncId.current++;
+        locationRequestId.current++;
+        locationWarmupGeneration.current++;
+        locationWarmupRef.current=null;
+        warmedLocationRef.current=null;
+        setLocationLoading(false);
       }
     });
     return()=>subscription.remove();
@@ -1048,10 +1085,10 @@ export default function Home() {
       let permission=await readLocationPermission();
       if(requestId!==locationRequestId.current)return;
       if(!permission.granted&&permission.canAskAgain){
-        const requested=await Location.requestForegroundPermissionsAsync();
-        const foregroundGranted=requested.granted||requested.status==="granted";
-        permission={...permission,granted:foregroundGranted,foregroundGranted,canAskAgain:requested.canAskAgain};
-        if(!permission.granted&&Platform.OS==="android")permission=await readLocationPermission();
+        await Location.requestForegroundPermissionsAsync();
+        if(requestId!==locationRequestId.current)return;
+        // Always verify the result from the OS again instead of trusting the prompt response.
+        permission=await readLocationPermission();
       }
       if(requestId!==locationRequestId.current)return;
       if(!permission.granted){
