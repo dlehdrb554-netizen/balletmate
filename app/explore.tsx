@@ -460,7 +460,7 @@ export default function Home() {
       return false;
     });
     return()=>subscription.remove();
-  },[mapSettingsOpen,menuOpen,compareOpen,regionPickerOpen,expandedProvince,expandedCity,filterOpen,detailStudio,view]));
+  },[mapSettingsOpen,menuOpen,compareOpen,compareDragY,regionPickerOpen,expandedProvince,expandedCity,filterOpen,detailStudio,selected,view]));
   useEffect(()=>{
     if(!compareOpen||compareIds.length===0){setCompareMaterialError(null);return;}
     let active=true;
