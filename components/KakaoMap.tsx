@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import WebView, { WebViewMessageEvent } from "react-native-webview";
 import Constants from "expo-constants";
@@ -33,20 +33,21 @@ type Props = {
 
 const JS_KEY = String(Constants.expoConfig?.extra?.kakaoJavascriptKey ?? "");
 
-function buildHtml(initialRegion: MapRegion) {
-  // Theme is intentionally excluded from HTML so color-scheme changes never rebuild the WebView document.
-  const initialSurface = "#F2F2F7";
+function buildHtml(initialRegion: MapRegion, initialDarkMode: boolean) {
+  // Theme changes create a fresh WebView/Kakao map; latest markers are restored after SDK readiness.
+  const initialSurface = initialDarkMode ? "#1C1C1E" : "#F2F2F7";
+  const initialTileFilter = initialDarkMode ? "brightness(0.68) saturate(0.82)" : "none";
   const center = JSON.stringify({ lat: initialRegion.latitude, lng: initialRegion.longitude });
   const level = Math.max(1, Math.min(14, Math.round(7 + Math.log2(initialRegion.latitudeDelta / 0.06))));
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="color-scheme" content="light">
-<style>*{box-sizing:border-box}:root{--map-tile-filter:none}html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background-color:${initialSurface}}#map img[src*="map_2d"]{filter:var(--map-tile-filter,none)} .load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7661D8;font:14px sans-serif;background:${initialSurface};z-index:2}</style>
+<meta name="color-scheme" content="${initialDarkMode ? "dark" : "light"}">
+<style>*{box-sizing:border-box}:root{--map-tile-filter:${initialTileFilter}}html,body,#map{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background-color:${initialSurface}}#map img[src*="map_2d"]{filter:var(--map-tile-filter,none)} .load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7661D8;font:14px sans-serif;background:${initialSurface};z-index:2}</style>
 </head>
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
-  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkModeEnabled=false, regionTimer=null;
+  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkModeEnabled=${JSON.stringify(initialDarkMode)}, regionTimer=null;
   var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
@@ -241,7 +242,8 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   const webRef = useRef<WebView>(null);
   const mapReady = useRef(false);
   const pendingMessages = useRef<string[]>([]);
-  const html = useRef(buildHtml(initialRegion)).current;
+  const lastRegionRef = useRef<MapRegion>(initialRegion);
+  const html = useMemo(() => buildHtml(lastRegionRef.current, darkMode), [darkMode]);
   const sendToMap = useCallback((message: unknown) => {
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
@@ -254,6 +256,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   }, []);
   useImperativeHandle(ref, () => ({
     animateToRegion: (region, duration = 400) => {
+      lastRegionRef.current = region;
       sendToMap({ type: "animate", region, duration });
     },
   }), [sendToMap]);
@@ -289,7 +292,10 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
         }));
         webRef.current?.postMessage(JSON.stringify({type:"setTheme",isDark:darkMode}));
       }
-      if (message.type === "region" && message.region) onRegionChangeComplete?.(message.region);
+      if (message.type === "region" && message.region) {
+        lastRegionRef.current = message.region;
+        onRegionChangeComplete?.(message.region);
+      }
       if (message.type === "marker" && typeof message.id === "string") onMarkerPress?.(message.id);
     } catch {
       // Ignore malformed messages from the map page.
@@ -298,6 +304,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   return (
     <View style={styles.container}>
       <WebView
+        key={darkMode ? "kakao-map-dark" : "kakao-map-light"}
         ref={webRef}
         source={{ html, baseUrl: "https://localhost" }}
         originWhitelist={["*"]}
