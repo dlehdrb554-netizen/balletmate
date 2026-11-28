@@ -1685,7 +1685,7 @@ export default function Home() {
         <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:18,paddingVertical:12,borderBottomWidth:1,borderBottomColor:isDark?"#393342":COLORS.line}}>
           <View style={{flex:1,minWidth:0}}>
             <Text style={{fontSize:20,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>학원 비교 결과</Text>
-            <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}}>선택한 학원의 가격·쿠폰·수업 정보를 비교합니다 · {compareIds.length}/3</Text>
+            <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}}>선택한 학원의 수업료·체험 쿠폰·수업 정보를 비교합니다 · {compareIds.length}/3</Text>
           </View>
           <Pressable onPress={()=>setCompareResultOpen(false)} hitSlop={10} style={{width:42,height:42,alignItems:"center",justifyContent:"center"}}>
             <Ionicons name="close" size={25} color={isDark?"#D8D2E0":COLORS.ink}/>
@@ -1713,11 +1713,11 @@ export default function Home() {
                 const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
                 const maxDuration=Math.max(studio?.duration||0,...(studio?.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
                 const priceValue=amounts.length?amounts.map(amount=>amount.toLocaleString("ko-KR")+"원").join(" · "):"미등록";
-                const couponValue=compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"없음":"확인 중";
+                const couponValue=compareCouponStates[id]==="available"?"유":compareCouponStates[id]==="none"?"무":"확인 안 됨 (?) · 확인 필요";
                 const durationValue=maxDuration>0?maxDuration+"분":"미등록";
                 const rows=[
                   {key:"price",label:"가격",icon:"cash-outline" as const,value:priceValue},
-                  {key:"coupon",label:"쿠폰",icon:"ticket-outline" as const,value:couponValue},
+                  {key:"coupon",label:"체험 쿠폰",icon:"ticket-outline" as const,value:couponValue},
                   {key:"duration",label:"수업시간",icon:"time-outline" as const,value:durationValue}
                 ];
                 return <View key={id} style={{borderRadius:14,backgroundColor:isDark?"#24212B":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40394B":COLORS.line,overflow:"hidden"}}>
