@@ -619,7 +619,7 @@ export default function Home() {
 
   const globalSearchIdSet=useMemo(()=>new Set(globalSearchStudios.map(studio=>studio.id)),[globalSearchStudios]);
   const deferredSearch=useDeferredValue(search);
-  const normalizedLiveQuery=search.trim().toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+  const normalizedLiveQuery=search.trim().toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
   const liveSearchRequestId=useRef(0);
   const mergedStudios=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()],[studios,globalSearchStudios]);
   const liveClassSearchRequestId=useRef(0);
@@ -627,7 +627,7 @@ export default function Home() {
   const liveSearchMatches=useMemo(()=>{
     if(!normalizedLiveQuery)return [];
     const localMatches=mergedStudios.filter(studio=>{
-      const searchable=[studio.name,studio.address||"",studio.area].join(" ").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+      const searchable=[studio.name,studio.address||"",studio.area].join(" ").toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
       return searchable.includes(normalizedLiveQuery);
     });
     const classMatches=liveClassSearchIds.length?mergedStudios.filter(studio=>liveClassSearchIds.includes(studio.id)):[];
@@ -821,9 +821,9 @@ export default function Home() {
     const query=search.trim();
     setLiveClassSearchIds([]);
     if(!searchFocused||!supabase||query.length<2){setClassSearchLoading(false);return;}
-    const normalized=query.toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+    const normalized=query.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
     const hasStudioMatch=mergedStudios.some(studio=>{
-      const searchable=[studio.name,studio.address||"",studio.area].join(" ").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+      const searchable=[studio.name,studio.address||"",studio.area].join(" ").toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
       return searchable.includes(normalized);
     });
     if(hasStudioMatch){setClassSearchLoading(false);return;}
@@ -1269,7 +1269,7 @@ export default function Home() {
     const target=region;
     const queryAtStart=search.trim();
     const term=queryAtStart.length>=2?queryAtStart:"발레";
-    const normalizedTerm=term.toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+    const normalizedTerm=term.toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
     const withinViewport=(studio:Studio)=>Number.isFinite(studio.lat)&&Number.isFinite(studio.lng)
       &&Math.abs(studio.lat-target.latitude)<=target.latitudeDelta/2
       &&Math.abs(studio.lng-target.longitude)<=target.longitudeDelta/2;
@@ -1278,7 +1278,7 @@ export default function Home() {
       if(!withinViewport(studio))return false;
       if(queryAtStart.length<2)return true;
       const searchable=[studio.name,studio.area,studio.address||"",...(studio.tags||[])].join(" ")
-        .toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+        .toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
       return searchable.includes(normalizedTerm);
     }).filter(studio=>!isExcludedStudioSearchResult(studio.name));
     setHasMapSearchRequested(true);
