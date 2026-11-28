@@ -16,6 +16,7 @@ type Post={id:string;author_id:string;author_name:string;category:Exclude<Catego
 type Comment={id:string;post_id:string;author_id:string;author_name:string;content:string;image_urls?:string[];created_at:string};
 type ComposerBlock={id:string;type:"text"|"image";value?:string;photoIndex?:number};
 type RenderBlock={type:"text"|"image";value?:string;photoIndex?:number};
+type EditPostPhoto={uri:string;existingUrl?:string;asset?:ImagePicker.ImagePickerAsset;originalIndex?:number;caption?:string};
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",pale:"#F3F0FF",line:"#EAE7F0",red:"#D04444",green:"#18875B"};
 const categories:Category[]=["전체","학원 추천","발레복 추천","자유"];
 const timeLabel=(value:string)=>{const date=new Date(value);return Number.isNaN(date.getTime())?"":date.toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});};
@@ -79,6 +80,7 @@ export default function Community(){
  const [editPostTitle,setEditPostTitle]=useState("");
  const [editPostBody,setEditPostBody]=useState("");
  const [editPostCategory,setEditPostCategory]=useState<Exclude<Category,"전체">>("자유");
+ const [editPostPhotos,setEditPostPhotos]=useState<EditPostPhoto[]>([]);
  const [editingCommentId,setEditingCommentId]=useState<string|null>(null);
  const [editCommentText,setEditCommentText]=useState("");
  const [editCommentPhoto,setEditCommentPhoto]=useState<ImagePicker.ImagePickerAsset|null>(null);
@@ -177,8 +179,7 @@ export default function Community(){
    [posts,blockedUserIds,sortMode,postMetrics]
   );
   useEffect(()=>{loadPosts();},[loadPosts]);
- useEffect(()=>{const show=Keyboard.addListener("keyboardDidShow",()=>{setKeyboardVisible(true);if(selectedPostIdRef.current)requestAnimationFrame(()=>commentDetailScrollRef.current?.scrollToEnd({animated:true}));});const hide=Keyboard.addListener("keyboardDidHide",()=>setKeyboardVisible(false));return()=>{show.remove();hide.remove();};},[]);
- useEffect(()=>{
+ useEffect(()=>{const show=Keyboard.addListener("keyboardDidShow",()=>{setKeyboardVisible(true);if(selectedPostIdRef.current)requestAnimationFrame(()=>commentDetailScrollRef.current?.scrollToEnd({animated:true}));});const hide=Keyboard.addListener("keyboardDidHide",()=>setKeyboardVisible(false));return()=>{show.remove();hide.remove();};},[]); useEffect(()=>{
   if(!userId||!supabase||termsEntryChecked.current)return;
   termsEntryChecked.current=true;
   let active=true;
@@ -357,8 +358,7 @@ export default function Community(){
     xhr.setRequestHeader("apikey",anonKey);xhr.setRequestHeader("Authorization",`Bearer ${sessionData.session!.access_token}`);xhr.setRequestHeader("Content-Type","image/jpeg");xhr.setRequestHeader("x-upsert","false");
     xhr.upload.onprogress=event=>{if(event.lengthComputable)setPhotoUploadStatus(current=>({...current,[key]:{state:"uploading",percent:Math.round(event.loaded/event.total*100)}}));};
     xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)resolve();else reject(new Error(xhr.responseText||`업로드 실패 (${xhr.status})`));};
-    xhr.onerror=()=>reject(new Error("네트워크 연결을 확인해 주세요."));xhr.ontimeout=()=>reject(new Error("업로드 시간이 초과됐습니다."));xhr.timeout=120000;xhr.send(blob);
-   });
+    xhr.onerror=()=>reject(new Error("네트워크 연결을 확인해 주세요."));xhr.ontimeout=()=>reject(new Error("업로드 시간이 초과됐습니다."));xhr.timeout=120000;xhr.send(blob);   });
    const uploaded={url:supabase.storage.from("community-photos").getPublicUrl(path).data.publicUrl,path};
    setUploadedPhotoFiles(current=>({...current,[key]:uploaded}));setPhotoUploadStatus(current=>({...current,[key]:{state:"done",percent:100}}));return uploaded;
   }catch(error:any){setPhotoUploadStatus(current=>({...current,[key]:{state:"failed",percent:0,message:getUserErrorMessage(error,"업로드에 실패했습니다.")}}));throw error;}
@@ -489,14 +489,64 @@ export default function Community(){
   ]);
  };
 
- const startEditPost=(post:Post)=>{if(post.author_id!==userId&&!isAdmin)return;setEditingPost(post);setEditPostTitle(post.title);setEditPostBody(parsePostContent(post.content).body);setEditPostCategory(post.category);};
+ const startEditPost=(post:Post)=>{
+  if(post.author_id!==userId&&!isAdmin)return;
+  const parsed=parsePostContent(post.content);
+  setEditingPost(post);setEditPostTitle(post.title);setEditPostBody(parsed.body);setEditPostCategory(post.category);
+  setEditPostPhotos((post.image_urls||[]).map((url,index)=>({uri:url,existingUrl:url,originalIndex:index,caption:parsed.captions[index]||""})));
+ };
+ const pickEditPostPhotos=async(replaceIndex?:number)=>{
+  try{
+   const current=await ImagePicker.getMediaLibraryPermissionsAsync();
+   const permission=current.granted?current:await ImagePicker.requestMediaLibraryPermissionsAsync();
+   if(!permission.granted){Alert.alert("사진 접근 권한","게시글 사진을 수정하려면 사진 접근 권한이 필요합니다.",[{text:"취소",style:"cancel"},{text:"설정 열기",onPress:()=>Linking.openSettings()}]);return;}
+   const remaining=replaceIndex===undefined?4-editPostPhotos.length:1;
+   if(remaining<=0){Alert.alert("사진 첨부","게시글 사진은 최대 4장까지 등록할 수 있습니다.");return;}
+   const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsMultipleSelection:replaceIndex===undefined,selectionLimit:remaining,quality:0.85});
+   if(result.canceled||!result.assets?.length)return;
+   if(replaceIndex!==undefined){const asset=result.assets[0];setEditPostPhotos(current=>current.map((photo,index)=>index===replaceIndex?{uri:asset.uri,asset,caption:photo.caption,originalIndex:photo.originalIndex}:photo));}
+   else setEditPostPhotos(current=>[...current,...result.assets.slice(0,remaining).map(asset=>({uri:asset.uri,asset}))].slice(0,4));
+  }catch(error:any){Alert.alert("사진 선택 실패",getUserErrorMessage(error,"사진을 불러오지 못했습니다."));}
+ };
+ const uploadEditedPostPhoto=async(asset:ImagePicker.ImagePickerAsset,index:number)=>{
+  const optimized=await ImageManipulator.manipulateAsync(asset.uri,[{resize:{width:1440}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
+  const blob=await (await fetch(optimized.uri)).blob();
+  const {data:sessionData,error:sessionError}=await supabase!.auth.getSession();
+  if(sessionError||!sessionData.session)throw new Error("로그인 세션을 확인할 수 없습니다.");
+  const baseUrl=process.env.EXPO_PUBLIC_SUPABASE_URL?.trim(),anonKey=process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  if(!baseUrl||!anonKey)throw new Error("사진 업로드 설정을 확인할 수 없습니다.");
+  const path=userId+"/"+Date.now()+"-post-edit-"+index+"-"+Math.random().toString(36).slice(2,8)+".jpg";
+  const encodedPath=path.split("/").map(encodeURIComponent).join("/");
+  await new Promise<void>((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("POST",baseUrl+"/storage/v1/object/community-photos/"+encodedPath);xhr.setRequestHeader("apikey",anonKey);xhr.setRequestHeader("Authorization","Bearer "+sessionData.session!.access_token);xhr.setRequestHeader("Content-Type","image/jpeg");xhr.setRequestHeader("x-upsert","false");xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error(xhr.responseText||"업로드 실패 ("+xhr.status+")"));xhr.onerror=()=>reject(new Error("네트워크 연결을 확인해 주세요."));xhr.timeout=120000;xhr.ontimeout=()=>reject(new Error("업로드 시간이 초과됐습니다."));xhr.send(blob);});
+  return {url:supabase!.storage.from("community-photos").getPublicUrl(path).data.publicUrl,path};
+ };
  const savePostEdit=async()=>{
   const client=supabase,post=editingPost;if(!client||!post||(post.author_id!==userId&&!isAdmin))return;
   if(editPostTitle.trim().length<2||editPostBody.trim().length<2){Alert.alert("내용 확인","제목과 내용은 각각 2자 이상 입력해 주세요.");return;}
   if(editPostTitle.trim().length>80||editPostBody.length>5000){Alert.alert("내용 확인","제목은 최대 80자, 내용은 최대 5,000자까지 입력할 수 있습니다.");return;}
+  if(editPostPhotos.length>4){Alert.alert("사진 첨부","게시글 사진은 최대 4장까지 등록할 수 있습니다.");return;}
   setSubmitting(true);
-  try{const parsed=parsePostContent(post.content);const imageBlocks=parsed.blocks.filter(block=>block.type==="image"&&block.photoIndex!==undefined);const inlineImages=imageBlocks.map(block=>IMAGE_TOKEN_PREFIX+block.photoIndex+IMAGE_TOKEN_SUFFIX).join("\n\n");const captionEntries=parsed.captions.map((caption,index)=>caption.trim()?String(index+1)+"|"+caption.trim():"").filter(Boolean);const captionSuffix=captionEntries.length?CAPTION_MARKER+"\n"+captionEntries.join("\n"):"";const nextContent=[editPostBody.trim(),inlineImages].filter(Boolean).join("\n\n")+(captionSuffix?"\n\n"+captionSuffix:"");const {data,error}=await client.from("community_posts").update({title:editPostTitle.trim(),content:nextContent,category:editPostCategory}).eq("id",post.id).select("id,author_id,author_name,category,title,content,image_urls,created_at").single();if(error)throw error;const updated=data as Post;setSelected(updated);setPosts(rows=>rows.map(row=>row.id===updated.id?updated:row));setEditingPost(null);Alert.alert("수정 완료","게시글이 수정되었습니다.");}
-  catch(error:any){Alert.alert("수정 실패",getUserErrorMessage(error,"게시글을 수정하지 못했습니다."));}finally{setSubmitting(false);}
+  const uploadedPaths:string[]=[];
+  try{
+   const imageUrls:string[]=[];
+   const captionEntries:string[]=[];
+   for(let index=0;index<editPostPhotos.length;index++){
+    const photo=editPostPhotos[index];
+    if(photo.asset){const uploaded=await uploadEditedPostPhoto(photo.asset,index);imageUrls.push(uploaded.url);uploadedPaths.push(uploaded.path);}
+    else if(photo.existingUrl)imageUrls.push(photo.existingUrl);
+    if(photo.caption?.trim())captionEntries.push(String(index+1)+"|"+photo.caption.trim());
+   }
+   const inlineImages=imageUrls.map((_,index)=>IMAGE_TOKEN_PREFIX+index+IMAGE_TOKEN_SUFFIX).join("\n\n");
+   const captionSuffix=captionEntries.length?CAPTION_MARKER+"\n"+captionEntries.join("\n"):"";
+   const nextContent=[editPostBody.trim(),inlineImages].filter(Boolean).join("\n\n")+(captionSuffix?"\n\n"+captionSuffix:"");
+   const {data,error}=await client.from("community_posts").update({title:editPostTitle.trim(),content:nextContent,category:editPostCategory,image_urls:imageUrls}).eq("id",post.id).select("id,author_id,author_name,category,title,content,image_urls,created_at").single();
+   if(error)throw error;
+   const retained=new Set(editPostPhotos.map(photo=>photo.existingUrl).filter(Boolean));
+   const removedPaths=(post.image_urls||[]).filter(url=>!retained.has(url)).map(url=>{const marker="/community-photos/";const index=url.indexOf(marker);return index>=0?decodeURIComponent(url.slice(index+marker.length)):"";}).filter(Boolean);
+   if(removedPaths.length)await client.storage.from("community-photos").remove(removedPaths);
+   const updated=data as Post;setSelected(updated);setPosts(rows=>rows.map(row=>row.id===updated.id?updated:row));setEditingPost(null);setEditPostPhotos([]);Alert.alert("수정 완료","게시글과 사진이 수정되었습니다.");
+  }catch(error:any){if(uploadedPaths.length)await client.storage.from("community-photos").remove(uploadedPaths).catch(()=>{});Alert.alert("수정 실패",getUserErrorMessage(error,"게시글을 수정하지 못했습니다."));}
+  finally{setSubmitting(false);}
  };
  const startEditComment=(comment:Comment)=>{if(comment.author_id!==userId&&!isAdmin)return;setEditingCommentId(comment.id);setEditCommentText(comment.content==="사진"?"":comment.content);setEditCommentPhoto(null);setEditCommentPhotoUri(comment.image_urls?.[0]||null);};
  const saveCommentEdit=async()=>{
@@ -537,8 +587,7 @@ export default function Community(){
   }}]);
  };
  const removeComment=async(comment:Comment)=>{
-  const client=supabase;
-  if(!client||(comment.author_id!==userId&&!isAdmin))return;
+  const client=supabase;  if(!client||(comment.author_id!==userId&&!isAdmin))return;
   const postId=selectedPostIdRef.current;
   if(!postId||comment.post_id!==postId)return;
   Alert.alert("댓글 삭제","이 댓글을 삭제할까요?",[{text:"취소",style:"cancel"},{text:"삭제",style:"destructive",onPress:async()=>{
@@ -656,7 +705,21 @@ export default function Community(){
       <Text style={s.label}>게시판 선택</Text><View style={s.categoryChoices}>{(["학원 추천","발레복 추천","자유"] as const).map(item=><Pressable key={item} onPress={()=>setEditPostCategory(item)} style={[s.filter,editPostCategory===item&&s.filterActive]}><Text style={[s.filterText,editPostCategory===item&&s.filterTextActive]}>{item}</Text></Pressable>)}</View>
       <Text style={s.label}>제목</Text><TextInput value={editPostTitle} onChangeText={setEditPostTitle} maxLength={80} style={s.titleInput}/>
       <Text style={s.label}>내용</Text><TextInput value={editPostBody} onChangeText={setEditPostBody} multiline maxLength={5000} textAlignVertical="top" style={[s.bodyInput,{minHeight:180}]}/>
-      {!!editingPost?.image_urls?.length&&<Text style={s.editorHint}>기존 첨부 사진은 유지됩니다.</Text>}
+      <Text style={s.label}>사진 {editPostPhotos.length}/4</Text>
+      <View style={{gap:10}}>
+       {editPostPhotos.map((photo,index)=><View key={photo.existingUrl||photo.uri+"-"+index} style={{flexDirection:"row",alignItems:"center",gap:10,borderWidth:1,borderColor:C.line,borderRadius:11,padding:9}}>
+        <Image source={{uri:photo.uri}} style={{width:76,height:76,borderRadius:8,backgroundColor:"#EEEAF4"}}/>
+        <View style={{flex:1,minWidth:0,gap:6}}>
+         <Text style={{fontSize:11,fontWeight:"800",color:C.ink}}>사진 {index+1}</Text>
+         <View style={{flexDirection:"row",gap:8}}>
+          <Pressable onPress={()=>pickEditPostPhotos(index)} disabled={submitting} style={{paddingHorizontal:10,paddingVertical:8,borderRadius:8,backgroundColor:C.pale}}><Text style={{fontSize:11,fontWeight:"800",color:C.purple}}>교체</Text></Pressable>
+          <Pressable onPress={()=>setEditPostPhotos(current=>current.filter((_,i)=>i!==index))} disabled={submitting} style={{paddingHorizontal:10,paddingVertical:8,borderRadius:8,backgroundColor:"#FFF0F0"}}><Text style={{fontSize:11,fontWeight:"800",color:C.red}}>삭제</Text></Pressable>
+         </View>
+        </View>
+       </View>)}
+       {editPostPhotos.length<4&&<Pressable onPress={()=>pickEditPostPhotos()} disabled={submitting} style={[s.addPhotoButton,{alignSelf:"flex-start"}]}><Ionicons name="images-outline" size={17} color={C.purple}/><Text style={s.addPhotoText}>사진 추가</Text></Pressable>}
+      </View>
+      <Text style={s.editorHint}>사진은 최대 4장까지 추가·교체·삭제할 수 있습니다. 저장하면 게시글에 반영됩니다.</Text>
      </ScrollView>
     </View>
    </KeyboardAvoidingView>
