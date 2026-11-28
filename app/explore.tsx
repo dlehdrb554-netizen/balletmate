@@ -612,22 +612,23 @@ export default function Home() {
   const deferredSearch=useDeferredValue(search);
   const normalizedLiveQuery=search.trim().toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
   const liveSearchRequestId=useRef(0);
+  const mergedStudios=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()],[studios,globalSearchStudios]);
   const liveSearchMatches=useMemo(()=>{
-     if(!normalizedLiveQuery)return [];
-     const unique=new Map<string,Studio>();
-     [...studios,...directoryStudios,...globalSearchStudios,...liveRemoteStudios].forEach(studio=>{
-       const searchable=[studio.name,studio.area,studio.address||"",...(studio.tags||[])].join(" ").toLocaleLowerCase("ko-KR").replace(/[\s·ㆍ()_/-]/g,"");
-       if(searchable.includes(normalizedLiveQuery))unique.set(studio.id,studio);
-     });
-     return [...unique.values()].filter(studio=>!isExcludedStudioSearchResult(studio.name))
-       .sort((a,b)=>a.name.localeCompare(b.name,"ko"))
-       .slice(0,10);
-   },[normalizedLiveQuery,studios,directoryStudios,globalSearchStudios,liveRemoteStudios]);
-     const normalizedSearch=deferredSearch.trim().toLowerCase();
+    if(!normalizedLiveQuery)return [];
+    const localMatches=mergedStudios.filter(studio=>{
+      const searchable=[studio.name,studio.address||"",studio.area].join(" ").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+      return searchable.includes(normalizedLiveQuery);
+    });
+    const classMatches=liveClassSearchIds.length?mergedStudios.filter(studio=>liveClassSearchIds.includes(studio.id)):[];
+    return [...new Map([...localMatches,...classMatches].map(studio=>[studio.id,studio])).values()]
+      .filter(studio=>!isExcludedStudioSearchResult(studio.name))
+      .sort((a,b)=>a.name.localeCompare(b.name,"ko"))
+      .slice(0,10);
+  },[normalizedLiveQuery,mergedStudios,liveClassSearchIds]);
+  const normalizedSearch=deferredSearch.trim().toLowerCase();
   const mapSearchFilter=committedSearch.trim().toLowerCase();
   const classSearchIdSet=useMemo(()=>new Set(classSearchIds),[classSearchIds]);
   const classFilterIdSet=useMemo(()=>new Set(classFilterIds),[classFilterIds]);
-  const mergedStudios=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()],[studios,globalSearchStudios]);
   const results=useMemo(()=>mergedStudios.filter(s=>{
     if(mapSearchFilter && !globalSearchIdSet.has(s.id) && !s.name.toLowerCase().includes(mapSearchFilter) && !s.area.toLowerCase().includes(mapSearchFilter) && !s.tags.some(t=>t.toLowerCase().includes(mapSearchFilter)) && !classSearchIdSet.has(s.id)) return false;
     if((adult||kids)&&!((adult&&s.adult)||(kids&&s.kids)))return false;
@@ -804,28 +805,32 @@ export default function Home() {
     return()=>subscription.remove();
   },[searchFocused]);
   const liveClassSearchRequestId=useRef(0);
-  // Local matches render immediately; query the indexed directory after typing pauses.
-  // Kakao and class-name lookups remain submit-only to avoid expensive per-keystroke requests.
+  const [liveClassSearchIds,setLiveClassSearchIds]=useState<string[]>([]);
+  // 학원명/주소/지역은 메모리 병합 데이터에서 즉시 검색하고, 수업명만 300ms 디바운스합니다.
   useEffect(()=>{
-    const requestId=++liveSearchRequestId.current;
+    const requestId=++liveClassSearchRequestId.current;
     const query=search.trim();
-    setLiveRemoteStudios([]);
-    if(!searchFocused||!supabase||query.length<2){setLiveSearchLoading(false);return;}
-    setLiveSearchLoading(true);
+    setLiveClassSearchIds([]);
+    if(!searchFocused||!supabase||query.length<2){setClassSearchLoading(false);return;}
+    const normalized=query.toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+    const hasStudioMatch=mergedStudios.some(studio=>{
+      const searchable=[studio.name,studio.address||"",studio.area].join(" ").toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
+      return searchable.includes(normalized);
+    });
+    if(hasStudioMatch){setClassSearchLoading(false);return;}
+    setClassSearchLoading(true);
     const timer=setTimeout(()=>{
-      searchStudiosByName(query,{limit:10}).then(rows=>{
-        if(requestId!==liveSearchRequestId.current)return;
-        setLiveRemoteStudios(rows.map(mapStudioRecord));
+      searchStudioIdsByClassName(query).then(ids=>{
+        if(requestId===liveClassSearchRequestId.current)setLiveClassSearchIds(ids);
       }).catch(error=>{
-        if(requestId===liveSearchRequestId.current)console.warn("Live studio search failed:",error);
+        if(requestId===liveClassSearchRequestId.current)console.warn("Live class search failed:",error);
       }).finally(()=>{
-        if(requestId===liveSearchRequestId.current)setLiveSearchLoading(false);
+        if(requestId===liveClassSearchRequestId.current)setClassSearchLoading(false);
       });
-    },160);
-    return()=>{clearTimeout(timer);};
-  },[search,searchFocused]);
-  // 수업명 검색은 검색 확정 시에만 실행합니다. 입력 중에는 로컬 데이터만 필터링합니다.
-  useEffect(()=>{if(!searchFocused)setClassSearchLoading(false);},[searchFocused]);
+    },300);
+    return()=>clearTimeout(timer);
+  },[search,searchFocused,mergedStudios]);
+  useEffect(()=>{if(!searchFocused){setClassSearchLoading(false);setLiveClassSearchIds([]);}},[searchFocused]);
   const submitSearch=async(queryOverride?:string)=>{
     if(searchSubmitting)return;
     const requestId=++searchSubmitRequestId.current;
