@@ -508,22 +508,22 @@ export default function Community(){
    const current=comments.find(item=>item.id===id);
    let imageUrls=editCommentPhotoUri?(current?.image_urls||[]):[];
    if(editCommentPhoto){
-    const optimized=await ImageManipulator.manipulateAsync(editCommentPhoto.uri,[{resize:{width:1200}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
+    const optimized=await ImageManipulator.manipulateAsync(editCommentPhoto.uri,[{resize:{width:1200}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
     const blob=await (await fetch(optimized.uri)).blob();
-    const {{data:sessionData,error:sessionError}}=await client.auth.getSession();
+    const {data:sessionData,error:sessionError}=await client.auth.getSession();
     if(sessionError||!sessionData.session)throw new Error("로그인 세션을 확인할 수 없습니다.");
     const baseUrl=process.env.EXPO_PUBLIC_SUPABASE_URL?.trim(),anonKey=process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
     if(!baseUrl||!anonKey)throw new Error("사진 업로드 설정을 확인할 수 없습니다.");
     uploadedPath=userId+"/"+Date.now()+"-comment-edit-"+Math.random().toString(36).slice(2,8)+".jpg";
     const encodedPath=uploadedPath.split("/").map(encodeURIComponent).join("/");
-    await new Promise<void>((resolve,reject)=>{{const xhr=new XMLHttpRequest();xhr.open("POST",baseUrl+"/storage/v1/object/community-photos/"+encodedPath);xhr.setRequestHeader("apikey",anonKey);xhr.setRequestHeader("Authorization","Bearer "+sessionData.session!.access_token);xhr.setRequestHeader("Content-Type","image/jpeg");xhr.setRequestHeader("x-upsert","false");xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error(xhr.responseText||"업로드 실패 ("+xhr.status+")"));xhr.onerror=()=>reject(new Error("네트워크 연결을 확인해 주세요."));xhr.timeout=120000;xhr.ontimeout=()=>reject(new Error("업로드 시간이 초과됐습니다."));xhr.send(blob);}});
+    await new Promise<void>((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open("POST",baseUrl+"/storage/v1/object/community-photos/"+encodedPath);xhr.setRequestHeader("apikey",anonKey);xhr.setRequestHeader("Authorization","Bearer "+sessionData.session!.access_token);xhr.setRequestHeader("Content-Type","image/jpeg");xhr.setRequestHeader("x-upsert","false");xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error(xhr.responseText||"업로드 실패 ("+xhr.status+")"));xhr.onerror=()=>reject(new Error("네트워크 연결을 확인해 주세요."));xhr.timeout=120000;xhr.ontimeout=()=>reject(new Error("업로드 시간이 초과됐습니다."));xhr.send(blob);});
     imageUrls=[client.storage.from("community-photos").getPublicUrl(uploadedPath).data.publicUrl];
    }
-   const {{error}}=await client.from("community_comments").update({{content:editCommentText.trim()||"사진",image_urls:imageUrls}}).eq("id",id).eq("post_id",postId);
+   const {error}=await client.from("community_comments").update({content:editCommentText.trim()||"사진",image_urls:imageUrls}).eq("id",id).eq("post_id",postId);
    if(error)throw error;
-   if(current?.image_urls?.length&&(!imageUrls.length||editCommentPhoto)){const oldPaths=current.image_urls.map(url=>{{const marker="/community-photos/";const index=url.indexOf(marker);return index>=0?decodeURIComponent(url.slice(index+marker.length)):"";}}).filter(Boolean);if(oldPaths.length)await client.storage.from("community-photos").remove(oldPaths);}
+   if(current?.image_urls?.length&&(!imageUrls.length||editCommentPhoto)){const oldPaths=current.image_urls.map(url=>{const marker="/community-photos/";const index=url.indexOf(marker);return index>=0?decodeURIComponent(url.slice(index+marker.length)):"";}).filter(Boolean);if(oldPaths.length)await client.storage.from("community-photos").remove(oldPaths);}
    setEditingCommentId(null);setEditCommentText("");setEditCommentPhoto(null);setEditCommentPhotoUri(null);await loadComments(postId);Alert.alert("수정 완료","댓글이 수정되었습니다.");
-  }catch(error:any){{if(uploadedPath)await client.storage.from("community-photos").remove([uploadedPath]).catch(()=>{{}});Alert.alert("수정 실패",getUserErrorMessage(error,"댓글을 수정하지 못했습니다."));}}finally{{setSubmitting(false);}}
+  }catch(error:any){if(uploadedPath)await client.storage.from("community-photos").remove([uploadedPath]).catch(()=>{});Alert.alert("수정 실패",getUserErrorMessage(error,"댓글을 수정하지 못했습니다."));}finally{setSubmitting(false);}
  };
  const removePost=async(post:Post)=>{
   const client=supabase;
