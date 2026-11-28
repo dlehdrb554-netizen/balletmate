@@ -35,7 +35,7 @@ export default function NotificationsScreen(){
     const {error}=await supabase.from("user_notifications").update({read_at:new Date().toISOString()}).is("read_at",null);
     setBusy(false);
     if(error)Alert.alert("읽음 처리 실패","알림을 읽음 처리하지 못했습니다.");
-    else await load();
+    else {await Notifications.setBadgeCountAsync(0).catch(()=>{});await load();}
   };
   const openItem=async(item:NotificationItem)=>{
     if(!supabase||busy)return;
@@ -44,6 +44,8 @@ export default function NotificationsScreen(){
       const {error}=await supabase.from("user_notifications").update({read_at:new Date().toISOString()}).eq("id",item.id);
       if(error){setBusy(false);Alert.alert("읽음 처리 실패","알림 상태를 저장하지 못했습니다.");return;}
       setItems(current=>current.map(x=>x.id===item.id?{...x,read_at:new Date().toISOString()}:x));
+      const {count}=await supabase.from("user_notifications").select("id",{count:"exact",head:true}).is("read_at",null);
+      await Notifications.setBadgeCountAsync(count||0).catch(()=>{});
     }
     setBusy(false);
     const data=item.data||{};
