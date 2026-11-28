@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Stack, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
-import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaProvider, initialWindowMetrics, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, Pressable, StyleSheet, Appearance, Image, useColorScheme, DeviceEventEmitter } from "react-native";
+import { View, Text, Pressable, StyleSheet, Appearance, Image, useColorScheme, DeviceEventEmitter, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../lib/supabase";
@@ -37,7 +37,8 @@ function BottomNavigation(){
     {key:"community",label:"커뮤니티",icon:"chatbubbles-outline" as const,active:pathname==="/community",onPress:()=>router.navigate("/community")},
     {key:"mypage",label:"마이페이지",icon:"person-circle-outline" as const,active:pathname==="/mypage",onPress:()=>router.navigate("/mypage")},
   ];
-  return <View style={{backgroundColor:dark?"#17151D":"#FFFFFF",paddingBottom:insets.bottom,borderTopWidth:1,borderTopColor:dark?"#393342":"#EAE7F0"}}>
+  const bottomInset=Math.max(insets.bottom,Platform.OS==="android"?24:0);
+  return <View style={{backgroundColor:dark?"#17151D":"#FFFFFF",paddingBottom:bottomInset,borderTopWidth:1,borderTopColor:dark?"#393342":"#EAE7F0"}}>
     <View style={styles.bottomNav}>
       {items.map(item=><Pressable key={item.key} accessibilityRole="button" accessibilityLabel={item.label} accessibilityState={{selected:item.active}} onPress={item.onPress} style={styles.navItem}>
         <View style={styles.navIconWrap}>
@@ -102,7 +103,7 @@ export default function RootLayout() {
   }, []);
   return (
     <GestureHandlerRootView style={{flex:1}}>
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style={showSplash || colorScheme === "dark" ? "light" : "dark"} />
       <View style={{flex:1}}><Stack initialRouteName="index" screenOptions={{ headerShown: false, animation: "none", contentStyle: { backgroundColor: colorScheme === "dark" ? "#101010" : "#FAF9FC" } }}><Stack.Screen name="studio-manager" options={{animation:"none",presentation:"modal",contentStyle:{backgroundColor:colorScheme==="dark"?"#101010":"#FAF9FC"}}} /></Stack><BottomNavigation /></View>
       {showSplash&&<View style={styles.splash}><Image source={require("../assets/icon.png")} style={styles.splashLogo} resizeMode="contain"/><Text style={styles.splashTagline}>발레 생활을 더 편리하게</Text><Text style={styles.splashBrand}>Balletmate</Text></View>}
