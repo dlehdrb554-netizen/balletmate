@@ -1591,36 +1591,50 @@ export default function Home() {
           </Pressable>
         </View>
         {!!compareMaterialError&&<View style={{marginHorizontal:16,marginTop:12,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
-        <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{padding:14,paddingBottom:24}} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+        <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingVertical:14,paddingBottom:24}} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
           {compareIds.length<2?<View style={{paddingVertical:34,alignItems:"center",gap:8}}>
             <Ionicons name="alert-circle-outline" size={30} color={COLORS.muted}/>
             <Text style={{fontSize:13,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>비교할 학원이 부족해요.</Text>
             <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted}}>학원을 두 곳 이상 선택해 주세요.</Text>
           </View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
-          <View style={{flexDirection:"row",gap:8,width:"100%"}}>
-            {compareIds.map(id=>{
-              const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
-              if(!studio)return null;
-              const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
-              const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
-              const maxDuration=Math.max(studio.duration||0,...(studio.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
-              return <View key={id} style={[styles.compareColumn,{flex:1,width:0,minWidth:0,padding:10,backgroundColor:isDark?"#24212B":"#FFFFFF",borderColor:isDark?"#3A3544":COLORS.line}]}>
-                <View style={[styles.compareColumnHead,{minHeight:76,paddingBottom:6,borderBottomColor:isDark?"#3A3544":COLORS.line}]}>
-                  <Text style={[styles.compareName,{fontSize:12,lineHeight:16,color:isDark?"#F3EFFA":COLORS.ink}]} numberOfLines={3}>{studio.name}</Text>
-                  <Text style={[styles.compareInfo,{fontSize:9,lineHeight:13,color:isDark?"#B9B1C5":COLORS.muted}]} numberOfLines={2}>{studio.area}</Text>
-                  <Pressable hitSlop={6} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}}><Text style={[styles.removeCompare,{fontSize:10}]}>비교에서 제외</Text></Pressable>
+          <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator contentContainerStyle={{paddingHorizontal:14}}>
+            <View style={{minWidth:104+compareIds.length*148}}>
+              <View style={{flexDirection:"row",borderBottomWidth:1,borderBottomColor:isDark?"#51485E":COLORS.line}}>
+                <View style={{width:104,justifyContent:"center",padding:8}}><Text style={{fontSize:11,fontWeight:"900",color:isDark?"#D8C6FF":COLORS.purple}}>비교 항목</Text></View>
+                {compareIds.map(id=>{
+                  const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
+                  return <View key={id} style={{width:148,padding:9,borderLeftWidth:1,borderLeftColor:isDark?"#3A3544":COLORS.line,justifyContent:"center"}}>
+                    <Text style={{fontSize:12,lineHeight:17,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}} numberOfLines={3}>{studio?.name||"학원 정보 불러오는 중"}</Text>
+                    <Text style={{fontSize:9,lineHeight:13,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}} numberOfLines={2}>{studio?.area||""}</Text>
+                    <Pressable hitSlop={6} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}} style={{alignSelf:"flex-start",marginTop:6}}>
+                      <Text style={[styles.removeCompare,{fontSize:10}]}>비교에서 제외</Text>
+                    </Pressable>
+                  </View>;
+                })}
+              </View>
+              {([
+                {key:"price",label:"가격"},
+                {key:"coupon",label:"쿠폰"},
+                {key:"duration",label:"최대 수업시간"}
+              ] as const).map((row,rowIndex)=><View key={row.key} style={{flexDirection:"row",minHeight:76,borderBottomWidth:1,borderBottomColor:isDark?"#3A3544":COLORS.line,backgroundColor:rowIndex%2===0?(isDark?"#211E27":"#FFFFFF"):"transparent"}}>
+                <View style={{width:104,justifyContent:"center",padding:9}}>
+                  <Text style={{fontSize:11,fontWeight:"900",color:isDark?"#D8C6FF":COLORS.purple}}>{row.label}</Text>
                 </View>
-                <Text style={[styles.compareSectionTitle,{fontSize:11,marginTop:12,marginBottom:5}]}>가격</Text>
-                {amounts.length?amounts.map((amount,index)=><Text key={index} style={[styles.comparePrice,{fontSize:11,marginTop:4}]} numberOfLines={2}>{amount.toLocaleString("ko-KR")}원</Text>):<Text style={[styles.compareEmpty,{color:isDark?"#B9B1C5":COLORS.muted,backgroundColor:isDark?"#302B38":"#F8F6FB"}]}>미등록</Text>}
-                <Text style={styles.compareSectionTitle}>쿠폰</Text>
-                <Text style={[styles.compareInfo,{fontSize:10,lineHeight:14,color:isDark?"#B9B1C5":COLORS.muted}]}>{compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"현재 제공 중인 쿠폰 없음":"쿠폰 확인 불가"}</Text>
-                <Text style={styles.compareSectionTitle}>최대 수업시간</Text>
-                <Text style={[styles.comparePrice,{fontSize:11,marginTop:4}]}>{maxDuration>0?maxDuration+"분":"미등록"}</Text>
-              </View>;
-            })}
-          </View>}
+                {compareIds.map(id=>{
+                  const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
+                  const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
+                  const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
+                  const maxDuration=Math.max(studio?.duration||0,...(studio?.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
+                  const value=row.key==="price"?(amounts.length?amounts.map(amount=>amount.toLocaleString("ko-KR")+"원").join("\n"):"미등록"):row.key==="coupon"?(compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"제공 쿠폰 없음":"확인 불가"):(maxDuration>0?maxDuration+"분":"미등록");
+                  return <View key={id} style={{width:148,justifyContent:"center",padding:9,borderLeftWidth:1,borderLeftColor:isDark?"#3A3544":COLORS.line}}>
+                    <Text style={{fontSize:11,lineHeight:17,fontWeight:row.key==="price"?"800":"700",color:isDark?"#F3EFFA":COLORS.ink}}>{value}</Text>
+                  </View>;
+                })}
+              </View>)}
+            </View>
+          </ScrollView>}
         </ScrollView>
-        <Pressable onPress={()=>setCompareResultOpen(false)} style={{marginHorizontal:16,marginBottom:10,minHeight:48,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
+        <Pressable onPress={()=>setCompareResultOpen(false)}       <Pressable onPress={()=>setCompareResultOpen(false)} style={{marginHorizontal:16,marginBottom:10,minHeight:48,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
           <Text style={{fontSize:14,fontWeight:"900",color:"#FFFFFF"}}>확인</Text>
         </Pressable>
       </View>
