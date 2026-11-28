@@ -981,7 +981,7 @@ export default function Home() {
         if(permission.status==="undetermined"){
           permission=await Location.requestForegroundPermissionsAsync();
         }
-        if(!active||permission.status!=="granted")return;
+        if(!active||!permission.granted)return;
         const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
         if(!active)return;
         if(cached)warmedLocationRef.current=cached;
@@ -1015,21 +1015,22 @@ export default function Home() {
       // when startup or a previous session has already granted location access.
       let permission=await Location.getForegroundPermissionsAsync();
       if(requestId!==locationRequestId.current)return;
-      if(permission.status!=="granted"&&permission.canAskAgain){
+      if(!permission.granted&&permission.canAskAgain){
         permission=await Location.requestForegroundPermissionsAsync();
       }
       if(requestId!==locationRequestId.current)return;
-      if(permission.status!=="granted"){
+      if(!permission.granted){
         setLocationGranted(false);
-        if(!permission.canAskAgain){
-          Alert.alert(
-            "위치 권한이 차단되어 있어요",
-            "기기 설정에서 발레메이트의 위치 권한을 허용한 뒤 다시 시도해 주세요.",
-            [{text:"취소",style:"cancel"},{text:"설정 열기",onPress:()=>{void Linking.openSettings();}}]
-          );
-        }else{
-          Alert.alert("위치 권한 필요","현재 위치로 지도를 이동하려면 위치 권한을 허용해 주세요. 위치 버튼을 다시 눌러 권한을 요청할 수 있습니다.");
-        }
+        Alert.alert(
+          "위치 권한 필요",
+          permission.canAskAgain
+            ? "현재 위치로 지도를 이동하려면 위치 권한을 허용해 주세요. 설정에서 권한을 확인할 수도 있습니다."
+            : "기기 설정에서 발레메이트의 위치 권한을 허용한 뒤 다시 시도해 주세요.",
+          [
+            {text:"취소",style:"cancel"},
+            {text:"설정 열기",onPress:()=>{void Linking.openSettings();}}
+          ]
+        );
         return;
       }
 
