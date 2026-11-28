@@ -3,6 +3,7 @@ import {Alert,Modal,Pressable,ScrollView,StyleSheet,Text,View,useColorScheme} fr
 import {SafeAreaView} from "react-native-safe-area-context";
 import {WebView} from "react-native-webview";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {supabase} from "../lib/supabase";
 import {useLocalSearchParams,useRouter} from "expo-router";
 import {TERMS_SECTIONS} from "./terms";
 
@@ -29,14 +30,19 @@ export default function SignupConsent(){
  const [privacyAgreed,setPrivacyAgreed]=useState(false);
  const [ageAgreed,setAgeAgreed]=useState(false);
  const openDoc=(doc:"terms"|"privacy")=>{setDocReachedEnd(false);setActiveDoc(doc);};
- const closeDoc=()=>{if(!docReachedEnd)return;if(activeDoc==="terms")setTermsRead(true);if(activeDoc==="privacy")setPrivacyRead(true);setActiveDoc(null);};
+ const closeDoc=()=>{if(!docReachedEnd)return;if(activeDoc==="terms"){setTermsRead(true);setTermsAgreed(true);}if(activeDoc==="privacy"){setPrivacyRead(true);setPrivacyAgreed(true);}setActiveDoc(null);};
  const ready=termsRead&&privacyRead&&termsAgreed&&privacyAgreed&&ageAgreed;
  const continueSignup=async()=>{
   if(!ready)return;
   const acceptedAt=new Date().toISOString();
   try{
    await AsyncStorage.setItem(SIGNUP_CONSENT_STORAGE_KEY,JSON.stringify({termsVersion:TERMS_VERSION,privacyVersion:PRIVACY_VERSION,acceptedAt,age14Confirmed:true}));
-   if(params.next==="email")router.replace("/signup");
+   if(params.next==="post-auth"){
+    if(!supabase)throw new Error("로그인 정보를 확인할 수 없습니다.");
+    const {error}=await supabase.auth.updateUser({data:{legal_terms_version:TERMS_VERSION,privacy_policy_version:PRIVACY_VERSION,legal_accepted_at:acceptedAt,age_14_confirmed:true}});
+    if(error)throw error;
+    router.replace("/onboarding");
+   }else if(params.next==="email")router.replace("/signup");
    else if(params.next==="google"||params.next==="kakao")router.replace({pathname:"/account",params:{consentProvider:params.next}});
    else router.replace("/account");
   }catch{Alert.alert("저장 실패","동의 정보를 저장하지 못했습니다. 다시 시도해 주세요.");}
@@ -47,7 +53,7 @@ export default function SignupConsent(){
     <View style={s.rowCopy}><Text style={s.rowTitle}>{title}</Text><Text style={s.rowDescription}>{description}</Text><Text style={s.readHint}>{read?"전문 확인 완료":"눌러서 약관 전문 읽기 ›"}</Text></View>
     <Text style={s.arrow}>›</Text>
    </Pressable>
-   <Pressable style={[s.checkButton,checked&&s.checked]} disabled={!read} onPress={onCheck} accessibilityRole="checkbox" accessibilityState={{checked,disabled:!read}}>
+   <Pressable style={[s.checkButton,checked&&s.checked]} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{checked,disabled:!read}}>
     <Text style={[s.checkMark,checked&&s.checkedMark]}>{checked?"✓":""}</Text>
    </Pressable>
   </View>
