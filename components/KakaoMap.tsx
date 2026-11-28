@@ -87,7 +87,7 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
       keep[item.id]=true;
       var pos=new kakao.maps.LatLng(item.latitude,item.longitude);
       if(!markers[item.id]){
-        var marker=new kakao.maps.Marker({position:pos,image:pinImage(markerState(item.id,selectedId,currentSearched,currentCompared)),title:item.name});
+        var marker=new kakao.maps.Marker({position:pos,image:pinImage(markerState(item.id,selectedId,currentSearched,currentCompared)),title:item.name,zIndex:100});
         // Render pins directly on the Kakao map. Clusterer batching caused
         // newly searched markers to remain invisible until the map was moved.
         marker.setMap(map);
@@ -98,6 +98,8 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
       }else{
         var marker=markers[item.id], meta=markerMeta[item.id]||{};
         if(meta.latitude!==item.latitude||meta.longitude!==item.longitude)marker.setPosition(pos);
+        // Keep studio pins above map tiles and ordinary map overlays after theme changes.
+        if(typeof marker.setZIndex==='function')marker.setZIndex(100);
         var state=markerState(item.id,selectedId,currentSearched,currentCompared);
         if(meta.state!==state)marker.setImage(pinImage(state));
         if(meta.name!==item.name)marker.setTitle(item.name);
