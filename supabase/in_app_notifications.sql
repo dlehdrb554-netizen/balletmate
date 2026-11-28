@@ -16,6 +16,7 @@ create index if not exists user_notifications_user_created_idx
 alter table public.user_notifications enable row level security;
 revoke all on public.user_notifications from anon;
 grant select, update on public.user_notifications to authenticated;
+grant all on public.user_notifications to service_role;
 drop policy if exists "users read own notifications" on public.user_notifications;
 create policy "users read own notifications" on public.user_notifications
   for select to authenticated using (user_id = auth.uid());
@@ -24,3 +25,12 @@ create policy "users mark own notifications read" on public.user_notifications
   for update to authenticated using (user_id = auth.uid())
   with check (user_id = auth.uid());
 -- Inserts are performed only by the trusted send-push Edge Function using service_role.
+
+-- Enable live unread-count refresh when Supabase Realtime is available.
+do $$
+begin
+  alter publication supabase_realtime add table public.user_notifications;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end $$;
