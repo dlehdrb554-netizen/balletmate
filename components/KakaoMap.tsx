@@ -160,6 +160,15 @@ function buildHtml(initialRegion: MapRegion) {
     if(load)load.style.backgroundColor=surface;
     var colorScheme=document.querySelector('meta[name="color-scheme"]');
     if(colorScheme)colorScheme.setAttribute('content',darkModeEnabled?'dark':'light');
+    // Re-attach existing markers after the map surface/theme has changed; do not recreate marker data.
+    Object.keys(markers).forEach(function(id){
+      if(markers[id]){
+        markers[id].setMap(map);
+        if(typeof markers[id].setZIndex==='function')markers[id].setZIndex(100);
+      }
+    });
+    if(currentMarker){currentMarker.setMap(map);if(typeof currentMarker.setZIndex==='function')currentMarker.setZIndex(1000);}
+    refreshMarkerImages();
   }
   function apply(message){
     if(!map){pending.push(message);return;}
@@ -240,7 +249,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
       const type=(message as any)?.type;
-      if(type==="markers"||type==="animate"||type==="theme") pendingMessages.current=pendingMessages.current.filter(item=>JSON.parse(item).type!==type);
+      if(type==="markers"||type==="animate"||type==="setTheme") pendingMessages.current=pendingMessages.current=pendingMessages.current.filter(item=>JSON.parse(item).type!==type);
       pendingMessages.current.push(serialized);
       return;
     }
