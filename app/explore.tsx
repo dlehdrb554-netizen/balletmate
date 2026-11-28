@@ -613,6 +613,8 @@ export default function Home() {
   const normalizedLiveQuery=search.trim().toLocaleLowerCase("ko-KR").replace(/[\\s·ㆍ()_/-]/g,"");
   const liveSearchRequestId=useRef(0);
   const mergedStudios=useMemo(()=>[...new Map([...studios,...globalSearchStudios].map(studio=>[studio.id,studio])).values()],[studios,globalSearchStudios]);
+  const liveClassSearchRequestId=useRef(0);
+  const [liveClassSearchIds,setLiveClassSearchIds]=useState<string[]>([]);
   const liveSearchMatches=useMemo(()=>{
     if(!normalizedLiveQuery)return [];
     const localMatches=mergedStudios.filter(studio=>{
@@ -804,8 +806,6 @@ export default function Home() {
     const subscription=BackHandler.addEventListener("hardwareBackPress",()=>{closeSearchOverlay();return true;});
     return()=>subscription.remove();
   },[searchFocused]);
-  const liveClassSearchRequestId=useRef(0);
-  const [liveClassSearchIds,setLiveClassSearchIds]=useState<string[]>([]);
   // 학원명/주소/지역은 메모리 병합 데이터에서 즉시 검색하고, 수업명만 300ms 디바운스합니다.
   useEffect(()=>{
     const requestId=++liveClassSearchRequestId.current;
