@@ -31,7 +31,7 @@ function BottomNavigation(){
     if(Number.isFinite(count)&&count>=0)setCompareCount(Math.min(3,count));
   },[params.compareCount]);
   const items=[
-    {key:"map",label:"지도",icon:"map-outline" as const,active:pathname==="/"&&params.view!=="favorites",onPress:()=>router.navigate({pathname:"/",params:{view:"map"}})},
+    {key:"map",label:"지도",icon:"map-outline" as const,active:pathname==="/"&&params.view!=="favorites",onPress:()=>router.dismissTo({pathname:"/",params:{view:"map"}})},
     {key:"favorites",label:"찜",icon:"heart-outline" as const,active:pathname==="/"&&params.view==="favorites",onPress:()=>router.navigate({pathname:"/",params:{view:"favorites"}})},
     {key:"compare",label:"비교",icon:"swap-horizontal-outline" as const,active:false,onPress:()=>router.navigate("/?openCompare=1")},
     {key:"community",label:"커뮤니티",icon:"chatbubbles-outline" as const,active:pathname==="/community",onPress:()=>router.navigate("/community")},
