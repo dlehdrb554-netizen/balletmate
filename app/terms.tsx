@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useColorScheme} from "re
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
-const sections=[
+export const TERMS_SECTIONS: [string,string][]=[
  ["제1조 목적","이 약관은 발레메이트(이하 “서비스”)의 운영자 이동규(이하 “운영자”)가 제공하는 발레 학원 정보 탐색 및 이용자 커뮤니티 서비스의 이용 조건, 권리·의무 및 책임 사항을 정합니다."],
  ["제2조 용어의 정의","“회원”은 서비스에 가입하여 이용하는 사람을 말합니다. “콘텐츠”는 회원이 작성하거나 등록한 리뷰, 게시글, 댓글, 사진 등 일체의 자료를 말합니다. “학원 정보”는 학원의 위치, 연락처, 수업, 가격, 시간표 및 공지 등 서비스에 표시되는 정보를 말합니다."],
  ["제3조 약관의 게시와 변경","운영자는 약관을 서비스 화면에 게시합니다. 관련 법령을 위반하지 않는 범위에서 약관을 변경할 수 있으며, 변경 내용과 시행일을 시행일 전에 서비스 내 공지하는 것을 원칙으로 합니다. 회원에게 불리하거나 중요한 변경은 합리적인 기간을 두고 별도로 안내합니다. 회원은 변경 약관에 동의하지 않을 경우 서비스 이용을 중단하고 탈퇴할 수 있습니다."],
@@ -27,7 +27,7 @@ export default function Terms(){
  const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
  return <SafeAreaView style={s.safe}><View style={s.header}><Pressable onPress={()=>router.back()}><Text style={s.back}>‹ 돌아가기</Text></Pressable><Text style={s.title}>서비스 이용약관</Text></View><ScrollView contentContainerStyle={s.body}>
-  {sections.map(([title,body])=><View key={title} style={s.section}><Text style={s.heading}>{title}</Text><Text style={s.text}>{body}</Text></View>)}
+  {TERMS_SECTIONS.map(([title,body])=><View key={title} style={s.section}><Text style={s.heading}>{title}</Text><Text style={s.text}>{body}</Text></View>)}
   <View style={s.policyLink}><Text style={s.policyHint}>개인정보 처리에 관한 자세한 내용은 개인정보처리방침에서 확인할 수 있습니다.</Text><Pressable onPress={()=>router.push("/privacy")}><Text style={s.policyButton}>개인정보처리방침 확인 ›</Text></Pressable></View>
  </ScrollView></SafeAreaView>;
 }
