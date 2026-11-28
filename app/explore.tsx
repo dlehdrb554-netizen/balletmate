@@ -499,6 +499,7 @@ export default function Home() {
   const [maxDistance,setMaxDistance]=useState<number|null>(null);
   const [locationLoading,setLocationLoading]=useState(false);
   const locationRequestId=useRef(0);
+  const locationPermissionSyncId=useRef(0);
   const warmedLocationRef=useRef<Location.LocationObject|null>(null);
   const locationWarmupRef=useRef<Promise<Location.LocationObject|null>|null>(null);
   const startLocationWarmup=()=>{
@@ -960,70 +961,76 @@ export default function Home() {
     return()=>{active=false;};
   },[]));
   const readLocationPermission=async()=>{
+    // The map's current-location marker and GPS button require foreground access.
+    // Background access alone must not be treated as foreground permission.
     const foreground=await Location.getForegroundPermissionsAsync();
-    let backgroundGranted=false;
-    // Android Always access also permits foreground location. Read both scopes
-    // after process recreation to avoid relying on a stale foreground snapshot.
-    if(Platform.OS==="android"){
-      try{
-        const background=await Location.getBackgroundPermissionsAsync();
-        backgroundGranted=background.granted||background.status==="granted";
-      }catch(error){console.warn("Background location permission check unavailable:",error);}
-    }
     const foregroundGranted=foreground.granted||foreground.status==="granted";
     return {
-      granted:foregroundGranted||backgroundGranted,
+      granted:foregroundGranted,
       foregroundGranted,
-      backgroundGranted,
       canAskAgain:foreground.canAskAgain
     };
   };
-  // Re-read the OS permission on startup and whenever the app returns to foreground.
+  const syncLocationPermission=async(requestPermissionIfUndetermined:boolean)=>{
+    const syncId=++locationPermissionSyncId.current;
+    const permission=await readLocationPermission();
+    if(syncId!==locationPermissionSyncId.current)return;
+    let granted=permission.foregroundGranted;
+    let canAskAgain=permission.canAskAgain;
+    if(!granted&&requestPermissionIfUndetermined){
+      const current=await Location.getForegroundPermissionsAsync();
+      if(syncId!==locationPermissionSyncId.current)return;
+      if(current.status==="undetermined"){
+        const requested=await Location.requestForegroundPermissionsAsync();
+        if(syncId!==locationPermissionSyncId.current)return;
+        granted=requested.granted||requested.status==="granted";
+        canAskAgain=requested.canAskAgain;
+      }
+    }
+    setLocationGranted(granted);
+    if(!granted){
+      setCurrentLocation(null);
+      warmedLocationRef.current=null;
+      return;
+    }
+
+    // Show a recent OS-cached fix immediately, then refresh it in the background.
+    const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000}).catch(()=>null);
+    if(syncId!==locationPermissionSyncId.current)return;
+    if(cached){
+      warmedLocationRef.current=cached;
+      setCurrentLocation({latitude:cached.coords.latitude,longitude:cached.coords.longitude});
+    }
+    // Re-run GPS warm-up on every foreground return. Reuse an in-flight request
+    // to avoid duplicate native location requests.
+    void startLocationWarmup().then(fresh=>{
+      if(syncId!==locationPermissionSyncId.current||!fresh)return;
+      setCurrentLocation({latitude:fresh.coords.latitude,longitude:fresh.coords.longitude});
+    });
+    return {granted,canAskAgain};
+  };
+
+  // Read OS permission on process startup; refresh again whenever the app resumes.
   useEffect(()=>{
     let active=true;
-    void (async()=>{
-      try{
-        let permission=await readLocationPermission();
-        if(!active)return;
-        if(!permission.granted){
-          const foreground=await Location.getForegroundPermissionsAsync();
-          if(foreground.status==="undetermined"){
-            const requested=await Location.requestForegroundPermissionsAsync();
-            const foregroundGranted=requested.granted||requested.status==="granted";
-            permission={...permission,granted:foregroundGranted,foregroundGranted,canAskAgain:requested.canAskAgain};
-          }
-        }
-        if(!active||!permission.granted)return;
-        // Keep the app's permission state synchronized when returning to this screen
-        // after a theme change or navigation remount.
-        setLocationGranted(true);
-        const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
-        if(!active)return;
-        if(cached){
-          warmedLocationRef.current=cached;
-          setCurrentLocation({latitude:cached.coords.latitude,longitude:cached.coords.longitude});
-        }
-        void startLocationWarmup();
-      }catch(error){
-        console.warn("Initial location permission or warm-up failed:",error);
-      }
-    })();
-    return()=>{active=false;};
+    void syncLocationPermission(true).catch(error=>{
+      if(active)console.warn("Initial location permission sync failed:",error);
+    });
+    return()=>{
+      active=false;
+      locationPermissionSyncId.current++;
+    };
   },[]);
   useEffect(()=>{
     const subscription=AppState.addEventListener("change",state=>{
-      if(state!=="active")return;
-      void (async()=>{
-        const permission=await readLocationPermission();
-        const granted=permission.granted;
-        setLocationGranted(granted);
-        if(!granted)return;
-        const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
-        if(cached){
-          warmedLocationRef.current=cached;
-          setCurrentLocation({latitude:cached.coords.latitude,longitude:cached.coords.longitude});
-        }
-      })().catch(error=>console.warn("Location permission resync failed:",error));
+      if(state==="active"){
+        void syncLocationPermission(false).catch(error=>{
+          console.warn("Location permission resync failed:",error);
+        });
+      }else{
+        // Ignore any permission/GPS response that arrives after the app backgrounds.
+        locationPermissionSyncId.current++;
+      }
     });
     return()=>subscription.remove();
   },[]);
