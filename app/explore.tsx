@@ -8,7 +8,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRootNavigationState, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions, PanResponder} from "react-native";
+  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions, PanResponder, DeviceEventEmitter} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomPadding } from "../hooks/useBottomPadding";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
@@ -153,12 +153,10 @@ export default function Home() {
   },[]);
   useFocusEffect(useCallback(()=>{void refreshUnreadNotificationCount();},[refreshUnreadNotificationCount]));
   useEffect(()=>{
-    const client=supabase;
-    if(!client)return;
-    const channel=client.channel("home-unread-notifications")
-      .on("postgres_changes",{event:"*",schema:"public",table:"user_notifications"},()=>{void refreshUnreadNotificationCount();})
-      .subscribe();
-    return()=>{void client.removeChannel(channel);};
+    const subscription=DeviceEventEmitter.addListener("balletmate:user-notifications-changed",()=>{
+      void refreshUnreadNotificationCount();
+    });
+    return()=>subscription.remove();
   },[refreshUnreadNotificationCount]);
   const [studios,setStudios]=useState<Studio[]>([]);
   const [backendState,setBackendState]=useState<"loading"|"connected"|"empty"|"error">(supabaseConfigured?"empty":"error");
