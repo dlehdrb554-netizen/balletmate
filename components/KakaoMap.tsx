@@ -249,7 +249,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
       const type=(message as any)?.type;
-      if(type==="markers"||type==="animate"||type==="setTheme") pendingMessages.current=pendingMessages.current=pendingMessages.current.filter(item=>JSON.parse(item).type!==type);
+      if(type==="markers"||type==="animate"||type==="setTheme") pendingMessages.current=pendingMessages.current.filter(item=>JSON.parse(item).type!==type);
       pendingMessages.current.push(serialized);
       return;
     }
