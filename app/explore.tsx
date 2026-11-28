@@ -1006,7 +1006,13 @@ export default function Home() {
       setPendingMapTarget(target);
     };
     try {
-      const permission=await Location.requestForegroundPermissionsAsync();
+      // Check the OS permission first. Do not show the permission prompt again
+      // when startup or a previous session has already granted location access.
+      let permission=await Location.getForegroundPermissionsAsync();
+      if(requestId!==locationRequestId.current)return;
+      if(permission.status!=="granted"&&permission.canAskAgain){
+        permission=await Location.requestForegroundPermissionsAsync();
+      }
       if(requestId!==locationRequestId.current)return;
       if(permission.status!=="granted"){
         setLocationGranted(false);
