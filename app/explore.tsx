@@ -982,9 +982,15 @@ export default function Home() {
           permission=await Location.requestForegroundPermissionsAsync();
         }
         if(!active||!permission.granted)return;
+        // Keep the app's permission state synchronized when returning to this screen
+        // after a theme change or navigation remount.
+        setLocationGranted(true);
         const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
         if(!active)return;
-        if(cached)warmedLocationRef.current=cached;
+        if(cached){
+          warmedLocationRef.current=cached;
+          setCurrentLocation({latitude:cached.coords.latitude,longitude:cached.coords.longitude});
+        }
         void startLocationWarmup();
       }catch(error){
         console.warn("Initial location permission or warm-up failed:",error);
@@ -1563,6 +1569,7 @@ export default function Home() {
 <View style={styles.modalShade}>
 <Pressable style={StyleSheet.absoluteFillObject} onPress={()=>{detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);}} accessibilityRole="button" accessibilityLabel="학원 상세정보 닫기"/>
 <BottomSheet
+  key={detailStudio ? detailStudio.id+"-"+detailRequestId.current : "detail-sheet-closed"}
   ref={detailSheetRef}
   style={{width:"100%",alignSelf:"center"}}
   index={detailExpanded?1:0}
