@@ -15,6 +15,8 @@ type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDe
 import { fetchStudios, fetchStudioById, searchStudiosByName, searchStudiosByKakao, isExcludedStudioSearchResult, StudioRecord } from "../lib/studios";
 import { fetchClassesForStudio, StudioClass } from "../lib/classes";
 import { searchStudiosByClassFilters, searchStudioIdsByClassName } from "../lib/class-search";
+// Prevent duplicate review prompts across Explore remounts.
+let reviewPromptInFlight = false;
 import { fetchCouponsForStudio, StudioCoupon } from "../lib/coupons";
 import { fetchStudioPublicPrices, StudioPublicPrice, fetchStudioPublicSchedules, StudioPublicSchedule } from "../lib/studio-public-materials";
 import { supabase, supabaseConfigured } from "../lib/supabase";
@@ -1504,21 +1506,26 @@ export default function Home() {
 
   useEffect(()=>{const id=String(routeParams.studioId||"");if(!id||!supabaseConfigured)return;let active=true;fetchStudioById(id).then(row=>{if(active&&row)openDetail(mapStudioRecord(row));}).catch(error=>console.warn("Review destination lookup failed:",error));return()=>{active=false;};},[routeParams.studioId]);
   useEffect(()=>{
-    if(Platform.OS!=="android")return;
+    if(Platform.OS!=="android"||reviewPromptInFlight)return;
     let active=true;
+    reviewPromptInFlight=true;
     const prompt=async()=>{
+      const key="balletmate.reviewPrompt.lastShown.v1";
       try{
-        const key="balletmate.reviewPrompt.lastShown.v1";
-        const last=Number(await AsyncStorage.getItem(key)||0);
-        if(Date.now()-last<30*24*60*60*1000||Math.random()>0.16)return;
+        const stored=await AsyncStorage.getItem(key);
+        const last=stored?Number(stored):0;
+        if(Number.isFinite(last)&&last>0&&Date.now()-last<30*24*60*60*1000)return;
         await new Promise(resolve=>setTimeout(resolve,45000));
         if(!active)return;
-        await AsyncStorage.setItem(key,String(Date.now()));
+        const shownAt=String(Date.now());
+        await AsyncStorage.setItem(key,shownAt);
+        if(!active)return;
         Alert.alert("Balletmate 이용 경험","발레 생활을 더 편리하게 이용하고 계신가요? Play 스토어에서 솔직한 의견을 들려주세요.",[
-          {text:"나중에",style:"cancel"},
-          {text:"평가하기",onPress:()=>{void Linking.openURL("https://play.google.com/store/apps/details?id=com.dlehdrb554.balletmate").catch(()=>Alert.alert("스토어 연결","Play 스토어에서 Balletmate를 검색해 주세요."));}}
+          {text:"나중에",style:"cancel",onPress:()=>{void AsyncStorage.setItem(key,String(Date.now())).catch(()=>{});}},
+          {text:"평가하기",onPress:()=>{void AsyncStorage.setItem(key,String(Date.now())).catch(()=>{});void Linking.openURL("https://play.google.com/store/apps/details?id=com.dlehdrb554.balletmate").catch(()=>Alert.alert("스토어 연결","Play 스토어에서 Balletmate를 검색해 주세요."));}}
         ]);
       }catch{}
+      finally{reviewPromptInFlight=false;}
     };
     void prompt();
     return()=>{active=false;};
