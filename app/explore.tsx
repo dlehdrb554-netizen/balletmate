@@ -1536,8 +1536,7 @@ export default function Home() {
         </ScrollView>
         <Pressable accessibilityRole="button" accessibilityLabel="학원 비교 확인 및 닫기" style={[styles.applyButton,{flex:0,width:"100%",minHeight:52,alignSelf:"stretch",paddingVertical:14,marginTop:8}]} onPress={()=>{
           if(compareIds.length<2){setCompareOpen(false);setView("map");return;}
-          setCompareOpen(false);
-          requestAnimationFrame(()=>setCompareOpen(true));
+          setCompareOpen(true);
         }}><Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>{compareIds.length<2?"학원 더 추가하기":"비교 결과 확인"}</Text></Pressable>
       </Animated.View></View>
     </Modal>
