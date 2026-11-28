@@ -137,7 +137,6 @@ export default function Home() {
     paddingBottom: 12,
   } as const;
   const bottomInsetPadding = useBottomPadding(0);
-  const bottomNavClearance = 62 + Math.max(insets.bottom,Platform.OS === "android" ? 24 : 0);
   const locationBtnAnim = useRef(new Animated.Value(16)).current;
   const map = useRef<KakaoMapHandle | null>(null);
   const [unreadNotificationCount,setUnreadNotificationCount]=useState(0);
@@ -186,9 +185,10 @@ export default function Home() {
   const [pendingMapTarget,setPendingMapTarget]=useState<Region|null>(null);
   const [classSearchLoading,setClassSearchLoading]=useState(false);
   const [selected,setSelected]=useState<Studio|null>(null);
+  const [selectedCardHeight,setSelectedCardHeight]=useState(190);
   useEffect(()=>{
-    Animated.spring(locationBtnAnim,{toValue:selected?192:16,useNativeDriver:false,damping:22,stiffness:180}).start();
-  },[selected?.id,locationBtnAnim]);
+    Animated.spring(locationBtnAnim,{toValue:selected?selectedCardHeight+24:16,useNativeDriver:false,damping:22,stiffness:180}).start();
+  },[selected?.id,selectedCardHeight,locationBtnAnim]);
 
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
 
@@ -801,7 +801,7 @@ export default function Home() {
   // Kakao and class-name lookups remain submit-only to avoid expensive per-keystroke requests.
   useEffect(()=>{
     const requestId=++liveSearchRequestId.current;
-    const query=deferredSearch.trim();
+    const query=search.trim();
     setLiveRemoteStudios([]);
     if(!searchFocused||!supabase||query.length<2){setLiveSearchLoading(false);return;}
     setLiveSearchLoading(true);
@@ -814,9 +814,9 @@ export default function Home() {
       }).finally(()=>{
         if(requestId===liveSearchRequestId.current)setLiveSearchLoading(false);
       });
-    },350);
+    },160);
     return()=>{clearTimeout(timer);};
-  },[deferredSearch,searchFocused]);
+  },[search,searchFocused]);
   // 수업명 검색은 검색 확정 시에만 실행합니다. 입력 중에는 로컬 데이터만 필터링합니다.
   useEffect(()=>{if(!searchFocused)setClassSearchLoading(false);},[searchFocused]);
   const submitSearch=async(queryOverride?:string)=>{
@@ -1325,6 +1325,7 @@ export default function Home() {
   openDetailAction.current=openDetail;
     const cleanScheduleDisplay=(value:string)=>String(value||"").replace(/\s*(오픈\s*예정|개강\s*예정|모집\s*예정|모집\s*중|신설\s*예정)\s*$/g,"").trim();
   const studioCard=useCallback((s:Studio,compact=false)=><Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`${s.name} 학원 상세 보기`} onPress={()=>{setSelected(s);setView("map");const target={latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018};setPendingMapTarget(target);setRegion(target);if(!studios.some(x=>x.id===s.id)){setSearchedRegion(target);setAreaLocked(false);}}} style={[styles.studioCard,compact&&styles.compactCard,{backgroundColor:isDark?"#24242A":"#FFFFFF",borderColor:isDark?"#3A3A42":"#E8E6ED"},selected?.id===s.id&&{backgroundColor:isDark?"#2B2B32":"#EAEAEF",borderColor:isDark?"#4A4A53":"#D5D5DC"},searchMatches.some(item=>item.id===s.id)&&{backgroundColor:isDark?"#292930":"#EEEEF1"},compareIds.includes(s.id)&&{backgroundColor:isDark?"#292930":"#EEEEF1"}]}>
+    {compact&&<View style={styles.selectedCardHandle}/>}
     <View style={styles.cardTop}><View style={[styles.studioIcon,{backgroundColor:isDark?"#18181D":"#E5E5EA"}]}>{s.representativeImageUrl?<Image source={{uri:s.representativeImageUrl}} style={styles.studioThumb} resizeMode="cover"/>:<MaterialCommunityIcons name="human-female-dance" size={compact?22:28} color={isDark?"#E7E7EC":"#686875"}/>}</View><View style={{flex:1,minWidth:0}}><View style={{flexDirection:"row",alignItems:"center",gap:3,minWidth:0}}><Text style={[styles.studioName,{flex:1,minWidth:0,fontSize:15}]} numberOfLines={1}>{s.name}</Text><View style={{flexDirection:"row",alignItems:"center",gap:4,flexShrink:0}}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} hitSlop={4} style={{width:44,height:44,alignItems:"center",justifyContent:"center",borderRadius:10}} accessibilityRole="button" accessibilityLabel={favoriteIds.includes(s.id)?"찜 해제":"찜하기"} accessibilityState={{selected:favoriteIds.includes(s.id)}}><Ionicons name={favoriteIds.includes(s.id)?"heart":"heart-outline"} size={24} color={favoriteIds.includes(s.id)?"#E64B72":COLORS.purple}/></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} hitSlop={4} style={{width:compact?34:44,height:compact?38:44,alignItems:"center",justifyContent:"center",borderRadius:10}} accessibilityRole="button" accessibilityLabel={compareIds.includes(s.id)?"비교에서 제외":"비교에 추가"} accessibilityState={{selected:compareIds.includes(s.id)}}><Ionicons name={compareIds.includes(s.id)?"checkmark-circle":"swap-horizontal-outline"} size={25} color={compareIds.includes(s.id)?"#15966A":COLORS.purple}/></Pressable>{compact&&<Pressable onPress={e=>{e.stopPropagation();setSelected(null);}} hitSlop={4} style={{width:30,height:38,alignItems:"center",justifyContent:"center",borderRadius:10}} accessibilityRole="button" accessibilityLabel="학원 카드 닫기"><Ionicons name="close" size={21} color={COLORS.muted}/></Pressable>}</View></View><View style={{flexDirection:"row",alignItems:"center",flexWrap:"wrap",gap:6,marginTop:3}}><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View></View></View>
     {s.description&&s.description!=="등록된 소개가 없습니다."&&<Text numberOfLines={2} ellipsizeMode="tail" style={{fontSize:12,lineHeight:19,color:isDark?"#B9B9C2":"#66636F",marginTop:10}}>{cleanPublicText(s.description)}</Text>}
     {s.tags.length>0&&<View style={styles.tagsRow}>{s.tags.slice(0,2).map(t=><View key={t} style={[styles.tag,{backgroundColor:isDark?"#34343B":"#E5E5EA"}]}><Text style={[styles.tagText,{color:isDark?"#D5D5DC":"#555560"}]}>{t}</Text></View>)}</View>}
@@ -1361,7 +1362,7 @@ export default function Home() {
       <View style={styles.headerActions}><Pressable style={[styles.menuButton,{width:44,height:44,backgroundColor:"#653BB7",borderColor:"#653BB7"}]} onPress={async()=>{if(!permissionsReady)await refreshAdminAccess();setMenuOpen(true);}} accessibilityRole="button" accessibilityLabel="메뉴 열기"><Ionicons name="menu-outline" size={23} color="#FFFFFF" /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line,position:"relative"}]} onPress={()=>router.push("/notifications")} accessibilityRole="button" accessibilityLabel="알림함"><Ionicons name="notifications-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} />{unreadNotificationCount>0&&<View style={{position:"absolute",top:-4,right:-4,minWidth:17,height:17,paddingHorizontal:4,borderRadius:9,backgroundColor:"#E64B72",borderWidth:1.5,borderColor:isDark?"#24212C":"#FFFFFF",alignItems:"center",justifyContent:"center"}}><Text style={{fontSize:9,fontWeight:"900",color:"#FFFFFF"}}>{unreadNotificationCount>99?"99+":unreadNotificationCount}</Text></View>}</Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage?open=notifications&returnTo=explore")} accessibilityRole="button" accessibilityLabel="알림 설정"><Ionicons name="settings-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable><Pressable style={[styles.profileButton,{width:44,height:44,backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>router.push("/mypage")} accessibilityRole="button" accessibilityLabel="마이페이지"><Ionicons name="person-circle-outline" size={23} color={isDark?"#FFFFFF":COLORS.ink} /></Pressable></View>
     </View>
     <View style={styles.searchRow}>
-      <Pressable accessibilityRole="button" accessibilityLabel="학원 및 지역 검색" onPress={openSearchOverlay} style={[styles.searchBox,{flexDirection:"row",alignItems:"center"}]}><Ionicons name="search-outline" size={19} color={COLORS.muted}/><Text numberOfLines={1} style={[styles.searchInput,{color:search?COLORS.ink:COLORS.muted,flex:1}]}>{search||"학원명, 지역, 수업명 검색"}</Text><Ionicons name="chevron-forward" size={16} color={COLORS.muted}/></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="학원 및 지역 검색" onPress={openSearchOverlay} style={[styles.searchBox,{flexDirection:"row",alignItems:"center"}]}><Ionicons name="search-outline" size={19} color={COLORS.muted}/><Text numberOfLines={1} style={[styles.searchInput,{color:search?(isDark?"#FFFFFF":COLORS.ink):(isDark?"#B9B1C5":COLORS.muted),flex:1}]}>{search||"학원명, 지역, 수업명 검색"}</Text><Ionicons name="chevron-forward" size={16} color={COLORS.muted}/></Pressable>
       <Pressable style={[styles.filterButton,{backgroundColor:isDark?"#24212C":"#FFFFFF",borderColor:isDark?"#514568":COLORS.line}]} onPress={()=>setFilterOpen(true)}><Ionicons name="options-outline" size={21} color={isDark?"#FFFFFF":COLORS.ink} />{activeFilters>0&&<View style={styles.filterCount}><Text style={styles.filterCountText}>{activeFilters}</Text></View>}</Pressable>
     </View>
     {!!search.trim()&&search.trim().length>=2&&<Text style={styles.searchHint}>{classSearchLoading?"수업명 검색 중…":"학원명·지역·태그·등록 수업명 검색"}</Text>}
@@ -1370,9 +1371,9 @@ export default function Home() {
       {view==="map"?<View style={styles.mapWrap}>
         <KakaoMap ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} searchedIds={searchedStudioIds} compareIds={compareIds} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} darkMode={isDark} />
         {(!hasMapSearchRequested||mapMoved&&isAreaChanged)&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":hasMapSearchRequested?"이 지역에서 재검색":"현재 지역 학원 검색"}</Text></View></Pressable>}
-        <Animated.View style={[styles.locateButton,{bottom:locationBtnAnim,transform:[{translateY:-bottomNavClearance}]}]}><Pressable style={{width:44,height:44,alignItems:"center",justifyContent:"center"}} accessibilityRole="button" accessibilityLabel="현재 위치로 이동" onPress={()=>{void locate();}}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable></Animated.View>
-        <Pressable style={[styles.mapCount,{transform:[{translateY:-bottomNavClearance}]}]} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}곳</Text>{results.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
-        {selected&&<GestureDetector gesture={selectedCardGesture}><View style={styles.selectedCard}><View style={styles.selectedCardHandle}/>{studioCard(selected,true)}</View></GestureDetector>}
+        <Animated.View style={[styles.locateButton,{bottom:locationBtnAnim}]}><Pressable style={{width:44,height:44,alignItems:"center",justifyContent:"center"}} accessibilityRole="button" accessibilityLabel="현재 위치로 이동" onPress={()=>{void locate();}}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable></Animated.View>
+        <Pressable style={[styles.mapCount,{bottom:selected?selectedCardHeight+24:12}]} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}곳</Text>{results.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
+        {selected&&<GestureDetector gesture={selectedCardGesture}><View style={styles.selectedCard} onLayout={event=>{const height=event.nativeEvent.layout.height;setSelectedCardHeight(current=>Math.abs(current-height)>1?height:current);}}>{studioCard(selected,true)}</View></GestureDetector>}
       </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Text style={styles.listSortChipText}>거리순</Text></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}>
   <Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted,marginBottom:6}}>지역 선택</Text>
   <View style={{flexDirection:"row",alignItems:"center",gap:7}}><Pressable onPress={()=>{setExpandedProvince(regionProvince==="전체"?null:regionProvince);setExpandedCity(regionCity!=="전체"?regionCity:(METRO_PROVINCES.includes(regionProvince)?"__districts__":null));setRegionPickerOpen(true);}} style={{flex:1,paddingHorizontal:12,paddingVertical:11,borderRadius:10,borderWidth:1,borderColor:COLORS.purple,backgroundColor:isDark?"#24202D":COLORS.white,flexDirection:"row",justifyContent:"space-between",alignItems:"center"}}><Text numberOfLines={1} style={{flex:1,fontSize:13,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>{selectedListRegion!=="전체"?selectedListRegion:[regionProvince,regionCity].filter(x=>x!=="전체").join(" · ")||"전체 지역"}</Text><Text style={{color:isDark?"#D8C6FF":COLORS.purple,fontWeight:"900",fontSize:12}}>변경 ⌄</Text></Pressable>{(selectedListRegion!=="전체"||regionCity!=="전체"||regionProvince!=="전체")&&<Pressable onPress={()=>{setSelectedListRegion("전체");setRegionCity("전체");setRegionProvince("전체");}} style={{paddingHorizontal:10,paddingVertical:10,borderRadius:10,backgroundColor:isDark?"#292929":"#F2F0F6"}}><Text style={{fontSize:11,fontWeight:"800",color:isDark?"#FFFFFF":COLORS.ink}}>전체</Text></Pressable>}</View>
