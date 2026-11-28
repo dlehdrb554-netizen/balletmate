@@ -434,6 +434,8 @@ export default function Home() {
   const [favoritesReady,setFavoritesReady]=useState(false);
   const guestFavoritesRef=useRef<{ids:string[];studios:Studio[]}>({ids:[],studios:[]});
   const [compareIds,setCompareIds]=useState<string[]>([]);
+  const studioCardTapRef=useRef<{id:string;timer:ReturnType<typeof setTimeout>|null}>({id:"",timer:null});
+  useEffect(()=>()=>{if(studioCardTapRef.current.timer)clearTimeout(studioCardTapRef.current.timer);},[]);
   const [compareCache,setCompareCache]=useState<Studio[]>([]);
   const [compareReady,setCompareReady]=useState(false);
   const [compareClassData,setCompareClassData]=useState<Record<string,StudioClass[]>>({});
@@ -1349,13 +1351,27 @@ export default function Home() {
   };
   openDetailAction.current=openDetail;
     const cleanScheduleDisplay=(value:string)=>String(value||"").replace(/\s*(오픈\s*예정|개강\s*예정|모집\s*예정|모집\s*중|신설\s*예정)\s*$/g,"").trim();
-  const studioCard=useCallback((s:Studio,compact=false)=><Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`${s.name} 학원 상세 보기`} onPress={()=>{setSelected(s);setView("map");const target={latitude:s.lat,longitude:s.lng,latitudeDelta:0.018,longitudeDelta:0.018};setPendingMapTarget(target);setRegion(target);if(!studios.some(x=>x.id===s.id)){setSearchedRegion(target);setAreaLocked(false);}}} style={[styles.studioCard,compact&&styles.compactCard,{backgroundColor:isDark?"#24242A":"#FFFFFF",borderColor:isDark?"#3A3A42":"#E8E6ED"},selected?.id===s.id&&{backgroundColor:isDark?"#2B2B32":"#EAEAEF",borderColor:isDark?"#4A4A53":"#D5D5DC"},searchMatches.some(item=>item.id===s.id)&&{backgroundColor:isDark?"#292930":"#EEEEF1"},compareIds.includes(s.id)&&{backgroundColor:isDark?"#292930":"#EEEEF1"}]}>
+  const handleStudioCardPress=(studio:Studio)=>{
+    const pending=studioCardTapRef.current;
+    if(pending.timer&&pending.id===studio.id){
+      clearTimeout(pending.timer);studioCardTapRef.current={id:"",timer:null};
+      setSelected(studio);setView("map");
+      const target={latitude:studio.lat,longitude:studio.lng,latitudeDelta:0.009,longitudeDelta:0.009};
+      setPendingMapTarget(target);setRegion(target);setSearchedRegion(target);setAreaLocked(false);
+      return;
+    }
+    if(pending.timer)clearTimeout(pending.timer);
+    studioCardTapRef.current={id:studio.id,timer:setTimeout(()=>{
+      studioCardTapRef.current={id:"",timer:null};setSelected(studio);setView("map");void openDetail(studio);
+    },260)};
+  };
+  const studioCard=useCallback((s:Studio,compact=false)=><Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`${s.name} 학원 상세 보기`} onPress={()=>handleStudioCardPress(s)} style={[styles.studioCard,compact&&styles.compactCard,{backgroundColor:isDark?"#24242A":"#FFFFFF",borderColor:isDark?"#3A3A42":"#E8E6ED"},selected?.id===s.id&&{backgroundColor:isDark?"#2B2B32":"#EAEAEF",borderColor:isDark?"#4A4A53":"#D5D5DC"},searchMatches.some(item=>item.id===s.id)&&{backgroundColor:isDark?"#292930":"#EEEEF1"},compareIds.includes(s.id)&&{backgroundColor:isDark?"#292930":"#EEEEF1"}]}>
     {compact&&<View style={styles.selectedCardHandle}/>}
     <View style={styles.cardTop}><View style={[styles.studioIcon,{backgroundColor:isDark?"#18181D":"#E5E5EA"}]}>{s.representativeImageUrl?<Image source={{uri:s.representativeImageUrl}} style={styles.studioThumb} resizeMode="cover"/>:<MaterialCommunityIcons name="human-female-dance" size={compact?22:28} color={isDark?"#E7E7EC":"#686875"}/>}</View><View style={{flex:1,minWidth:0}}><View style={{flexDirection:"row",alignItems:"center",gap:3,minWidth:0}}><Text style={[styles.studioName,{flex:1,minWidth:0,fontSize:15}]} numberOfLines={1}>{s.name}</Text><View style={{flexDirection:"row",alignItems:"center",gap:4,flexShrink:0}}><Pressable onPress={e=>{e.stopPropagation();toggleFavorite(s);}} hitSlop={4} style={{width:44,height:44,alignItems:"center",justifyContent:"center",borderRadius:10}} accessibilityRole="button" accessibilityLabel={favoriteIds.includes(s.id)?"찜 해제":"찜하기"} accessibilityState={{selected:favoriteIds.includes(s.id)}}><Ionicons name={favoriteIds.includes(s.id)?"heart":"heart-outline"} size={24} color={favoriteIds.includes(s.id)?"#E64B72":COLORS.purple}/></Pressable><Pressable onPress={e=>{e.stopPropagation();toggleCompare(s);}} hitSlop={4} style={{width:compact?34:44,height:compact?38:44,alignItems:"center",justifyContent:"center",borderRadius:10}} accessibilityRole="button" accessibilityLabel={compareIds.includes(s.id)?"비교에서 제외":"비교에 추가"} accessibilityState={{selected:compareIds.includes(s.id)}}><Ionicons name={compareIds.includes(s.id)?"checkmark-circle":"swap-horizontal-outline"} size={25} color={compareIds.includes(s.id)?"#15966A":COLORS.purple}/></Pressable>{compact&&<Pressable onPress={e=>{e.stopPropagation();setSelected(null);}} hitSlop={4} style={{width:30,height:38,alignItems:"center",justifyContent:"center",borderRadius:10}} accessibilityRole="button" accessibilityLabel="학원 카드 닫기"><Ionicons name="close" size={21} color={COLORS.muted}/></Pressable>}</View></View><View style={{flexDirection:"row",alignItems:"center",flexWrap:"wrap",gap:6,marginTop:3}}><Text style={styles.studioArea}>{s.area} · {s.rating>0?"⭐ "+s.rating.toFixed(1):"평점 미등록"}</Text>{s.coupon&&<View style={styles.couponBadge}><Text style={styles.couponText}>쿠폰</Text></View>}</View></View></View>
     {s.description&&s.description!=="등록된 소개가 없습니다."&&<Text numberOfLines={2} ellipsizeMode="tail" style={{fontSize:12,lineHeight:19,color:isDark?"#B9B9C2":"#66636F",marginTop:10}}>{cleanPublicText(s.description)}</Text>}
     {s.tags.length>0&&<View style={styles.tagsRow}>{s.tags.slice(0,2).map(t=><View key={t} style={[styles.tag,{backgroundColor:isDark?"#34343B":"#E5E5EA"}]}><Text style={[styles.tagText,{color:isDark?"#D5D5DC":"#555560"}]}>{t}</Text></View>)}</View>}
     {(s.duration>0||!!s.time)&&<View style={[styles.cardBottom,{marginTop:s.tags.length?8:6}]}><Text style={styles.metaText}>{[s.duration>0?s.duration+"분":null,s.time||null].filter(Boolean).join(" · ")}</Text></View>}
-  </Pressable>,[studios,favoriteIds,compareIds,toggleFavorite,toggleCompare,router,styles,selected,searchMatches,isDark]);
+  </Pressable>,[studios,favoriteIds,compareIds,toggleFavorite,toggleCompare,router,styles,selected,searchMatches ,isDark,handleStudioCardPress]);
   const renderStudioListItem=useCallback(({item}:{item:Studio})=>studioCard(item),[studioCard]);
 
   useEffect(()=>{const id=String(routeParams.studioId||"");if(!id||!supabaseConfigured)return;let active=true;fetchStudioById(id).then(row=>{if(active&&row)openDetail(mapStudioRecord(row));}).catch(error=>console.warn("Review destination lookup failed:",error));return()=>{active=false;};},[routeParams.studioId]);
@@ -1482,7 +1498,7 @@ export default function Home() {
     </Modal>
     <Modal visible={compareOpen} animationType="none" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><Animated.View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18),transform:[{translateY:compareSheetTranslateY}]}]}>
-        <View {...compareHandlePanResponder.panHandlers} accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{alignItems:"center",justifyContent:"center",paddingTop:14,paddingBottom:6,width:"100%",height:58}}><View pointerEvents="none" style={{width:46,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View>
+        <View {...compareHandlePanResponder.panHandlers} accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{alignItems:"center",justifyContent:"flex-start",paddingTop:7,paddingBottom:3,width:"100%",height:25}}><View pointerEvents="none" style={{width:46,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View>
          <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
         <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
         {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
@@ -1494,7 +1510,7 @@ export default function Home() {
           showsVerticalScrollIndicator
           overScrollMode="always"
         >
-        {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="swap-horizontal-outline" size={30} color={COLORS.muted}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>비교 목록이 비어 있어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>학원 카드에서 비교를 추가해 주세요.</Text></View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
+        {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="swap-horizontal-outline" size={30} color={COLORS.muted}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>비교 목록이 비어 있어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>학원 카드에서 비교를 추가해 주세요.</Text></View>:compareIds.length===1?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="add-circle-outline" size={30} color={COLORS.purple}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>학원 1곳이 선택됐어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>비교하려면 학원을 한 곳 더 추가해 주세요.</Text></View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
         <View style={{flexDirection:"row",gap:6,paddingTop:8,paddingBottom:8,width:"100%"}}>
           {compareIds.map(id=>{
             const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
@@ -1518,7 +1534,11 @@ export default function Home() {
           })}
         </View>}
         </ScrollView>
-        <Pressable accessibilityRole="button" accessibilityLabel="학원 비교 확인 및 닫기" style={[styles.applyButton,{flex:0,width:"100%",minHeight:52,alignSelf:"stretch",paddingVertical:14,marginTop:8}]} onPress={()=>setCompareOpen(false)}><Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>비교 완료</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="학원 비교 확인 및 닫기" style={[styles.applyButton,{flex:0,width:"100%",minHeight:52,alignSelf:"stretch",paddingVertical:14,marginTop:8}]} onPress={()=>{
+          if(compareIds.length<2){setCompareOpen(false);setView("map");return;}
+          setCompareOpen(false);
+          requestAnimationFrame(()=>setCompareOpen(true));
+        }}><Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>{compareIds.length<2?"학원 더 추가하기":"비교 결과 확인"}</Text></Pressable>
       </Animated.View></View>
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
