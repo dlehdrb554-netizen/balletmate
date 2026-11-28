@@ -160,14 +160,8 @@ function buildHtml(initialRegion: MapRegion) {
     if(load)load.style.backgroundColor=surface;
     var colorScheme=document.querySelector('meta[name="color-scheme"]');
     if(colorScheme)colorScheme.setAttribute('content',darkModeEnabled?'dark':'light');
-    // Re-attach existing markers after the map surface/theme has changed; do not recreate marker data.
-    Object.keys(markers).forEach(function(id){
-      if(markers[id]){
-        markers[id].setMap(map);
-        if(typeof markers[id].setZIndex==='function')markers[id].setZIndex(100);
-      }
-    });
-    if(currentMarker){currentMarker.setMap(map);if(typeof currentMarker.setZIndex==='function')currentMarker.setZIndex(1000);}
+    // Theme changes only affect the map surface and pin imagery.
+    // Keep existing marker attachments intact to avoid transient detach/reattach races.
     refreshMarkerImages();
   }
   function apply(message){
