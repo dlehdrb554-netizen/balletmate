@@ -81,6 +81,9 @@ export default function Community(){
  const [editPostCategory,setEditPostCategory]=useState<Exclude<Category,"전체">>("자유");
  const [editingCommentId,setEditingCommentId]=useState<string|null>(null);
  const [editCommentText,setEditCommentText]=useState("");
+ const [editCommentPhoto,setEditCommentPhoto]=useState<ImagePicker.ImagePickerAsset|null>(null);
+ const [editCommentPhotoUri,setEditCommentPhotoUri]=useState<string|null>(null);
+ const commentDetailScrollRef=useRef<ScrollView|null>(null);
  const [loading,setLoading]=useState(true);
  const [loadError,setLoadError]=useState(false);
  const [refreshing,setRefreshing]=useState(false);
@@ -251,6 +254,12 @@ export default function Community(){
   setPostMetrics(value=>({...value,[post.id]:{...current,liked:!current.liked,likes:Math.max(0,current.likes+(current.liked?-1:1))}}));
   const result=current.liked?await supabase.from("community_post_likes").delete().eq("post_id",post.id).eq("user_id",userId):await supabase.from("community_post_likes").insert({post_id:post.id,user_id:userId});
   if(result.error){setPostMetrics(value=>({...value,[post.id]:current}));Alert.alert("좋아요 처리 실패",getUserErrorMessage(result.error));}
+ };
+ const pickEditCommentPhoto=async()=>{
+  const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if(!permission.granted){Alert.alert("사진 접근 권한","댓글 사진을 수정하려면 사진 접근 권한이 필요합니다.");return;}
+  const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],quality:0.85});
+  if(!result.canceled&&result.assets?.[0]){setEditCommentPhoto(result.assets[0]);setEditCommentPhotoUri(result.assets[0].uri);}
  };
  const pickCommentPhoto=async()=>{
   const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -489,13 +498,32 @@ export default function Community(){
   try{const {data,error}=await client.from("community_posts").update({title:editPostTitle.trim(),content:editPostBody.trim(),category:editPostCategory}).eq("id",post.id).select("id,author_id,author_name,category,title,content,image_urls,created_at").single();if(error)throw error;const updated=data as Post;setSelected(updated);setPosts(rows=>rows.map(row=>row.id===updated.id?updated:row));setEditingPost(null);Alert.alert("수정 완료","게시글이 수정되었습니다.");}
   catch(error:any){Alert.alert("수정 실패",getUserErrorMessage(error,"게시글을 수정하지 못했습니다."));}finally{setSubmitting(false);}
  };
- const startEditComment=(comment:Comment)=>{if(comment.author_id!==userId&&!isAdmin)return;setEditingCommentId(comment.id);setEditCommentText(comment.content==="사진"?"":comment.content);};
+ const startEditComment=(comment:Comment)=>{if(comment.author_id!==userId&&!isAdmin)return;setEditingCommentId(comment.id);setEditCommentText(comment.content==="사진"?"":comment.content);setEditCommentPhoto(null);setEditCommentPhotoUri(comment.image_urls?.[0]||null);};
  const saveCommentEdit=async()=>{
   const client=supabase,id=editingCommentId,postId=selectedPostIdRef.current;if(!client||!id||!postId)return;
-  if(!editCommentText.trim()){Alert.alert("내용 확인","댓글 내용을 입력해 주세요.");return;}
+  if(!editCommentText.trim()&&!editCommentPhotoUri){Alert.alert("내용 확인","댓글 내용이나 사진을 남겨 주세요.");return;}
   setSubmitting(true);
-  try{const {error}=await client.from("community_comments").update({content:editCommentText.trim()}).eq("id",id).eq("post_id",postId);if(error)throw error;setEditingCommentId(null);setEditCommentText("");await loadComments(postId);Alert.alert("수정 완료","댓글이 수정되었습니다.");}
-  catch(error:any){Alert.alert("수정 실패",getUserErrorMessage(error,"댓글을 수정하지 못했습니다."));}finally{setSubmitting(false);}
+  let uploadedPath:string|null=null;
+  try{
+   const current=comments.find(item=>item.id===id);
+   let imageUrls=editCommentPhotoUri?(current?.image_urls||[]):[];
+   if(editCommentPhoto){
+    const optimized=await ImageManipulator.manipulateAsync(editCommentPhoto.uri,[{resize:{width:1200}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
+    const blob=await (await fetch(optimized.uri)).blob();
+    const {{data:sessionData,error:sessionError}}=await client.auth.getSession();
+    if(sessionError||!sessionData.session)throw new Error("로그인 세션을 확인할 수 없습니다.");
+    const baseUrl=process.env.EXPO_PUBLIC_SUPABASE_URL?.trim(),anonKey=process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
+    if(!baseUrl||!anonKey)throw new Error("사진 업로드 설정을 확인할 수 없습니다.");
+    uploadedPath=userId+"/"+Date.now()+"-comment-edit-"+Math.random().toString(36).slice(2,8)+".jpg";
+    const encodedPath=uploadedPath.split("/").map(encodeURIComponent).join("/");
+    await new Promise<void>((resolve,reject)=>{{const xhr=new XMLHttpRequest();xhr.open("POST",baseUrl+"/storage/v1/object/community-photos/"+encodedPath);xhr.setRequestHeader("apikey",anonKey);xhr.setRequestHeader("Authorization","Bearer "+sessionData.session!.access_token);xhr.setRequestHeader("Content-Type","image/jpeg");xhr.setRequestHeader("x-upsert","false");xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error(xhr.responseText||"업로드 실패 ("+xhr.status+")"));xhr.onerror=()=>reject(new Error("네트워크 연결을 확인해 주세요."));xhr.timeout=120000;xhr.ontimeout=()=>reject(new Error("업로드 시간이 초과됐습니다."));xhr.send(blob);}});
+    imageUrls=[client.storage.from("community-photos").getPublicUrl(uploadedPath).data.publicUrl];
+   }
+   const {{error}}=await client.from("community_comments").update({{content:editCommentText.trim()||"사진",image_urls:imageUrls}}).eq("id",id).eq("post_id",postId);
+   if(error)throw error;
+   if(current?.image_urls?.length&&(!imageUrls.length||editCommentPhoto)){const oldPaths=current.image_urls.map(url=>{{const marker="/community-photos/";const index=url.indexOf(marker);return index>=0?decodeURIComponent(url.slice(index+marker.length)):"";}}).filter(Boolean);if(oldPaths.length)await client.storage.from("community-photos").remove(oldPaths);}
+   setEditingCommentId(null);setEditCommentText("");setEditCommentPhoto(null);setEditCommentPhotoUri(null);await loadComments(postId);Alert.alert("수정 완료","댓글이 수정되었습니다.");
+  }catch(error:any){{if(uploadedPath)await client.storage.from("community-photos").remove([uploadedPath]).catch(()=>{{}});Alert.alert("수정 실패",getUserErrorMessage(error,"댓글을 수정하지 못했습니다."));}}finally{{setSubmitting(false);}}
  };
  const removePost=async(post:Post)=>{
   const client=supabase;
@@ -531,7 +559,7 @@ export default function Community(){
    <View style={{flexDirection:"row",alignItems:"center"}}><Pressable style={s.writeBtn} onPress={openComposer}><Text style={s.writeText}>＋ 글쓰기</Text></Pressable><Pressable style={s.menuBtn} onPress={()=>router.replace("/")}><Ionicons name="menu-outline" size={22} color={isDark?"#FFFFFF":"#252238"} /></Pressable></View>
   </View>
   {selected?
-   <ScrollView contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled">
+   <ScrollView ref={commentDetailScrollRef} onContentSizeChange={()=>{if(commentPhoto)requestAnimationFrame(()=>commentDetailScrollRef.current?.scrollToEnd({animated:true}));}} contentContainerStyle={s.detailContent} keyboardShouldPersistTaps="handled">
     <View style={s.postDetail}>
      <View style={s.categoryBadge}><Text style={s.categoryText}>{selected.category}</Text></View>
      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><Text style={[s.postTitle,{flex:1}]}>{selected.title}</Text><Pressable onPress={()=>void toggleBookmark(selected)} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(selected.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(selected.id)?"bookmark":"bookmark-outline"} size={22} color={C.purple}/></Pressable></View>
@@ -544,7 +572,7 @@ export default function Community(){
      <View style={s.commentAvatar}><Text style={s.commentAvatarText}>{(comment.author_name||"발").trim().slice(0,1)}</Text></View>
      <View style={s.commentMain}>
       <View style={s.commentMetaRow}><Text style={s.commentAuthor}>{comment.author_name||"발레메이트 회원"}</Text><Text style={s.commentTime}>{timeLabel(comment.created_at)}</Text></View>
-      {editingCommentId===comment.id?<View style={{marginTop:8,gap:8}}><TextInput value={editCommentText} onChangeText={setEditCommentText} multiline maxLength={1000} style={[s.commentInput,{minHeight:72}]} placeholder="댓글 내용을 수정하세요"/><View style={{flexDirection:"row",justifyContent:"flex-end",gap:12}}><Pressable onPress={()=>{setEditingCommentId(null);setEditCommentText("");}}><Text style={s.commentActionText}>취소</Text></Pressable><Pressable disabled={submitting} onPress={saveCommentEdit}><Text style={[s.commentActionText,{color:C.purple,fontWeight:"900"}]}>저장</Text></Pressable></View></View>:!!comment.content&&<Text style={s.commentBody}>{comment.content}</Text>}
+      {editingCommentId===comment.id?<View style={{marginTop:8,gap:8}}>{!!editCommentPhotoUri&&<View style={{flexDirection:"row",alignItems:"center",gap:10}}><Image source={{uri:editCommentPhotoUri}} style={{width:64,height:64,borderRadius:8}}/><Pressable onPress={()=>{setEditCommentPhoto(null);setEditCommentPhotoUri(null);}}><Text style={s.commentActionText}>사진 삭제</Text></Pressable></View>}<View style={{flexDirection:"row",alignItems:"center",gap:8}}><Pressable onPress={pickEditCommentPhoto} style={s.commentAttachButton}><Ionicons name="image-outline" size={20} color={C.purple}/></Pressable><Text style={{fontSize:11,color:C.muted}}>사진 변경 또는 삭제</Text></View><TextInput value={editCommentText} onChangeText={setEditCommentText} multiline maxLength={1000} style={[s.commentInput,{minHeight:72}]} placeholder="댓글 내용을 수정하세요"/><View style={{flexDirection:"row",justifyContent:"flex-end",gap:12}}><Pressable onPress={()=>{setEditingCommentId(null);setEditCommentText("");setEditCommentPhoto(null);setEditCommentPhotoUri(null);}}><Text style={s.commentActionText}>취소</Text></Pressable><Pressable disabled={submitting} onPress={saveCommentEdit}><Text style={[s.commentActionText,{color:C.purple,fontWeight:"900"}]}>저장</Text></Pressable></View></View>:!!comment.content&&<Text style={s.commentBody}>{comment.content}</Text>}
       {!!comment.image_urls?.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:9}}>{comment.image_urls.map((url,index)=><Image key={url+index} source={{uri:url}} style={{width:164,height:132,borderRadius:9,marginRight:8}} resizeMode="cover"/>)}</ScrollView>}
       <View style={s.commentActionRow}>
        {comment.author_id===userId||isAdmin?<><Pressable onPress={()=>startEditComment(comment)}><Text style={[s.commentActionText,{color:C.purple}]}>수정</Text></Pressable><Pressable onPress={()=>removeComment(comment)}><Text style={s.commentActionText}>{isAdmin&&comment.author_id!==userId?"관리자 삭제":"삭제"}</Text></Pressable></>:<><Pressable onPress={()=>reportContent("comment",comment.id,comment.author_id)}><Text style={s.commentActionText}>신고</Text></Pressable><Pressable onPress={()=>blockUser(comment.author_id,comment.author_name||"해당")}><Text style={s.commentActionText}>차단</Text></Pressable></>}
@@ -620,15 +648,15 @@ export default function Community(){
    </View></View>
   </Modal>
 
-  <Modal visible={!!editingPost} transparent animationType="none" onRequestClose={()=>setEditingPost(null)}>
-   <KeyboardAvoidingView style={[s.shade,{paddingBottom:insets.bottom}]} behavior={Platform.OS==="ios"?"padding":"height"}>
-    <View style={[s.modal,{maxHeight:"88%",paddingBottom:Math.max(24,insets.bottom+16)}]}>
+  <Modal visible={!!editingPost} transparent={false} animationType="fade" statusBarTranslucent onRequestClose={()=>{Keyboard.dismiss();setEditingPost(null);}}>
+   <KeyboardAvoidingView style={[s.shade,{flex:1,backgroundColor:isDark?"#17151D":"#FAF9FC",paddingTop:insets.top,paddingBottom:insets.bottom}]} behavior={Platform.OS==="ios"?"padding":undefined} keyboardVerticalOffset={Platform.OS==="ios"?insets.top:0}>
+    <View style={[s.modal,{width:"100%",maxHeight:keyboardVisible?"74%":"88%",flexShrink:1,paddingBottom:Math.max(24,insets.bottom+16)}]}>
      <View style={s.composerHeader}><Pressable onPress={()=>setEditingPost(null)} style={s.composerClose}><Text style={s.close}>×</Text></Pressable><Text style={s.modalTitle}>게시글 수정</Text><Pressable style={[s.composerSubmit,submitting&&{opacity:.5}]} disabled={submitting} onPress={savePostEdit}><Text style={s.composerSubmitText}>{submitting?"저장 중…":"저장"}</Text></Pressable></View>
      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:12}}>
       <Text style={s.label}>게시판 선택</Text><View style={s.categoryChoices}>{(["학원 추천","발레복 추천","자유"] as const).map(item=><Pressable key={item} onPress={()=>setEditPostCategory(item)} style={[s.filter,editPostCategory===item&&s.filterActive]}><Text style={[s.filterText,editPostCategory===item&&s.filterTextActive]}>{item}</Text></Pressable>)}</View>
       <Text style={s.label}>제목</Text><TextInput value={editPostTitle} onChangeText={setEditPostTitle} maxLength={80} style={s.titleInput}/>
       <Text style={s.label}>내용</Text><TextInput value={editPostBody} onChangeText={setEditPostBody} multiline maxLength={5000} textAlignVertical="top" style={[s.bodyInput,{minHeight:180}]}/>
-      {!!editingPost?.image_urls?.length&&<Text style={s.editorHint}>기존 첨부 사진은 유지됩니다. 사진 편집은 현재 지원하지 않습니다.</Text>}
+      {!!editingPost?.image_urls?.length&&<Text style={s.editorHint}>기존 첨부 사진은 유지됩니다.</Text>}
      </ScrollView>
     </View>
    </KeyboardAvoidingView>
