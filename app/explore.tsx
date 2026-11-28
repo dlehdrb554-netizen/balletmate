@@ -410,6 +410,7 @@ export default function Home() {
   const [favoritesReady,setFavoritesReady]=useState(false);
   const guestFavoritesRef=useRef<{ids:string[];studios:Studio[]}>({ids:[],studios:[]});
   const [compareIds,setCompareIds]=useState<string[]>([]);
+  const compareRemovalLockRef=useRef(false);
   const studioCardTapRef=useRef<{id:string;timer:ReturnType<typeof setTimeout>|null}>({id:"",timer:null});
   useEffect(()=>()=>{if(studioCardTapRef.current.timer)clearTimeout(studioCardTapRef.current.timer);},[]);
   const [compareCache,setCompareCache]=useState<Studio[]>([]);
@@ -1308,6 +1309,20 @@ export default function Home() {
   },[view,pendingMapTarget]);
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(durationFilter!==null?1:0)+(classTypeFilter?1:0)+(maxDistance!==null?1:0);
+  const removeCompareStudio=useCallback((studioId:string)=>{
+    // Prevent a second row from receiving the same touch while the list shifts after deletion.
+    if(compareRemovalLockRef.current)return;
+    compareRemovalLockRef.current=true;
+    setTimeout(()=>{compareRemovalLockRef.current=false;},400);
+    const nextIds=compareIds.filter(id=>id!==studioId);
+    setCompareIds(nextIds);
+    setCompareCache(list=>list.filter(studio=>studio.id!==studioId));
+    setCompareClassData(current=>{const next={...current};delete next[studioId];return next;});
+    setComparePriceData(current=>{const next={...current};delete next[studioId];return next;});
+    setCompareScheduleData(current=>{const next={...current};delete next[studioId];return next;});
+    setCompareCouponStates(current=>{const next={...current};delete next[studioId];return next;});
+    router.setParams({compareCount:String(nextIds.length)});
+  },[compareIds,router]);
   const toggleCompare=useCallback((studio:Studio)=>{
     if(compareIds.includes(studio.id)){
       const nextIds=compareIds.filter(i=>i!==studio.id);
@@ -1610,7 +1625,7 @@ export default function Home() {
                   <Text numberOfLines={1} style={{fontSize:13,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>{studio?.name||"학원 정보 불러오는 중"}</Text>
                   <Text numberOfLines={1} style={{fontSize:10,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}}>{studio?.area||" "}</Text>
                 </View>
-                <Pressable hitSlop={8} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}} accessibilityRole="button" accessibilityLabel="비교 목록에서 제외">
+                <Pressable hitSlop={8} onPress={()=>removeCompareStudio(id)} accessibilityRole="button" accessibilityLabel="비교 목록에서 제외">
                   <Ionicons name="close-circle" size={21} color={COLORS.muted}/>
                 </Pressable>
               </View>;
@@ -1633,7 +1648,7 @@ export default function Home() {
       </View>
     </Modal>
     <Modal visible={compareResultOpen} animationType="slide" presentationStyle="fullScreen" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setCompareResultOpen(false)}>
-      <View style={{flex:1,backgroundColor:isDark?"#17151D":"#FAF9FC",paddingTop:insets.top+8,paddingBottom:Math.max(insets.bottom,Platform.OS==="android"?24:0)}}>
+      <View style={{flex:1,backgroundColor:isDark?"#17151D":"#FAF9FC",paddingTop:insets.top+8,paddingBottom:Math.max(insets.bottom,Platform.OS==="android"?24:0)+ (Platform.OS==="android"?12:8)}}>
         <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:18,paddingBottom:12,borderBottomWidth:1,borderBottomColor:isDark?"#393342":COLORS.line}}>
           <View style={{flex:1}}>
             <Text style={{fontSize:20,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>학원 비교 결과</Text>
@@ -1670,7 +1685,7 @@ export default function Home() {
                     <Text style={{fontSize:14,lineHeight:20,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>{studio?.name||"학원 정보 불러오는 중"}</Text>
                     {!!studio?.area&&<Text style={{fontSize:11,lineHeight:16,color:isDark?"#B9B1C5":COLORS.muted,marginTop:2}}>{studio.area}</Text>}
                   </View>
-                  <Pressable hitSlop={8} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}} accessibilityRole="button" accessibilityLabel="이 학원을 비교에서 삭제" style={{width:30,height:30,alignItems:"center",justifyContent:"center",borderRadius:9,backgroundColor:isDark?"#38313F":"#F2EFF6"}}>
+                  <Pressable hitSlop={8} onPress={()=>removeCompareStudio(id)} accessibilityRole="button" accessibilityLabel="이 학원을 비교에서 삭제" style={{width:30,height:30,alignItems:"center",justifyContent:"center",borderRadius:9,backgroundColor:isDark?"#38313F":"#F2EFF6"}}>
                     <Ionicons name="trash-outline" size={16} color={isDark?"#D5C8E7":COLORS.muted}/>
                   </Pressable>
                 </View>
@@ -1687,7 +1702,7 @@ export default function Home() {
             })}
           </View>}
         </ScrollView>
-        <Pressable onPress={()=>setCompareResultOpen(false)} style={{marginHorizontal:16,marginBottom:10,minHeight:48,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
+        <Pressable onPress={()=>setCompareResultOpen(false)} style={{marginHorizontal:16,marginBottom:8,minHeight:52,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
           <Text style={{fontSize:14,fontWeight:"900",color:"#FFFFFF"}}>확인</Text>
         </Pressable>
       </View>
