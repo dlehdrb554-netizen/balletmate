@@ -508,7 +508,7 @@ export default function Community(){
    const current=comments.find(item=>item.id===id);
    let imageUrls=editCommentPhotoUri?(current?.image_urls||[]):[];
    if(editCommentPhoto){
-    const optimized=await ImageManipulator.manipulateAsync(editCommentPhoto.uri,[{resize:{width:1200}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
+    const optimized=await ImageManipulator.manipulateAsync(editCommentPhoto.uri,[{resize:{width:1200}}],{compress:0.82,format:ImageManipulator.SaveFormat.JPEG});
     const blob=await (await fetch(optimized.uri)).blob();
     const {data:sessionData,error:sessionError}=await client.auth.getSession();
     if(sessionError||!sessionData.session)throw new Error("로그인 세션을 확인할 수 없습니다.");
