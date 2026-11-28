@@ -137,7 +137,7 @@ export default function Home() {
     paddingBottom: 12,
   } as const;
   const bottomInsetPadding = useBottomPadding(0);
-  const locationBtnAnim = useRef(new Animated.Value(12)).current;
+  const locationBtnAnim = useRef(new Animated.Value(5)).current;
   const map = useRef<KakaoMapHandle | null>(null);
   const [unreadNotificationCount,setUnreadNotificationCount]=useState(0);
   const refreshUnreadNotificationCount=useCallback(async()=>{
@@ -185,7 +185,7 @@ export default function Home() {
   const [selected,setSelected]=useState<Studio|null>(null);
   const [selectedCardHeight,setSelectedCardHeight]=useState(190);
   useEffect(()=>{
-    Animated.spring(locationBtnAnim,{toValue:selected?selectedCardHeight+22:12,useNativeDriver:false,damping:22,stiffness:180}).start();
+    Animated.spring(locationBtnAnim,{toValue:selected?selectedCardHeight+16:5,useNativeDriver:false,damping:22,stiffness:180}).start();
   },[selected?.id,selectedCardHeight,locationBtnAnim]);
 
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
@@ -400,7 +400,9 @@ export default function Home() {
     }catch(error){console.warn("Older studio notices could not be loaded:",error);}
     finally{studioOwnerNoticesLoadingRef.current=false;setStudioOwnerNoticesLoading(false);}
   };
-  const [compareOpen,setCompareOpen]=useState(false);\n  const [compareResultOpen,setCompareResultOpen]=useState(false);
+  const [compareOpen,setCompareOpen]=useState(false);
+  const [compareResultOpen,setCompareResultOpen]=useState(false);
+  const compareResultTransitionRef=useRef<ReturnType<typeof setTimeout>|null>(null);
   const compareSheetTranslateY=useRef(new Animated.Value(0)).current;
   const compareHandlePanResponder=useMemo(()=>PanResponder.create({
     onStartShouldSetPanResponder:()=>true,
@@ -420,6 +422,7 @@ export default function Home() {
     onShouldBlockNativeResponder:()=>true,
   }),[compareSheetTranslateY]);
   useEffect(()=>{if(compareOpen)compareSheetTranslateY.setValue(0);},[compareOpen,compareSheetTranslateY]);
+  useEffect(()=>()=>{if(compareResultTransitionRef.current)clearTimeout(compareResultTransitionRef.current);},[]);
   useEffect(()=>{
     if(routeParams.view==="favorites")setView("favorites");
     else if(routeParams.view==="map")setView("map");
@@ -453,7 +456,8 @@ export default function Home() {
       // Close transient UI before handling map-level back navigation.
       if(mapSettingsOpen){setMapSettingsOpen(false);setPendingDirectionsStudio(null);return true;}
       if(menuOpen){setMenuOpen(false);return true;}
-      if(compareResultOpen){setCompareResultOpen(false);return true;}\n      if(compareOpen){setCompareOpen(false);compareSheetTranslateY.setValue(0);return true;}
+      if(compareResultOpen){setCompareResultOpen(false);return true;}
+      if(compareOpen){setCompareOpen(false);compareSheetTranslateY.setValue(0);return true;}
       if(regionPickerOpen){if(expandedCity){setExpandedCity(null);return true;}if(expandedProvince){setExpandedProvince(null);return true;}setRegionPickerOpen(false);return true;}
       if(filterOpen){setFilterOpen(false);return true;}
       if(detailStudio){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);return true;}
@@ -972,18 +976,34 @@ export default function Home() {
     }).catch(()=>{});
     return()=>{active=false;};
   },[]));
-  // Request foreground location permission on the first app entry.
-  // OS permission state prevents repeatedly prompting after a user has already decided.
+  const readLocationPermission=async()=>{
+    const foreground=await Location.getForegroundPermissionsAsync();
+    let granted=foreground.granted||foreground.status==="granted";
+    // Android can report an inconsistent foreground state after process recreation
+    // while the user has already granted background (Always) location access.
+    if(!granted&&Platform.OS==="android"){
+      try{
+        const background=await Location.getBackgroundPermissionsAsync();
+        granted=background.granted||background.status==="granted";
+      }catch(error){console.warn("Background location permission check unavailable:",error);}
+    }
+    return {granted,canAskAgain:foreground.canAskAgain};
+  };
+  // Re-read the OS permission on startup and whenever the app returns to foreground.
   useEffect(()=>{
     let active=true;
     void (async()=>{
       try{
-        let permission=await Location.getForegroundPermissionsAsync();
+        let permission=await readLocationPermission();
         if(!active)return;
-        if(permission.status==="undetermined"){
-          permission=await Location.requestForegroundPermissionsAsync();
+        if(!permission.granted){
+          const foreground=await Location.getForegroundPermissionsAsync();
+          if(foreground.status==="undetermined"){
+            const requested=await Location.requestForegroundPermissionsAsync();
+            permission={granted:requested.granted||requested.status==="granted",canAskAgain:requested.canAskAgain};
+          }
         }
-        if(!active||(!permission.granted&&permission.status!=="granted"))return;
+        if(!active||!permission.granted)return;
         // Keep the app's permission state synchronized when returning to this screen
         // after a theme change or navigation remount.
         setLocationGranted(true);
@@ -1004,8 +1024,8 @@ export default function Home() {
     const subscription=AppState.addEventListener("change",state=>{
       if(state!=="active")return;
       void (async()=>{
-        const permission=await Location.getForegroundPermissionsAsync();
-        const granted=permission.granted||permission.status==="granted";
+        const permission=await readLocationPermission();
+        const granted=permission.granted;
         setLocationGranted(granted);
         if(!granted)return;
         const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
@@ -1038,13 +1058,15 @@ export default function Home() {
     try {
       // Check the OS permission first. Do not show the permission prompt again
       // when startup or a previous session has already granted location access.
-      let permission=await Location.getForegroundPermissionsAsync();
+      let permission=await readLocationPermission();
       if(requestId!==locationRequestId.current)return;
-      if(!permission.granted&&permission.status!=="granted"&&permission.canAskAgain){
-        permission=await Location.requestForegroundPermissionsAsync();
+      if(!permission.granted&&permission.canAskAgain){
+        const requested=await Location.requestForegroundPermissionsAsync();
+        permission={granted:requested.granted||requested.status==="granted",canAskAgain:requested.canAskAgain};
+        if(!permission.granted&&Platform.OS==="android")permission=await readLocationPermission();
       }
       if(requestId!==locationRequestId.current)return;
-      if(!permission.granted&&permission.status!=="granted"){
+      if(!permission.granted){
         setLocationGranted(false);
         Alert.alert(
           "위치 권한 필요",
@@ -1433,7 +1455,7 @@ export default function Home() {
         <KakaoMap ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} searchedIds={searchedStudioIds} compareIds={compareIds} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} darkMode={isDark} />
         {(!hasMapSearchRequested||mapMoved&&isAreaChanged)&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":hasMapSearchRequested?"이 지역에서 재검색":"현재 지역 학원 검색"}</Text></View></Pressable>}
         <Animated.View style={[styles.locateButton,{bottom:locationBtnAnim}]}><Pressable style={{width:44,height:44,alignItems:"center",justifyContent:"center"}} accessibilityRole="button" accessibilityLabel="현재 위치로 이동" onPress={()=>{void locate();}}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable></Animated.View>
-        <Pressable style={[styles.mapCount,{bottom:selected?selectedCardHeight+22:12}]} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}곳</Text>{results.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
+        <Pressable style={[styles.mapCount,{bottom:selected?selectedCardHeight+16:5}]} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}곳</Text>{results.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
         {selected&&<GestureDetector gesture={selectedCardGesture}><View style={styles.selectedCard} onLayout={event=>{const height=event.nativeEvent.layout.height;setSelectedCardHeight(current=>Math.abs(current-height)>1?height:current);}}>{studioCard(selected,true)}</View></GestureDetector>}
       </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Text style={styles.listSortChipText}>거리순</Text></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}>
   <Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted,marginBottom:6}}>지역 선택</Text>
@@ -1518,8 +1540,8 @@ export default function Home() {
     </Modal>
     <Modal visible={compareOpen} animationType="none" transparent onRequestClose={()=>setCompareOpen(false)}>
       <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}>
-        <Animated.View style={[styles.modal,{maxHeight:"72%",paddingTop:10,paddingBottom:Math.max(24,insets.bottom+14),transform:[{translateY:compareSheetTranslateY}]}]}>
-          <View {...compareHandlePanResponder.panHandlers} accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{alignItems:"center",justifyContent:"center",paddingTop:1,paddingBottom:1,width:"100%",height:16}}>
+        <Animated.View style={[styles.modal,{maxHeight:"72%",paddingTop:0,paddingBottom:Math.max(24,insets.bottom+14),transform:[{translateY:compareSheetTranslateY}]}]}>
+          <View {...compareHandlePanResponder.panHandlers} accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{alignItems:"center",justifyContent:"center",paddingTop:0,paddingBottom:0,width:"100%",height:20}}>
             <View pointerEvents="none" style={{width:46,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/>
           </View>
           <View style={[styles.modalHead,{gap:10,marginTop:5}]}>
@@ -1556,7 +1578,13 @@ export default function Home() {
           <Pressable accessibilityRole="button" accessibilityLabel={compareIds.length<2?"학원 더 추가하기":"비교 결과 확인"} disabled={compareIds.length>=2&&compareClassLoading} style={[styles.applyButton,{flex:0,width:"100%",minHeight:50,alignSelf:"stretch",paddingVertical:13,marginTop:8,opacity:compareIds.length>=2&&compareClassLoading?0.6:1}]} onPress={()=>{
             if(compareIds.length<2){setCompareOpen(false);setView("map");return;}
             setCompareOpen(false);
-            setCompareResultOpen(true);
+            if(compareResultTransitionRef.current)clearTimeout(compareResultTransitionRef.current);
+            // Android cannot reliably present a second native Modal in the same frame
+            // that the first Modal is being dismissed.
+            compareResultTransitionRef.current=setTimeout(()=>{
+              setCompareResultOpen(true);
+              compareResultTransitionRef.current=null;
+            },250);
           }}>
             <Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>{compareIds.length<2?"학원 더 추가하기":compareClassLoading?"비교 정보 준비 중…":"비교 결과 확인"}</Text>
           </Pressable>
