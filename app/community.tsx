@@ -74,6 +74,12 @@ export default function Community(){
  const [commentText,setCommentText]=useState("");
  const [commentPhoto,setCommentPhoto]=useState<ImagePicker.ImagePickerAsset|null>(null);
  const [commentPhotoUploading,setCommentPhotoUploading]=useState(false);
+ const [editingPost,setEditingPost]=useState<Post|null>(null);
+ const [editPostTitle,setEditPostTitle]=useState("");
+ const [editPostBody,setEditPostBody]=useState("");
+ const [editPostCategory,setEditPostCategory]=useState<Exclude<Category,"전체">>("자유");
+ const [editingCommentId,setEditingCommentId]=useState<string|null>(null);
+ const [editCommentText,setEditCommentText]=useState("");
  const [loading,setLoading]=useState(true);
  const [loadError,setLoadError]=useState(false);
  const [refreshing,setRefreshing]=useState(false);
@@ -471,6 +477,24 @@ export default function Community(){
     Alert.alert("차단 완료","해당 회원의 콘텐츠를 숨겼습니다.");
    }}
   ]);
+ };
+
+ const startEditPost=(post:Post)=>{if(post.author_id!==userId&&!isAdmin)return;setEditingPost(post);setEditPostTitle(post.title);setEditPostBody(parsePostContent(post.content).body);setEditPostCategory(post.category);};
+ const savePostEdit=async()=>{
+  const client=supabase,post=editingPost;if(!client||!post||(post.author_id!==userId&&!isAdmin))return;
+  if(editPostTitle.trim().length<2||editPostBody.trim().length<2){Alert.alert("내용 확인","제목과 내용은 각각 2자 이상 입력해 주세요.");return;}
+  if(editPostTitle.trim().length>80||editPostBody.length>5000){Alert.alert("내용 확인","제목은 최대 80자, 내용은 최대 5,000자까지 입력할 수 있습니다.");return;}
+  setSubmitting(true);
+  try{const {data,error}=await client.from("community_posts").update({title:editPostTitle.trim(),content:editPostBody.trim(),category:editPostCategory}).eq("id",post.id).select("id,author_id,author_name,category,title,content,image_urls,created_at").single();if(error)throw error;const updated=data as Post;setSelected(updated);setPosts(rows=>rows.map(row=>row.id===updated.id?updated:row));setEditingPost(null);Alert.alert("수정 완료","게시글이 수정되었습니다.");}
+  catch(error:any){Alert.alert("수정 실패",getUserErrorMessage(error,"게시글을 수정하지 못했습니다."));}finally{setSubmitting(false);}
+ };
+ const startEditComment=(comment:Comment)=>{if(comment.author_id!==userId&&!isAdmin)return;setEditingCommentId(comment.id);setEditCommentText(comment.content==="사진"?"":comment.content);};
+ const saveCommentEdit=async()=>{
+  const client=supabase,id=editingCommentId,postId=selectedPostIdRef.current;if(!client||!id||!postId)return;
+  if(!editCommentText.trim()){Alert.alert("내용 확인","댓글 내용을 입력해 주세요.");return;}
+  setSubmitting(true);
+  try{const {error}=await client.from("community_comments").update({content:editCommentText.trim()}).eq("id",id).eq("post_id",postId);if(error)throw error;setEditingCommentId(null);setEditCommentText("");await loadComments(postId);Alert.alert("수정 완료","댓글이 수정되었습니다.");}
+  catch(error:any){Alert.alert("수정 실패",getUserErrorMessage(error,"댓글을 수정하지 못했습니다."));}finally{setSubmitting(false);}
  };
  const removePost=async(post:Post)=>{
   const client=supabase;
