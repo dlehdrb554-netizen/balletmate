@@ -33,8 +33,9 @@ type Props = {
 
 const JS_KEY = String(Constants.expoConfig?.extra?.kakaoJavascriptKey ?? "");
 
-function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
-  const initialSurface = darkMode ? "#1C1C1E" : "#F2F2F7";
+function buildHtml(initialRegion: MapRegion) {
+  // Theme is intentionally excluded from HTML so color-scheme changes never rebuild the WebView document.
+  const initialSurface = "#F2F2F7";
   const center = JSON.stringify({ lat: initialRegion.latitude, lng: initialRegion.longitude });
   const level = Math.max(1, Math.min(14, Math.round(7 + Math.log2(initialRegion.latitudeDelta / 0.06))));
   return `<!doctype html>
@@ -45,7 +46,7 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
 <body><div id="map"></div><div id="load" class="load">지도를 불러오는 중…</div>
 <script>
 (function(){
-  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkModeEnabled=${JSON.stringify(darkMode)}, regionTimer=null;
+  var map=null, markers={}, markerMeta={}, markerListeners={}, clusterer=null, currentMarker=null, currentLocationMeta=null, pending=[], currentSelected=null, currentSearched=[], currentCompared=[], darkModeEnabled=false, regionTimer=null;
   var cachedPinImages={};
   function post(data){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(data)); }catch(e){} }
   function levelFor(delta){ return Math.max(1,Math.min(14,Math.round(7+Math.log2(Math.max(delta,0.001)/0.06)))); }
@@ -164,7 +165,7 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     if(!map){pending.push(message);return;}
     if(message.type==='markers')updateMarkers(message.markers,message.selectedId,message.searchedIds,message.compareIds,message.currentLocation);
     if(message.type==='animate')moveTo(message.region,message.duration);
-    if(message.type==='theme')setDarkMode(!!message.darkMode);
+    if(message.type==='setTheme')setDarkMode(!!message.isDark);
   }
   window.addEventListener('pagehide',function(){if(regionTimer)clearTimeout(regionTimer);if(clusterer)clusterer.clear();Object.keys(markers).forEach(function(id){kakao.maps.event.removeListener(markers[id],'click',markerListeners[id]);markers[id].setMap(null);});if(currentMarker)currentMarker.setMap(null);});
   window.addEventListener('message',function(event){try{apply(JSON.parse(event.data));}catch(e){}});
@@ -234,7 +235,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
   const webRef = useRef<WebView>(null);
   const mapReady = useRef(false);
   const pendingMessages = useRef<string[]>([]);
-  const html = useRef(buildHtml(initialRegion, darkMode)).current;
+  const html = useRef(buildHtml(initialRegion)).current;
   const sendToMap = useCallback((message: unknown) => {
     const serialized = JSON.stringify(message);
     if (!mapReady.current) {
@@ -251,7 +252,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
     },
   }), [sendToMap]);
   useEffect(() => {
-    sendToMap({ type: "theme", darkMode });
+    sendToMap({ type: "setTheme", isDark: darkMode });
   }, [darkMode, sendToMap]);
   useEffect(() => {
     sendToMap({
@@ -280,7 +281,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
           compareIds: compareIds ?? [],
           currentLocation: currentLocation ?? null,
         }));
-        webRef.current?.postMessage(JSON.stringify({type:"theme",darkMode}));
+        webRef.current?.postMessage(JSON.stringify({type:"setTheme",isDark:darkMode}));
       }
       if (message.type === "region" && message.region) onRegionChangeComplete?.(message.region);
       if (message.type === "marker" && typeof message.id === "string") onMarkerPress?.(message.id);
@@ -303,7 +304,7 @@ const KakaoMap = forwardRef<KakaoMapHandle, Props>(function KakaoMap(
           // The page may have loaded while the Kakao SDK is still initializing.
           // The explicit {type:"ready"} message flushes all queued commands.
         }}
-        style={[styles.webview, { backgroundColor: darkMode ? "#1C1C1E" : "#F2F2F7" }]}
+        style={[styles.webview, { backgroundColor: "#F2F2F7" }]}
       />
     </View>
   );
