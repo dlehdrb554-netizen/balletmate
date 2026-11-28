@@ -1,17 +1,17 @@
-import React, {useMemo, useState} from "react";
+import React, {useEffect, useMemo, useState} from "react";
 import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles} from "../lib/theme";
 import {Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme} from "react-native";
 import {MaterialCommunityIcons} from "@expo/vector-icons";
 import {SafeAreaView} from "react-native-safe-area-context";
 import {useRouter} from "expo-router";
-import {supabase} from "../lib/supabase";
+import {supabase} from "../lib/supabase";\nimport AsyncStorage from "@react-native-async-storage/async-storage";
 
 const C={bg:"#FAF9FC",ink:"#252238",muted:"#625E70",purple:"#653BB7",line:"#EAE7F0",pale:"#F3F0FF"};
 export default function Signup(){
  const isDark=useColorScheme()==="dark";
  const s=useMemo(()=>createS(isDark),[isDark]);
- const router=useRouter();
+ const router=useRouter();\n useEffect(()=>{let active=true;AsyncStorage.getItem("balletmate.signupConsent.v1").then(value=>{if(active&&!value)router.replace({pathname:"/signup-consent",params:{next:"email"}});}).catch(()=>{if(active)router.replace("/account");});return()=>{active=false;};},[]);
  const [email,setEmail]=useState("");
  const [display,setDisplay]=useState("");
  const [username,setUsername]=useState("");
@@ -38,7 +38,7 @@ export default function Signup(){
    const check=await supabase.rpc("is_username_available",{candidate:un});
    if(check.error)throw check.error;
    if(!check.data)throw new Error("이미 사용 중인 계정입니다.");
-   const result=await supabase.auth.signUp({email:em,password,options:{data:{username:un,display_name:dn},emailRedirectTo:"balletmate://auth/callback"}});
+   const consentRaw=await AsyncStorage.getItem("balletmate.signupConsent.v1");\n   if(!consentRaw){router.replace({pathname:"/signup-consent",params:{next:"email"}});return;}\n   const consent=JSON.parse(consentRaw);\n   if(!consent?.age14Confirmed||!consent?.termsVersion||!consent?.privacyVersion||!consent?.acceptedAt)throw new Error("필수 약관 동의 정보를 확인할 수 없습니다. 다시 동의해 주세요.");\n   const result=await supabase.auth.signUp({email:em,password,options:{data:{username:un,display_name:dn,legal_terms_version:consent.termsVersion,privacy_policy_version:consent.privacyVersion,legal_accepted_at:consent.acceptedAt,age_14_confirmed:true},emailRedirectTo:"balletmate://auth/callback"}});
    if(result.error)throw result.error;
    if(result.data.session)Alert.alert("가입 완료","회원가입이 완료되었습니다.",[{text:"확인",onPress:()=>router.replace("/") }]);
    else Alert.alert("이메일 인증 필요","입력한 이메일로 인증 링크를 보냈습니다. 메일을 확인한 뒤 로그인해 주세요.",[{text:"확인",onPress:()=>router.replace("/account")}]);
