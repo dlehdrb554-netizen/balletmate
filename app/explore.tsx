@@ -967,11 +967,11 @@ export default function Home() {
     return()=>{active=false;};
   },[]));
   const readLocationPermission=async()=>{
-    // Cross-check Expo's permission response against Android's native runtime state.
-    // This avoids treating a stale Expo response as the device's actual permission.
+    // Android's PackageManager runtime state is authoritative after process restart.
     let foreground:Location.LocationPermissionResponse|null=null;
     try{foreground=await Location.getForegroundPermissionsAsync();}catch(error){console.warn("Expo foreground permission read failed:",error);}
     let nativeGranted=false;
+    let nativeReadSucceeded=false;
     if(Platform.OS==="android"){
       try{
         const [fine,coarse]=await Promise.all([
@@ -979,9 +979,11 @@ export default function Home() {
           PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION)
         ]);
         nativeGranted=fine||coarse;
+        nativeReadSucceeded=true;
       }catch(error){console.warn("Android native location permission check failed:",error);}
     }
-    const foregroundGranted=!!(foreground?.granted||foreground?.status==="granted"||nativeGranted);
+    const expoGranted=!!(foreground?.granted||foreground?.status==="granted");
+    const foregroundGranted=Platform.OS==="android"&&nativeReadSucceeded?nativeGranted:expoGranted;
     return {
       granted:foregroundGranted,
       foregroundGranted,
@@ -990,23 +992,32 @@ export default function Home() {
       nativeGranted
     };
   };
-  const syncLocationPermission=async(requestPermissionIfUndetermined:boolean)=>{
-    const syncId=++locationPermissionSyncId.current;
-    const permission=await readLocationPermission();
-    if(syncId!==locationPermissionSyncId.current)return;
-    let granted=permission.foregroundGranted;
-    let canAskAgain=permission.canAskAgain;
-    if(!granted&&requestPermissionIfUndetermined){
-      const current=await Location.getForegroundPermissionsAsync().catch(()=>null);      if(syncId!==locationPermissionSyncId.current)return;
-      if(!current||current.status==="undetermined"){
-        await Location.requestForegroundPermissionsAsync();
-        if(syncId!==locationPermissionSyncId.current)return;
-        const refreshed=await readLocationPermission();
-        if(syncId!==locationPermissionSyncId.current)return;
-        granted=refreshed.foregroundGranted;
-        canAskAgain=refreshed.canAskAgain;
-      }
+  const requestLocationPermission=async()=>{
+    if(Platform.OS==="android"){
+      // Do not gate this on Expo's cached status. After process death its snapshot
+      // can disagree with Android's actual runtime permission state.
+      const result=await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
+      ]);
+      return Object.values(result).some(value=>value===PermissionsAndroid.RESULTS.GRANTED);
     }
+    const result=await Location.requestForegroundPermissionsAsync();
+    return result.granted||result.status==="granted";
+  };
+  const syncLocationPermission=async(requestPermissionOnStartup:boolean)=>{
+    const syncId=++locationPermissionSyncId.current;
+    let permission=await readLocationPermission();
+    if(syncId!==locationPermissionSyncId.current)return;
+    if(!permission.granted&&requestPermissionOnStartup){
+      try{await requestLocationPermission();}
+      catch(error){console.warn("Startup location permission request failed:",error);}
+      if(syncId!==locationPermissionSyncId.current)return;
+      // Always read again from the OS after the permission dialog closes.
+      permission=await readLocationPermission();
+      if(syncId!==locationPermissionSyncId.current)return;
+    }
+    const granted=permission.foregroundGranted;
     setLocationGranted(granted);
     if(!granted){
       setCurrentLocation(null);
@@ -1027,10 +1038,9 @@ export default function Home() {
       if(syncId!==locationPermissionSyncId.current||!fresh)return;
       setCurrentLocation({latitude:fresh.coords.latitude,longitude:fresh.coords.longitude});
     });
-    return {granted,canAskAgain};
   };
 
-  // Read OS permission on process startup; refresh again whenever the app resumes.
+  // Request permission on startup when absent; re-read OS state on every app resume.
   useEffect(()=>{
     let active=true;
     void syncLocationPermission(true).catch(error=>{
