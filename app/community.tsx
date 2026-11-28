@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useRef, useState, useMemo} from "react";
 import { getUserErrorMessage } from "../lib/error-utils";
 import {themeStyles } from "../lib/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Alert, BackHandler, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, Keyboard, Linking, useColorScheme} from "react-native";
+import { ActivityIndicator, Alert, BackHandler, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, Keyboard, Linking, useColorScheme, useWindowDimensions} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -59,6 +59,7 @@ function ZoomablePhoto({uri,onDismiss,onSwipeLeft,onSwipeRight}:{uri:string;onDi
 export default function Community(){
  const isDark=useColorScheme()==="dark";
   const insets=useSafeAreaInsets();
+ const {width:windowWidth}=useWindowDimensions();
  const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
  const params=useLocalSearchParams<{postId?:string;returnTo?:string}>();
@@ -587,7 +588,7 @@ export default function Community(){
       <View style={s.postTop}><View style={s.categoryBadge}><Text style={s.categoryText}>{item.category}</Text></View><Text style={s.meta}>{postDateLabel(item.created_at)}</Text></View>
       <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
       <Text style={s.preview} numberOfLines={2}>{parsePostContent(item.content).body}</Text>
-      {!!item.image_urls?.length&&<ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={{marginTop:10}}>{item.image_urls.map((url,index)=><Pressable key={url+index} onPress={()=>openPost(item)}><Image source={{uri:url}} style={{width:300,height:210,borderRadius:12,marginRight:8}} resizeMode="cover"/></Pressable>)}</ScrollView>}
+      {!!item.image_urls?.length&&<ScrollView horizontal showsHorizontalScrollIndicator={false} decelerationRate="fast" snapToInterval={Math.max(220,windowWidth-92)+8} snapToAlignment="start" style={{marginTop:10,marginRight:-13}} contentContainerStyle={{paddingRight:13}}>{item.image_urls.map((url,index)=><Pressable key={url+index} onPress={()=>openPost(item)}><Image source={{uri:url}} style={{width:Math.max(220,windowWidth-92),height:210,borderRadius:12,marginRight:8}} resizeMode="cover"/></Pressable>)}</ScrollView>}
       <View style={s.cardFoot}><Text style={s.author}>{item.author_name||"발레메이트 회원"}</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable style={s.cardMetric} onPress={(event:any)=>{event.stopPropagation?.();void toggleLike(item);}} accessibilityRole="button" accessibilityLabel={`좋아요 ${postMetrics[item.id]?.likes||0}개`}><Ionicons name={postMetrics[item.id]?.liked?"heart":"heart-outline"} size={18} color={postMetrics[item.id]?.liked?"#E64B72":C.muted}/><Text style={s.meta}>{postMetrics[item.id]?.likes||0}</Text></Pressable><View style={s.cardMetric}><Ionicons name="chatbubble-outline" size={15} color={C.muted}/><Text style={s.meta}>{postMetrics[item.id]?.comments||0}</Text></View><Pressable onPress={(event:any)=>{event.stopPropagation?.();void toggleBookmark(item);}} accessibilityRole="button" accessibilityLabel={bookmarkedIds.includes(item.id)?"북마크 해제":"북마크 저장"}><Ionicons name={bookmarkedIds.includes(item.id)?"bookmark":"bookmark-outline"} size={18} color={C.purple}/></Pressable><Text style={s.openLabel}>댓글 보기 ›</Text></View></View>
      </Pressable>} ListEmptyComponent={loadError?<View><Text style={s.empty}>게시글을 불러오지 못했습니다.</Text><Pressable onPress={()=>{setLoading(true);loadPosts();}}><Text style={s.openLabel}>다시 시도</Text></Pressable></View>:<Text style={s.empty}>아직 게시글이 없습니다. 첫 추천을 남겨보세요!</Text>}/>
     }
