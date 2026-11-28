@@ -154,11 +154,12 @@ export default function Home() {
   },[]);
   useFocusEffect(useCallback(()=>{void refreshUnreadNotificationCount();},[refreshUnreadNotificationCount]));
   useEffect(()=>{
-    if(!supabase)return;
-    const channel=supabase.channel("home-unread-notifications")
+    const client=supabase;
+    if(!client)return;
+    const channel=client.channel("home-unread-notifications")
       .on("postgres_changes",{event:"*",schema:"public",table:"user_notifications"},()=>{void refreshUnreadNotificationCount();})
       .subscribe();
-    return()=>{void supabase.removeChannel(channel);};
+    return()=>{void client.removeChannel(channel);};
   },[refreshUnreadNotificationCount]);
   const [studios,setStudios]=useState<Studio[]>([]);
   const [backendState,setBackendState]=useState<"loading"|"connected"|"empty"|"error">(supabaseConfigured?"empty":"error");
