@@ -989,7 +989,8 @@ export default function Home() {
           const foreground=await Location.getForegroundPermissionsAsync();
           if(foreground.status==="undetermined"){
             const requested=await Location.requestForegroundPermissionsAsync();
-            permission={granted:requested.granted||requested.status==="granted",canAskAgain:requested.canAskAgain};
+            const foregroundGranted=requested.granted||requested.status==="granted";
+            permission={...permission,granted:foregroundGranted,foregroundGranted,canAskAgain:requested.canAskAgain};
           }
         }
         if(!active||!permission.granted)return;
