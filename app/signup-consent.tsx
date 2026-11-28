@@ -1,4 +1,4 @@
-import React,{useMemo,useState} from "react";
+import React,{useMemo,useRef,useState} from "react";
 import {Alert,Modal,Pressable,ScrollView,StyleSheet,Text,View,useColorScheme} from "react-native";
 import {SafeAreaView} from "react-native-safe-area-context";
 import {WebView} from "react-native-webview";
@@ -20,7 +20,7 @@ export default function SignupConsent(){
  const s=useMemo(()=>styles(dark),[dark]);
  const router=useRouter();
  const params=useLocalSearchParams<{next?:string}>();
- const [activeDoc,setActiveDoc]=useState<"terms"|"privacy"|null>(null);
+ const webViewRef=useRef<WebView>(null);\n const [activeDoc,setActiveDoc]=useState<"terms"|"privacy"|null>(null);
  const [docReachedEnd,setDocReachedEnd]=useState(false);
  const [termsRead,setTermsRead]=useState(false);
  const [privacyRead,setPrivacyRead]=useState(false);
@@ -71,7 +71,7 @@ export default function SignupConsent(){
   <Modal visible={!!activeDoc} animationType="slide" onRequestClose={()=>setActiveDoc(null)}>
    <SafeAreaView style={s.modalSafe}>
     <View style={s.modalHeader}><Pressable onPress={()=>setActiveDoc(null)}><Text style={s.back}>‹ 닫기</Text></Pressable><Text style={s.modalTitle}>{activeDoc==="terms"?"서비스 이용약관":"개인정보 처리방침"}</Text></View>
-    {activeDoc&&<WebView key={activeDoc} source={activeDoc==="terms"?{html:TERMS_HTML}:{uri:PRIVACY_URL}} onLoadEnd={event=>event.target.injectJavaScript(SCROLL_SCRIPT)} onMessage={event=>{if(event.nativeEvent.data==="BOTTOM")setDocReachedEnd(true);}} javaScriptEnabled domStorageEnabled/>}
+    {activeDoc&&<WebView key={activeDoc} source={activeDoc==="terms"?{html:TERMS_HTML}:{uri:PRIVACY_URL}} ref={webViewRef} onLoadEnd={()=>webViewRef.current?.injectJavaScript(SCROLL_SCRIPT)} onMessage={event=>{if(event.nativeEvent.data==="BOTTOM")setDocReachedEnd(true);}} javaScriptEnabled domStorageEnabled/>}
     <View style={s.modalFooter}><Text style={s.modalHint}>{docReachedEnd?"전문을 끝까지 확인했습니다.":"전문을 맨 아래까지 스크롤해 주세요."}</Text><Pressable style={[s.primary,s.modalButton,!docReachedEnd&&s.disabled]} disabled={!docReachedEnd} onPress={closeDoc}><Text style={s.primaryText}>확인하고 돌아가기</Text></Pressable></View>
    </SafeAreaView>
   </Modal>
