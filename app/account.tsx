@@ -17,7 +17,7 @@ export default function Account(){
  const isDark=useColorScheme()==="dark";
  const s=useMemo(()=>createS(isDark),[isDark]);
  const router=useRouter();
- const routeParams=useLocalSearchParams<{returnTo?:string;studioId?:string;studioName?:string}>();
+ const routeParams=useLocalSearchParams<{returnTo?:string;studioId?:string;studioName?:string;consentProvider?:string}>();
  const [name,setName]=useState("");
  const [pw,setPw]=useState("");
  const [showPassword,setShowPassword]=useState(false);
@@ -76,7 +76,7 @@ export default function Account(){
   }finally{setLoadingProvider(null);}
  };
 
- const linkSocial=async(provider:"google"|"kakao")=>{
+ useEffect(()=>{\n  const next=routeParams.consentProvider;\n  if(next==="email"){router.replace("/signup");return;}\n  if(next==="google"||next==="kakao")void signInSocial(next);\n },[routeParams.consentProvider]);\n\n const linkSocial=async(provider:"google"|"kakao")=>{
   if(!supabase)return;
   setLoadingProvider(provider);
   try{
@@ -196,7 +196,7 @@ export default function Account(){
        <Text style={s.label}>비밀번호</Text>
        <View style={[s.input,{flexDirection:"row",alignItems:"center"}]}><TextInput style={{flex:1,height:"100%",padding:0,color:isDark?"#FFFFFF":C.ink}} value={pw} onChangeText={setPw} placeholder="비밀번호" placeholderTextColor={C.muted} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} onSubmitEditing={submitLegacyLogin} returnKeyType="go"/><Pressable onPress={()=>setShowPassword(value=>!value)} hitSlop={8} accessibilityRole="button" accessibilityLabel={showPassword?"비밀번호 숨기기":"비밀번호 표시"} accessibilityState={{selected:showPassword}} style={{width:40,height:44,alignItems:"center",justifyContent:"center"}}><MaterialCommunityIcons name={showPassword?"eye-off-outline":"eye-outline"} size={21} color={isDark?"#D0D0D0":C.muted}/></Pressable></View>
        <Pressable style={[s.primary,loading&&{opacity:.55}]} disabled={loading} onPress={submitLegacyLogin}><Text style={s.primaryText}>{loading?"로그인 중…":"로그인"}</Text></Pressable>
-       <Pressable style={s.legacyLink} onPress={()=>router.push("/signup")}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
+       <Pressable style={s.legacyLink} onPress={async()=>{const consent=await AsyncStorage.getItem("balletmate.signupConsent.v1");router.push(consent?"/signup":{pathname:"/signup-consent",params:{next:"email"}});}}><Text style={s.legacyLinkText}>이메일로 회원가입</Text></Pressable>
        <Text style={s.note}>Google·카카오 계정은 처음 이용하면 가입이 자동으로 진행되고, 기존 계정은 로그인됩니다.</Text>
       </>
      </View>
