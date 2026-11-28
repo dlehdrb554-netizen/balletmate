@@ -1634,7 +1634,7 @@ export default function Home() {
             </View>
           </ScrollView>}
         </ScrollView>
-        <Pressable onPress={()=>setCompareResultOpen(false)}       <Pressable onPress={()=>setCompareResultOpen(false)} style={{marginHorizontal:16,marginBottom:10,minHeight:48,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
+        <Pressable onPress={()=>setCompareResultOpen(false)} style={{marginHorizontal:16,marginBottom:10,minHeight:48,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
           <Text style={{fontSize:14,fontWeight:"900",color:"#FFFFFF"}}>확인</Text>
         </Pressable>
       </View>
