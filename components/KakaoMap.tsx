@@ -152,7 +152,8 @@ function buildHtml(initialRegion: MapRegion, darkMode: boolean) {
     document.documentElement.style.setProperty('--map-tile-filter',tileFilter);
     document.body.style.backgroundColor=surface;
     document.getElementById('map').style.backgroundColor=surface;
-    document.getElementById('map').querySelectorAll('img[src*="map_2d"]').forEach(function(tile){tile.style.filter=tileFilter;});
+    // The CSS custom property above updates all current and future tiles.
+    // Avoid walking every Kakao tile image on the JS thread during theme changes.
     if(load)load.style.backgroundColor=surface;
     var colorScheme=document.querySelector('meta[name="color-scheme"]');
     if(colorScheme)colorScheme.setAttribute('content',darkModeEnabled?'dark':'light');
