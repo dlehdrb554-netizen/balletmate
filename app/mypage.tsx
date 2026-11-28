@@ -111,7 +111,7 @@ export default function MyPage(){
  const registerPushToken=async()=>{if(!user||!supabase||notificationPermission!=="granted")return;try{
   const projectId=Constants.easConfig?.projectId||Constants.expoConfig?.extra?.eas?.projectId;
   if(!projectId)return;
-  if(Platform.OS==="android")await Notifications.setNotificationChannelAsync("default",{name:"기본 알림",importance:Notifications.AndroidImportance.DEFAULT});
+  if(Platform.OS==="android")await Notifications.setNotificationChannelAsync("default",{name:"기본 알림",importance:Notifications.AndroidImportance.DEFAULT,showBadge:true});
   const token=(await Notifications.getExpoPushTokenAsync({projectId})).data;
   const {error}=await supabase.from("user_push_tokens").upsert({user_id:user.id,expo_push_token:token,platform:Platform.OS,updated_at:new Date().toISOString()},{onConflict:"user_id,expo_push_token"});
   if(error)console.warn("Push token registration failed:",error.message);
