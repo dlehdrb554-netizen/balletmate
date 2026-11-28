@@ -410,6 +410,7 @@ export default function Home() {
   const [favoritesReady,setFavoritesReady]=useState(false);
   const guestFavoritesRef=useRef<{ids:string[];studios:Studio[]}>({ids:[],studios:[]});
   const [compareIds,setCompareIds]=useState<string[]>([]);
+  const compareIdsRef=useRef<string[]>([]);
   const compareRemovalLockRef=useRef(false);
   const studioCardTapRef=useRef<{id:string;timer:ReturnType<typeof setTimeout>|null}>({id:"",timer:null});
   useEffect(()=>()=>{if(studioCardTapRef.current.timer)clearTimeout(studioCardTapRef.current.timer);},[]);
@@ -449,7 +450,7 @@ export default function Home() {
     return()=>subscription.remove();
   },[mapSettingsOpen,menuOpen,compareOpen,compareResultOpen,compareSheetTranslateY,regionPickerOpen,expandedProvince,expandedCity,filterOpen,detailStudio,selected,view]));
   useEffect(()=>{
-    if((!compareOpen&&!compareResultOpen)||compareIds.length===0){setCompareMaterialError(null);return;}
+    if((!compareOpen&&!compareResultOpen)||compareIds.length<2){setCompareMaterialError(null);setCompareClassLoading(false);return;}
     let active=true;
     setCompareMaterialError(null);
     setCompareClassLoading(true);
@@ -1168,8 +1169,10 @@ export default function Home() {
       const studios:Studio[]=parsed.studios.filter((x:any)=>x&&typeof x.id==="string");
       const validIds: string[]=[...new Set<string>((parsed.ids as unknown[]).filter((id): id is string=>typeof id==="string"))].slice(0,3);
       const available=new Set(studios.map(x=>x.id));
-      setCompareIds(validIds.filter(id=>available.has(id)));
-      setCompareCache(studios.filter(x=>validIds.includes(x.id)));
+      const restoredIds=validIds.filter(id=>available.has(id));
+      compareIdsRef.current=restoredIds;
+      setCompareIds(restoredIds);
+      setCompareCache(studios.filter(x=>restoredIds.includes(x.id)));
     }).catch(()=>{}).finally(()=>setCompareReady(true));
   },[]);
   useEffect(()=>{
@@ -1310,11 +1313,12 @@ export default function Home() {
   const isAreaChanged=Math.abs(region.latitude-searchedRegion.latitude)>Math.max(0.004,searchedRegion.latitudeDelta*0.12)||Math.abs(region.longitude-searchedRegion.longitude)>Math.max(0.004,searchedRegion.longitudeDelta*0.12)||Math.abs(region.latitudeDelta-searchedRegion.latitudeDelta)>searchedRegion.latitudeDelta*0.18||Math.abs(region.longitudeDelta-searchedRegion.longitudeDelta)>searchedRegion.longitudeDelta*0.18;
   const activeFilters=(adult?1:0)+(kids?1:0)+(coupon?1:0)+(level?1:0)+(dayFilter?1:0)+(timeFilter?1:0)+(durationFilter!==null?1:0)+(classTypeFilter?1:0)+(maxDistance!==null?1:0);
   const removeCompareStudio=useCallback((studioId:string)=>{
-    // Prevent a second row from receiving the same touch while the list shifts after deletion.
-    if(compareRemovalLockRef.current)return;
+    // Lock briefly so a second row cannot inherit the same tap while the list reflows.
+    if(compareRemovalLockRef.current||!compareIdsRef.current.includes(studioId))return;
     compareRemovalLockRef.current=true;
-    setTimeout(()=>{compareRemovalLockRef.current=false;},400);
-    const nextIds=compareIds.filter(id=>id!==studioId);
+    setTimeout(()=>{compareRemovalLockRef.current=false;},350);
+    const nextIds=compareIdsRef.current.filter(id=>id!==studioId);
+    compareIdsRef.current=nextIds;
     setCompareIds(nextIds);
     setCompareCache(list=>list.filter(studio=>studio.id!==studioId));
     setCompareClassData(current=>{const next={...current};delete next[studioId];return next;});
@@ -1322,24 +1326,31 @@ export default function Home() {
     setCompareScheduleData(current=>{const next={...current};delete next[studioId];return next;});
     setCompareCouponStates(current=>{const next={...current};delete next[studioId];return next;});
     router.setParams({compareCount:String(nextIds.length)});
-  },[compareIds,router]);
+  },[router]);
   const toggleCompare=useCallback((studio:Studio)=>{
-    if(compareIds.includes(studio.id)){
-      const nextIds=compareIds.filter(i=>i!==studio.id);
+    const currentIds=compareIdsRef.current;
+    if(currentIds.includes(studio.id)){
+      const nextIds=currentIds.filter(id=>id!==studio.id);
+      compareIdsRef.current=nextIds;
       setCompareIds(nextIds);
-      setCompareCache(list=>list.filter(x=>x.id!==studio.id));
+      setCompareCache(list=>list.filter(item=>item.id!==studio.id));
+      setCompareClassData(current=>{const next={...current};delete next[studio.id];return next;});
+      setComparePriceData(current=>{const next={...current};delete next[studio.id];return next;});
+      setCompareScheduleData(current=>{const next={...current};delete next[studio.id];return next;});
+      setCompareCouponStates(current=>{const next={...current};delete next[studio.id];return next;});
       router.setParams({compareCount:String(nextIds.length)});
       return;
     }
-    if(compareIds.length>=3){
+    if(currentIds.length>=3){
       Alert.alert("비교 제한","학원은 최대 3곳까지 비교할 수 있어요. 먼저 비교 목록에서 한 곳을 제외해 주세요.");
       return;
     }
-    const nextIds=[...compareIds,studio.id];
+    const nextIds=[...currentIds,studio.id];
+    compareIdsRef.current=nextIds;
     setCompareIds(nextIds);
-    setCompareCache(list=>[studio,...list.filter(x=>x.id!==studio.id)]);
+    setCompareCache(list=>[studio,...list.filter(item=>item.id!==studio.id)]);
     router.setParams({compareCount:String(nextIds.length)});
-  },[compareIds,router]);
+  },[router]);
   const toggleFavorite=useCallback((studio:Studio)=>{
     const removing=favoriteIds.includes(studio.id);
     const nextIds=removing?favoriteIds.filter(i=>i!==studio.id):[...favoriteIds,studio.id];
@@ -1603,7 +1614,7 @@ export default function Home() {
           <View style={[styles.modalHead,{gap:10,marginTop:5}]}>
             <Text style={styles.modalTitle}>학원 비교</Text>
             <View style={{flexDirection:"row",alignItems:"center",gap:12}}>
-              <Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}>
+              <Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{compareIdsRef.current=[];setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}>
                 <Text style={styles.removeCompare}>전체 초기화</Text>
               </Pressable>
               <Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable>
@@ -1660,10 +1671,16 @@ export default function Home() {
         </View>
         {!!compareMaterialError&&<View style={{marginHorizontal:16,marginTop:12,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
         <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{paddingHorizontal:12,paddingVertical:14,paddingBottom:24}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
-          {compareIds.length<2?<View style={{paddingVertical:34,alignItems:"center",gap:8}}>
+          {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}>
             <Ionicons name="alert-circle-outline" size={30} color={COLORS.muted}/>
-            <Text style={{fontSize:13,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>비교할 학원이 부족해요.</Text>
-            <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted}}>학원을 두 곳 이상 선택해 주세요.</Text>
+            <Text style={{fontSize:13,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>비교할 학원이 없습니다.</Text>
+            <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted}}>지도에서 비교할 학원을 선택해 주세요.</Text>
+          </View>:compareIds.length===1?<View style={{paddingVertical:20,gap:12}}>
+            <View style={{padding:14,borderRadius:14,backgroundColor:isDark?"#24212B":"#FFFFFF",borderWidth:1,borderColor:isDark?"#40394B":COLORS.line}}>
+              <Text style={{fontSize:11,fontWeight:"800",color:COLORS.purple,marginBottom:5}}>현재 선택된 학원 1곳</Text>
+              <Text style={{fontSize:14,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>{(studios.find(x=>x.id===compareIds[0])||favoriteStudios.find(x=>x.id===compareIds[0])||compareCache.find(x=>x.id===compareIds[0]))?.name||"선택한 학원"}</Text>
+              <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}}>한 곳을 더 선택하면 비교 결과를 확인할 수 있어요.</Text>
+            </View>
           </View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
           <View style={{width:"100%",gap:10}}>
             {compareIds.map(id=>{
@@ -1702,9 +1719,16 @@ export default function Home() {
             })}
           </View>}
         </ScrollView>
-        <Pressable onPress={()=>setCompareResultOpen(false)} style={{marginHorizontal:16,marginBottom:8,minHeight:52,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
-          <Text style={{fontSize:14,fontWeight:"900",color:"#FFFFFF"}}>확인</Text>
-        </Pressable>
+        <View style={{paddingHorizontal:16,paddingBottom:8,gap:8}}>
+          {compareIds.length<3?<Pressable accessibilityRole="button" onPress={()=>{setCompareResultOpen(false);setView("map");}} style={{minHeight:52,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
+            <Text style={{fontSize:14,fontWeight:"900",color:"#FFFFFF"}}>{compareIds.length>0?"학원 추가하기 ("+compareIds.length+"/3)":"학원 선택하기"}</Text>
+          </Pressable>:<View accessibilityRole="text" style={{minHeight:42,borderRadius:12,alignItems:"center",justifyContent:"center",backgroundColor:isDark?"#302B38":"#EFECF3"}}>
+            <Text style={{fontSize:12,fontWeight:"800",color:isDark?"#C9C1D3":COLORS.muted}}>최대 3곳을 선택했어요 · 추가하려면 먼저 삭제해 주세요</Text>
+          </View>}
+          <Pressable onPress={()=>setCompareResultOpen(false)} style={{minHeight:44,borderRadius:12,alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:isDark?"#51485E":COLORS.line}}>
+            <Text style={{fontSize:13,fontWeight:"800",color:isDark?"#D8D2E0":COLORS.ink}}>확인</Text>
+          </Pressable>
+        </View>
       </View>
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
