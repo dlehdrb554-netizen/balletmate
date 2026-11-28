@@ -2,6 +2,7 @@ import React,{useCallback,useState} from "react";
 import {ActivityIndicator,Alert,FlatList,Pressable,StyleSheet,Text,View,useColorScheme} from "react-native";
 import {SafeAreaView} from "react-native-safe-area-context";
 import {Ionicons} from "@expo/vector-icons";
+import * as Notifications from "expo-notifications";
 import {useFocusEffect,useRouter} from "expo-router";
 import {supabase} from "../lib/supabase";
 
@@ -19,7 +20,11 @@ export default function NotificationsScreen(){
     setLoading(true);setLoadError("");
     const {data,error}=await supabase.from("user_notifications").select("id,title,body,kind,data,read_at,created_at").order("created_at",{ascending:false}).limit(100);
     if(error){setLoadError(error.message.includes("user_notifications")?"알림함 데이터베이스 설정이 필요합니다. 관리자에게 문의해 주세요.":"알림을 불러오지 못했습니다.");}
-    else setItems((data||[]) as NotificationItem[]);
+    else {
+      setItems((data||[]) as NotificationItem[]);
+      const {count}=await supabase.from("user_notifications").select("id",{count:"exact",head:true}).is("read_at",null);
+      await Notifications.setBadgeCountAsync(count||0).catch(()=>{});
+    }
     setLoading(false);
   },[]);
   useFocusEffect(useCallback(()=>{void load();},[load]));
