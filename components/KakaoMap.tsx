@@ -63,12 +63,13 @@ function buildHtml(initialRegion: MapRegion) {
     cachedPinImages[state]=new kakao.maps.MarkerImage('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),new kakao.maps.Size(34,42),{offset:new kakao.maps.Point(17,42)});
     return cachedPinImages[state];
   }
-  function refreshMarkerImages(){
+  function refreshMarkerImages(force){
     Object.keys(markers).forEach(function(id){
       var state=markerState(id,currentSelected,currentSearched,currentCompared);
       var meta=markerMeta[id]||{};
-      if(meta.state!==state){
+      if(force||meta.state!==state){
         markers[id].setImage(pinImage(state));
+        if(force&&map)markers[id].setMap(map);
         meta.state=state;
         markerMeta[id]=meta;
       }
@@ -162,7 +163,8 @@ function buildHtml(initialRegion: MapRegion) {
     if(colorScheme)colorScheme.setAttribute('content',darkModeEnabled?'dark':'light');
     // Theme changes only affect the map surface and pin imagery.
     // Keep existing marker attachments intact to avoid transient detach/reattach races.
-    refreshMarkerImages();
+    // Re-attach pins after theme transitions to recover Android WebView layers.
+    refreshMarkerImages(true);
   }
   function apply(message){
     if(!map){pending.push(message);return;}
