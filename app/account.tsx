@@ -76,7 +76,13 @@ export default function Account(){
   }finally{setLoadingProvider(null);}
  };
 
- useEffect(()=>{\n  const next=routeParams.consentProvider;\n  if(next==="email"){router.replace("/signup");return;}\n  if(next==="google"||next==="kakao")void signInSocial(next);\n },[routeParams.consentProvider]);\n\n const linkSocial=async(provider:"google"|"kakao")=>{
+ useEffect(()=>{
+  const next=routeParams.consentProvider;
+  if(next==="email"){router.replace("/signup");return;}
+  if(next==="google"||next==="kakao")void signInSocial(next);
+ },[routeParams.consentProvider]);
+
+ const linkSocial=async(provider:"google"|"kakao")=>{
   if(!supabase)return;
   setLoadingProvider(provider);
   try{
