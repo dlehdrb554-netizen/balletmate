@@ -105,7 +105,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{flex:1}}>
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <StatusBar style={showSplash || colorScheme === "dark" ? "light" : "dark"} />
-      <View style={{flex:1}}><Stack initialRouteName="index" screenOptions={{ headerShown: false, animation: "none", contentStyle: { backgroundColor: colorScheme === "dark" ? "#101010" : "#FAF9FC" } }}><Stack.Screen name="studio-manager" options={{animation:"none",presentation:"modal",contentStyle:{backgroundColor:colorScheme==="dark"?"#101010":"#FAF9FC"}}} /></Stack><BottomNavigation /></View>
+      <View style={{flex:1}}><Stack initialRouteName="index" screenOptions={{ headerShown: false, animation: "none", freezeOnBlur: false, detachInactiveScreens: false, contentStyle: { backgroundColor: colorScheme === "dark" ? "#101010" : "#FAF9FC" } }}><Stack.Screen name="studio-manager" options={{animation:"none",presentation:"modal",contentStyle:{backgroundColor:colorScheme==="dark"?"#101010":"#FAF9FC"}}} /></Stack><BottomNavigation /></View>
       {showSplash&&<View style={styles.splash}><Image source={require("../assets/icon.png")} style={styles.splashLogo} resizeMode="contain"/><Text style={styles.splashTagline}>발레 생활을 더 편리하게</Text><Text style={styles.splashBrand}>Balletmate</Text></View>}
     </SafeAreaProvider>
     </GestureHandlerRootView>
