@@ -8,7 +8,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRootNavigationState, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  ActivityIndicator, Animated, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions, PanResponder, DeviceEventEmitter} from "react-native";
+  ActivityIndicator, Animated, AppState, BackHandler, FlatList, Keyboard, KeyboardAvoidingView, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform, Alert, Image, ToastAndroid, useColorScheme, useWindowDimensions, PanResponder, DeviceEventEmitter} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomPadding } from "../hooks/useBottomPadding";
 type Region = {latitude:number;longitude:number;latitudeDelta:number;longitudeDelta:number};
@@ -137,7 +137,7 @@ export default function Home() {
     paddingBottom: 12,
   } as const;
   const bottomInsetPadding = useBottomPadding(0);
-  const locationBtnAnim = useRef(new Animated.Value(16)).current;
+  const locationBtnAnim = useRef(new Animated.Value(12)).current;
   const map = useRef<KakaoMapHandle | null>(null);
   const [unreadNotificationCount,setUnreadNotificationCount]=useState(0);
   const refreshUnreadNotificationCount=useCallback(async()=>{
@@ -185,7 +185,7 @@ export default function Home() {
   const [selected,setSelected]=useState<Studio|null>(null);
   const [selectedCardHeight,setSelectedCardHeight]=useState(190);
   useEffect(()=>{
-    Animated.spring(locationBtnAnim,{toValue:selected?selectedCardHeight+24:16,useNativeDriver:false,damping:22,stiffness:180}).start();
+    Animated.spring(locationBtnAnim,{toValue:selected?selectedCardHeight+22:12,useNativeDriver:false,damping:22,stiffness:180}).start();
   },[selected?.id,selectedCardHeight,locationBtnAnim]);
 
   const [view,setView]=useState<"map"|"list"|"favorites">("map");
@@ -400,7 +400,7 @@ export default function Home() {
     }catch(error){console.warn("Older studio notices could not be loaded:",error);}
     finally{studioOwnerNoticesLoadingRef.current=false;setStudioOwnerNoticesLoading(false);}
   };
-  const [compareOpen,setCompareOpen]=useState(false);
+  const [compareOpen,setCompareOpen]=useState(false);\n  const [compareResultOpen,setCompareResultOpen]=useState(false);
   const compareSheetTranslateY=useRef(new Animated.Value(0)).current;
   const compareHandlePanResponder=useMemo(()=>PanResponder.create({
     onStartShouldSetPanResponder:()=>true,
@@ -453,7 +453,7 @@ export default function Home() {
       // Close transient UI before handling map-level back navigation.
       if(mapSettingsOpen){setMapSettingsOpen(false);setPendingDirectionsStudio(null);return true;}
       if(menuOpen){setMenuOpen(false);return true;}
-      if(compareOpen){setCompareOpen(false);compareSheetTranslateY.setValue(0);return true;}
+      if(compareResultOpen){setCompareResultOpen(false);return true;}\n      if(compareOpen){setCompareOpen(false);compareSheetTranslateY.setValue(0);return true;}
       if(regionPickerOpen){if(expandedCity){setExpandedCity(null);return true;}if(expandedProvince){setExpandedProvince(null);return true;}setRegionPickerOpen(false);return true;}
       if(filterOpen){setFilterOpen(false);return true;}
       if(detailStudio){detailRequestId.current++;setDetailStudio(null);setClassesLoading(false);setDetailExpanded(false);return true;}
@@ -469,9 +469,9 @@ export default function Home() {
       return false;
     });
     return()=>subscription.remove();
-  },[mapSettingsOpen,menuOpen,compareOpen,compareSheetTranslateY,regionPickerOpen,expandedProvince,expandedCity,filterOpen,detailStudio,selected,view]));
+  },[mapSettingsOpen,menuOpen,compareOpen,compareResultOpen,compareSheetTranslateY,regionPickerOpen,expandedProvince,expandedCity,filterOpen,detailStudio,selected,view]));
   useEffect(()=>{
-    if(!compareOpen||compareIds.length===0){setCompareMaterialError(null);return;}
+    if((!compareOpen&&!compareResultOpen)||compareIds.length===0){setCompareMaterialError(null);return;}
     let active=true;
     setCompareMaterialError(null);
     setCompareClassLoading(true);
@@ -496,7 +496,7 @@ export default function Home() {
     })
       .finally(()=>{if(active)setCompareClassLoading(false);});
     return()=>{active=false;};
-  },[compareOpen,compareIds]);
+  },[compareOpen,compareResultOpen,compareIds]);
   const [adult,setAdult]=useState(false);
   const [kids,setKids]=useState(false);
   const [coupon,setCoupon]=useState(false);
@@ -983,7 +983,7 @@ export default function Home() {
         if(permission.status==="undetermined"){
           permission=await Location.requestForegroundPermissionsAsync();
         }
-        if(!active||!permission.granted)return;
+        if(!active||(!permission.granted&&permission.status!=="granted"))return;
         // Keep the app's permission state synchronized when returning to this screen
         // after a theme change or navigation remount.
         setLocationGranted(true);
@@ -999,6 +999,23 @@ export default function Home() {
       }
     })();
     return()=>{active=false;};
+  },[]);
+  useEffect(()=>{
+    const subscription=AppState.addEventListener("change",state=>{
+      if(state!=="active")return;
+      void (async()=>{
+        const permission=await Location.getForegroundPermissionsAsync();
+        const granted=permission.granted||permission.status==="granted";
+        setLocationGranted(granted);
+        if(!granted)return;
+        const cached=await Location.getLastKnownPositionAsync({maxAge:600000,requiredAccuracy:2000});
+        if(cached){
+          warmedLocationRef.current=cached;
+          setCurrentLocation({latitude:cached.coords.latitude,longitude:cached.coords.longitude});
+        }
+      })().catch(error=>console.warn("Location permission resync failed:",error));
+    });
+    return()=>subscription.remove();
   },[]);
   const locate=async()=>{
     const requestId=++locationRequestId.current;
@@ -1023,11 +1040,11 @@ export default function Home() {
       // when startup or a previous session has already granted location access.
       let permission=await Location.getForegroundPermissionsAsync();
       if(requestId!==locationRequestId.current)return;
-      if(!permission.granted&&permission.canAskAgain){
+      if(!permission.granted&&permission.status!=="granted"&&permission.canAskAgain){
         permission=await Location.requestForegroundPermissionsAsync();
       }
       if(requestId!==locationRequestId.current)return;
-      if(!permission.granted){
+      if(!permission.granted&&permission.status!=="granted"){
         setLocationGranted(false);
         Alert.alert(
           "위치 권한 필요",
@@ -1042,6 +1059,9 @@ export default function Home() {
         return;
       }
 
+      setLocationGranted(true);
+      const servicesEnabled=await Location.hasServicesEnabledAsync().catch(()=>true);
+      if(!servicesEnabled){Alert.alert("위치 서비스 꺼짐","기기의 위치 서비스를 켠 뒤 다시 시도해 주세요.");return;}
       // Use the position warmed during app startup (or the OS cache) before waiting for GPS.
       let cached=warmedLocationRef.current;
       if(!cached||Date.now()-cached.timestamp>120000){
@@ -1412,8 +1432,8 @@ export default function Home() {
       {view==="map"?<View style={styles.mapWrap}>
         <KakaoMap ref={map} initialRegion={region} markers={mapMarkers} selectedId={selected?.id??null} searchedIds={searchedStudioIds} compareIds={compareIds} currentLocation={locationGranted?currentLocation:null} onRegionChangeComplete={handleMapRegionChange} onMarkerPress={handleMapMarkerPress} darkMode={isDark} />
         {(!hasMapSearchRequested||mapMoved&&isAreaChanged)&&<Pressable style={styles.areaSearch} disabled={backendState==="loading"||searchSubmitting} onPress={searchArea}><View style={{flexDirection:"row",alignItems:"center",gap:6}}><Ionicons name="search-outline" size={15} color={COLORS.ink}/><Text style={styles.areaSearchText}>{searchSubmitting?"검색 중…":hasMapSearchRequested?"이 지역에서 재검색":"현재 지역 학원 검색"}</Text></View></Pressable>}
-        <Animated.View style={[styles.locateButton,{bottom:Animated.add(locationBtnAnim,bottomInsetPadding)}]}><Pressable style={{width:44,height:44,alignItems:"center",justifyContent:"center"}} accessibilityRole="button" accessibilityLabel="현재 위치로 이동" onPress={()=>{void locate();}}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable></Animated.View>
-        <Pressable style={[styles.mapCount,{bottom:(selected?selectedCardHeight+24:12)+bottomInsetPadding}]} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}곳</Text>{results.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
+        <Animated.View style={[styles.locateButton,{bottom:locationBtnAnim}]}><Pressable style={{width:44,height:44,alignItems:"center",justifyContent:"center"}} accessibilityRole="button" accessibilityLabel="현재 위치로 이동" onPress={()=>{void locate();}}><Ionicons name={locationLoading?"sync-outline":"locate-outline"} size={22} color={COLORS.purple} /></Pressable></Animated.View>
+        <Pressable style={[styles.mapCount,{bottom:selected?selectedCardHeight+22:12}]} onPress={()=>{if(backendState==="error"){Alert.alert("학원 정보",backendErrorMessage);return;}const rows=results;if(rows.length){setSearchMatches(rows);setSearchResultsOpen(true);}}}><Text style={styles.mapCountText}>{search.trim()?"검색 결과 ":"주변 학원 "}<Text style={{color:COLORS.purple,fontWeight:"800"}}>{results.length}곳</Text>{results.length>1?" · 목록 보기":backendState==="loading"?" · 불러오는 중":backendState==="error"?(backendErrorMessage.includes("한도")?" · 검색 한도":" · 연결 오류"):backendState==="empty"?" · 등록된 학원 없음":""}</Text></Pressable>
         {selected&&<GestureDetector gesture={selectedCardGesture}><View style={styles.selectedCard} onLayout={event=>{const height=event.nativeEvent.layout.height;setSelectedCardHeight(current=>Math.abs(current-height)>1?height:current);}}>{studioCard(selected,true)}</View></GestureDetector>}
       </View> :<><View style={styles.listSortRow}><Text style={styles.listSortLabel}>{view==="favorites"?"찜한 학원":"학원 목록"} · {listRows.length}곳</Text><Text style={styles.listSortChipText}>거리순</Text></View>{view==="list"&&<View style={{paddingHorizontal:12,paddingBottom:9}}>
   <Text style={{fontSize:11,fontWeight:"800",color:COLORS.muted,marginBottom:6}}>지역 선택</Text>
@@ -1497,48 +1517,97 @@ export default function Home() {
       </View></View>
     </Modal>
     <Modal visible={compareOpen} animationType="none" transparent onRequestClose={()=>setCompareOpen(false)}>
-      <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}><Animated.View style={[styles.modal,{maxHeight:"88%",paddingBottom:Math.max(30,insets.bottom+18),transform:[{translateY:compareSheetTranslateY}]}]}>
-        <View {...compareHandlePanResponder.panHandlers} accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{alignItems:"center",justifyContent:"flex-start",paddingTop:7,paddingBottom:3,width:"100%",height:25}}><View pointerEvents="none" style={{width:46,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/></View>
-         <View style={[styles.modalHead,{gap:10}]}><Text style={styles.modalTitle}>학원 비교</Text><View style={{flexDirection:"row",alignItems:"center",gap:12}}><Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}><Text style={styles.removeCompare}>전체 초기화</Text></Pressable><Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable></View></View>
-        <Text style={styles.filterHint}>가격·쿠폰·최대 수업시간을 최대 3곳까지 한 화면에서 비교합니다.</Text>
-        {!!compareMaterialError&&<View style={{marginTop:8,marginBottom:4,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
-        <ScrollView
-          style={{flex:1,minHeight:0,width:"100%"}}
-          contentContainerStyle={{flexGrow:1,paddingBottom:12}}
-          nestedScrollEnabled
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator
-          overScrollMode="always"
-        >
-        {compareIds.length===0?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="swap-horizontal-outline" size={30} color={COLORS.muted}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>비교 목록이 비어 있어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>학원 카드에서 비교를 추가해 주세요.</Text></View>:compareIds.length===1?<View style={{paddingVertical:34,alignItems:"center",gap:8}}><Ionicons name="add-circle-outline" size={30} color={COLORS.purple}/><Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>학원 1곳이 선택됐어요.</Text><Text style={{fontSize:11,color:COLORS.muted}}>비교하려면 학원을 한 곳 더 추가해 주세요.</Text></View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
-        <View style={{flexDirection:"row",gap:6,paddingTop:8,paddingBottom:8,width:"100%"}}>
-          {compareIds.map(id=>{
-            const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
-            if(!studio)return null;
-            const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
-            const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
-            const maxDuration=Math.max(studio.duration||0,...(studio.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
-            return <View key={id} style={[styles.compareColumn,{flex:1,width:0,minWidth:0,padding:7}]}>
-              <View style={[styles.compareColumnHead,{minHeight:76,paddingBottom:6}]}>
-                <Text style={[styles.compareName,{fontSize:10,lineHeight:14}]} numberOfLines={3}>{studio.name}</Text>
-                <Text style={[styles.compareInfo,{fontSize:8,lineHeight:11}]} numberOfLines={2}>{studio.area}</Text>
-                <Pressable hitSlop={6} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}}><Text style={[styles.removeCompare,{fontSize:10}]}>제외</Text></Pressable>
-              </View>
-              <Text style={[styles.compareSectionTitle,{fontSize:10,marginTop:9,marginBottom:4}]}>가격</Text>
-              {amounts.length?amounts.map((amount,index)=><Text key={index} style={[styles.comparePrice,{fontSize:10,marginTop:4}]} numberOfLines={2}>{amount.toLocaleString("ko-KR")}원</Text>):<Text style={styles.compareEmpty}>미등록</Text>}
-              <Text style={styles.compareSectionTitle}>쿠폰</Text>
-              <Text style={[styles.compareInfo,{fontSize:9,lineHeight:13}]}>{compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"현재 제공 중인 쿠폰 없음":"쿠폰 확인 불가"}</Text>
-              <Text style={styles.compareSectionTitle}>최대 수업시간</Text>
-              <Text style={[styles.comparePrice,{fontSize:10,marginTop:4}]}>{maxDuration>0?maxDuration+"분":"미등록"}</Text>
-            </View>;
-          })}
-        </View>}
+      <View style={[styles.modalShade,{paddingBottom:bottomInsetPadding}]}>
+        <Animated.View style={[styles.modal,{maxHeight:"72%",paddingTop:10,paddingBottom:Math.max(24,insets.bottom+14),transform:[{translateY:compareSheetTranslateY}]}]}>
+          <View {...compareHandlePanResponder.panHandlers} accessibilityRole="adjustable" accessibilityLabel="비교 창을 아래로 끌어 닫기" style={{alignItems:"center",justifyContent:"center",paddingTop:1,paddingBottom:1,width:"100%",height:16}}>
+            <View pointerEvents="none" style={{width:46,height:5,borderRadius:3,backgroundColor:isDark?"#77717F":"#A8A3B0"}}/>
+          </View>
+          <View style={[styles.modalHead,{gap:10,marginTop:5}]}>
+            <Text style={styles.modalTitle}>학원 비교</Text>
+            <View style={{flexDirection:"row",alignItems:"center",gap:12}}>
+              <Pressable accessibilityRole="button" accessibilityLabel="비교 목록 전체 초기화" disabled={compareIds.length===0} onPress={()=>{setCompareIds([]);setCompareCache([]);setCompareClassData({});setComparePriceData({});setCompareScheduleData({});setCompareCouponStates({});router.setParams({compareCount:"0"});}} style={{minWidth:76,alignItems:"center",opacity:compareIds.length===0?0.35:1}}>
+                <Text style={styles.removeCompare}>전체 초기화</Text>
+              </Pressable>
+              <Pressable onPress={()=>setCompareOpen(false)}><Text style={styles.dismissText}>×</Text></Pressable>
+            </View>
+          </View>
+          <Text style={[styles.filterHint,{marginTop:8,marginBottom:10}]}>최대 3곳까지 선택할 수 있어요. 비교할 학원을 확인해 주세요.</Text>
+          <ScrollView style={{flex:1,minHeight:0,width:"100%"}} contentContainerStyle={{paddingBottom:8}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+            {compareIds.length===0?<View style={{paddingVertical:30,alignItems:"center",gap:8}}>
+              <Ionicons name="swap-horizontal-outline" size={30} color={COLORS.muted}/>
+              <Text style={{fontSize:13,fontWeight:"800",color:COLORS.ink}}>비교 목록이 비어 있어요.</Text>
+              <Text style={{fontSize:11,color:COLORS.muted}}>학원 카드에서 비교를 추가해 주세요.</Text>
+            </View>:compareIds.map(id=>{
+              const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
+              return <View key={id} style={{flexDirection:"row",alignItems:"center",gap:10,padding:12,marginBottom:7,borderRadius:12,borderWidth:1,borderColor:isDark?"#3A3544":COLORS.line,backgroundColor:isDark?"#24212B":"#FFFFFF"}}>
+                <View style={{width:34,height:34,borderRadius:10,alignItems:"center",justifyContent:"center",backgroundColor:isDark?"#352A48":COLORS.pale}}>
+                  <Ionicons name="business-outline" size={18} color={COLORS.purple}/>
+                </View>
+                <View style={{flex:1,minWidth:0}}>
+                  <Text numberOfLines={1} style={{fontSize:13,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>{studio?.name||"학원 정보 불러오는 중"}</Text>
+                  <Text numberOfLines={1} style={{fontSize:10,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}}>{studio?.area||" "}</Text>
+                </View>
+                <Pressable hitSlop={8} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}} accessibilityRole="button" accessibilityLabel="비교 목록에서 제외">
+                  <Ionicons name="close-circle" size={21} color={COLORS.muted}/>
+                </Pressable>
+              </View>;
+            })}
+          </ScrollView>
+          <Pressable accessibilityRole="button" accessibilityLabel={compareIds.length<2?"학원 더 추가하기":"비교 결과 확인"} disabled={compareIds.length>=2&&compareClassLoading} style={[styles.applyButton,{flex:0,width:"100%",minHeight:50,alignSelf:"stretch",paddingVertical:13,marginTop:8,opacity:compareIds.length>=2&&compareClassLoading?0.6:1}]} onPress={()=>{
+            if(compareIds.length<2){setCompareOpen(false);setView("map");return;}
+            setCompareOpen(false);
+            setCompareResultOpen(true);
+          }}>
+            <Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>{compareIds.length<2?"학원 더 추가하기":compareClassLoading?"비교 정보 준비 중…":"비교 결과 확인"}</Text>
+          </Pressable>
+        </Animated.View>
+      </View>
+    </Modal>
+    <Modal visible={compareResultOpen} animationType="slide" presentationStyle="fullScreen" statusBarTranslucent navigationBarTranslucent onRequestClose={()=>setCompareResultOpen(false)}>
+      <View style={{flex:1,backgroundColor:isDark?"#17151D":"#FAF9FC",paddingTop:insets.top+8,paddingBottom:Math.max(insets.bottom,Platform.OS==="android"?24:0)}}>
+        <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:18,paddingBottom:12,borderBottomWidth:1,borderBottomColor:isDark?"#393342":COLORS.line}}>
+          <View style={{flex:1}}>
+            <Text style={{fontSize:20,fontWeight:"900",color:isDark?"#F3EFFA":COLORS.ink}}>학원 비교 결과</Text>
+            <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted,marginTop:3}}>선택한 학원의 가격·쿠폰·수업 정보를 비교합니다.</Text>
+          </View>
+          <Pressable onPress={()=>setCompareResultOpen(false)} hitSlop={10} style={{width:38,height:38,alignItems:"center",justifyContent:"center"}}>
+            <Ionicons name="close" size={25} color={isDark?"#D8D2E0":COLORS.ink}/>
+          </Pressable>
+        </View>
+        {!!compareMaterialError&&<View style={{marginHorizontal:16,marginTop:12,padding:10,borderRadius:9,backgroundColor:isDark?"#2A1C1C":"#FFF1F0"}}><Text style={{fontSize:11,color:"#A53A35"}}>{compareMaterialError}</Text></View>}
+        <ScrollView style={{flex:1,minHeight:0}} contentContainerStyle={{padding:14,paddingBottom:24}} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+          {compareIds.length<2?<View style={{paddingVertical:34,alignItems:"center",gap:8}}>
+            <Ionicons name="alert-circle-outline" size={30} color={COLORS.muted}/>
+            <Text style={{fontSize:13,fontWeight:"800",color:isDark?"#F3EFFA":COLORS.ink}}>비교할 학원이 부족해요.</Text>
+            <Text style={{fontSize:11,color:isDark?"#B9B1C5":COLORS.muted}}>학원을 두 곳 이상 선택해 주세요.</Text>
+          </View>:compareClassLoading?<ActivityIndicator color={COLORS.purple} style={{margin:24}}/>:
+          <View style={{flexDirection:"row",gap:8,width:"100%"}}>
+            {compareIds.map(id=>{
+              const studio=studios.find(x=>x.id===id)||favoriteStudios.find(x=>x.id===id)||compareCache.find(x=>x.id===id);
+              if(!studio)return null;
+              const prices=comparePriceData[id]||[],classes=compareClassData[id]||[];
+              const amounts=prices.map(price=>Number(price.amount_krw||0)).filter(value=>value>0);
+              const maxDuration=Math.max(studio.duration||0,...(studio.classDurations||[]),...classes.map(cls=>Number(cls.duration_minutes)||0));
+              return <View key={id} style={[styles.compareColumn,{flex:1,width:0,minWidth:0,padding:10,backgroundColor:isDark?"#24212B":"#FFFFFF",borderColor:isDark?"#3A3544":COLORS.line}]}>
+                <View style={[styles.compareColumnHead,{minHeight:76,paddingBottom:6,borderBottomColor:isDark?"#3A3544":COLORS.line}]}>
+                  <Text style={[styles.compareName,{fontSize:12,lineHeight:16,color:isDark?"#F3EFFA":COLORS.ink}]} numberOfLines={3}>{studio.name}</Text>
+                  <Text style={[styles.compareInfo,{fontSize:9,lineHeight:13,color:isDark?"#B9B1C5":COLORS.muted}]} numberOfLines={2}>{studio.area}</Text>
+                  <Pressable hitSlop={6} onPress={()=>{setCompareIds(ids=>ids.filter(x=>x!==id));setCompareCache(list=>list.filter(x=>x.id!==id));}}><Text style={[styles.removeCompare,{fontSize:10}]}>비교에서 제외</Text></Pressable>
+                </View>
+                <Text style={[styles.compareSectionTitle,{fontSize:11,marginTop:12,marginBottom:5}]}>가격</Text>
+                {amounts.length?amounts.map((amount,index)=><Text key={index} style={[styles.comparePrice,{fontSize:11,marginTop:4}]} numberOfLines={2}>{amount.toLocaleString("ko-KR")}원</Text>):<Text style={[styles.compareEmpty,{color:isDark?"#B9B1C5":COLORS.muted,backgroundColor:isDark?"#302B38":"#F8F6FB"}]}>미등록</Text>}
+                <Text style={styles.compareSectionTitle}>쿠폰</Text>
+                <Text style={[styles.compareInfo,{fontSize:10,lineHeight:14,color:isDark?"#B9B1C5":COLORS.muted}]}>{compareCouponStates[id]==="available"?"쿠폰 있음":compareCouponStates[id]==="none"?"현재 제공 중인 쿠폰 없음":"쿠폰 확인 불가"}</Text>
+                <Text style={styles.compareSectionTitle}>최대 수업시간</Text>
+                <Text style={[styles.comparePrice,{fontSize:11,marginTop:4}]}>{maxDuration>0?maxDuration+"분":"미등록"}</Text>
+              </View>;
+            })}
+          </View>}
         </ScrollView>
-        <Pressable accessibilityRole="button" accessibilityLabel="학원 비교 확인 및 닫기" style={[styles.applyButton,{flex:0,width:"100%",minHeight:52,alignSelf:"stretch",paddingVertical:14,marginTop:8}]} onPress={()=>{
-          if(compareIds.length<2){setCompareOpen(false);setView("map");return;}
-          setCompareOpen(true);
-        }}><Text allowFontScaling={false} style={[styles.applyText,{fontSize:14,lineHeight:20,textAlign:"center",includeFontPadding:false}]}>{compareIds.length<2?"학원 더 추가하기":"비교 결과 확인"}</Text></Pressable>
-      </Animated.View></View>
+        <Pressable onPress={()=>setCompareResultOpen(false)} style={{marginHorizontal:16,marginBottom:10,minHeight:48,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:COLORS.purple}}>
+          <Text style={{fontSize:14,fontWeight:"900",color:"#FFFFFF"}}>확인</Text>
+        </Pressable>
+      </View>
     </Modal>
     <Modal visible={regionPickerOpen} transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={handleRegionPickerBack}>
       <View style={[styles.modalShade,{paddingTop:insets.top,paddingBottom:modalBottomInset}]}>
