@@ -1,6 +1,6 @@
 import React,{useEffect,useState,useMemo} from "react";
 import { getUserErrorMessage } from "../lib/error-utils";
-import {ActivityIndicator,Alert,Appearance,BackHandler,Image,Modal,Platform,Pressable,ScrollView,StyleSheet,Switch,Text,TextInput,View} from "react-native";
+import {ActivityIndicator,Alert,Appearance,BackHandler,Image,InteractionManager,Modal,Platform,Pressable,ScrollView,StyleSheet,Switch,Text,TextInput,View} from "react-native";
 import Constants from "expo-constants";
 import {Ionicons} from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -134,7 +134,7 @@ export default function MyPage(){
  const persistNotificationPreferences=async(next:any)=>{await AsyncStorage.setItem("balletmate.notification.preferences",JSON.stringify(next));if(user&&supabase){const {error}=await supabase.from("user_notification_preferences").upsert({user_id:user.id,preferences:next,updated_at:new Date().toISOString()},{onConflict:"user_id"});if(error)Alert.alert("알림 설정 저장 실패",getUserErrorMessage(error));}};
  const updateAlert=async(key:keyof typeof alerts,value:boolean)=>{const next={...alerts,[key]:value};setAlerts(next);await persistNotificationPreferences({...next,pushEnabled});};
  const updatePushEnabled=async(value:boolean)=>{setPushEnabled(value);await persistNotificationPreferences({...alerts,pushEnabled:value});};
- const chooseMode=(v:Mode)=>{setMode(v);setModeOpen(false);requestAnimationFrame(()=>Appearance.setColorScheme(v==="system"?null:v));void AsyncStorage.setItem("balletmate.theme.mode",v).catch(()=>Alert.alert("테마 설정 저장 실패","화면 테마는 변경했지만 설정을 저장하지 못했습니다. 다시 시도해 주세요."));};
+ const chooseMode=(v:Mode)=>{setMode(v);setModeOpen(false);InteractionManager.runAfterInteractions(()=>Appearance.setColorScheme(v==="system"?null:v));void AsyncStorage.setItem("balletmate.theme.mode",v).catch(()=>Alert.alert("테마 설정 저장 실패","화면 테마는 변경했지만 설정을 저장하지 못했습니다. 다시 시도해 주세요."));};
  const toggleLock=()=>Alert.alert(locked?"재로그인 설정 해제":"앱 실행 시 재로그인 설정",locked?"앱 실행 시 재로그인 설정을 해제할까요?":"설정하면 지금 로그아웃되며, 다음 앱 실행부터 다시 로그인해야 합니다.",[{text:"취소",style:"cancel"},{text:locked?"해제":"설정",onPress:async()=>{const enabled=!locked;setLocked(enabled);try{await AsyncStorage.setItem("balletmate.screen_lock",enabled?"1":"0");if(enabled&&supabase){const {error}=await supabase.auth.signOut({scope:"local"});if(error)throw error;Alert.alert("재로그인 설정","로그아웃되었습니다. 다시 이용하려면 로그인해 주세요.");router.replace("/account");}}catch(error:any){setLocked(false);await AsyncStorage.setItem("balletmate.screen_lock","0").catch(()=>{});Alert.alert("재로그인 설정 실패",getUserErrorMessage(error,"설정을 저장하지 못했습니다."));}}}]);
  const openPost=(id:string)=>router.push({pathname:"/community",params:{postId:id,returnTo:"mypage"}});
  const openProfileEditor=()=>{setEditDisplay(display);setNicknameCheck("idle");setCheckedNickname("");setNicknameCheckMessage("");setProfileOpen(true);};
